@@ -40,7 +40,27 @@ async function getClientHistory(clientId: string) {
   }
 }
 
-export default function HistorialPage({ params }: { params: { id: string } }) {
+interface PageProps {
+  params: {
+    id: string;
+  };
+}
+
+export async function generateStaticParams() {
+  const supabase = createClientComponentClient()
+  
+  const { data: clientes } = await supabase
+    .from('clientes')
+    .select('id_uuid')
+  
+  if (!clientes) return []
+  
+  return clientes.map((cliente: { id_uuid: string }) => ({
+    id: cliente.id_uuid,
+  }))
+}
+
+export default async function ClienteHistorialPage({ params }: PageProps) {
   const [historial, setHistorial] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
