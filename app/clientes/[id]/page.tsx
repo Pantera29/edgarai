@@ -1,9 +1,24 @@
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+
+interface Cliente {
+  id_uuid: string;
+  nombre: string;
+  // ... otros campos que necesites
+}
+
 export async function generateStaticParams() {
-  // Obtén todos los IDs de clientes que quieras pre-renderizar
-  const clientes = await fetch('...')
-  const data = await clientes.json()
+  const supabase = createClientComponentClient()
   
-  return data.map((cliente) => ({
-    id: cliente.id,
+  // Obtener todos los clientes de Supabase
+  const { data: clientes } = await supabase
+    .from('clientes')
+    .select('id_uuid')
+  
+  // Si no hay clientes, retornar un array vacío
+  if (!clientes) return []
+  
+  // Mapear los IDs para las rutas estáticas
+  return clientes.map((cliente: Cliente) => ({
+    id: cliente.id_uuid,
   }))
 } 
