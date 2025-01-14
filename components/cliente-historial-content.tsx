@@ -6,6 +6,7 @@ import ClienteHistorial from "@/components/cliente-historial"
 import { Breadcrumb } from "@/components/Breadcrumb"
 import { ClienteVehiculos } from "@/components/cliente-vehiculos"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { getBaseUrl } from '@/lib/utils'
 
 interface ClienteHistorialContentProps {
   clientId: string;
@@ -52,8 +53,8 @@ export default function ClienteHistorialContent({ clientId }: ClienteHistorialCo
   }, [clientId]);
 
   const breadcrumbItems = [
-    { label: "Clientes", href: "/clientes" },
-    { label: "Historial de Servicios", href: `/clientes/${clientId}/historial` }
+    { label: "Clientes", href: `${getBaseUrl()}/clientes` },
+    { label: "Historial de Servicios", href: `${getBaseUrl()}/clientes/${clientId}/historial` }
   ];
 
   if (loading) {
