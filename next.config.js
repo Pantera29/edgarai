@@ -4,7 +4,9 @@ const nextConfig = {
   images: {
     unoptimized: true
   },
-  basePath: "/edgarai"
+  basePath: "/edgarai",
+  assetPrefix: "/edgarai/",
+  trailingSlash: true
 }
 
 module.exports = nextConfig
