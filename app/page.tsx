@@ -28,6 +28,20 @@ interface Servicio {
   nombre: string;
 }
 
+interface Cliente {
+  nombre: string;
+}
+
+interface CitaSupabase {
+  id_uuid: string;
+  fecha_hora: string;
+  estado: string;
+  clientes: Cliente;
+  servicios: {
+    nombre: string;
+  };
+}
+
 interface DashboardData {
   totalClientes: number
   totalVehiculos: number
@@ -53,29 +67,6 @@ interface DashboardData {
 }
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042']
-
-export function VoiceflowWidget() {
-  useEffect(() => {
-    const script = document.createElement("script")
-    script.src = "https://cdn.voiceflow.com/widget/bundle.mjs"
-    script.async = true
-    script.onload = () => {
-      const interval = setInterval(() => {
-        if (window.voiceflow && window.voiceflow.chat) {
-          clearInterval(interval)
-          window.voiceflow.chat.load({
-            verify: { projectID: "65a0b5e9f9c9d4000819c4e4" },
-            url: "https://general-runtime.voiceflow.com",
-            versionID: "production"
-          })
-        }
-      }, 100)
-    }
-    document.body.appendChild(script)
-  }, [])
-
-  return null
-}
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -169,11 +160,7 @@ export default function DashboardPage() {
           servicios (
             nombre
           )
-        `)
-        .gte('fecha_hora', hoyInicio.toISOString())
-        .lt('fecha_hora', fechaLimite.toISOString())
-        .order('fecha_hora')
-        .limit(10)
+        `) as { data: CitaSupabase[] | null }
 
       console.log('Citas obtenidas:', proximasCitas)
 
@@ -182,7 +169,7 @@ export default function DashboardPage() {
         fecha_hora: cita.fecha_hora,
         estado: cita.estado,
         cliente: {
-          nombre: cita.clientes?.nombre || 'Error al cargar cliente'
+          nombre: cita.clientes.nombre || 'Error al cargar cliente'
         },
         servicios: cita.servicios ? [{ nombre: cita.servicios.nombre }] : []
       })) || []

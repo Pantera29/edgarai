@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Sidebar } from "@/components/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { VoiceflowWidget } from "@/components/voiceflow-widget"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -22,25 +23,7 @@ export default function RootLayout({
             </div>
           </TooltipProvider>
         </ThemeProvider>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              (function(d, t) {
-                var v = d.createElement(t), s = d.getElementsByTagName(t)[0];
-                v.onload = function() {
-                  window.voiceflow.chat.load({
-                    verify: { projectID: "67744408d18869ad2b731108" },
-                    url: "https://general-runtime.voiceflow.com",
-                    versionID: "production"
-                  });
-                }
-                v.src = "https://cdn.voiceflow.com/widget/bundle.mjs"; 
-                v.type = "text/javascript"; 
-                s.parentNode.insertBefore(v, s);
-              })(document, "script");
-            `
-          }}
-        />
+        <VoiceflowWidget />
       </body>
     </html>
   )
