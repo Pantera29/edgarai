@@ -12,7 +12,30 @@ interface ClienteHistorialContentProps {
 }
 
 async function getClientHistory(clientId: string) {
-  // ... tu función getClientHistory actual
+  try {
+    const supabase = createClientComponentClient();
+    
+    const { data, error } = await supabase
+      .from('citas')
+      .select(`
+        id_uuid,
+        fecha_hora,
+        estado,
+        notas,
+        servicios!citas_servicio_id_uuid_fkey (
+          id_uuid,
+          nombre
+        )
+      `)
+      .eq('cliente_id_uuid', clientId)
+      .order('fecha_hora', { ascending: false });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error) {
+    console.error('Error in getClientHistory:', error);
+    return [];
+  }
 }
 
 export default function ClienteHistorialContent({ clientId }: ClienteHistorialContentProps) {
