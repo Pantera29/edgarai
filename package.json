@@ -1,6 +1,6 @@
 {
   "name": "edgarai",
-  "homepage": "https://Pantera29.github.io/edgarai",
+  "homepage": "https://pantera29.github.io/edgarai",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -8,8 +8,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "deploy": "gh-pages -d build",
-    "predeploy": "npm run build"
+    "deploy": "gh-pages -d out",
+    "predeploy": "next build"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.2",
