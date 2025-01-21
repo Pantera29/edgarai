@@ -11,7 +11,7 @@ export interface HorarioOperacion {
   dia_semana: number;
   hora_apertura: string;
   hora_cierre: string;
-  activo: boolean;
+  es_dia_laboral: boolean;
   servicios_simultaneos_max: number;
   creado_el?: string;
   actualizado_el?: string;
@@ -49,4 +49,16 @@ export interface ServiceBay {
   type: string;
   serviceTypeIds: string[];
   isActive: boolean;
+}
+
+export interface BlockedDate {
+  id_bloqueo: string;
+  id_taller: string;
+  fecha: string;
+  motivo: string;
+  dia_completo: boolean;
+  hora_inicio?: string | null;
+  hora_fin?: string | null;
+  creado_el: string;
+  actualizado_el: string;
 } 

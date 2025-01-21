@@ -59,7 +59,7 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
             dia_semana: horario.dia_semana,
             hora_apertura: horario.hora_apertura,
             hora_cierre: horario.hora_cierre,
-            activo: horario.es_dia_laboral,
+            es_dia_laboral: horario.es_dia_laboral,
             servicios_simultaneos_max: horario.servicios_simultaneos_max
           }));
           setSchedules(mappedSchedules);
@@ -67,11 +67,13 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
           const defaultSchedules = Array.from({ length: 7 }, (_, index) => ({
             id: crypto.randomUUID(),
             id_taller: tallerId,
-            dia_semana: index,
-            hora_apertura: '09:00',
-            hora_cierre: '18:00',
-            activo: index !== 0,
-            servicios_simultaneos_max: 3
+            dia_semana: index + 1,
+            hora_apertura: '09:00:00',
+            hora_cierre: '18:00:00',
+            es_dia_laboral: true,
+            servicios_simultaneos_max: 3,
+            creado_el: new Date().toISOString(),
+            actualizado_el: new Date().toISOString()
           }));
           setSchedules(defaultSchedules);
         }
@@ -98,7 +100,7 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
       try {
         const schedulesToSave = Array.from({ length: 7 }, (_, index) => {
           const existingSchedule = schedules.find(s => s.dia_semana === index);
-          const isLaboral = existingSchedule?.activo ?? false;
+          const isLaboral = existingSchedule?.es_dia_laboral ?? false;
 
           // Validar horarios si es día laboral
           if (isLaboral) {
@@ -181,7 +183,7 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
               key={index}
               className={cn(
                 "flex flex-col gap-4 p-4 rounded-lg border transition-colors",
-                schedule.activo 
+                schedule.es_dia_laboral 
                   ? "bg-card border-border" 
                   : "bg-muted/50 border-muted"
               )}
@@ -189,15 +191,15 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
                   <Switch
-                    checked={schedule.activo}
+                    checked={schedule.es_dia_laboral}
                     onCheckedChange={(checked) => 
-                      handleScheduleChange(index, { activo: checked })
+                      handleScheduleChange(index, { es_dia_laboral: checked })
                     }
                     disabled={readOnly}
                   />
                   <Label className={cn(
                     "font-medium",
-                    !schedule.activo && "text-muted-foreground"
+                    !schedule.es_dia_laboral && "text-muted-foreground"
                   )}>
                     {day}
                   </Label>
@@ -214,12 +216,12 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
                     })
                   }
                   className="w-24"
-                  disabled={readOnly || !schedule.activo}
+                  disabled={readOnly || !schedule.es_dia_laboral}
                   placeholder="Max"
                 />
               </div>
               
-              {schedule.activo && (
+              {schedule.es_dia_laboral && (
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-muted-foreground" />
                   <Input

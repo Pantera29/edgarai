@@ -15,45 +15,49 @@ import {
   Wrench,
   FileText,
   Settings,
+  CalendarX,
+  type LucideIcon
 } from "lucide-react"
 
-const menuItems = [
+interface MenuItem {
+  title: string;
+  href?: string;
+  icon: LucideIcon;
+  items?: MenuItem[];
+}
+
+const menuItems: MenuItem[] = [
   {
     title: "Dashboard",
     href: "/",
-    icon: LayoutDashboard,
-  },
-  {
-    title: "Clientes",
-    href: "/clientes",
-    icon: Users,
-  },
-  {
-    title: "Vehículos",
-    href: "/vehiculos",
-    icon: Car,
+    icon: LayoutDashboard
   },
   {
     title: "Citas",
     href: "/citas",
-    icon: Calendar,
+    icon: Calendar
+  },
+  {
+    title: "Clientes",
+    href: "/clientes",
+    icon: Users
+  },
+  {
+    title: "Vehículos",
+    href: "/vehiculos",
+    icon: Car
   },
   {
     title: "Servicios",
     href: "/servicios",
-    icon: Wrench,
+    icon: Wrench
   },
   {
     title: "Conversaciones",
     href: "/conversaciones",
-    icon: MessageSquare,
-  },
-  {
-    title: "Reportes",
-    href: "/reportes",
-    icon: FileText,
-  },
-]
+    icon: MessageSquare
+  }
+];
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -64,6 +68,11 @@ export function Sidebar() {
       href: '/admin/configuracion',
       label: 'Configuración',
       icon: Settings,
+    },
+    {
+      href: '/admin/fechas-bloqueadas',
+      label: 'Fechas Bloqueadas',
+      icon: CalendarX,
     }
   ];
 
@@ -89,25 +98,51 @@ export function Sidebar() {
 
         <nav className="flex-1 p-4 space-y-2">
           {menuItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center space-x-3 p-4 rounded-lg transition-colors",
-                pathname === item.href
-                  ? "bg-primary/10 text-primary hover:bg-primary/20"
-                  : "hover:bg-gray-100",
-                isCollapsed && "justify-center p-3"
-              )}
-            >
-              <item.icon className={cn(
-                "h-6 w-6",
-                pathname === item.href ? "text-primary" : "text-gray-500"
-              )} />
-              {!isCollapsed && (
-                <span className="text-sm font-medium">{item.title}</span>
-              )}
-            </Link>
+            item.href ? (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={cn(
+                  "flex items-center space-x-3 p-4 rounded-lg transition-colors",
+                  pathname === item.href
+                    ? "bg-primary/10 text-primary hover:bg-primary/20"
+                    : "hover:bg-gray-100",
+                  isCollapsed && "justify-center p-3"
+                )}
+              >
+                <item.icon className={cn(
+                  "h-6 w-6",
+                  pathname === item.href ? "text-primary" : "text-gray-500"
+                )} />
+                {!isCollapsed && (
+                  <span className="text-sm font-medium">{item.title}</span>
+                )}
+              </Link>
+            ) : (
+              <div key={item.title} className="space-y-1">
+                {item.items?.map((subItem) => (
+                  <Link
+                    key={subItem.href}
+                    href={subItem.href!}
+                    className={cn(
+                      "flex items-center space-x-3 p-4 rounded-lg transition-colors",
+                      pathname === subItem.href
+                        ? "bg-primary/10 text-primary hover:bg-primary/20"
+                        : "hover:bg-gray-100",
+                      isCollapsed && "justify-center p-3"
+                    )}
+                  >
+                    <subItem.icon className={cn(
+                      "h-6 w-6",
+                      pathname === subItem.href ? "text-primary" : "text-gray-500"
+                    )} />
+                    {!isCollapsed && (
+                      <span className="text-sm font-medium">{subItem.title}</span>
+                    )}
+                  </Link>
+                ))}
+              </div>
+            )
           ))}
         </nav>
 
