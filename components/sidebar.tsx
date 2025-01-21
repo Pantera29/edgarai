@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Wrench,
   FileText,
+  Settings,
 } from "lucide-react"
 
 const menuItems = [
@@ -58,6 +59,14 @@ export function Sidebar() {
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
 
+  const adminLinks = [
+    {
+      href: '/admin/configuracion',
+      label: 'Configuración',
+      icon: Settings,
+    }
+  ];
+
   return (
     <div className={cn(
       "h-screen border-r bg-white transition-all duration-300",
@@ -101,6 +110,31 @@ export function Sidebar() {
             </Link>
           ))}
         </nav>
+
+        <div className="space-y-4">
+          <div className="px-3 py-2">
+            <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
+              Administración
+            </h2>
+            <div className="space-y-1">
+              {adminLinks.map((link) => (
+                <Link
+                  key={link.href}
+                  href={link.href}
+                  className={cn(
+                    'flex items-center rounded-lg px-3 py-2 transition-all hover:text-slate-900 dark:hover:text-slate-50',
+                    pathname === link.href
+                      ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50'
+                      : 'text-slate-500 dark:text-slate-400'
+                  )}
+                >
+                  <link.icon className="mr-2 h-4 w-4" />
+                  {!isCollapsed && link.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )
