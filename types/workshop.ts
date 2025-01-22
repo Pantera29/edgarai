@@ -61,4 +61,10 @@ export interface BlockedDate {
   hora_fin?: string | null;
   creado_el: string;
   actualizado_el: string;
+}
+
+export interface SelectedDateInfo {
+  date: Date;
+  isNonWorkingDay: boolean;
+  schedule: HorarioOperacion | null;
 } 

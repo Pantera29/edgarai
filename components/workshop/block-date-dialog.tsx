@@ -18,12 +18,12 @@ import {
 } from "@/components/ui/dialog";
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from "sonner";
-import { BlockedDate, HorarioOperacion } from '@/types/workshop';
+import { BlockedDate, HorarioOperacion, SelectedDateInfo } from '@/types/workshop';
 
-interface Props {
+interface BlockDateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  selectedDate: Date | null;
+  selectedDate: SelectedDateInfo | null;
   editingBlock: BlockedDate | null;
   onSave: () => void;
   operatingHours: HorarioOperacion[];
@@ -36,7 +36,7 @@ export default function BlockDateDialog({
   editingBlock,
   onSave,
   operatingHours
-}: Props) {
+}: BlockDateDialogProps) {
   const [date, setDate] = useState<Date | null>(null);
   const [motivo, setMotivo] = useState('');
   const [diaCompleto, setDiaCompleto] = useState(true);
@@ -45,11 +45,19 @@ export default function BlockDateDialog({
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClientComponentClient();
 
-  // Obtener el horario operativo del día seleccionado
-  const getDaySchedule = (date: Date | null) => {
-    if (!date) return null;
+  const getDaySchedule = (date: Date | null): HorarioOperacion | undefined => {
+    if (!date) return undefined;
+    
+    // Convertir día de la semana (0-6) al formato de la base de datos (1-7)
     const dayOfWeek = date.getDay();
-    return operatingHours.find(h => h.dia_semana === dayOfWeek);
+    const dbDayOfWeek = dayOfWeek === 0 ? 1 : dayOfWeek + 1;
+    console.log('Día de la semana:', {
+      date,
+      jsDay: dayOfWeek,
+      dbDay: dbDayOfWeek,
+      schedule: operatingHours.find(h => h.dia_semana === dbDayOfWeek)
+    });
+    return operatingHours.find(h => h.dia_semana === dbDayOfWeek);
   };
 
   const currentSchedule = getDaySchedule(date);
@@ -63,14 +71,20 @@ export default function BlockDateDialog({
         setHoraInicio(editingBlock.hora_inicio || '09:00');
         setHoraFin(editingBlock.hora_fin || '18:00');
       } else if (selectedDate) {
-        setDate(selectedDate);
+        setDate(selectedDate.date);
         setMotivo('');
         setDiaCompleto(true);
-        // Establecer horarios por defecto según el día
-        const schedule = getDaySchedule(selectedDate);
-        if (schedule) {
-          setHoraInicio(schedule.hora_apertura);
-          setHoraFin(schedule.hora_cierre);
+        
+        if (selectedDate.isNonWorkingDay) {
+          toast.error("Este día está configurado como no operativo en los horarios regulares del taller. Por favor selecciona otro día.");
+          onOpenChange(false);
+          return;
+        }
+
+        // Usar el horario del schedule que viene en selectedDate
+        if (selectedDate.schedule) {
+          setHoraInicio(selectedDate.schedule.hora_apertura);
+          setHoraFin(selectedDate.schedule.hora_cierre);
         }
       }
     }
@@ -179,6 +193,8 @@ export default function BlockDateDialog({
       setIsLoading(false);
     }
   };
+
+  const dateStr = selectedDate?.date ? format(selectedDate.date, 'yyyy-MM-dd') : '';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

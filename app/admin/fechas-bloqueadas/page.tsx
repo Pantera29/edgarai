@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
-import { BlockedDate, HorarioOperacion } from "@/types/workshop";
+import { BlockedDate, HorarioOperacion, SelectedDateInfo } from "@/types/workshop";
 import BlockDateDialog from "@/components/workshop/block-date-dialog";
 import {
   AlertDialog,
@@ -26,7 +26,7 @@ import { EnhancedCalendar } from '@/components/workshop/enhanced-calendar';
 export default function BlockedDates() {
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [selectedDate, setSelectedDate] = useState<SelectedDateInfo | null>(null);
   const [showDialog, setShowDialog] = useState(false);
   const [editingBlock, setEditingBlock] = useState<BlockedDate | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -70,9 +70,38 @@ export default function BlockedDates() {
     }
   };
 
+  const getDayOfWeek = (date: Date): number => {
+    const day = date.getDay(); // 0 = Domingo, 1 = Lunes, ..., 6 = Sábado
+    const dbDay = day === 0 ? 1 : day + 1; // Convertir a formato DB: 1 = Domingo, 2 = Lunes, ..., 7 = Sábado
+    console.log('Conversión día:', { date, jsDay: day, dbDay });
+    return dbDay;
+  };
+
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
-      setSelectedDate(date);
+      const dayOfWeek = getDayOfWeek(date);
+      const schedule = operatingHours.find(h => h.dia_semana === dayOfWeek);
+      
+      console.log('Selección de fecha:', {
+        date,
+        dayOfWeek,
+        schedule,
+        allSchedules: operatingHours
+      });
+
+      if (!schedule || !schedule.es_dia_laboral) {
+        setSelectedDate({
+          date,
+          isNonWorkingDay: true,
+          schedule: null
+        });
+      } else {
+        setSelectedDate({
+          date,
+          isNonWorkingDay: false,
+          schedule
+        });
+      }
       setShowDialog(true);
     }
   };

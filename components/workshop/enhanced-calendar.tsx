@@ -12,10 +12,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Lock, Clock, AlertCircle } from 'lucide-react';
-import { HorarioOperacion, BlockedDate } from '@/types/workshop';
+import { BlockedDate, HorarioOperacion, SelectedDateInfo } from "@/types/workshop";
 
 interface EnhancedCalendarProps {
-  selectedDate: Date | null;
+  selectedDate: SelectedDateInfo | null;
   onSelect: (date: Date | undefined) => void;
   blockedDates: BlockedDate[];
   operatingHours: HorarioOperacion[];
@@ -207,7 +207,7 @@ export function EnhancedCalendar({
 
         <Calendar
           mode="single"
-          selected={selectedDate || undefined}
+          selected={selectedDate?.date || undefined}
           onSelect={onSelect}
           locale={es}
           modifiers={modifiers}

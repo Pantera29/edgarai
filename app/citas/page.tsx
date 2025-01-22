@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Calendar, dateFnsLocalizer } from 'react-big-calendar'
-import { format, parse, startOfWeek, getDay } from 'date-fns'
+import { format, parse, startOfWeek, getDay, addMinutes } from 'date-fns'
 import { es } from 'date-fns/locale'
 import "react-big-calendar/lib/css/react-big-calendar.css"
 import {
@@ -53,6 +53,7 @@ import {
   XCircle, 
   AlertCircle, 
   Calendar as CalendarIcon,
+  List,
 } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import {
@@ -64,6 +65,9 @@ import {
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
+import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment-calendar"
+import { BlockedDate, HorarioOperacion } from '@/types/workshop'
+import { MetricsCard } from "@/components/metrics-card"
 
 // Interfaces simplificadas
 interface Cliente {
@@ -156,10 +160,15 @@ export default function CitasPage() {
     estado: "pendiente",
     notas: ""
   })
-  const [vista, setVista] = useState<"lista" | "calendario">("lista")
+  const [vista, setVista] = useState<"lista" | "calendario">("calendario")
   const [filtroFecha, setFiltroFecha] = useState<string>("")
   const [filtroEstado, setFiltroEstado] = useState<string>("todos")
   const supabase = createClientComponentClient()
+  const [turnDuration, setTurnDuration] = useState(15)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
+  const [operatingHours, setOperatingHours] = useState<HorarioOperacion[]>([])
+  const [selectedService, setSelectedService] = useState<Servicio | null>(null)
 
   const cargarDatos = async () => {
     try {
@@ -223,6 +232,47 @@ export default function CitasPage() {
     cargarDatos()
   }, [])
 
+  useEffect(() => {
+    const loadConfig = async () => {
+      const { data: configData, error } = await supabase
+        .from('configuracion_taller')
+        .select('duracion_turno')
+        .single();
+
+      if (!error && configData) {
+        setTurnDuration(configData.duracion_turno);
+      }
+    };
+
+    loadConfig();
+  }, []);
+
+  useEffect(() => {
+    const loadOperatingHours = async () => {
+      const { data, error } = await supabase
+        .from('horarios_operacion')
+        .select('*')
+        .order('dia_semana');
+
+      if (!error) {
+        setOperatingHours(data || []);
+      }
+    };
+
+    const loadBlockedDates = async () => {
+      const { data, error } = await supabase
+        .from('fechas_bloqueadas')
+        .select('*');
+
+      if (!error) {
+        setBlockedDates(data || []);
+      }
+    };
+
+    loadOperatingHours();
+    loadBlockedDates();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -262,6 +312,10 @@ export default function CitasPage() {
 
       await cargarDatos()
       
+      // Limpiar selecciones del calendario
+      setSelectedDate(null)
+      setSelectedService(null)
+      
       toast({
         title: "Cita agendada",
         description: "La cita se ha registrado correctamente",
@@ -298,19 +352,53 @@ export default function CitasPage() {
     return fechaSeleccionada > ahora;
   }
 
-  const verificarDisponibilidad = async (fecha: string, duracion: number): Promise<boolean> => {
-    const fechaInicio = new Date(fecha);
-    const fechaFin = new Date(fechaInicio.getTime() + duracion * 60000);
-    
-    const { data: citasExistentes } = await supabase
-      .from('citas')
-      .select('fecha_hora, servicios!inner(duracion_estimada)')
-      .neq('estado', 'cancelada')
-      .gte('fecha_hora', fechaInicio.toISOString())
-      .lte('fecha_hora', fechaFin.toISOString());
+  const verificarDisponibilidad = async (fecha_hora: string, duracion: number) => {
+    try {
+      // Obtener el día de la semana (1-7)
+      const date = new Date(fecha_hora);
+      const dayOfWeek = date.getDay() || 7;
+      
+      // Verificar horario operativo
+      const horario = operatingHours.find(h => h.dia_semana === dayOfWeek);
+      if (!horario || !horario.es_dia_laboral) {
+        return false;
+      }
 
-    return !citasExistentes || citasExistentes.length === 0;
-  }
+      // Verificar bloqueos
+      const dateStr = format(date, 'yyyy-MM-dd');
+      const bloqueo = blockedDates.find(b => b.fecha === dateStr);
+      if (bloqueo?.dia_completo) {
+        return false;
+      }
+
+      const timeStr = format(date, 'HH:mm:ss');
+      if (bloqueo?.hora_inicio && bloqueo?.hora_fin) {
+        if (timeStr >= bloqueo.hora_inicio && timeStr <= bloqueo.hora_fin) {
+          return false;
+        }
+      }
+
+      // Verificar citas existentes en el rango de tiempo
+      const endTime = addMinutes(date, duracion);
+      
+      const { data: citasExistentes } = await supabase
+        .from('citas')
+        .select('*')
+        .gte('fecha_hora', fecha_hora)
+        .lt('fecha_hora', format(endTime, "yyyy-MM-dd'T'HH:mm:ss"))
+        .not('estado', 'eq', 'cancelada');
+
+      if (!citasExistentes) return true;
+
+      // Verificar capacidad máxima
+      const citasSimultaneas = citasExistentes.length;
+      return citasSimultaneas < horario.servicios_simultaneos_max;
+
+    } catch (error) {
+      console.error('Error al verificar disponibilidad:', error);
+      return false;
+    }
+  };
 
   const citasFiltradas = citas.filter(cita => {
     const cumpleFiltroEstado = filtroEstado === "todos" || cita.estado === filtroEstado;
@@ -458,6 +546,39 @@ export default function CitasPage() {
     }
   }
 
+  const handleTimeSlotSelect = async (slot: TimeSlot) => {
+    if (!selectedService) {
+      toast({
+        title: "Seleccione un servicio",
+        description: "Debe seleccionar un servicio antes de elegir un horario",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Verificar disponibilidad
+    const disponible = await verificarDisponibilidad(
+      `${format(selectedDate!, 'yyyy-MM-dd')}T${slot.time}:00`,
+      selectedService.duracion_estimada
+    );
+
+    if (!disponible) {
+      toast({
+        variant: "destructive",
+        title: "Horario no disponible",
+        description: "El horario seleccionado ya no está disponible"
+      });
+      return;
+    }
+
+    setMostrarFormulario(true);
+    setNuevaCita(prev => ({
+      ...prev,
+      servicio_id_uuid: selectedService.id_uuid,
+      fecha_hora: `${format(selectedDate!, 'yyyy-MM-dd')}T${slot.time}:00`
+    }));
+  };
+
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-4">Agenda de Citas</h1>
@@ -486,132 +607,69 @@ export default function CitasPage() {
       </div>
 
       <div className="grid grid-cols-5 gap-4 mb-6">
-        <Card>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 cursor-help">
-                <CardTitle className="text-sm font-medium">Total Citas</CardTitle>
-                <CalendarIcon className="h-4 w-4 text-gray-600" />
-              </CardHeader>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Total de citas registradas en el sistema</p>
-            </TooltipContent>
-          </Tooltip>
-          <CardContent>
-            <div className="text-2xl font-bold">{getKPIs().total}</div>
-            <p className="text-xs text-muted-foreground">
-              100% del total
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 cursor-help">
-                <CardTitle className="text-sm font-medium">Pendientes</CardTitle>
-                <Clock className="mr-2 h-4 w-4" />
-              </CardHeader>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Citas que aún no han sido confirmadas</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Último mes: {getKPIs().pendiente || 0} citas
-              </p>
-            </TooltipContent>
-          </Tooltip>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
-              {getKPIs().pendiente || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {((getKPIs().pendiente || 0) / getKPIs().total * 100).toFixed(1)}% del total
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 cursor-help">
-                <CardTitle className="text-sm font-medium">Confirmadas</CardTitle>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-              </CardHeader>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Citas confirmadas pendientes de realizar</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Último mes: {getKPIs().confirmada || 0} citas
-              </p>
-            </TooltipContent>
-          </Tooltip>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {getKPIs().confirmada || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {((getKPIs().confirmada || 0) / getKPIs().total * 100).toFixed(1)}% del total
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 cursor-help">
-                <CardTitle className="text-sm font-medium">Completadas</CardTitle>
-                <CheckCircle2 className="mr-2 h-4 w-4" />
-              </CardHeader>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Citas realizadas exitosamente</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Último mes: {getKPIs().completada || 0} citas
-              </p>
-            </TooltipContent>
-          </Tooltip>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
-              {getKPIs().completada || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {((getKPIs().completada || 0) / getKPIs().total * 100).toFixed(1)}% del total
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 cursor-help">
-                <CardTitle className="text-sm font-medium">Canceladas</CardTitle>
-                <XCircle className="mr-2 h-4 w-4" />
-              </CardHeader>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>Citas canceladas</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Último mes: {getKPIs().cancelada || 0} citas
-              </p>
-            </TooltipContent>
-          </Tooltip>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
-              {getKPIs().cancelada || 0}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {((getKPIs().cancelada || 0) / getKPIs().total * 100).toFixed(1)}% del total
-            </p>
-          </CardContent>
-        </Card>
+        <MetricsCard
+          title="Total Citas"
+          value={getKPIs().total}
+          icon={<CalendarIcon className="h-4 w-4" />}
+          description="Total de citas registradas en el sistema"
+          trend={[10, 15, 8, 12, getKPIs().total]}
+          onClick={() => setFiltroEstado("todos")}
+        />
+        <MetricsCard
+          title="Pendientes"
+          value={getKPIs().pendiente}
+          icon={<Clock className="h-4 w-4" />}
+          description="Citas pendientes de atención"
+          trend={[5, 7, 4, 6, getKPIs().pendiente]}
+          color="yellow"
+          onClick={() => setFiltroEstado("pendiente")}
+        />
+        <MetricsCard
+          title="Confirmadas"
+          value={getKPIs().confirmada}
+          icon={<AlertCircle className="h-4 w-4" />}
+          description="Citas confirmadas"
+          trend={[3, 5, 2, 4, getKPIs().confirmada]}
+          color="blue"
+          onClick={() => setFiltroEstado("confirmada")}
+        />
+        <MetricsCard
+          title="Completadas"
+          value={getKPIs().completada}
+          icon={<CheckCircle2 className="h-4 w-4" />}
+          description="Citas completadas"
+          trend={[2, 3, 1, 2, getKPIs().completada]}
+          color="green"
+          onClick={() => setFiltroEstado("completada")}
+        />
+        <MetricsCard
+          title="Canceladas"
+          value={getKPIs().cancelada}
+          icon={<XCircle className="h-4 w-4" />}
+          description="Citas canceladas"
+          trend={[1, 2, 1, 1, getKPIs().cancelada]}
+          color="red"
+          onClick={() => setFiltroEstado("cancelada")}
+        />
       </div>
 
-      <Tabs value={vista} onValueChange={(v) => setVista(v as "lista" | "calendario")}>
-        <TabsList>
-          <TabsTrigger value="lista">Vista Lista</TabsTrigger>
-          <TabsTrigger value="calendario">Vista Calendario</TabsTrigger>
-        </TabsList>
+      <Tabs 
+        value={vista} 
+        onValueChange={(v) => setVista(v as "lista" | "calendario")}
+        className="space-y-4"
+      >
+        <div className="flex items-center justify-between">
+          <TabsList className="grid w-[400px] grid-cols-2">
+            <TabsTrigger value="lista" className="flex items-center gap-2">
+              <List className="h-4 w-4" />
+              Vista Lista
+            </TabsTrigger>
+            <TabsTrigger value="calendario" className="flex items-center gap-2">
+              <CalendarIcon className="h-4 w-4" />
+              Vista Calendario
+            </TabsTrigger>
+          </TabsList>
+        </div>
         
         <TabsContent value="lista">
           <Table>
@@ -688,32 +746,46 @@ export default function CitasPage() {
         </TabsContent>
         
         <TabsContent value="calendario">
-          <div className="h-[600px]">
-            <Calendar
-              localizer={localizer}
-              events={citasFiltradas.map(cita => ({
-                title: `${cita.clientes?.nombre} - ${cita.servicios?.nombre}`,
-                start: new Date(cita.fecha_hora),
-                end: new Date(new Date(cita.fecha_hora).getTime() + 
-                  (cita.servicios?.duracion_estimada || 60) * 60000),
-                resource: cita
-              }))}
-              startAccessor="start"
-              endAccessor="end"
-              culture="es"
-              messages={{
-                next: "Siguiente",
-                previous: "Anterior",
-                today: "Hoy",
-                month: "Mes",
-                week: "Semana",
-                day: "Día",
-                agenda: "Agenda",
-                date: "Fecha",
-                time: "Hora",
-                event: "Evento",
-              }}
-            />
+          <div className="space-y-6">
+            {/* Selector de servicio arriba del calendario */}
+            <div className="w-[300px]">
+              <Label>Seleccionar Servicio</Label>
+              <Select 
+                value={selectedService?.id_uuid || ''} 
+                onValueChange={(value) => {
+                  const service = servicios.find(s => s.id_uuid === value);
+                  setSelectedService(service || null);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione un servicio" />
+                </SelectTrigger>
+                <SelectContent>
+                  {servicios.map(servicio => (
+                    <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
+                      {servicio.nombre} ({servicio.duracion_estimada} min)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Calendario */}
+            <div className="min-h-[700px]">
+              <AppointmentCalendar
+                selectedDate={selectedDate}
+                onSelect={(date) => setSelectedDate(date || null)}
+                blockedDates={blockedDates}
+                operatingHours={operatingHours}
+                turnDuration={turnDuration}
+                appointments={citas}
+                onTimeSlotSelect={handleTimeSlotSelect}
+                selectedService={selectedService ? {
+                  id: selectedService.id_uuid,
+                  duration: selectedService.duracion_estimada
+                } : undefined}
+              />
+            </div>
           </div>
         </TabsContent>
       </Tabs>
