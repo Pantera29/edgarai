@@ -1,3 +1,5 @@
+import { es } from 'date-fns/locale';
+
 export interface TallerConfig {
   id_taller: string;
   duracion_turno: number;
@@ -67,4 +69,17 @@ export interface SelectedDateInfo {
   date: Date;
   isNonWorkingDay: boolean;
   schedule: HorarioOperacion | null;
+}
+
+export interface Cliente {
+  id_uuid: string;
+  nombre: string;
+}
+
+export interface Vehiculo {
+  id_uuid: string;
+  marca: string;
+  modelo: string;
+  placa: string;
+  id_cliente_uuid: string;
 } 

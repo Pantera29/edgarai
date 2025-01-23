@@ -68,6 +68,7 @@ import Link from "next/link"
 import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment-calendar"
 import { BlockedDate, HorarioOperacion } from '@/types/workshop'
 import { MetricsCard } from "@/components/metrics-card"
+import AppointmentDialog from "@/components/workshop/appointment-dialog"
 
 // Interfaces simplificadas
 interface Cliente {
@@ -166,6 +167,7 @@ export default function CitasPage() {
   const supabase = createClientComponentClient()
   const [turnDuration, setTurnDuration] = useState(15)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [selectedSlot, setSelectedSlot] = useState<string>("")
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
   const [operatingHours, setOperatingHours] = useState<HorarioOperacion[]>([])
   const [selectedService, setSelectedService] = useState<Servicio | null>(null)
@@ -546,7 +548,7 @@ export default function CitasPage() {
     }
   }
 
-  const handleTimeSlotSelect = async (slot: TimeSlot) => {
+  const handleTimeSlotSelect = (slot: TimeSlot) => {
     if (!selectedService) {
       toast({
         title: "Seleccione un servicio",
@@ -556,53 +558,15 @@ export default function CitasPage() {
       return;
     }
 
-    // Verificar disponibilidad
-    const disponible = await verificarDisponibilidad(
-      `${format(selectedDate!, 'yyyy-MM-dd')}T${slot.time}:00`,
-      selectedService.duracion_estimada
-    );
-
-    if (!disponible) {
-      toast({
-        variant: "destructive",
-        title: "Horario no disponible",
-        description: "El horario seleccionado ya no está disponible"
-      });
-      return;
-    }
-
+    setSelectedDate(selectedDate);
+    setSelectedSlot(slot.time);
     setMostrarFormulario(true);
-    setNuevaCita(prev => ({
-      ...prev,
-      servicio_id_uuid: selectedService.id_uuid,
-      fecha_hora: `${format(selectedDate!, 'yyyy-MM-dd')}T${slot.time}:00`
-    }));
   };
 
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-4">Agenda de Citas</h1>
       <div className="flex justify-between items-center mb-4">
-        <div className="flex gap-4">
-          <Input
-            type="date"
-            value={filtroFecha}
-            onChange={(e) => setFiltroFecha(e.target.value)}
-            className="w-auto"
-          />
-          <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos</SelectItem>
-              <SelectItem value="pendiente">Pendiente</SelectItem>
-              <SelectItem value="confirmada">Confirmada</SelectItem>
-              <SelectItem value="completada">Completada</SelectItem>
-              <SelectItem value="cancelada">Cancelada</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
         <Button onClick={() => setMostrarFormulario(true)}>Agendar Nueva Cita</Button>
       </div>
 
@@ -653,25 +617,84 @@ export default function CitasPage() {
         />
       </div>
 
-      <Tabs 
-        value={vista} 
-        onValueChange={(v) => setVista(v as "lista" | "calendario")}
-        className="space-y-4"
-      >
+      <Tabs value={vista} onValueChange={(v) => setVista(v as "lista" | "calendario")} className="space-y-4">
         <div className="flex items-center justify-between">
           <TabsList className="grid w-[400px] grid-cols-2">
-            <TabsTrigger value="lista" className="flex items-center gap-2">
-              <List className="h-4 w-4" />
-              Vista Lista
-            </TabsTrigger>
             <TabsTrigger value="calendario" className="flex items-center gap-2">
               <CalendarIcon className="h-4 w-4" />
               Vista Calendario
             </TabsTrigger>
+            <TabsTrigger value="lista" className="flex items-center gap-2">
+              <List className="h-4 w-4" />
+              Vista Lista
+            </TabsTrigger>
           </TabsList>
         </div>
         
+        <TabsContent value="calendario">
+          <div className="space-y-6">
+            <div className="w-[300px]">
+              <Label>Seleccionar Servicio</Label>
+              <Select 
+                value={selectedService?.id_uuid || ''} 
+                onValueChange={(value) => {
+                  const service = servicios.find(s => s.id_uuid === value);
+                  setSelectedService(service || null);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione un servicio" />
+                </SelectTrigger>
+                <SelectContent>
+                  {servicios.map(servicio => (
+                    <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
+                      {servicio.nombre} ({servicio.duracion_estimada} min)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="min-h-[700px]">
+              <AppointmentCalendar
+                selectedDate={selectedDate}
+                onSelect={(date) => setSelectedDate(date || null)}
+                blockedDates={blockedDates}
+                operatingHours={operatingHours}
+                turnDuration={turnDuration}
+                appointments={citas}
+                onTimeSlotSelect={handleTimeSlotSelect}
+                selectedService={selectedService ? {
+                  id: selectedService.id_uuid,
+                  duration: selectedService.duracion_estimada
+                } : undefined}
+              />
+            </div>
+          </div>
+        </TabsContent>
+        
         <TabsContent value="lista">
+          <div className="flex gap-4 mb-4">
+            <Input
+              type="date"
+              value={filtroFecha}
+              onChange={(e) => setFiltroFecha(e.target.value)}
+              className="w-auto"
+            />
+            <Select value={filtroEstado} onValueChange={setFiltroEstado}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Estado" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendiente">Pendiente</SelectItem>
+                <SelectItem value="confirmada">Confirmada</SelectItem>
+                <SelectItem value="completada">Completada</SelectItem>
+                <SelectItem value="cancelada">Cancelada</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
           <Table>
             <TableHeader>
               <TableRow>
@@ -744,144 +767,18 @@ export default function CitasPage() {
             </TableBody>
           </Table>
         </TabsContent>
-        
-        <TabsContent value="calendario">
-          <div className="space-y-6">
-            {/* Selector de servicio arriba del calendario */}
-            <div className="w-[300px]">
-              <Label>Seleccionar Servicio</Label>
-              <Select 
-                value={selectedService?.id_uuid || ''} 
-                onValueChange={(value) => {
-                  const service = servicios.find(s => s.id_uuid === value);
-                  setSelectedService(service || null);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un servicio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {servicios.map(servicio => (
-                    <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
-                      {servicio.nombre} ({servicio.duracion_estimada} min)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Calendario */}
-            <div className="min-h-[700px]">
-              <AppointmentCalendar
-                selectedDate={selectedDate}
-                onSelect={(date) => setSelectedDate(date || null)}
-                blockedDates={blockedDates}
-                operatingHours={operatingHours}
-                turnDuration={turnDuration}
-                appointments={citas}
-                onTimeSlotSelect={handleTimeSlotSelect}
-                selectedService={selectedService ? {
-                  id: selectedService.id_uuid,
-                  duration: selectedService.duracion_estimada
-                } : undefined}
-              />
-            </div>
-          </div>
-        </TabsContent>
       </Tabs>
 
-      <Dialog open={mostrarFormulario} onOpenChange={setMostrarFormulario}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Agendar Nueva Cita</DialogTitle>
-            <DialogDescription>
-              Complete los datos de la cita. Todos los campos son obligatorios.
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="cliente" className="text-right">Cliente</Label>
-                <Select
-                  value={nuevaCita.cliente_id_uuid}
-                  onValueChange={(value) => setNuevaCita({...nuevaCita, cliente_id_uuid: value})}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Seleccione un cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientes.map((cliente) => (
-                      <SelectItem key={cliente.id_uuid} value={cliente.id_uuid}>
-                        {cliente.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="servicio" className="text-right">Servicio</Label>
-                <Select
-                  value={nuevaCita.servicio_id_uuid}
-                  onValueChange={(value) => setNuevaCita({...nuevaCita, servicio_id_uuid: value})}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Seleccione un servicio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {servicios.map((servicio) => (
-                      <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
-                        {servicio.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="fecha_hora" className="text-right">Fecha y Hora</Label>
-                <Input
-                  id="fecha_hora"
-                  type="datetime-local"
-                  className="col-span-3"
-                  value={nuevaCita.fecha_hora}
-                  onChange={(e) => setNuevaCita({...nuevaCita, fecha_hora: e.target.value})}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="estado" className="text-right">Estado</Label>
-                <Select
-                  value={nuevaCita.estado}
-                  onValueChange={(value) => setNuevaCita({...nuevaCita, estado: value as CitaDB['estado']})}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Seleccione un estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="confirmada">Confirmada</SelectItem>
-                    <SelectItem value="completada">Completada</SelectItem>
-                    <SelectItem value="cancelada">Cancelada</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="notas" className="text-right">Notas</Label>
-                <Input
-                  id="notas"
-                  className="col-span-3"
-                  value={nuevaCita.notas}
-                  onChange={(e) => setNuevaCita({...nuevaCita, notas: e.target.value})}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" disabled={loading}>
-                {loading ? "Guardando..." : "Agendar Cita"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <AppointmentDialog
+        open={mostrarFormulario}
+        onOpenChange={setMostrarFormulario}
+        selectedDate={selectedDate ? format(selectedDate, "yyyy-MM-dd") : null}
+        selectedSlot={selectedSlot || null}
+        onDateChange={(date) => setSelectedDate(new Date(date))}
+        onSlotChange={setSelectedSlot}
+        onSave={cargarDatos}
+      />
+
       <Toaster />
     </div>
   )
