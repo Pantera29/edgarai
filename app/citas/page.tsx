@@ -116,6 +116,7 @@ interface Cita {
     marca: string
     modelo: string
     placa: string | null
+    id_cliente_uuid: string
   }
 }
 
@@ -171,6 +172,7 @@ export default function CitasPage() {
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
   const [operatingHours, setOperatingHours] = useState<HorarioOperacion[]>([])
   const [selectedService, setSelectedService] = useState<Servicio | null>(null)
+  const [currentStep, setCurrentStep] = useState<'service' | 'date' | 'time'>('service')
 
   const cargarDatos = async () => {
     try {
@@ -210,7 +212,8 @@ export default function CitasPage() {
             id_uuid,
             marca,
             modelo,
-            placa
+            placa,
+            id_cliente_uuid
           )
         `)
         .order('fecha_hora', { ascending: true })
@@ -566,9 +569,6 @@ export default function CitasPage() {
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-4">Agenda de Citas</h1>
-      <div className="flex justify-between items-center mb-4">
-        <Button onClick={() => setMostrarFormulario(true)}>Agendar Nueva Cita</Button>
-      </div>
 
       <div className="grid grid-cols-5 gap-4 mb-6">
         <MetricsCard
@@ -633,42 +633,142 @@ export default function CitasPage() {
         
         <TabsContent value="calendario">
           <div className="space-y-6">
-            <div className="w-[300px]">
-              <Label>Seleccionar Servicio</Label>
-              <Select 
-                value={selectedService?.id_uuid || ''} 
-                onValueChange={(value) => {
-                  const service = servicios.find(s => s.id_uuid === value);
-                  setSelectedService(service || null);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un servicio" />
-                </SelectTrigger>
-                <SelectContent>
-                  {servicios.map(servicio => (
-                    <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
-                      {servicio.nombre} ({servicio.duracion_estimada} min)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="w-full max-w-3xl mx-auto">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex-1">
+                  <div className={`flex items-center justify-center ${
+                    currentStep === 'service' ? 'text-primary font-medium' : 'text-muted-foreground'
+                  }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                      currentStep === 'service' ? 'border-primary bg-primary/10' : 
+                      selectedService ? 'border-green-500 bg-green-50 text-green-600' : 'border-muted'
+                    }`}>
+                      1
+                    </div>
+                    <span className="ml-2">Servicio</span>
+                  </div>
+                </div>
+                
+                <div className="w-24 h-[2px] bg-muted" />
+                
+                <div className="flex-1">
+                  <div className={`flex items-center justify-center ${
+                    currentStep === 'date' ? 'text-primary font-medium' : 'text-muted-foreground'
+                  }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                      currentStep === 'date' ? 'border-primary bg-primary/10' : 
+                      selectedDate ? 'border-green-500 bg-green-50 text-green-600' : 'border-muted'
+                    }`}>
+                      2
+                    </div>
+                    <span className="ml-2">Fecha</span>
+                  </div>
+                </div>
+                
+                <div className="w-24 h-[2px] bg-muted" />
+                
+                <div className="flex-1">
+                  <div className={`flex items-center justify-center ${
+                    currentStep === 'time' ? 'text-primary font-medium' : 'text-muted-foreground'
+                  }`}>
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+                      currentStep === 'time' ? 'border-primary bg-primary/10' : 
+                      selectedSlot ? 'border-green-500 bg-green-50 text-green-600' : 'border-muted'
+                    }`}>
+                      3
+                    </div>
+                    <span className="ml-2">Hora</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-start">
+              <div className="w-[300px]">
+                <Label>Seleccionar Servicio</Label>
+                <Select 
+                  value={selectedService?.id_uuid || ''} 
+                  onValueChange={(value) => {
+                    const service = servicios.find(s => s.id_uuid === value);
+                    setSelectedService(service || null);
+                    setCurrentStep('date');
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un servicio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {servicios.map(servicio => (
+                      <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
+                        {servicio.nombre} ({servicio.duracion_estimada} min)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="min-h-[700px]">
-              <AppointmentCalendar
-                selectedDate={selectedDate}
-                onSelect={(date) => setSelectedDate(date || null)}
-                blockedDates={blockedDates}
-                operatingHours={operatingHours}
-                turnDuration={turnDuration}
-                appointments={citas}
-                onTimeSlotSelect={handleTimeSlotSelect}
-                selectedService={selectedService ? {
-                  id: selectedService.id_uuid,
-                  duration: selectedService.duracion_estimada
-                } : undefined}
-              />
+              <div className="flex flex-col space-y-4">
+                <AppointmentCalendar
+                  selectedDate={selectedDate}
+                  onSelect={(date) => {
+                    setSelectedDate(date || null);
+                    if (date) setCurrentStep('time');
+                  }}
+                  blockedDates={blockedDates}
+                  operatingHours={operatingHours}
+                  turnDuration={turnDuration}
+                  appointments={citas}
+                  onTimeSlotSelect={(slot) => {
+                    setSelectedSlot(slot.time);
+                    setCurrentStep('time');
+                  }}
+                  selectedService={selectedService ? {
+                    id: selectedService.id_uuid,
+                    duration: selectedService.duracion_estimada
+                  } : undefined}
+                />
+
+                {selectedService && selectedDate && (
+                  <div className="border rounded-lg p-4 bg-muted/10">
+                    <div className="space-y-4">
+                      {/* Resumen de la selección */}
+                      <div className="space-y-2">
+                        <h3 className="font-medium">Resumen de la cita</h3>
+                        <div className="grid grid-cols-3 gap-4">
+                          <div className="space-y-1">
+                            <p className="text-sm text-muted-foreground">Servicio</p>
+                            <p className="font-medium">{selectedService.nombre}</p>
+                            <p className="text-xs text-muted-foreground">Duración: {selectedService.duracion_estimada} min</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-muted-foreground">Fecha</p>
+                            <p className="font-medium">{format(new Date(selectedDate), 'EEEE d MMM', { locale: es })}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-muted-foreground">Hora</p>
+                            <p className={`font-medium ${!selectedSlot ? 'text-muted-foreground italic' : ''}`}>
+                              {selectedSlot || 'Pendiente de selección'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Botón de agendar */}
+                      <div className="flex justify-end">
+                        <Button 
+                          onClick={() => setMostrarFormulario(true)}
+                          className="bg-primary hover:bg-primary/90"
+                          disabled={!selectedSlot}
+                        >
+                          {selectedSlot ? 'Agendar Cita' : 'Seleccione una hora'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </TabsContent>
@@ -774,9 +874,16 @@ export default function CitasPage() {
         onOpenChange={setMostrarFormulario}
         selectedDate={selectedDate ? format(selectedDate, "yyyy-MM-dd") : null}
         selectedSlot={selectedSlot || null}
+        preselectedService={selectedService}
         onDateChange={(date) => setSelectedDate(new Date(date))}
         onSlotChange={setSelectedSlot}
-        onSave={cargarDatos}
+        onSave={() => {
+          cargarDatos();
+          setSelectedService(null);
+          setSelectedDate(null);
+          setSelectedSlot("");
+          setCurrentStep('service');
+        }}
       />
 
       <Toaster />

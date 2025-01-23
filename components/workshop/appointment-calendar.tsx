@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar } from "@/components/ui/calendar";
 import { format, parseISO, isToday, isBefore, startOfDay, addMinutes, parse, addMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -96,17 +96,20 @@ interface DayAvailability {
 }
 
 // Componente para el día del calendario
-const CalendarDay = ({ date, dayInfo, onClick, disabled }: { 
+const CalendarDay = ({ date, dayInfo, onClick, disabled, isSelected }: { 
   date: Date; 
   dayInfo: DayAvailability;
   onClick: () => void;
   disabled: boolean;
+  isSelected: boolean;
 }) => {
+  const baseButtonClass = "w-12 h-12 p-0 font-normal relative text-base";
+  
   if (disabled) {
     return (
       <button
         disabled
-        className="w-9 h-9 p-0 font-normal text-muted-foreground opacity-50"
+        className={`${baseButtonClass} text-muted-foreground opacity-50`}
       >
         <time dateTime={format(date, 'yyyy-MM-dd')}>{format(date, 'd')}</time>
       </button>
@@ -117,8 +120,9 @@ const CalendarDay = ({ date, dayInfo, onClick, disabled }: {
     <button
       onClick={onClick}
       className={cn(
-        "h-9 w-9 p-0 font-normal relative",
+        baseButtonClass,
         "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
+        isSelected && "ring-2 ring-primary ring-offset-2",
         dayInfo.isFullyBlocked ? "bg-[#F3F4F6] text-gray-900" :
         dayInfo.isPartiallyBlocked ? "bg-white border-2 border-dashed border-yellow-400" :
         dayInfo.status === 'high' ? "bg-[#E6F4EA] text-green-900" :
@@ -350,6 +354,8 @@ export function AppointmentCalendar({
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [monthYear, setMonthYear] = useState<Date>(new Date());
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const slotsRef = useRef<HTMLDivElement>(null);
 
   const calculateDayAvailability = (date: Date): DayAvailability => {
     const dayOfWeek = date.getDay() === 0 ? 1 : date.getDay() + 1;
@@ -539,54 +545,126 @@ export function AppointmentCalendar({
     }
   }, [selectedDate, operatingHours, blockedDates, turnDuration]);
 
-  return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 flex">
-        <div className={cn(
-          "transition-all duration-300",
-          showDetails ? "w-[60%]" : "w-full"
-        )}>
-          <Calendar
-            mode="single"
-            selected={selectedDate || undefined}
-            onSelect={(date) => {
-              if (date && !isBefore(date, startOfDay(new Date()))) {
-                onSelect(date);
-                setShowDetails(true);
-              }
-            }}
-            month={monthYear}
-            onMonthChange={setMonthYear}
-            locale={es}
-            components={{
-              Day: ({ date }) => (
-                <CalendarDay 
-                  date={date} 
-                  dayInfo={calculateDayAvailability(date)}
-                  onClick={() => {
-                    if (!isBefore(date, startOfDay(new Date()))) {
-                      onSelect(date);
-                      setShowDetails(true);
-                    }
-                  }}
-                  disabled={isBefore(date, startOfDay(new Date()))}
-                />
-              )
-            }}
-            className="rounded-lg border p-4"
-          />
-          <CalendarLegend />
-        </div>
+  const renderTimeSlots = () => {
+    if (!selectedDate || !timeSlots.length) return null;
 
-        {showDetails && selectedDate && (
-          <div className="w-[40%]">
-            <DayDetailsPanel
-              date={selectedDate}
-              slots={timeSlots}
-              onClose={() => setShowDetails(false)}
-            />
-          </div>
-        )}
+    return (
+      <div className="mt-6 border rounded-lg p-4">
+        <div className="grid grid-cols-6 gap-4">
+          {timeSlots.map((slot, index) => {
+            const isBlocked = slot.isBlocked;
+            const isSelected = slot.time === selectedSlot;
+            const hasAppointments = slot.existingAppointments && slot.existingAppointments.length > 0;
+            
+            return (
+              <Button
+                key={index}
+                variant="outline"
+                className={cn(
+                  "h-auto py-3 relative group transition-all",
+                  isBlocked ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50' :
+                  slot.available === 0 ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-50' :
+                  isSelected ? 'bg-primary/20 border-primary ring-2 ring-primary ring-offset-2' :
+                  'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                )}
+                disabled={isBlocked || !selectedService || slot.available === 0}
+                onClick={() => {
+                  if (!isBefore(selectedDate!, startOfDay(new Date()))) {
+                    onTimeSlotSelect && onTimeSlotSelect(slot);
+                    setSelectedSlot(slot.time);
+                  }
+                }}
+              >
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-base font-semibold">{slot.time}</span>
+                  <span className="text-xs font-medium">
+                    {slot.available} {slot.available === 1 ? 'espacio' : 'espacios'}
+                  </span>
+                </div>
+                
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="absolute inset-0" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="w-64">
+                      <div className="space-y-2">
+                        {isBlocked ? (
+                          <p className="text-red-600">{slot.blockReason}</p>
+                        ) : (
+                          <>
+                            <p className="font-medium">
+                              {slot.available} {slot.available === 1 ? 'espacio disponible' : 'espacios disponibles'}
+                            </p>
+                            {hasAppointments && (
+                              <div className="text-sm space-y-1">
+                                <p className="text-muted-foreground">Citas agendadas:</p>
+                                {slot.existingAppointments?.map((app, idx) => (
+                                  <div key={idx} className="flex items-center gap-1">
+                                    <span>{app.serviceName}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // Función para scroll a los slots
+  const scrollToSlots = useCallback(() => {
+    if (slotsRef.current) {
+      slotsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, []);
+
+  return (
+    <div className="h-full space-y-6">
+      <div className="max-w-4xl mx-auto">
+        <Calendar
+          mode="single"
+          selected={selectedDate || undefined}
+          onSelect={(date) => {
+            if (date && !isBefore(date, startOfDay(new Date()))) {
+              onSelect(date);
+              setTimeout(scrollToSlots, 100);
+            }
+          }}
+          month={monthYear}
+          onMonthChange={setMonthYear}
+          locale={es}
+          components={{
+            Day: ({ date }) => (
+              <CalendarDay 
+                date={date}
+                dayInfo={calculateDayAvailability(date)}
+                onClick={() => {
+                  if (!isBefore(date, startOfDay(new Date()))) {
+                    onSelect(date);
+                    setTimeout(scrollToSlots, 100);
+                  }
+                }}
+                disabled={isBefore(date, startOfDay(new Date()))}
+                isSelected={selectedDate ? format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') : false}
+              />
+            )
+          }}
+          className="rounded-lg border p-6"
+        />
+        <CalendarLegend />
+      </div>
+
+      <div ref={slotsRef}>
+        {selectedDate && renderTimeSlots()}
       </div>
     </div>
   );

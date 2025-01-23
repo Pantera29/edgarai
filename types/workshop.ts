@@ -82,4 +82,10 @@ export interface Vehiculo {
   modelo: string;
   placa: string;
   id_cliente_uuid: string;
+}
+
+export interface Servicio {
+  id_uuid: string;
+  nombre: string;
+  duracion_estimada: number;
 } 

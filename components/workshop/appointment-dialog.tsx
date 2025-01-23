@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Cliente, Vehiculo } from '@/types/workshop';
+import { Cliente, Vehiculo, Servicio } from '@/types/workshop';
 import { Input } from "@/components/ui/input";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -18,6 +18,7 @@ interface AppointmentDialogProps {
   onDateChange: (date: string) => void;
   onSlotChange: (slot: string) => void;
   onSave: () => void;
+  preselectedService?: Servicio | null;
 }
 
 export default function AppointmentDialog({
@@ -27,7 +28,8 @@ export default function AppointmentDialog({
   selectedSlot,
   onDateChange,
   onSlotChange,
-  onSave
+  onSave,
+  preselectedService,
 }: AppointmentDialogProps) {
   const { toast } = useToast();
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -92,8 +94,12 @@ export default function AppointmentDialog({
     if (open) {
       console.log('Modal abierto, iniciando carga...');
       loadData();
+      // Usar el servicio preseleccionado si existe
+      if (preselectedService) {
+        setSelectedService(preselectedService.id_uuid);
+      }
     }
-  }, [open]);
+  }, [open, preselectedService]);
 
   // Filtrar vehículos cuando se selecciona un cliente
   useEffect(() => {
@@ -110,26 +116,28 @@ export default function AppointmentDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // ... validaciones existentes ...
-
-    if (!selectedVehicle) {
+    
+    if (!selectedClient || !selectedVehicle || !selectedService || !selectedDate || !selectedSlot) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Por favor seleccione un vehículo"
+        description: "Por favor complete todos los campos"
       });
       return;
     }
 
     try {
+      // Combinar fecha y hora
+      const fechaHora = `${selectedDate}T${selectedSlot}`;
+
       const { error } = await supabase
         .from('citas')
         .insert([
           {
-            fecha_hora: selectedDate,
             cliente_id_uuid: selectedClient,
-            vehiculo_id_uuid: selectedVehicle,
+            vehiculo_id_uuid: selectedVehicle,  // Asegurarnos de que este campo se está enviando
             servicio_id_uuid: selectedService,
+            fecha_hora: fechaHora,
             estado: estado,
             notas: notas,
           }
