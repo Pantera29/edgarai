@@ -330,14 +330,6 @@ const CalendarLegend = () => {
         <div className="w-3 h-3 rounded bg-[#FEE2E2]" />
         <span>Baja disponibilidad</span>
       </div>
-      <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded bg-[#F3F4F6]" />
-        <span>Día bloqueado</span>
-      </div>
-      <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded bg-white border-2 border-dashed border-yellow-400" />
-        <span>Parcialmente bloqueado</span>
-      </div>
     </div>
   );
 };
@@ -623,10 +615,10 @@ export function AppointmentCalendar({
 
   return (
     <div className="h-full p-1">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr,1fr] gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-[0.6fr,1.4fr] gap-8">
         {/* Columna del Calendario */}
-        <div className="w-full">
-          <div className="bg-white rounded-xl border shadow-sm space-y-4">
+        <div className="w-full flex justify-center">
+          <div className="bg-white rounded-xl border shadow-sm space-y-4 w-full max-w-[380px]">
             {/* Título del calendario */}
             <div className="p-4 border-b">
               <h3 className="text-lg font-medium">
