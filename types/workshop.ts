@@ -88,4 +88,10 @@ export interface Servicio {
   id_uuid: string;
   nombre: string;
   duracion_estimada: number;
+}
+
+export type AppointmentStatus = 'pendiente' | 'en_proceso' | 'completada' | 'cancelada';
+
+export interface Appointment {
+  estado: AppointmentStatus;
 } 

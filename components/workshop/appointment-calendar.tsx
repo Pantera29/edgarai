@@ -22,6 +22,7 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
+import { CalendarIcon } from "lucide-react";
 
 export interface TimeSlot {
   time: string;
@@ -103,7 +104,7 @@ const CalendarDay = ({ date, dayInfo, onClick, disabled, isSelected }: {
   disabled: boolean;
   isSelected: boolean;
 }) => {
-  const baseButtonClass = "w-12 h-12 p-0 font-normal relative text-base";
+  const baseButtonClass = "w-[45px] h-[45px] p-0 font-normal relative text-base";
   
   if (disabled) {
     return (
@@ -549,8 +550,8 @@ export function AppointmentCalendar({
     if (!selectedDate || !timeSlots.length) return null;
 
     return (
-      <div className="mt-6 border rounded-lg p-4">
-        <div className="grid grid-cols-6 gap-4">
+      <div className="p-6">
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {timeSlots.map((slot, index) => {
             const isBlocked = slot.isBlocked;
             const isSelected = slot.time === selectedSlot;
@@ -561,11 +562,11 @@ export function AppointmentCalendar({
                 key={index}
                 variant="outline"
                 className={cn(
-                  "h-auto py-3 relative group transition-all",
+                  "h-auto py-4 relative group transition-all",
                   isBlocked ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50' :
                   slot.available === 0 ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-50' :
-                  isSelected ? 'bg-primary/20 border-primary ring-2 ring-primary ring-offset-2' :
-                  'bg-green-50 text-green-700 border-green-200 hover:bg-green-100'
+                  isSelected ? 'bg-primary/20 border-primary ring-2 ring-primary ring-offset-1' :
+                  'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-400'
                 )}
                 disabled={isBlocked || !selectedService || slot.available === 0}
                 onClick={() => {
@@ -620,51 +621,80 @@ export function AppointmentCalendar({
     );
   };
 
-  // Función para scroll a los slots
-  const scrollToSlots = useCallback(() => {
-    if (slotsRef.current) {
-      slotsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, []);
-
   return (
-    <div className="h-full space-y-6">
-      <div className="max-w-4xl mx-auto">
-        <Calendar
-          mode="single"
-          selected={selectedDate || undefined}
-          onSelect={(date) => {
-            if (date && !isBefore(date, startOfDay(new Date()))) {
-              onSelect(date);
-              setTimeout(scrollToSlots, 100);
-            }
-          }}
-          month={monthYear}
-          onMonthChange={setMonthYear}
-          locale={es}
-          components={{
-            Day: ({ date }) => (
-              <CalendarDay 
-                date={date}
-                dayInfo={calculateDayAvailability(date)}
-                onClick={() => {
-                  if (!isBefore(date, startOfDay(new Date()))) {
+    <div className="h-full p-1">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr,1fr] gap-8">
+        {/* Columna del Calendario */}
+        <div className="w-full">
+          <div className="bg-white rounded-xl border shadow-sm space-y-4">
+            {/* Título del calendario */}
+            <div className="p-4 border-b">
+              <h3 className="text-lg font-medium">
+                Calendario de disponibilidad
+              </h3>
+            </div>
+            
+            {/* Calendario */}
+            <div className="p-4">
+              <Calendar
+                mode="single"
+                selected={selectedDate || undefined}
+                onSelect={(date) => {
+                  if (date && !isBefore(date, startOfDay(new Date()))) {
                     onSelect(date);
-                    setTimeout(scrollToSlots, 100);
                   }
                 }}
-                disabled={isBefore(date, startOfDay(new Date()))}
-                isSelected={selectedDate ? format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') : false}
+                month={monthYear}
+                onMonthChange={setMonthYear}
+                locale={es}
+                components={{
+                  Day: ({ date }) => (
+                    <CalendarDay 
+                      date={date}
+                      dayInfo={calculateDayAvailability(date)}
+                      onClick={() => {
+                        if (!isBefore(date, startOfDay(new Date()))) {
+                          onSelect(date);
+                        }
+                      }}
+                      disabled={isBefore(date, startOfDay(new Date()))}
+                      isSelected={selectedDate ? format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') : false}
+                    />
+                  )
+                }}
+                className="w-full [&_.rdp]:w-full [&_.rdp-month]:w-full [&_.rdp-table]:w-full [&_.rdp-cell]:p-1"
               />
-            )
-          }}
-          className="rounded-lg border p-6"
-        />
-        <CalendarLegend />
-      </div>
+            </div>
 
-      <div ref={slotsRef}>
-        {selectedDate && renderTimeSlots()}
+            {/* Leyenda */}
+            <div className="px-4 pb-4">
+              <CalendarLegend />
+            </div>
+          </div>
+        </div>
+
+        {/* Columna de los Slots - eliminar el border-l */}
+        <div className="lg:pl-0">
+          {selectedDate ? (
+            <div ref={slotsRef} className="space-y-6">
+              <div className="bg-white rounded-xl border shadow-sm p-4">
+                <h3 className="text-lg font-medium">
+                  Horarios disponibles para {format(selectedDate, "EEEE d 'de' MMMM", { locale: es })}
+                </h3>
+              </div>
+              <div className="bg-white rounded-xl border shadow-sm">
+                {renderTimeSlots()}
+              </div>
+            </div>
+          ) : (
+            <div className="h-full flex items-center justify-center p-8 bg-white rounded-xl border shadow-sm text-muted-foreground">
+              <div className="text-center space-y-2">
+                <CalendarIcon className="w-12 h-12 mx-auto text-muted-foreground/50" />
+                <p>Seleccione una fecha para ver los horarios disponibles</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

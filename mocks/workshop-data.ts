@@ -40,4 +40,16 @@ export const mockServiceTypes: ServiceType[] = [
     standardDuration: 120,
     requiredSpecialties: ['Electrónica']
   }
+];
+
+export const mockAppointments = [
+  {
+    // ... otros campos
+    estado: 'pendiente',
+  },
+  {
+    // ... otros campos
+    estado: 'en_proceso',
+  },
+  // ... otros appointments
 ]; 

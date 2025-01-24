@@ -88,7 +88,7 @@ interface CitaDB {
   servicio_id_uuid: string
   vehiculo_id_uuid: string
   fecha_hora: string
-  estado: 'pendiente' | 'confirmada' | 'completada' | 'cancelada'
+  estado: 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
   notas: string
   created_at: string
 }
@@ -99,7 +99,7 @@ interface Cita {
   servicio_id_uuid: string
   vehiculo_id_uuid: string
   fecha_hora: string
-  estado: 'pendiente' | 'confirmada' | 'completada' | 'cancelada'
+  estado: 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
   notas: string
   created_at: string
   clientes: {
@@ -173,6 +173,7 @@ export default function CitasPage() {
   const [operatingHours, setOperatingHours] = useState<HorarioOperacion[]>([])
   const [selectedService, setSelectedService] = useState<Servicio | null>(null)
   const [currentStep, setCurrentStep] = useState<'service' | 'date' | 'time'>('service')
+  const [searchTerm, setSearchTerm] = useState<string>("")
 
   const cargarDatos = async () => {
     try {
@@ -449,7 +450,7 @@ export default function CitasPage() {
     switch (estado) {
       case 'pendiente':
         return 'bg-yellow-200 border-yellow-400'
-      case 'confirmada':
+      case 'en_proceso':
         return 'bg-blue-200 border-blue-400'
       case 'completada':
         return 'bg-green-200 border-green-400'
@@ -524,7 +525,7 @@ export default function CitasPage() {
     switch (estado) {
       case 'pendiente':
         return `${baseClasses} bg-yellow-50 text-yellow-700 border-yellow-300`;
-      case 'confirmada':
+      case 'en_proceso':
         return `${baseClasses} bg-blue-50 text-blue-700 border-blue-300`;
       case 'completada':
         return `${baseClasses} bg-green-50 text-green-700 border-green-300`;
@@ -536,19 +537,19 @@ export default function CitasPage() {
   }
 
   const getKPIs = () => {
-    const total = citas.length
-    const pendiente = citas.filter(cita => cita.estado === 'pendiente').length
-    const confirmada = citas.filter(cita => cita.estado === 'confirmada').length
-    const completada = citas.filter(cita => cita.estado === 'completada').length
-    const cancelada = citas.filter(cita => cita.estado === 'cancelada').length
+    const total = citas.length;
+    const pendiente = citas.filter(cita => cita.estado === 'pendiente').length;
+    const enProceso = citas.filter(cita => cita.estado === 'en_proceso').length;
+    const completada = citas.filter(cita => cita.estado === 'completada').length;
+    const cancelada = citas.filter(cita => cita.estado === 'cancelada').length;
 
     return {
       total,
       pendiente,
-      confirmada,
+      enProceso,
       completada,
       cancelada
-    }
+    };
   }
 
   const handleTimeSlotSelect = (slot: TimeSlot) => {
@@ -567,234 +568,132 @@ export default function CitasPage() {
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-2xl font-bold mb-4">Agenda de Citas</h1>
-
-      <div className="grid grid-cols-5 gap-4 mb-6">
-        <MetricsCard
-          title="Total Citas"
-          value={getKPIs().total}
-          icon={<CalendarIcon className="h-4 w-4" />}
-          description="Total de citas registradas en el sistema"
-          trend={[10, 15, 8, 12, getKPIs().total]}
-          onClick={() => setFiltroEstado("todos")}
-        />
-        <MetricsCard
-          title="Pendientes"
-          value={getKPIs().pendiente}
-          icon={<Clock className="h-4 w-4" />}
-          description="Citas pendientes de atención"
-          trend={[5, 7, 4, 6, getKPIs().pendiente]}
-          color="yellow"
-          onClick={() => setFiltroEstado("pendiente")}
-        />
-        <MetricsCard
-          title="Confirmadas"
-          value={getKPIs().confirmada}
-          icon={<AlertCircle className="h-4 w-4" />}
-          description="Citas confirmadas"
-          trend={[3, 5, 2, 4, getKPIs().confirmada]}
-          color="blue"
-          onClick={() => setFiltroEstado("confirmada")}
-        />
-        <MetricsCard
-          title="Completadas"
-          value={getKPIs().completada}
-          icon={<CheckCircle2 className="h-4 w-4" />}
-          description="Citas completadas"
-          trend={[2, 3, 1, 2, getKPIs().completada]}
-          color="green"
-          onClick={() => setFiltroEstado("completada")}
-        />
-        <MetricsCard
-          title="Canceladas"
-          value={getKPIs().cancelada}
-          icon={<XCircle className="h-4 w-4" />}
-          description="Citas canceladas"
-          trend={[1, 2, 1, 1, getKPIs().cancelada]}
-          color="red"
-          onClick={() => setFiltroEstado("cancelada")}
-        />
-      </div>
-
-      <Tabs value={vista} onValueChange={(v) => setVista(v as "lista" | "calendario")} className="space-y-4">
-        <div className="flex items-center justify-between">
-          <TabsList className="grid w-[400px] grid-cols-2">
-            <TabsTrigger value="calendario" className="flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4" />
-              Vista Calendario
-            </TabsTrigger>
-            <TabsTrigger value="lista" className="flex items-center gap-2">
-              <List className="h-4 w-4" />
-              Vista Lista
-            </TabsTrigger>
-          </TabsList>
+    <div className="min-h-screen bg-gray-100">
+      <div className="container mx-auto py-6 space-y-8">
+        {/* Métricas */}
+        <div className="grid gap-4 md:grid-cols-5">
+          <MetricsCard
+            title="Total de Citas"
+            value={getKPIs().total}
+            description="Todas las citas"
+            icon={<CalendarIcon className="h-4 w-4 text-gray-600" />}
+            className="bg-white"
+          />
+          <MetricsCard
+            title="Pendientes"
+            value={getKPIs().pendiente}
+            description="Citas por atender"
+            icon={<Clock className="h-4 w-4 text-yellow-600" />}
+            className="bg-white border-yellow-200"
+          />
+          <MetricsCard
+            title="En Proceso"
+            value={getKPIs().enProceso}
+            description="Citas en curso"
+            icon={<AlertCircle className="h-4 w-4 text-blue-600" />}
+            className="bg-white border-blue-200"
+          />
+          <MetricsCard
+            title="Completadas"
+            value={getKPIs().completada}
+            description="Citas finalizadas"
+            icon={<CheckCircle2 className="h-4 w-4 text-green-600" />}
+            className="bg-white border-green-200"
+          />
+          <MetricsCard
+            title="Canceladas"
+            value={getKPIs().cancelada}
+            description="Citas canceladas"
+            icon={<XCircle className="h-4 w-4 text-red-600" />}
+            className="bg-white border-red-200"
+          />
         </div>
-        
-        <TabsContent value="calendario">
-          <div className="space-y-6">
-            <div className="w-full max-w-3xl mx-auto">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex-1">
-                  <div className={`flex items-center justify-center ${
-                    currentStep === 'service' ? 'text-primary font-medium' : 'text-muted-foreground'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
-                      currentStep === 'service' ? 'border-primary bg-primary/10' : 
-                      selectedService ? 'border-green-500 bg-green-50 text-green-600' : 'border-muted'
-                    }`}>
-                      1
-                    </div>
-                    <span className="ml-2">Servicio</span>
-                  </div>
-                </div>
-                
-                <div className="w-24 h-[2px] bg-muted" />
-                
-                <div className="flex-1">
-                  <div className={`flex items-center justify-center ${
-                    currentStep === 'date' ? 'text-primary font-medium' : 'text-muted-foreground'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
-                      currentStep === 'date' ? 'border-primary bg-primary/10' : 
-                      selectedDate ? 'border-green-500 bg-green-50 text-green-600' : 'border-muted'
-                    }`}>
-                      2
-                    </div>
-                    <span className="ml-2">Fecha</span>
-                  </div>
-                </div>
-                
-                <div className="w-24 h-[2px] bg-muted" />
-                
-                <div className="flex-1">
-                  <div className={`flex items-center justify-center ${
-                    currentStep === 'time' ? 'text-primary font-medium' : 'text-muted-foreground'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
-                      currentStep === 'time' ? 'border-primary bg-primary/10' : 
-                      selectedSlot ? 'border-green-500 bg-green-50 text-green-600' : 'border-muted'
-                    }`}>
-                      3
-                    </div>
-                    <span className="ml-2">Hora</span>
-                  </div>
-                </div>
-              </div>
-            </div>
 
-            <div className="flex justify-between items-start">
-              <div className="w-[300px]">
-                <Label>Seleccionar Servicio</Label>
-                <Select 
-                  value={selectedService?.id_uuid || ''} 
-                  onValueChange={(value) => {
-                    const service = servicios.find(s => s.id_uuid === value);
-                    setSelectedService(service || null);
-                    setCurrentStep('date');
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione un servicio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {servicios.map(servicio => (
-                      <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
-                        {servicio.nombre} ({servicio.duracion_estimada} min)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="min-h-[700px]">
-              <div className="flex flex-col space-y-4">
-                <AppointmentCalendar
-                  selectedDate={selectedDate}
-                  onSelect={(date) => {
-                    setSelectedDate(date || null);
-                    if (date) setCurrentStep('time');
-                  }}
-                  blockedDates={blockedDates}
-                  operatingHours={operatingHours}
-                  turnDuration={turnDuration}
-                  appointments={citas}
-                  onTimeSlotSelect={(slot) => {
-                    setSelectedSlot(slot.time);
-                    setCurrentStep('time');
-                  }}
-                  selectedService={selectedService ? {
-                    id: selectedService.id_uuid,
-                    duration: selectedService.duracion_estimada
-                  } : undefined}
-                />
-
-                {selectedService && selectedDate && (
-                  <div className="border rounded-lg p-4 bg-muted/10">
-                    <div className="space-y-4">
-                      {/* Resumen de la selección */}
-                      <div className="space-y-2">
-                        <h3 className="font-medium">Resumen de la cita</h3>
-                        <div className="grid grid-cols-3 gap-4">
-                          <div className="space-y-1">
-                            <p className="text-sm text-muted-foreground">Servicio</p>
-                            <p className="font-medium">{selectedService.nombre}</p>
-                            <p className="text-xs text-muted-foreground">Duración: {selectedService.duracion_estimada} min</p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-sm text-muted-foreground">Fecha</p>
-                            <p className="font-medium">{format(new Date(selectedDate), 'EEEE d MMM', { locale: es })}</p>
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-sm text-muted-foreground">Hora</p>
-                            <p className={`font-medium ${!selectedSlot ? 'text-muted-foreground italic' : ''}`}>
-                              {selectedSlot || 'Pendiente de selección'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Botón de agendar */}
-                      <div className="flex justify-end">
-                        <Button 
-                          onClick={() => setMostrarFormulario(true)}
-                          className="bg-primary hover:bg-primary/90"
-                          disabled={!selectedSlot}
-                        >
-                          {selectedSlot ? 'Agendar Cita' : 'Seleccione una hora'}
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+        {/* Calendario y Agendamiento */}
+        <div className="bg-white rounded-lg">
+          <div className="p-4 border-b">
+            <div className="flex items-center gap-4">
+              <h3 className="text-lg font-medium">Seleccionar Servicio</h3>
+              <Select value={selectedService?.id_uuid || ''} onValueChange={(value) => {
+                const service = servicios.find(s => s.id_uuid === value);
+                setSelectedService(service || null);
+              }}>
+                <SelectTrigger className="w-[300px]">
+                  <SelectValue placeholder="Seleccione un servicio para agendar" />
+                </SelectTrigger>
+                <SelectContent>
+                  {servicios.map((servicio) => (
+                    <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
+                      {servicio.nombre} ({servicio.duracion_estimada} min)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
-        </TabsContent>
-        
-        <TabsContent value="lista">
-          <div className="flex gap-4 mb-4">
-            <Input
-              type="date"
-              value={filtroFecha}
-              onChange={(e) => setFiltroFecha(e.target.value)}
-              className="w-auto"
-            />
-            <Select value={filtroEstado} onValueChange={setFiltroEstado}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="Estado" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos</SelectItem>
-                <SelectItem value="pendiente">Pendiente</SelectItem>
-                <SelectItem value="confirmada">Confirmada</SelectItem>
-                <SelectItem value="completada">Completada</SelectItem>
-                <SelectItem value="cancelada">Cancelada</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+
+          <AppointmentCalendar
+            selectedDate={selectedDate}
+            onSelect={(date: Date | undefined) => setSelectedDate(date || null)}
+            blockedDates={blockedDates}
+            operatingHours={operatingHours}
+            turnDuration={turnDuration}
+            appointments={citas}
+            onTimeSlotSelect={handleTimeSlotSelect}
+            selectedService={selectedService ? {
+              id: selectedService.id_uuid,
+              duration: selectedService.duracion_estimada
+            } : undefined}
+          />
+        </div>
+
+        {/* Lista de Citas */}
+        <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <h2 className="text-lg font-medium">Lista de Citas</h2>
           
+          <div className="flex justify-between items-center">
+            <Input
+              placeholder="Buscar citas..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-[300px]"
+            />
+            <div className="flex bg-muted rounded-lg p-1">
+              <Button
+                variant={filtroEstado === "pendiente" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setFiltroEstado("pendiente")}
+                className="text-sm"
+              >
+                Pendientes
+              </Button>
+              <Button
+                variant={filtroEstado === "en_proceso" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setFiltroEstado("en_proceso")}
+                className="text-sm"
+              >
+                En Proceso
+              </Button>
+              <Button
+                variant={filtroEstado === "completada" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setFiltroEstado("completada")}
+                className="text-sm"
+              >
+                Completadas
+              </Button>
+              <Button
+                variant={filtroEstado === "todos" ? "secondary" : "ghost"}
+                size="sm"
+                onClick={() => setFiltroEstado("todos")}
+                className="text-sm"
+              >
+                Todas
+              </Button>
+            </div>
+          </div>
+
           <Table>
             <TableHeader>
               <TableRow>
@@ -828,7 +727,7 @@ export default function CitasPage() {
                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
                       cita.estado === 'completada' ? 'bg-green-100 text-green-800' :
                       cita.estado === 'cancelada' ? 'bg-red-100 text-red-800' :
-                      cita.estado === 'confirmada' ? 'bg-blue-100 text-blue-800' :
+                      cita.estado === 'en_proceso' ? 'bg-blue-100 text-blue-800' :
                       'bg-yellow-100 text-yellow-800'
                     }`}>
                       {cita.estado}
@@ -843,8 +742,8 @@ export default function CitasPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'confirmada')}>
-                          Confirmar
+                        <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'en_proceso')}>
+                          Iniciar
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'completada')}>
                           Completar
@@ -866,27 +765,27 @@ export default function CitasPage() {
               )}
             </TableBody>
           </Table>
-        </TabsContent>
-      </Tabs>
+        </div>
 
-      <AppointmentDialog
-        open={mostrarFormulario}
-        onOpenChange={setMostrarFormulario}
-        selectedDate={selectedDate ? format(selectedDate, "yyyy-MM-dd") : null}
-        selectedSlot={selectedSlot || null}
-        preselectedService={selectedService}
-        onDateChange={(date) => setSelectedDate(new Date(date))}
-        onSlotChange={setSelectedSlot}
-        onSave={() => {
-          cargarDatos();
-          setSelectedService(null);
-          setSelectedDate(null);
-          setSelectedSlot("");
-          setCurrentStep('service');
-        }}
-      />
+        <AppointmentDialog
+          open={mostrarFormulario}
+          onOpenChange={setMostrarFormulario}
+          selectedDate={selectedDate ? format(selectedDate, "yyyy-MM-dd") : null}
+          selectedSlot={selectedSlot || null}
+          preselectedService={selectedService}
+          onDateChange={(date) => setSelectedDate(new Date(date))}
+          onSlotChange={setSelectedSlot}
+          onSave={() => {
+            cargarDatos();
+            setSelectedService(null);
+            setSelectedDate(null);
+            setSelectedSlot("");
+            setCurrentStep('service');
+          }}
+        />
 
-      <Toaster />
+        <Toaster />
+      </div>
     </div>
   )
 }

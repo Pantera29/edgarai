@@ -13,6 +13,7 @@ interface MetricsCardProps {
   trend?: number[];
   color?: string;
   onClick?: () => void;
+  className?: string;
 }
 
 export function MetricsCard({
@@ -22,7 +23,8 @@ export function MetricsCard({
   description,
   trend = [],
   color = "slate",
-  onClick
+  onClick,
+  className
 }: MetricsCardProps) {
   const data = trend.map((value) => ({ value }));
 
@@ -30,7 +32,8 @@ export function MetricsCard({
     <Card 
       className={cn(
         "transition-all duration-200 hover:shadow-md",
-        onClick && "cursor-pointer hover:scale-[1.02]"
+        onClick && "cursor-pointer hover:scale-[1.02]",
+        className
       )}
       onClick={onClick}
     >

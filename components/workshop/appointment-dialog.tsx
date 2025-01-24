@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Cliente, Vehiculo, Servicio } from '@/types/workshop';
+import { Cliente, Vehiculo, Servicio, AppointmentStatus } from '@/types/workshop';
 import { Input } from "@/components/ui/input";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -38,7 +38,7 @@ export default function AppointmentDialog({
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [filteredVehicles, setFilteredVehicles] = useState<Vehiculo[]>([]);
   const [selectedService, setSelectedService] = useState('');
-  const [estado, setEstado] = useState('pendiente');
+  const [estado, setEstado] = useState<'pendiente' | 'en_proceso' | 'completada' | 'cancelada'>('pendiente');
   const [notas, setNotas] = useState('');
   const [servicios, setServicios] = useState<any[]>([]);
   const supabase = createClientComponentClient();
@@ -306,13 +306,17 @@ export default function AppointmentDialog({
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="estado" className="text-right">Estado</Label>
               <div className="col-span-3">
-                <Select value={estado} onValueChange={setEstado}>
+                <Select 
+                  value={estado} 
+                  onValueChange={(value: AppointmentStatus) => setEstado(value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccione un estado" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="confirmada">Confirmada</SelectItem>
+                    <SelectItem value="en_proceso">En Proceso</SelectItem>
+                    <SelectItem value="completada">Completada</SelectItem>
                     <SelectItem value="cancelada">Cancelada</SelectItem>
                   </SelectContent>
                 </Select>
