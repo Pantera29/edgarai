@@ -104,103 +104,43 @@ const CalendarDay = ({ date, dayInfo, onClick, disabled, isSelected }: {
   disabled: boolean;
   isSelected: boolean;
 }) => {
-  const baseButtonClass = "w-[45px] h-[45px] p-0 font-normal relative text-base";
+  const baseButtonClass = "w-[34px] h-[34px] p-0 font-normal relative text-sm flex items-center justify-center";
   
   if (disabled) {
     return (
       <button
         disabled
-        className={`${baseButtonClass} text-muted-foreground opacity-50`}
+        className={cn(
+          baseButtonClass,
+          "text-muted-foreground opacity-50"
+        )}
       >
         <time dateTime={format(date, 'yyyy-MM-dd')}>{format(date, 'd')}</time>
       </button>
     );
   }
 
-  const content = (
+  return (
     <button
       onClick={onClick}
       className={cn(
         baseButtonClass,
-        "hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground",
-        isSelected && "ring-2 ring-primary ring-offset-2",
-        dayInfo.isFullyBlocked ? "bg-[#F3F4F6] text-gray-900" :
-        dayInfo.isPartiallyBlocked ? "bg-white border-2 border-dashed border-yellow-400" :
-        dayInfo.status === 'high' ? "bg-[#E6F4EA] text-green-900" :
-        dayInfo.status === 'medium' ? "bg-[#FEF3C7] text-yellow-900" :
-        "bg-[#FEE2E2] text-red-900"
+        "hover:bg-accent hover:text-accent-foreground",
+        isSelected && "ring-2 ring-primary ring-offset-1",
+        dayInfo.isFullyBlocked ? "bg-[#F3F4F6] text-gray-500" :
+        dayInfo.isPartiallyBlocked ? "bg-white border border-dashed border-yellow-400" :
+        dayInfo.status === 'high' ? "bg-[#E6F4EA] text-green-700" :
+        dayInfo.status === 'medium' ? "bg-[#FEF3C7] text-yellow-700" :
+        "bg-[#FEE2E2] text-red-700"
       )}
     >
       <time dateTime={format(date, 'yyyy-MM-dd')}>{format(date, 'd')}</time>
       {dayInfo.availableSlots > 0 && !dayInfo.isFullyBlocked && (
-        <div className="absolute bottom-0 left-0 right-0 flex justify-center">
-          <div className="h-1 w-1 rounded-full bg-current opacity-60" />
+        <div className="absolute bottom-0.5 left-0 right-0 flex justify-center">
+          <div className="h-1 w-1 rounded-full bg-current opacity-70" />
         </div>
       )}
     </button>
-  );
-
-  if (dayInfo.isFullyBlocked) {
-    return (
-      <HoverCard>
-        <HoverCardTrigger asChild>{content}</HoverCardTrigger>
-        <HoverCardContent className="w-80 p-4">
-          <div className="space-y-2">
-            <p className="font-medium text-red-600">{dayInfo.blockReason}</p>
-            <p className="text-sm text-muted-foreground">Este día no está disponible para agendar citas.</p>
-          </div>
-        </HoverCardContent>
-      </HoverCard>
-    );
-  }
-
-  return (
-    <HoverCard>
-      <HoverCardTrigger asChild>{content}</HoverCardTrigger>
-      <HoverCardContent className="w-80 p-4">
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <p className="font-medium">{format(date, 'PPPP', { locale: es })}</p>
-            <div className="text-sm text-muted-foreground">
-              {dayInfo.isPartiallyBlocked && (
-                <p className="text-yellow-600 font-medium mb-2">
-                  ⚠️ Día parcialmente bloqueado: {dayInfo.blockReason}
-                </p>
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p>Espacios totales:</p>
-                  <p>Espacios ocupados:</p>
-                  <p>Espacios disponibles:</p>
-                </div>
-                <div className="text-right">
-                  <p>{dayInfo.totalSlots}</p>
-                  <p>{dayInfo.totalSlots - dayInfo.availableSlots}</p>
-                  <p className="font-medium">{dayInfo.availableSlots}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <div className="w-full bg-gray-100 rounded-full h-2">
-              <div 
-                className={cn(
-                  "h-2 rounded-full",
-                  dayInfo.status === 'high' ? "bg-green-500" :
-                  dayInfo.status === 'medium' ? "bg-yellow-500" :
-                  "bg-red-500"
-                )}
-                style={{ width: `${100 - ((dayInfo.availableSlots / dayInfo.totalSlots) * 100)}%` }}
-              />
-            </div>
-            <p className="text-xs text-center text-muted-foreground">
-              {Math.round(100 - ((dayInfo.availableSlots / dayInfo.totalSlots) * 100))}% de ocupación
-            </p>
-          </div>
-        </div>
-      </HoverCardContent>
-    </HoverCard>
   );
 };
 
@@ -618,7 +558,7 @@ export function AppointmentCalendar({
       <div className="grid grid-cols-1 lg:grid-cols-[0.6fr,1.4fr] gap-8">
         {/* Columna del Calendario */}
         <div className="w-full flex justify-center">
-          <div className="bg-white rounded-xl border shadow-sm space-y-4 w-full max-w-[380px]">
+          <div className="bg-white rounded-xl border shadow-sm space-y-4 w-full max-w-[300px]">
             {/* Título del calendario */}
             <div className="p-4 border-b">
               <h3 className="text-lg font-medium">
@@ -654,7 +594,7 @@ export function AppointmentCalendar({
                     />
                   )
                 }}
-                className="w-full [&_.rdp]:w-full [&_.rdp-month]:w-full [&_.rdp-table]:w-full [&_.rdp-cell]:p-1"
+                className="w-full [&_.rdp]:w-full [&_.rdp-month]:w-full [&_.rdp-table]:w-full [&_.rdp-cell]:w-[36px] [&_.rdp-cell]:h-[36px] [&_.rdp-head_cell]:w-[36px] [&_.rdp-head_cell]:h-[36px] [&_.rdp-head_cell]:font-normal [&_.rdp-head_cell]:text-xs [&_.rdp-head_cell]:text-muted-foreground [&_.rdp-button]:w-[34px] [&_.rdp-button]:h-[34px] [&_.rdp-nav]:hidden"
               />
             </div>
 
