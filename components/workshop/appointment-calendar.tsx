@@ -104,7 +104,7 @@ const CalendarDay = ({ date, dayInfo, onClick, disabled, isSelected }: {
   disabled: boolean;
   isSelected: boolean;
 }) => {
-  const baseButtonClass = "w-[34px] h-[34px] p-0 font-normal relative text-sm flex items-center justify-center";
+  const baseButtonClass = "w-8 h-8 p-0 font-normal relative text-sm flex items-center justify-center rounded-md";
   
   if (disabled) {
     return (
@@ -125,21 +125,16 @@ const CalendarDay = ({ date, dayInfo, onClick, disabled, isSelected }: {
       onClick={onClick}
       className={cn(
         baseButtonClass,
-        "hover:bg-accent hover:text-accent-foreground",
-        isSelected && "ring-2 ring-primary ring-offset-1",
+        "transition-colors",
+        isSelected && "ring-2 ring-primary ring-offset-2 bg-primary text-primary-foreground",
+        !isSelected && "hover:bg-accent hover:text-accent-foreground",
         dayInfo.isFullyBlocked ? "bg-[#F3F4F6] text-gray-500" :
-        dayInfo.isPartiallyBlocked ? "bg-white border border-dashed border-yellow-400" :
         dayInfo.status === 'high' ? "bg-[#E6F4EA] text-green-700" :
         dayInfo.status === 'medium' ? "bg-[#FEF3C7] text-yellow-700" :
         "bg-[#FEE2E2] text-red-700"
       )}
     >
       <time dateTime={format(date, 'yyyy-MM-dd')}>{format(date, 'd')}</time>
-      {dayInfo.availableSlots > 0 && !dayInfo.isFullyBlocked && (
-        <div className="absolute bottom-0.5 left-0 right-0 flex justify-center">
-          <div className="h-1 w-1 rounded-full bg-current opacity-70" />
-        </div>
-      )}
     </button>
   );
 };
@@ -257,18 +252,18 @@ const DayDetailsPanel = ({
 
 const CalendarLegend = () => {
   return (
-    <div className="flex flex-wrap gap-3 text-sm mt-4 px-4">
+    <div className="flex justify-center gap-6 text-xs mt-4 px-4">
       <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded bg-[#E6F4EA]" />
-        <span>Alta disponibilidad</span>
+        <div className="w-2.5 h-2.5 rounded bg-[#E6F4EA]" />
+        <span>Disponible</span>
       </div>
       <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded bg-yellow-50" />
-        <span>Parcialmente ocupado</span>
+        <div className="w-2.5 h-2.5 rounded bg-yellow-50" />
+        <span>Moderado</span>
       </div>
       <div className="flex items-center gap-2">
-        <div className="w-3 h-3 rounded bg-[#FEE2E2]" />
-        <span>Baja disponibilidad</span>
+        <div className="w-2.5 h-2.5 rounded bg-[#FEE2E2]" />
+        <span>Limitado</span>
       </div>
     </div>
   );
@@ -558,7 +553,7 @@ export function AppointmentCalendar({
       <div className="grid grid-cols-1 lg:grid-cols-[0.6fr,1.4fr] gap-8">
         {/* Columna del Calendario */}
         <div className="w-full flex justify-center">
-          <div className="bg-white rounded-xl border shadow-sm space-y-4 w-full max-w-[300px]">
+          <div className="bg-white rounded-xl border shadow-sm space-y-4 w-full max-w-[350px]">
             {/* Título del calendario */}
             <div className="p-4 border-b">
               <h3 className="text-lg font-medium">
@@ -566,40 +561,42 @@ export function AppointmentCalendar({
               </h3>
             </div>
             
-            {/* Calendario */}
-            <div className="p-4">
-              <Calendar
-                mode="single"
-                selected={selectedDate || undefined}
-                onSelect={(date) => {
-                  if (date && !isBefore(date, startOfDay(new Date()))) {
-                    onSelect(date);
-                  }
-                }}
-                month={monthYear}
-                onMonthChange={setMonthYear}
-                locale={es}
-                components={{
-                  Day: ({ date }) => (
-                    <CalendarDay 
-                      date={date}
-                      dayInfo={calculateDayAvailability(date)}
-                      onClick={() => {
-                        if (!isBefore(date, startOfDay(new Date()))) {
-                          onSelect(date);
-                        }
-                      }}
-                      disabled={isBefore(date, startOfDay(new Date()))}
-                      isSelected={selectedDate ? format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') : false}
-                    />
-                  )
-                }}
-                className="w-full [&_.rdp]:w-full [&_.rdp-month]:w-full [&_.rdp-table]:w-full [&_.rdp-cell]:w-[36px] [&_.rdp-cell]:h-[36px] [&_.rdp-head_cell]:w-[36px] [&_.rdp-head_cell]:h-[36px] [&_.rdp-head_cell]:font-normal [&_.rdp-head_cell]:text-xs [&_.rdp-head_cell]:text-muted-foreground [&_.rdp-button]:w-[34px] [&_.rdp-button]:h-[34px] [&_.rdp-nav]:hidden"
-              />
+            {/* Contenedor del Calendario con padding ajustado */}
+            <div className="flex justify-center px-2 py-4">
+              <div className="w-fit">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate || undefined}
+                  onSelect={(date) => {
+                    if (date && !isBefore(date, startOfDay(new Date()))) {
+                      onSelect(date);
+                    }
+                  }}
+                  month={monthYear}
+                  onMonthChange={setMonthYear}
+                  locale={es}
+                  components={{
+                    Day: ({ date }) => (
+                      <CalendarDay 
+                        date={date}
+                        dayInfo={calculateDayAvailability(date)}
+                        onClick={() => {
+                          if (!isBefore(date, startOfDay(new Date()))) {
+                            onSelect(date);
+                          }
+                        }}
+                        disabled={isBefore(date, startOfDay(new Date()))}
+                        isSelected={selectedDate ? format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') : false}
+                      />
+                    )
+                  }}
+                  className="[&_.rdp-months]:flex [&_.rdp-months]:justify-center [&_.rdp-day]:h-8 [&_.rdp-day]:w-8 [&_.rdp-day_button]:h-8 [&_.rdp-day_button]:w-8 [&_.rdp-head_cell]:text-sm [&_.rdp-cell]:p-0"
+                />
+              </div>
             </div>
 
             {/* Leyenda */}
-            <div className="px-4 pb-4">
+            <div className="pb-4">
               <CalendarLegend />
             </div>
           </div>
