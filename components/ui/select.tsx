@@ -6,7 +6,10 @@ import { Check, ChevronDown } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
-const Select = SelectPrimitive.Root
+const Select = SelectPrimitive.Root as React.FC<SelectPrimitive.SelectProps & {
+  onValueChange?: (value: string) => void;
+  defaultValue?: string | number;
+}>;
 
 const SelectGroup = SelectPrimitive.Group
 

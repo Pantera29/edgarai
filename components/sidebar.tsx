@@ -16,6 +16,7 @@ import {
   FileText,
   Settings,
   CalendarX,
+  Package,
   type LucideIcon
 } from "lucide-react"
 
@@ -46,6 +47,11 @@ const menuItems: MenuItem[] = [
     title: "Vehículos",
     href: "/vehiculos",
     icon: Car
+  },
+  {
+    title: "Productos",
+    href: "/productos",
+    icon: Package
   },
   {
     title: "Servicios",

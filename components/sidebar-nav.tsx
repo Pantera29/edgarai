@@ -4,6 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
+import { Package } from "lucide-react"
 
 interface SidebarNavProps extends React.HTMLAttributes<HTMLElement> {
   items: {
@@ -34,4 +35,15 @@ export function SidebarNav({ items }: SidebarNavProps) {
       ))}
     </nav>
   )
-} 
+}
+
+export const sidebarLinks = [
+  // ... otros links existentes
+  {
+    title: "Productos",
+    href: "/productos",
+    icon: Package,
+    description: "Gestión de inventario y productos"
+  },
+  // ... otros links existentes
+] 

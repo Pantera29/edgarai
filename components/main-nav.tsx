@@ -9,7 +9,18 @@ import {
   MessageSquare,
   Calendar,
   User,
-  ChevronDown 
+  ChevronDown,
+  Package,
+  Users,
+  Car,
+  Settings,
+  LayoutDashboard,
+  ChevronLeft,
+  ChevronRight,
+  Wrench,
+  FileText,
+  CalendarX,
+  type LucideIcon
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import {
@@ -19,11 +30,45 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import { FormLabel } from "@/components/ui/form"
 
 interface MainNavProps {
   pendingAppointments?: number
   unreadMessages?: number
 }
+
+export const mainNavItems = [
+  {
+    title: "Citas",
+    href: "/citas",
+    icon: Calendar,
+    description: "Gestión de citas y agenda"
+  },
+  {
+    title: "Clientes",
+    href: "/clientes",
+    icon: Users,
+    description: "Gestión de clientes"
+  },
+  {
+    title: "Vehículos",
+    href: "/vehiculos",
+    icon: Car,
+    description: "Gestión de vehículos"
+  },
+  {
+    title: "Productos",
+    href: "/productos",
+    icon: Package,
+    description: "Gestión de inventario y productos"
+  },
+  {
+    title: "Configuración",
+    href: "/admin",
+    icon: Settings,
+    description: "Configuración del sistema"
+  }
+]
 
 export function MainNav({ pendingAppointments = 0, unreadMessages = 0 }) {
   const pathname = usePathname()
@@ -72,6 +117,17 @@ export function MainNav({ pendingAppointments = 0, unreadMessages = 0 }) {
             )}
           >
             Vehículos
+          </Link>
+          <Link
+            href="/productos"
+            className={cn(
+              "text-sm font-medium transition-colors hover:text-primary relative",
+              pathname === "/productos"
+                ? "text-primary after:absolute after:bottom-[-24px] after:left-0 after:h-[2px] after:w-full after:bg-primary"
+                : "text-muted-foreground"
+            )}
+          >
+            Productos
           </Link>
           <Link
             href="/citas"
