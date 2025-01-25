@@ -308,7 +308,7 @@ export default function AppointmentDialog({
               <div className="col-span-3">
                 <Select 
                   value={estado} 
-                  onValueChange={(value: AppointmentStatus) => setEstado(value)}
+                  onValueChange={(value: string) => setEstado(value as AppointmentStatus)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccione un estado" />
