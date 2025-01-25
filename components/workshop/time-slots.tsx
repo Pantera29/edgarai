@@ -1,6 +1,22 @@
 'use client';
 
-export function TimeSlots({ selectedDate, timeSlots, onTimeSlotSelect }) {
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
+import { CalendarIcon } from "lucide-react";
+
+interface TimeSlot {
+  time: string;
+  available: boolean;
+  spaces: number;
+}
+
+interface TimeSlotsProps {
+  selectedDate: Date | null;
+  timeSlots: TimeSlot[];
+  onTimeSlotSelect: (slot: TimeSlot) => void;
+}
+
+export function TimeSlots({ selectedDate, timeSlots, onTimeSlotSelect }: TimeSlotsProps) {
   return (
     <div className="bg-white rounded-xl p-6">
       {selectedDate ? (
