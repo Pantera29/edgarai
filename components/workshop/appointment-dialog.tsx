@@ -42,6 +42,8 @@ export default function AppointmentDialog({
   const [notas, setNotas] = useState('');
   const [servicios, setServicios] = useState<any[]>([]);
   const supabase = createClientComponentClient();
+  const [loading, setLoading] = useState(false)
+  const [citaId, setCitaId] = useState<string>('');
 
   // Cargar clientes y vehículos
   useEffect(() => {
@@ -130,7 +132,7 @@ export default function AppointmentDialog({
       // Combinar fecha y hora
       const fechaHora = `${selectedDate}T${selectedSlot}`;
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('citas')
         .insert([
           {
@@ -141,9 +143,15 @@ export default function AppointmentDialog({
             estado: estado,
             notas: notas,
           }
-        ]);
+        ])
+        .select()
+        .single();
 
       if (error) throw error;
+      
+      if (data) {
+        setCitaId(data.id_cita);
+      }
       
       toast({
         title: "Éxito",

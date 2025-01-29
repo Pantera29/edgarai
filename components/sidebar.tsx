@@ -17,6 +17,8 @@ import {
   Settings,
   CalendarX,
   Package,
+  Home,
+  Receipt,
   type LucideIcon
 } from "lucide-react"
 
@@ -62,6 +64,11 @@ const menuItems: MenuItem[] = [
     title: "Conversaciones",
     href: "/conversaciones",
     icon: MessageSquare
+  },
+  {
+    title: "Transacciones",
+    href: "/transacciones",
+    icon: Receipt
   }
 ];
 

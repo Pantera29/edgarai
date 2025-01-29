@@ -20,7 +20,9 @@ import {
   Wrench,
   FileText,
   CalendarX,
-  type LucideIcon
+  type LucideIcon,
+  Home,
+  Receipt
 } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import {
@@ -39,16 +41,19 @@ interface MainNavProps {
 
 export const mainNavItems = [
   {
+    title: "Dashboard",
+    href: "/dashboard",
+    icon: Home
+  },
+  {
     title: "Citas",
     href: "/citas",
-    icon: Calendar,
-    description: "Gestión de citas y agenda"
+    icon: Calendar
   },
   {
     title: "Clientes",
     href: "/clientes",
-    icon: Users,
-    description: "Gestión de clientes"
+    icon: Users
   },
   {
     title: "Vehículos",
@@ -59,8 +64,12 @@ export const mainNavItems = [
   {
     title: "Productos",
     href: "/productos",
-    icon: Package,
-    description: "Gestión de inventario y productos"
+    icon: Package
+  },
+  {
+    title: "Transacciones",
+    href: "/transacciones",
+    icon: Receipt
   },
   {
     title: "Configuración",

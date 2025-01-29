@@ -35,9 +35,11 @@
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
+    "@tanstack/react-table": "^8.20.6",
     "@types/papaparse": "^5.3.15",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.0.4",
     "date-fns": "^2.30.0",
     "lucide-react": "^0.294.0",
     "next": "^14.0.0",
@@ -52,7 +54,8 @@
     "recharts": "^2.15.0",
     "sonner": "^1.7.2",
     "tailwind-merge": "^2.6.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "use-debounce": "^10.0.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",

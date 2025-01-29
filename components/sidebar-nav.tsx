@@ -4,7 +4,8 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
-import { Package } from "lucide-react"
+import { Package, Receipt } from "lucide-react"
+import { Home, Calendar, Users } from "lucide-react"
 
 interface SidebarNavProps extends React.HTMLAttributes<HTMLElement> {
   items: {
@@ -38,12 +39,34 @@ export function SidebarNav({ items }: SidebarNavProps) {
 }
 
 export const sidebarLinks = [
-  // ... otros links existentes
+  {
+    title: "Dashboard",
+    href: "/dashboard",
+    icon: Home,
+    description: "Vista general del sistema"
+  },
+  {
+    title: "Citas",
+    href: "/citas",
+    icon: Calendar,
+    description: "Gestión de citas y agenda"
+  },
+  {
+    title: "Clientes",
+    href: "/clientes",
+    icon: Users,
+    description: "Gestión de clientes"
+  },
   {
     title: "Productos",
     href: "/productos",
     icon: Package,
     description: "Gestión de inventario y productos"
   },
-  // ... otros links existentes
+  {
+    title: "Transacciones",
+    href: "/transacciones",
+    icon: Receipt,
+    description: "Gestión de transacciones y pagos"
+  }
 ] 

@@ -424,7 +424,7 @@ export default function CitasPage() {
       const { data, error } = await supabase
         .from('citas')
         .update({ estado: nuevoEstado })
-        .eq('uuid id', citaId)
+        .eq('id_uuid', citaId)
         .select();
 
       if (error) throw error;
@@ -433,10 +433,26 @@ export default function CitasPage() {
         cita.id_uuid === citaId ? { ...cita, estado: nuevoEstado } : cita
       ));
 
-      toast({
-        title: "Estado actualizado",
-        description: `La cita ha sido marcada como ${nuevoEstado}`
-      });
+      if (nuevoEstado === 'completada') {
+        toast({
+          title: "Cita completada",
+          description: (
+            <div className="space-y-2">
+              <p>La cita ha sido marcada como completada</p>
+              <Button asChild>
+                <Link href={`/transacciones/nueva?id_cita=${citaId}`}>
+                  Crear Transacción
+                </Link>
+              </Button>
+            </div>
+          )
+        });
+      } else {
+        toast({
+          title: "Estado actualizado",
+          description: `La cita ha sido marcada como ${nuevoEstado}`
+        });
+      }
     } catch (error) {
       toast({
         variant: "destructive",
@@ -742,15 +758,26 @@ export default function CitasPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'en_proceso')}>
-                          Iniciar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'completada')}>
-                          Completar
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'cancelada')}>
-                          Cancelar
-                        </DropdownMenuItem>
+                        {cita.estado !== 'completada' && (
+                          <>
+                            <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'en_proceso')}>
+                              Iniciar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'completada')}>
+                              Completar
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'cancelada')}>
+                              Cancelar
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                        {cita.estado === 'completada' && (
+                          <DropdownMenuItem asChild>
+                            <Link href={`/transacciones?id_cita=${cita.id_uuid}`}>
+                              Crear Transacción
+                            </Link>
+                          </DropdownMenuItem>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
