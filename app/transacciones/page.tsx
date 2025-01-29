@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { DataTable } from "@/components/ui/data-table"
 import { columns } from "./columns"
 import { useToast } from "@/components/ui/use-toast"
@@ -32,7 +32,7 @@ const estadosTabs = [
   { value: "anulado", label: "Anuladas" },
 ]
 
-export default function TransaccionesPage() {
+function TransaccionesContent() {
   const searchParams = useSearchParams()
   const idCita = searchParams.get('id_cita')
   const [loading, setLoading] = useState(false)
@@ -301,5 +301,26 @@ export default function TransaccionesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  )
+}
+
+export default function TransaccionesPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto py-10">
+        <div className="space-y-3">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center space-x-4">
+              <div className="h-4 bg-muted rounded w-32 animate-pulse" />
+              <div className="h-4 bg-muted rounded w-48 animate-pulse" />
+              <div className="h-4 bg-muted rounded w-24 animate-pulse" />
+              <div className="h-4 bg-muted rounded w-20 animate-pulse" />
+            </div>
+          ))}
+        </div>
+      </div>
+    }>
+      <TransaccionesContent />
+    </Suspense>
   )
 } 
