@@ -19,6 +19,7 @@ import {
   Package,
   Home,
   Receipt,
+  ClipboardList,
   type LucideIcon
 } from "lucide-react"
 
@@ -39,6 +40,11 @@ const menuItems: MenuItem[] = [
     title: "Citas",
     href: "/citas",
     icon: Calendar
+  },
+  {
+    title: "Servicios Recomendados",
+    href: "/servicios-recomendados",
+    icon: ClipboardList
   },
   {
     title: "Clientes",

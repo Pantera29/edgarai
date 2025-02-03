@@ -69,8 +69,14 @@ import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment
 import { BlockedDate, HorarioOperacion } from '@/types/workshop'
 import { MetricsCard } from "@/components/metrics-card"
 import AppointmentDialog from "@/components/workshop/appointment-dialog"
+import { ProductSelector } from "@/components/workshop/product-selector"
+import { TransactionProduct } from "@/types/transaction"
+import { Textarea } from "@/components/ui/textarea"
 
-// Interfaces simplificadas
+// Mover esta definición al inicio, antes de las interfaces
+type EstadoCita = 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
+const ESTADO_COMPLETADA: EstadoCita = 'completada'
+
 interface Cliente {
   id_uuid: string
   nombre: string
@@ -88,7 +94,7 @@ interface CitaDB {
   servicio_id_uuid: string
   vehiculo_id_uuid: string
   fecha_hora: string
-  estado: 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
+  estado: EstadoCita
   notas: string
   created_at: string
 }
@@ -99,7 +105,7 @@ interface Cita {
   servicio_id_uuid: string
   vehiculo_id_uuid: string
   fecha_hora: string
-  estado: 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
+  estado: EstadoCita
   notas: string
   created_at: string
   clientes: {
@@ -148,6 +154,376 @@ interface DatosResult {
   citas: Cita[]
 }
 
+// Nuevo tipo para el modal de revisión final
+interface RevisionFinalModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  cita: Cita
+  onComplete: () => void
+}
+
+interface ServicioAdicional {
+  service_name: string
+  service_description: string
+  urgency_level: 'high' | 'medium' | 'low'
+  estimated_time: number
+  estimated_cost: number
+  technical_notes: string
+}
+
+const RevisionFinalModal = ({ 
+  open, 
+  onOpenChange, 
+  cita, 
+  onComplete 
+}: RevisionFinalModalProps) => {
+  const { toast } = useToast()
+  const [hasAdditionalServices, setHasAdditionalServices] = useState<boolean | null>(null)
+  const [selectedProducts, setSelectedProducts] = useState<TransactionProduct[]>([])
+  const [loading, setLoading] = useState(false)
+  const [serviciosAdicionales, setServiciosAdicionales] = useState<ServicioAdicional[]>([])
+  
+  const handleSubmit = async () => {
+    // Validar que haya al menos un producto
+    if (selectedProducts.length === 0) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Debe seleccionar al menos un producto utilizado"
+      });
+      return;
+    }
+
+    setLoading(true)
+    try {
+      console.log('Iniciando proceso de guardado...');
+      console.log('Estado de servicios adicionales:', {
+        hasAdditionalServices,
+        cantidadServicios: serviciosAdicionales.length,
+        servicios: serviciosAdicionales
+      });
+
+      // 1. Actualizar estado de la cita
+      const { error: citaError } = await supabase
+        .from('citas')
+        .update({ estado: 'completada' })
+        .eq('id_uuid', cita.id_uuid)
+
+      if (citaError) throw citaError
+
+      // 2. Crear la transacción
+      const { data: transaccion, error: transaccionError } = await supabase
+        .from('transacciones_servicio')
+        .insert({
+          id_cita: cita.id_uuid,
+          estado: 'pendiente',
+          fecha_transaccion: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (transaccionError) throw transaccionError
+
+      // 3. Registrar productos utilizados
+      const productosTransaccion = selectedProducts.map(producto => ({
+        id_transaccion: transaccion.id_transaccion,
+        id_producto: producto.id_producto,
+        cantidad_usada: producto.cantidad,
+        precio_unitario: producto.precio_unitario
+      }))
+
+      const { error: productosError } = await supabase
+        .from('transaccion_productos')
+        .insert(productosTransaccion)
+
+      if (productosError) throw productosError
+
+      // 4. Registrar servicios adicionales si existen
+      if (hasAdditionalServices && serviciosAdicionales.length > 0) {
+        console.log('Preparando servicios para insertar...');
+        const serviciosParaInsertar = serviciosAdicionales.map(servicio => ({
+          appointment_id: cita.id_uuid,
+          vehicle_id: cita.vehiculo_id_uuid,
+          service_name: servicio.service_name,
+          service_description: servicio.service_description,
+          urgency_level: servicio.urgency_level,
+          estimated_time: servicio.estimated_time,
+          estimated_cost: servicio.estimated_cost,
+          technical_notes: servicio.technical_notes,
+          status: 'pending'
+        }))
+
+        console.log('Servicios a insertar:', serviciosParaInsertar);
+
+        const { error: serviciosError } = await supabase
+          .from('recommended_services')
+          .insert(serviciosParaInsertar)
+
+        if (serviciosError) {
+          console.error('Error al insertar servicios:', serviciosError);
+          throw serviciosError;
+        }
+
+        console.log('Servicios insertados correctamente');
+      } else {
+        console.log('No hay servicios adicionales para insertar', {
+          hasAdditionalServices,
+          serviciosLength: serviciosAdicionales.length
+        });
+      }
+
+      onComplete()
+      toast({
+        title: "Servicio completado",
+        description: "La cita ha sido completada y la transacción creada exitosamente"
+      })
+    } catch (error: any) {
+      console.error('Error completo:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Hubo un error al completar el servicio"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Calcular el total de productos
+  const totalProductos = selectedProducts.reduce((sum, product) => 
+    sum + (product.cantidad * product.precio_unitario), 0
+  );
+
+  const agregarServicioAdicional = () => {
+    setServiciosAdicionales([...serviciosAdicionales, {
+      service_name: '',
+      service_description: '',
+      urgency_level: 'medium',
+      estimated_time: 0,
+      estimated_cost: 0,
+      technical_notes: ''
+    }])
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-4xl">
+        <DialogHeader>
+          <DialogTitle>Revisión Final de Servicio</DialogTitle>
+          <DialogDescription>
+            Complete los detalles del servicio realizado
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Primera sección: Servicios y Productos Utilizados */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">Servicios y Productos Utilizados</h3>
+          <ProductSelector onSelect={(product) => {
+            const existingProduct = selectedProducts.find(p => p.id_producto === product.id_producto)
+            if (existingProduct) {
+              toast({
+                variant: "destructive",
+                title: "Producto ya agregado",
+                description: "Este producto ya fue agregado a la lista"
+              })
+              return
+            }
+            setSelectedProducts([...selectedProducts, product])
+          }} />
+
+          {/* Lista de productos seleccionados */}
+          {selectedProducts.length > 0 && (
+            <div className="border rounded-md p-4 space-y-2">
+              {selectedProducts.map((product) => (
+                <div key={product.id_producto} className="flex justify-between items-center">
+                  <span>{product.nombre}</span>
+                  <div className="flex items-center gap-4">
+                    <Input
+                      type="number"
+                      min="1"
+                      className="w-20"
+                      value={product.cantidad}
+                      onChange={(e) => {
+                        const newQuantity = Number(e.target.value)
+                        setSelectedProducts(selectedProducts.map(p =>
+                          p.id_producto === product.id_producto
+                            ? { ...p, cantidad: newQuantity, subtotal: newQuantity * p.precio_unitario }
+                            : p
+                        ))
+                      }}
+                    />
+                    <span>${product.subtotal}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setSelectedProducts(selectedProducts.filter(p => p.id_producto !== product.id_producto))
+                      }}
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              
+              {/* Agregar el total */}
+              <div className="flex justify-end border-t pt-4 mt-4">
+                <span className="text-lg font-semibold">
+                  Total: ${totalProductos.toLocaleString()}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Segunda sección: Servicios Adicionales */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium">Servicios Adicionales Detectados</h3>
+          <div className="flex gap-4">
+            <Button 
+              variant={hasAdditionalServices === true ? "default" : "outline"}
+              onClick={() => setHasAdditionalServices(true)}
+            >
+              Sí
+            </Button>
+            <Button 
+              variant={hasAdditionalServices === false ? "default" : "outline"}
+              onClick={() => setHasAdditionalServices(false)}
+            >
+              No
+            </Button>
+          </div>
+          {hasAdditionalServices && (
+            <div className="space-y-4">
+              <Button 
+                variant="outline" 
+                onClick={agregarServicioAdicional}
+                className="w-full"
+              >
+                Agregar Servicio Adicional
+              </Button>
+              
+              {serviciosAdicionales.map((servicio, index) => (
+                <div key={index} className="border rounded-md p-4 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium">Servicio Adicional #{index + 1}</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setServiciosAdicionales(serviciosAdicionales.filter((_, i) => i !== index))
+                      }}
+                    >
+                      Eliminar
+                    </Button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Nombre del Servicio</Label>
+                      <Input
+                        value={servicio.service_name}
+                        onChange={(e) => {
+                          const updated = [...serviciosAdicionales]
+                          updated[index].service_name = e.target.value
+                          setServiciosAdicionales(updated)
+                        }}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Nivel de Urgencia</Label>
+                      <Select
+                        value={servicio.urgency_level}
+                        onValueChange={(value) => {
+                          const updated = [...serviciosAdicionales]
+                          updated[index].urgency_level = value as 'high' | 'medium' | 'low'
+                          setServiciosAdicionales(updated)
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="high">Alta</SelectItem>
+                          <SelectItem value="medium">Media</SelectItem>
+                          <SelectItem value="low">Baja</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Tiempo Estimado (minutos)</Label>
+                      <Input
+                        type="number"
+                        value={servicio.estimated_time}
+                        onChange={(e) => {
+                          const updated = [...serviciosAdicionales]
+                          updated[index].estimated_time = Number(e.target.value)
+                          setServiciosAdicionales(updated)
+                        }}
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Costo Estimado ($)</Label>
+                      <Input
+                        type="number"
+                        value={servicio.estimated_cost}
+                        onChange={(e) => {
+                          const updated = [...serviciosAdicionales]
+                          updated[index].estimated_cost = Number(e.target.value)
+                          setServiciosAdicionales(updated)
+                        }}
+                      />
+                    </div>
+
+                    <div className="col-span-2 space-y-2">
+                      <Label>Descripción</Label>
+                      <Textarea
+                        value={servicio.service_description}
+                        onChange={(e) => {
+                          const updated = [...serviciosAdicionales]
+                          updated[index].service_description = e.target.value
+                          setServiciosAdicionales(updated)
+                        }}
+                      />
+                    </div>
+
+                    <div className="col-span-2 space-y-2">
+                      <Label>Notas Técnicas</Label>
+                      <Textarea
+                        value={servicio.technical_notes}
+                        onChange={(e) => {
+                          const updated = [...serviciosAdicionales]
+                          updated[index].technical_notes = e.target.value
+                          setServiciosAdicionales(updated)
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleSubmit} 
+            disabled={loading || selectedProducts.length === 0}
+          >
+            {loading ? "Guardando..." : "Guardar y Completar"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function CitasPage() {
   const { toast } = useToast()
   const [citas, setCitas] = useState<Cita[]>([])
@@ -174,6 +550,8 @@ export default function CitasPage() {
   const [selectedService, setSelectedService] = useState<Servicio | null>(null)
   const [currentStep, setCurrentStep] = useState<'service' | 'date' | 'time'>('service')
   const [searchTerm, setSearchTerm] = useState<string>("")
+  const [showRevisionFinal, setShowRevisionFinal] = useState(false)
+  const [selectedCita, setSelectedCita] = useState<Cita | null>(null)
 
   const cargarDatos = async () => {
     try {
@@ -413,6 +791,13 @@ export default function CitasPage() {
   });
 
   const handleUpdateEstado = async (citaId: string, nuevoEstado: Cita['estado']) => {
+    if (nuevoEstado === ESTADO_COMPLETADA) {
+      const citaEncontrada = citas.find(c => c.id_uuid === citaId) || null;
+      setShowRevisionFinal(true);
+      setSelectedCita(citaEncontrada);
+      return;
+    }
+
     const confirmar = await new Promise((resolve) => {
       const mensaje = `¿Estás seguro de que deseas cambiar el estado de la cita a ${nuevoEstado}?`;
       resolve(window.confirm(mensaje));
@@ -758,12 +1143,12 @@ export default function CitasPage() {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        {cita.estado !== 'completada' && (
+                        {cita.estado !== ESTADO_COMPLETADA && (
                           <>
                             <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'en_proceso')}>
                               Iniciar
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'completada')}>
+                            <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, ESTADO_COMPLETADA)}>
                               Completar
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleUpdateEstado(cita.id_uuid, 'cancelada')}>
@@ -771,7 +1156,7 @@ export default function CitasPage() {
                             </DropdownMenuItem>
                           </>
                         )}
-                        {cita.estado === 'completada' && (
+                        {cita.estado === ESTADO_COMPLETADA && (
                           <DropdownMenuItem asChild>
                             <Link href={`/transacciones?id_cita=${cita.id_uuid}`}>
                               Crear Transacción
@@ -808,6 +1193,18 @@ export default function CitasPage() {
             setSelectedDate(null);
             setSelectedSlot("");
             setCurrentStep('service');
+          }}
+        />
+
+        <RevisionFinalModal
+          open={showRevisionFinal}
+          onOpenChange={setShowRevisionFinal}
+          cita={selectedCita!}
+          onComplete={() => {
+            if (selectedCita) {
+              handleUpdateEstado(selectedCita.id_uuid, 'completada');
+              setShowRevisionFinal(false);
+            }
           }}
         />
 
