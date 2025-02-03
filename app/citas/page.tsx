@@ -753,8 +753,8 @@ export default function CitasPage() {
                   <TableCell className="text-right">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                          <MoreHorizontal className="h-4 w-4" />
+                        <Button variant="outline" className="h-8 px-2 py-0">
+                          <span>Cambiar Estado</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
