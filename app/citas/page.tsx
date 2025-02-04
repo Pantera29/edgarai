@@ -72,6 +72,7 @@ import AppointmentDialog from "@/components/workshop/appointment-dialog"
 import { ProductSelector } from "@/components/workshop/product-selector"
 import { TransactionProduct } from "@/types/transaction"
 import { Textarea } from "@/components/ui/textarea"
+import { useSearchParams } from "next/navigation"
 
 // Mover esta definición al inicio, antes de las interfaces
 type EstadoCita = 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
@@ -552,6 +553,8 @@ export default function CitasPage() {
   const [searchTerm, setSearchTerm] = useState<string>("")
   const [showRevisionFinal, setShowRevisionFinal] = useState(false)
   const [selectedCita, setSelectedCita] = useState<Cita | null>(null)
+  const searchParams = useSearchParams()
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null)
 
   const cargarDatos = async () => {
     try {
@@ -656,6 +659,38 @@ export default function CitasPage() {
     loadOperatingHours();
     loadBlockedDates();
   }, []);
+
+  useEffect(() => {
+    const action = searchParams.get('action');
+    const vehicleId = searchParams.get('vehicle_id');
+    const recommendedServiceId = searchParams.get('recommended_service_id');
+
+    if (action === 'create' && vehicleId && recommendedServiceId) {
+      const loadRecommendedService = async () => {
+        const { data: serviceData, error } = await supabase
+          .from('recommended_services')
+          .select('*')
+          .eq('id', recommendedServiceId)
+          .single();
+
+        if (!error && serviceData) {
+          setSelectedVehicleId(vehicleId);
+          setMostrarFormulario(true);
+          
+          if (serviceData.service_name) {
+            const matchingService = servicios.find(s => 
+              s.nombre.toLowerCase() === serviceData.service_name.toLowerCase()
+            );
+            if (matchingService) {
+              setSelectedService(matchingService);
+            }
+          }
+        }
+      };
+
+      loadRecommendedService();
+    }
+  }, [searchParams, servicios]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -1185,13 +1220,20 @@ export default function CitasPage() {
           selectedDate={selectedDate ? format(selectedDate, "yyyy-MM-dd") : null}
           selectedSlot={selectedSlot || null}
           preselectedService={selectedService}
-          onDateChange={(date) => setSelectedDate(new Date(date))}
+          preselectedVehicleId={selectedVehicleId}
+          recommendedServiceId={searchParams.get('recommended_service_id')}
+          onDateChange={(date) => {
+            const selectedDate = new Date(date);
+            selectedDate.setHours(0, 0, 0, 0);  // Resetear la hora a medianoche
+            setSelectedDate(selectedDate);
+          }}
           onSlotChange={setSelectedSlot}
           onSave={() => {
             cargarDatos();
             setSelectedService(null);
             setSelectedDate(null);
             setSelectedSlot("");
+            setSelectedVehicleId(null);
             setCurrentStep('service');
           }}
         />

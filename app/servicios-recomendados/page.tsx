@@ -33,6 +33,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { useRouter } from "next/navigation"
 
 interface ServicioRecomendado {
   id: string
@@ -82,6 +85,64 @@ interface DetallesServicioModalProps {
 }
 
 function DetallesServicioModal({ servicio, open, onOpenChange }: DetallesServicioModalProps) {
+  const [loading, setLoading] = useState(false);
+  const [comentario, setComentario] = useState('');
+  const { toast } = useToast();
+  const router = useRouter();
+
+  const handleUpdateStatus = async (nuevoEstado: ServicioRecomendado['status']) => {
+    if (!servicio) return;
+    
+    setLoading(true);
+    try {
+      const { error } = await supabase
+        .from('recommended_services')
+        .update({ 
+          status: nuevoEstado
+          // status_notes: comentario  // Comentar esta línea hasta crear la columna
+        })
+        .eq('id', servicio.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Estado actualizado",
+        description: "El estado del servicio ha sido actualizado exitosamente"
+      });
+      
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error al actualizar:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo actualizar el estado del servicio"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAgendarCita = async () => {
+    if (!servicio) return;
+    
+    try {
+      // Redirigir a creación de cita con parámetros para pre-llenar el formulario
+      router.push(`/citas?action=create&vehicle_id=${servicio.vehicle_id}&recommended_service_id=${servicio.id}`);
+      
+      // Cerrar modal
+      onOpenChange(false);
+
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo iniciar el proceso de agendamiento"
+      });
+    }
+  };
+
   if (!servicio) return null
 
   return (
@@ -140,6 +201,46 @@ function DetallesServicioModal({ servicio, open, onOpenChange }: DetallesServici
             <p>{servicio.estimated_cost ? `$${servicio.estimated_cost.toLocaleString()}` : 'No especificado'}</p>
           </div>
         </div>
+
+        <div className="mt-6 space-y-4">
+          <div className="space-y-2">
+            <Label>Comentario</Label>
+            <Textarea
+              value={comentario}
+              onChange={(e) => setComentario(e.target.value)}
+              placeholder="Agregar un comentario sobre el cambio de estado..."
+            />
+          </div>
+          
+          <div className="flex justify-end space-x-2">
+            <Button
+              variant="outline"
+              onClick={() => onOpenChange(false)}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            
+            {servicio?.status === 'pending' && (
+              <>
+                <Button
+                  variant="default"
+                  onClick={handleAgendarCita}
+                  disabled={loading}
+                >
+                  Agendar Cita
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => handleUpdateStatus('rejected')}
+                  disabled={loading}
+                >
+                  Rechazar
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
       </DialogContent>
     </Dialog>
   )
@@ -150,8 +251,8 @@ export default function ServiciosRecomendadosPage() {
   const [loading, setLoading] = useState(true)
   const [servicios, setServicios] = useState<ServicioRecomendado[]>([])
   const [filtros, setFiltros] = useState({
-    urgencia: '',
-    estado: '',
+    urgencia: 'all',
+    estado: 'all',
     busqueda: '',
     fechaInicio: null,
     fechaFin: null
@@ -196,6 +297,86 @@ export default function ServiciosRecomendadosPage() {
   useEffect(() => {
     cargarServicios()
   }, [])
+
+  // Función para filtrar servicios
+  const serviciosFiltrados = servicios.filter(servicio => {
+    console.log('Filtrando servicio:', servicio);
+    console.log('Filtros actuales:', filtros);
+
+    // Filtro por urgencia
+    if (filtros.urgencia !== 'all' && servicio.urgency_level !== filtros.urgencia) {
+      console.log('Filtrado por urgencia');
+      return false;
+    }
+
+    // Filtro por estado
+    if (filtros.estado !== 'all' && servicio.status !== filtros.estado) {
+      console.log('Filtrado por estado');
+      return false;
+    }
+
+    // Filtro por búsqueda (cliente o vehículo)
+    if (filtros.busqueda) {
+      const searchTerm = filtros.busqueda.toLowerCase();
+      const clienteMatch = servicio.vehiculos.clientes.nombre.toLowerCase().includes(searchTerm);
+      const vehiculoMatch = `${servicio.vehiculos.marca} ${servicio.vehiculos.modelo} ${servicio.vehiculos.placa}`.toLowerCase().includes(searchTerm);
+      if (!clienteMatch && !vehiculoMatch) {
+        return false;
+      }
+    }
+
+    // Filtro por rango de fechas
+    if (filtros.fechaInicio && filtros.fechaFin) {
+      const fecha = new Date(servicio.created_at);
+      const inicio = new Date(filtros.fechaInicio);
+      const fin = new Date(filtros.fechaFin);
+      if (fecha < inicio || fecha > fin) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  console.log('Servicios filtrados:', serviciosFiltrados);
+
+  // Función para ordenar servicios
+  const [ordenamiento, setOrdenamiento] = useState({
+    columna: 'created_at',
+    direccion: 'desc' as 'asc' | 'desc'
+  });
+
+  const serviciosOrdenados = [...serviciosFiltrados].sort((a, b) => {
+    let comparacion = 0;
+    
+    switch (ordenamiento.columna) {
+      case 'created_at':
+        comparacion = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        break;
+      case 'cliente':
+        comparacion = a.vehiculos.clientes.nombre.localeCompare(b.vehiculos.clientes.nombre);
+        break;
+      case 'urgency_level':
+        const urgencyOrder = { high: 3, medium: 2, low: 1 };
+        comparacion = urgencyOrder[a.urgency_level] - urgencyOrder[b.urgency_level];
+        break;
+      case 'estimated_cost':
+        comparacion = (a.estimated_cost || 0) - (b.estimated_cost || 0);
+        break;
+      default:
+        comparacion = 0;
+    }
+
+    return ordenamiento.direccion === 'asc' ? comparacion : -comparacion;
+  });
+
+  // Función para cambiar el ordenamiento
+  const handleSort = (columna: string) => {
+    setOrdenamiento(prev => ({
+      columna,
+      direccion: prev.columna === columna && prev.direccion === 'asc' ? 'desc' : 'asc'
+    }));
+  };
 
   return (
     <div className="container mx-auto py-10">
@@ -250,8 +431,12 @@ export default function ServiciosRecomendadosPage() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Fecha</TableHead>
-              <TableHead>Cliente</TableHead>
+              <TableHead onClick={() => handleSort('created_at')} className="cursor-pointer">
+                Fecha {ordenamiento.columna === 'created_at' && (ordenamiento.direccion === 'asc' ? '↑' : '↓')}
+              </TableHead>
+              <TableHead onClick={() => handleSort('cliente')} className="cursor-pointer">
+                Cliente {ordenamiento.columna === 'cliente' && (ordenamiento.direccion === 'asc' ? '↑' : '↓')}
+              </TableHead>
               <TableHead>Vehículo</TableHead>
               <TableHead>Servicio</TableHead>
               <TableHead>Urgencia</TableHead>
@@ -267,14 +452,14 @@ export default function ServiciosRecomendadosPage() {
                   Cargando...
                 </TableCell>
               </TableRow>
-            ) : servicios.length === 0 ? (
+            ) : serviciosOrdenados.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={8} className="text-center py-4">
                   No hay servicios recomendados
                 </TableCell>
               </TableRow>
             ) : (
-              servicios.map((servicio) => (
+              serviciosOrdenados.map((servicio) => (
                 <TableRow key={servicio.id}>
                   <TableCell>
                     {format(new Date(servicio.created_at), "dd/MM/yyyy", { locale: es })}

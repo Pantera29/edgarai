@@ -5,20 +5,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Cliente, Vehiculo, Servicio, AppointmentStatus } from '@/types/workshop';
-import { Input } from "@/components/ui/input";
-import { format, parseISO } from "date-fns";
+import { Cliente, Vehiculo, Servicio, AppointmentStatus, BlockedDate, HorarioOperacion } from '@/types/workshop';
+import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { useRouter } from "next/navigation";
+import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment-calendar"
 
 interface AppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedDate: string | null;
   selectedSlot: string | null;
+  preselectedService: Servicio | null;
+  preselectedVehicleId: string | null;
   onDateChange: (date: string) => void;
   onSlotChange: (slot: string) => void;
   onSave: () => void;
-  preselectedService?: Servicio | null;
+  recommendedServiceId?: string | null;
 }
 
 export default function AppointmentDialog({
@@ -26,10 +29,12 @@ export default function AppointmentDialog({
   onOpenChange,
   selectedDate,
   selectedSlot,
+  preselectedService,
+  preselectedVehicleId,
   onDateChange,
   onSlotChange,
   onSave,
-  preselectedService,
+  recommendedServiceId,
 }: AppointmentDialogProps) {
   const { toast } = useToast();
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -42,77 +47,113 @@ export default function AppointmentDialog({
   const [notas, setNotas] = useState('');
   const [servicios, setServicios] = useState<any[]>([]);
   const supabase = createClientComponentClient();
-  const [loading, setLoading] = useState(false)
-  const [citaId, setCitaId] = useState<string>('');
+  const router = useRouter();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([])
+  const [operatingHours, setOperatingHours] = useState<HorarioOperacion[]>([])
+  const [appointments, setAppointments] = useState<any[]>([])
 
-  // Cargar clientes y vehículos
+  const loadData = async () => {
+    try {
+      const [
+        { data: clientesData, error: clientesError },
+        { data: vehiculosData, error: vehiculosError },
+        { data: serviciosData, error: serviciosError }
+      ] = await Promise.all([
+        supabase.from('clientes').select('*').order('nombre'),
+        supabase.from('vehiculos').select('*').order('marca, modelo'),
+        supabase.from('servicios').select('*').order('nombre')
+      ]);
+
+      if (clientesError) throw clientesError;
+      if (vehiculosError) throw vehiculosError;
+      if (serviciosError) throw serviciosError;
+
+      setClientes(clientesData || []);
+      setVehiculos(vehiculosData || []);
+      setServicios(serviciosData || []);
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error al cargar la información"
+      });
+    }
+  };
+
+  const loadOperatingHours = async () => {
+    const { data, error } = await supabase
+      .from('horarios_operacion')
+      .select('*')
+      .order('dia_semana');
+
+    if (!error) {
+      setOperatingHours(data || []);
+    }
+  };
+
+  const loadBlockedDates = async () => {
+    const { data, error } = await supabase
+      .from('fechas_bloqueadas')
+      .select('*');
+
+    if (!error) {
+      setBlockedDates(data || []);
+    }
+  };
+
   useEffect(() => {
-    const loadData = async () => {
-      console.log('Iniciando carga de datos...');
-      try {
-        // Cargar clientes
-        const { data: clientesData, error: clientesError } = await supabase
-          .from('clientes')
-          .select('*')
-          .order('nombre');
-
-        console.log('Clientes cargados:', clientesData);
-
-        if (clientesError) throw clientesError;
-        setClientes(clientesData || []);
-
-        // Cargar vehículos
-        console.log('Intentando cargar vehículos...');
-        const { data: vehiculosData, error: vehiculosError } = await supabase
-          .from('vehiculos')
-          .select('*')
-          .order('marca, modelo');
-
-        console.log('Respuesta de vehículos:', { data: vehiculosData, error: vehiculosError });
-
-        if (vehiculosError) throw vehiculosError;
-        setVehiculos(vehiculosData || []);
-
-        // Cargar servicios
-        const { data: serviciosData, error: serviciosError } = await supabase
-          .from('servicios')
-          .select('*')
-          .order('nombre');
-
-        console.log('Servicios cargados:', serviciosData);
-
-        if (serviciosError) throw serviciosError;
-        setServicios(serviciosData || []);
-      } catch (error) {
-        console.error('Error detallado al cargar datos:', error);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "Error al cargar la información"
-        });
-      }
-    };
-
     if (open) {
-      console.log('Modal abierto, iniciando carga...');
+      const loadAppointments = async () => {
+        const { data, error } = await supabase
+          .from('citas')
+          .select(`
+            *,
+            servicios:servicio_id_uuid (
+              id_uuid,
+              nombre,
+              duracion_estimada
+            ),
+            clientes!citas_cliente_id_uuid_fkey (
+              id_uuid,
+              nombre
+            )
+          `)
+          .gte('fecha_hora', new Date().toISOString())
+          .order('fecha_hora');
+
+        if (!error) {
+          setAppointments(data || []);
+        }
+      };
+
       loadData();
-      // Usar el servicio preseleccionado si existe
+      loadAppointments();
+      loadOperatingHours();
+      loadBlockedDates();
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open && vehiculos.length > 0) {
       if (preselectedService) {
         setSelectedService(preselectedService.id_uuid);
       }
+      if (preselectedVehicleId) {
+        const vehicle = vehiculos.find(v => v.id_uuid === preselectedVehicleId);
+        if (vehicle) {
+          setSelectedVehicle(preselectedVehicleId);
+          setSelectedClient(vehicle.id_cliente_uuid);
+        }
+      }
     }
-  }, [open, preselectedService]);
+  }, [open, vehiculos, preselectedService, preselectedVehicleId]);
 
-  // Filtrar vehículos cuando se selecciona un cliente
   useEffect(() => {
     if (selectedClient) {
-      const clientVehicles = vehiculos.filter(v => v.id_cliente_uuid === selectedClient);
-      console.log('Vehículos filtrados:', clientVehicles); // Para debug
-      setFilteredVehicles(clientVehicles);
-      setSelectedVehicle('');
+      setFilteredVehicles(vehiculos.filter(v => v.id_cliente_uuid === selectedClient));
     } else {
       setFilteredVehicles([]);
-      setSelectedVehicle('');
     }
   }, [selectedClient, vehiculos]);
 
@@ -128,59 +169,67 @@ export default function AppointmentDialog({
       return;
     }
 
+    setIsSubmitting(true);
     try {
-      // Combinar fecha y hora
       const fechaHora = `${selectedDate}T${selectedSlot}`;
-
+      
+      // Crear la cita
       const { data, error } = await supabase
         .from('citas')
-        .insert([
-          {
-            cliente_id_uuid: selectedClient,
-            vehiculo_id_uuid: selectedVehicle,  // Asegurarnos de que este campo se está enviando
-            servicio_id_uuid: selectedService,
-            fecha_hora: fechaHora,
-            estado: estado,
-            notas: notas,
-          }
-        ])
+        .insert([{
+          cliente_id_uuid: selectedClient,
+          vehiculo_id_uuid: selectedVehicle,
+          servicio_id_uuid: selectedService,
+          fecha_hora: fechaHora,
+          estado: estado,
+          notas: notas,
+          recommended_service_id: recommendedServiceId || null
+        }])
         .select()
         .single();
 
       if (error) throw error;
       
-      if (data) {
-        setCitaId(data.id_cita);
+      // Si existe un servicio recomendado, actualizar su estado
+      if (recommendedServiceId) {
+        const { error: updateError } = await supabase
+          .from('recommended_services')
+          .update({ status: 'scheduled' })
+          .eq('id', recommendedServiceId);
+
+        if (updateError) throw updateError;
+
+        toast({
+          title: "Cita agendada",
+          description: "La cita se ha creado y el servicio recomendado ha sido actualizado",
+          duration: 5000
+        });
+      } else {
+        toast({
+          title: "Cita agendada",
+          description: "La cita se ha creado exitosamente"
+        });
       }
       
-      toast({
-        title: "Éxito",
-        description: "Cita agendada correctamente"
-      });
-      onSave();
       onOpenChange(false);
+      onSave();
+      router.replace('/citas');
+      
     } catch (error) {
-      console.error('Error al guardar la cita:', error);
+      console.error('Error:', error);
       toast({
         variant: "destructive",
         title: "Error",
         description: "Error al agendar la cita"
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // En el renderizado, agregar un log para ver qué datos tenemos
-  console.log('Estado actual:', {
-    clientes,
-    vehiculos,
-    servicios,
-    selectedClient,
-    selectedVehicle
-  });
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle>Agendar Nueva Cita</DialogTitle>
           <DialogDescription>
@@ -256,56 +305,38 @@ export default function AppointmentDialog({
             </div>
 
             {/* Fecha y Hora */}
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Fecha y Hora</Label>
-              <div className="col-span-3 space-y-2">
-                <div className="flex gap-2">
-                  <Select 
-                    value={selectedDate || ''} 
-                    onValueChange={onDateChange}
-                  >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Seleccione fecha" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Generar próximos 7 días */}
-                      {Array.from({ length: 7 }, (_, i) => {
-                        const date = new Date();
-                        date.setDate(date.getDate() + i);
-                        return (
-                          <SelectItem 
-                            key={i} 
-                            value={format(date, 'yyyy-MM-dd')}
-                          >
-                            {format(date, 'EEEE d MMM', { locale: es })}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+            <div className="space-y-4">
+              <div className="grid grid-cols-4 items-start gap-4">
+                <Label className="text-right pt-4">Fecha y Hora</Label>
+                <div className="col-span-3">
+                  <div className="grid grid-cols-[400px,1fr] gap-6">
+                    {/* Calendario */}
+                    <div className="bg-white rounded-xl border shadow-sm">
+                      <AppointmentCalendar
+                        selectedDate={selectedDate ? new Date(selectedDate) : null}
+                        onSelect={(date) => onDateChange(format(date!, 'yyyy-MM-dd'))}
+                        blockedDates={blockedDates}
+                        operatingHours={operatingHours}
+                        turnDuration={15}
+                        appointments={appointments}
+                        onTimeSlotSelect={(slot) => onSlotChange(slot.time)}
+                        selectedService={selectedService ? {
+                          id: selectedService,
+                          duration: servicios.find(s => s.id_uuid === selectedService)?.duracion_estimada || 0
+                        } : undefined}
+                      />
+                    </div>
 
-                  <Select 
-                    value={selectedSlot || ''} 
-                    onValueChange={onSlotChange}
-                    disabled={!selectedDate}
-                  >
-                    <SelectTrigger className="w-[180px]">
-                      <SelectValue placeholder="Seleccione hora" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* Generar horarios cada 15 minutos entre 8:00 y 18:00 */}
-                      {Array.from({ length: 40 }, (_, i) => {
-                        const hour = Math.floor(i / 4) + 8;
-                        const minutes = (i % 4) * 15;
-                        const time = `${hour.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-                        return (
-                          <SelectItem key={i} value={time}>
-                            {time}
-                          </SelectItem>
-                        );
-                      })}
-                    </SelectContent>
-                  </Select>
+                    {/* Horarios */}
+                    <div className="bg-white rounded-xl border shadow-sm">
+                      <div className="p-4">
+                        <h3 className="text-lg font-medium">
+                          Horarios disponibles
+                        </h3>
+                      </div>
+                      {/* Los horarios se mostrarán aquí */}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -346,7 +377,22 @@ export default function AppointmentDialog({
           </div>
 
           <DialogFooter>
-            <Button type="submit">Agendar Cita</Button>
+            <Button 
+              type="submit" 
+              disabled={isSubmitting}
+              className="relative"
+            >
+              {isSubmitting ? (
+                <>
+                  <span className="opacity-0">Agendar Cita</span>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-white"></div>
+                  </div>
+                </>
+              ) : (
+                "Agendar Cita"
+              )}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

@@ -49,6 +49,7 @@ interface AppointmentCalendarProps {
     id: string;
     duration: number;
   };
+  className?: string;
 }
 
 // Agregar este helper para agrupar slots por hora
@@ -277,7 +278,8 @@ export function AppointmentCalendar({
   turnDuration,
   appointments,
   onTimeSlotSelect,
-  selectedService
+  selectedService,
+  className
 }: AppointmentCalendarProps) {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [showDetails, setShowDetails] = useState(false);
@@ -602,7 +604,7 @@ export function AppointmentCalendar({
           </div>
         </div>
 
-        {/* Columna de los Slots - eliminar el border-l */}
+        {/* Columna de los Slots */}
         <div className="lg:pl-0">
           {selectedDate ? (
             <div ref={slotsRef} className="space-y-6">
