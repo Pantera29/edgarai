@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import {
@@ -525,7 +525,7 @@ const RevisionFinalModal = ({
   )
 }
 
-export default function CitasPage() {
+function CitasPageContent() {
   const { toast } = useToast()
   const [citas, setCitas] = useState<Cita[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -1254,5 +1254,17 @@ export default function CitasPage() {
       </div>
     </div>
   )
+}
+
+export default function CitasPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    }>
+      <CitasPageContent />
+    </Suspense>
+  );
 }
 
