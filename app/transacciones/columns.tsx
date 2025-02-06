@@ -133,7 +133,7 @@ export const columns: ColumnDef<any>[] = [
             className="h-auto p-0 font-normal"
             onClick={() => setExpanded(!expanded)}
           >
-            {productos.length} productos
+            {productos.length} {productos.length === 1 ? 'producto' : 'productos'}
           </Button>
           {expanded && (
             <div className="mt-2 space-y-1">

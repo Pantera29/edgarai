@@ -66,37 +66,35 @@ export function TransactionForm({ appointmentId, onSuccess }: TransactionFormPro
 
   useEffect(() => {
     const loadCompletedAppointments = async () => {
-      console.log('Cargando citas completadas...');
       const { data, error } = await supabase
         .from('citas')
         .select(`
-          id_uuid,
-          fecha_hora,
+          *,
           clientes (
-            nombre,
-            telefono
+            id_uuid,
+            nombre
           ),
-          servicios (nombre),
           vehiculos (
+            id_uuid,
             marca,
             modelo,
             placa
+          ),
+          servicios (
+            id_uuid,
+            nombre,
+            duracion_estimada
           )
         `)
         .eq('estado', 'completada')
         .order('fecha_hora', { ascending: false });
 
-      console.log('Respuesta:', { data, error });
-
       if (error) {
-        console.error('Error cargando citas:', error);
+        console.error('Error al cargar citas:', error);
         return;
       }
 
-      if (data) {
-        console.log('Citas cargadas:', data);
-        setCompletedAppointments(data);
-      }
+      setCompletedAppointments(data || []);
     };
 
     if (!appointmentId) {
@@ -106,108 +104,61 @@ export function TransactionForm({ appointmentId, onSuccess }: TransactionFormPro
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true)
-    
-    // Crear un cliente de Supabase específico para esta transacción
-    const supabaseClient = createClientComponentClient()
-    
     try {
-      // 1. Validar que la cita esté completada
-      const { data: appointment, error: appointmentError } = await supabaseClient
-        .from('citas')
-        .select('estado')
-        .eq('id_uuid', values.id_cita)
-        .single()
-
-      if (appointmentError) throw appointmentError
-      if (appointment.estado !== 'completada') {
-        throw new Error('La cita debe estar completada')
-      }
-
-      // 2. Verificar que no exista una transacción previa
-      const { data: existingTransaction, error: existingError } = await supabaseClient
-        .from('transacciones_servicio')
-        .select('id_transaccion')
-        .eq('id_cita', values.id_cita)
-        .maybeSingle()
-
-      if (existingError) throw existingError
-      if (existingTransaction) {
-        throw new Error('Ya existe una transacción para esta cita')
-      }
-
-      // 3. Crear la transacción principal
-      const { data: transaccion, error: transaccionError } = await supabaseClient
+      // 1. Crear la transacción
+      const { data: transaccion, error: transaccionError } = await supabase
         .from('transacciones_servicio')
         .insert({
           id_cita: values.id_cita,
           estado: values.estado_pago,
-          notas: values.notas,
-          fecha_transaccion: new Date().toISOString()
+          fecha_transaccion: new Date().toISOString(),
+          notas: values.notas
         })
         .select()
         .single()
 
       if (transaccionError) throw transaccionError
 
-      // 4. Procesar cada producto
-      console.log('Productos a procesar:', values.productos)
-
-      for (const producto of values.productos) {
-        console.log('Procesando producto:', producto)
-        
-        // Verificar stock
-        const { data: stockData, error: stockError } = await supabaseClient
+      // 2. Registrar los productos utilizados y actualizar stock
+      for (const producto of selectedProducts) {
+        // Primero obtener el stock actual
+        const { data: stockData, error: stockCheckError } = await supabase
           .from('productos')
-          .select('stock_actual, precio')
+          .select('stock_actual')
           .eq('id_producto', producto.id_producto)
           .single()
 
-        console.log('Stock data:', stockData)
-        
-        if (stockError) {
-          console.error('Error al verificar stock:', stockError)
-          throw stockError
-        }
-        
-        if (!stockData || stockData.stock_actual < producto.cantidad) {
-          throw new Error(`Stock insuficiente para el producto ${producto.id_producto}`)
-        }
+        if (stockCheckError) throw stockCheckError
 
-        // Registrar producto en la transacción
-        const { data: productoData, error: productoError } = await supabaseClient
+        // Insertar en transaccion_productos
+        const { error: productoError } = await supabase
           .from('transaccion_productos')
           .insert({
             id_transaccion: transaccion.id_transaccion,
             id_producto: producto.id_producto,
             cantidad_usada: producto.cantidad,
-            precio_unitario: stockData.precio
+            precio_unitario: producto.precio_unitario
           })
-          .select()
 
-        console.log('Resultado inserción producto:', { productoData, productoError })
+        if (productoError) throw productoError
 
-        if (productoError) {
-          console.error('Error al insertar producto:', productoError)
-          throw productoError
-        }
-
-        // Actualizar stock
-        const { error: updateError } = await supabaseClient
+        // Actualizar stock directamente
+        const { error: stockError } = await supabase
           .from('productos')
-          .update({ stock_actual: stockData.stock_actual - producto.cantidad })
+          .update({ 
+            stock_actual: stockData.stock_actual - producto.cantidad
+          })
           .eq('id_producto', producto.id_producto)
 
-        if (updateError) {
-          console.error('Error al actualizar stock:', updateError)
-          throw updateError
-        }
+        if (stockError) throw stockError
       }
 
-      toast.success('Transacción creada correctamente')
-      form.reset()
+      toast.success('Transacción creada exitosamente')
       onSuccess?.()
+      form.reset()
+      setSelectedProducts([])
     } catch (error: any) {
-      console.error(error)
+      console.error('Error al crear la transacción:', error)
       toast.error(error.message || 'Error al crear la transacción')
     } finally {
       setLoading(false)
@@ -252,7 +203,9 @@ export function TransactionForm({ appointmentId, onSuccess }: TransactionFormPro
             <SelectContent>
               {completedAppointments.map((appointment) => (
                 <SelectItem key={appointment.id_uuid} value={appointment.id_uuid}>
-                  {format(new Date(appointment.fecha_hora), "dd/MM/yyyy HH:mm")} - {appointment.clientes.nombre} - {appointment.vehiculos.placa} - {appointment.servicios.nombre}
+                  {format(new Date(appointment.fecha_hora), "dd/MM/yyyy HH:mm")} - {appointment.clientes?.nombre || 'Cliente no disponible'} 
+                  ({appointment.vehiculos?.marca} {appointment.vehiculos?.modelo} 
+                  {appointment.vehiculos?.placa ? ` (${appointment.vehiculos.placa})` : ''})
                 </SelectItem>
               ))}
             </SelectContent>

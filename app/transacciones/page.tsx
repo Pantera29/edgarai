@@ -12,7 +12,7 @@ import { useSearchParams } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon, X } from "lucide-react"
+import { CalendarIcon, X, Eye } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -47,6 +47,8 @@ function TransaccionesContent() {
     cliente: ''
   })
   const [totals, setTotals] = useState({ count: 0, amount: 0 })
+  const [showDetails, setShowDetails] = useState(false)
+  const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
 
   const initialFilters: Filters = {
     startDate: null,
@@ -92,45 +94,36 @@ function TransaccionesContent() {
   const fetchTransactions = async (pageIndex: number) => {
     setLoading(true)
     try {
-      let query = supabase
+      const { data: transacciones, error } = await supabase
         .from('transacciones_servicio')
         .select(`
-          id_transaccion,
-          estado,
-          fecha_transaccion,
-          citas!inner (
-            clientes!inner (
+          *,
+          citas (
+            id_uuid,
+            fecha_hora,
+            clientes (
               nombre
+            ),
+            vehiculos (
+              marca,
+              modelo,
+              placa
             )
           ),
-          transaccion_productos!inner (
+          transaccion_productos (
             cantidad_usada,
-            precio_unitario
+            precio_unitario,
+            productos (
+              nombre
+            )
           )
-        `, { count: 'exact' })
-
-      // Aplicar filtros
-      if (filters.startDate) {
-        query = query.gte('fecha_transaccion', filters.startDate.toISOString())
-      }
-      if (filters.endDate) {
-        query = query.lte('fecha_transaccion', filters.endDate.toISOString())
-      }
-      if (filters.estado && filters.estado !== 'todos') {
-        query = query.eq('estado', filters.estado)
-      }
-      if (filters.cliente) {
-        query = query.textSearch('citas.clientes.nombre', filters.cliente)
-      }
-
-      const { data: transactions, error, count } = await query
-        .range(pageIndex * 10, (pageIndex + 1) * 10 - 1)
+        `)
         .order('fecha_transaccion', { ascending: false })
 
       if (error) throw error
 
       // Calcular el total de todas las transacciones en el cliente
-      const totalAmount = transactions?.reduce((sum, transaction) => {
+      const totalAmount = transacciones?.reduce((sum, transaction) => {
         const transactionTotal = transaction.transaccion_productos?.reduce(
           (subSum: number, prod: any) => subSum + (prod.cantidad_usada * prod.precio_unitario),
           0
@@ -139,12 +132,12 @@ function TransaccionesContent() {
       }, 0) || 0
 
       setTotals({ 
-        count: count || 0, 
+        count: transacciones?.length || 0, 
         amount: totalAmount
       })
       
-      setData(transactions || [])
-      setPageCount(Math.ceil((count || 0) / 10))
+      setData(transacciones || [])
+      setPageCount(Math.ceil((transacciones?.length || 0) / 10))
     } catch (error) {
       console.error('Error:', error)
       toast({
@@ -298,6 +291,49 @@ function TransaccionesContent() {
               }
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDetails} onOpenChange={setShowDetails}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Detalles de la Transacción</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <h4 className="font-medium">Cliente</h4>
+                <p>{selectedTransaction?.citas?.clientes?.nombre}</p>
+              </div>
+              <div>
+                <h4 className="font-medium">Fecha</h4>
+                <p>
+                  {selectedTransaction?.fecha_transaccion ? 
+                    format(new Date(selectedTransaction.fecha_transaccion), "dd/MM/yyyy HH:mm")
+                    : 'Fecha no disponible'
+                  }
+                </p>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-medium mb-2">Productos</h4>
+              <div className="border rounded-md divide-y">
+                {selectedTransaction?.transaccion_productos?.map((producto: any, index: number) => (
+                  <div key={index} className="p-3 flex justify-between items-center">
+                    <span>{producto.productos.nombre}</span>
+                    <div className="flex items-center gap-4">
+                      <span>{producto.cantidad_usada} unidades</span>
+                      <span>${producto.precio_unitario}</span>
+                      <span className="font-medium">
+                        ${(producto.cantidad_usada * producto.precio_unitario).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

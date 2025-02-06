@@ -185,7 +185,6 @@ const RevisionFinalModal = ({
   const [serviciosAdicionales, setServiciosAdicionales] = useState<ServicioAdicional[]>([])
   
   const handleSubmit = async () => {
-    // Validar que haya al menos un producto
     if (selectedProducts.length === 0) {
       toast({
         variant: "destructive",
@@ -197,13 +196,6 @@ const RevisionFinalModal = ({
 
     setLoading(true)
     try {
-      console.log('Iniciando proceso de guardado...');
-      console.log('Estado de servicios adicionales:', {
-        hasAdditionalServices,
-        cantidadServicios: serviciosAdicionales.length,
-        servicios: serviciosAdicionales
-      });
-
       // 1. Actualizar estado de la cita
       const { error: citaError } = await supabase
         .from('citas')
@@ -225,23 +217,42 @@ const RevisionFinalModal = ({
 
       if (transaccionError) throw transaccionError
 
-      // 3. Registrar productos utilizados
-      const productosTransaccion = selectedProducts.map(producto => ({
-        id_transaccion: transaccion.id_transaccion,
-        id_producto: producto.id_producto,
-        cantidad_usada: producto.cantidad,
-        precio_unitario: producto.precio_unitario
-      }))
+      // 3. Registrar productos utilizados y actualizar stock
+      for (const producto of selectedProducts) {
+        // Primero obtener el stock actual
+        const { data: stockData, error: stockCheckError } = await supabase
+          .from('productos')
+          .select('stock_actual')
+          .eq('id_producto', producto.id_producto)
+          .single()
 
-      const { error: productosError } = await supabase
-        .from('transaccion_productos')
-        .insert(productosTransaccion)
+        if (stockCheckError) throw stockCheckError
 
-      if (productosError) throw productosError
+        // Insertar en transaccion_productos
+        const { error: productoError } = await supabase
+          .from('transaccion_productos')
+          .insert({
+            id_transaccion: transaccion.id_transaccion,
+            id_producto: producto.id_producto,
+            cantidad_usada: producto.cantidad,
+            precio_unitario: producto.precio_unitario
+          })
+
+        if (productoError) throw productoError
+
+        // Actualizar stock directamente
+        const { error: stockError } = await supabase
+          .from('productos')
+          .update({ 
+            stock_actual: stockData.stock_actual - producto.cantidad
+          })
+          .eq('id_producto', producto.id_producto)
+
+        if (stockError) throw stockError
+      }
 
       // 4. Registrar servicios adicionales si existen
       if (hasAdditionalServices && serviciosAdicionales.length > 0) {
-        console.log('Preparando servicios para insertar...');
         const serviciosParaInsertar = serviciosAdicionales.map(servicio => ({
           appointment_id: cita.id_uuid,
           vehicle_id: cita.vehiculo_id_uuid,
@@ -254,32 +265,20 @@ const RevisionFinalModal = ({
           status: 'pending'
         }))
 
-        console.log('Servicios a insertar:', serviciosParaInsertar);
-
         const { error: serviciosError } = await supabase
           .from('recommended_services')
           .insert(serviciosParaInsertar)
 
-        if (serviciosError) {
-          console.error('Error al insertar servicios:', serviciosError);
-          throw serviciosError;
-        }
-
-        console.log('Servicios insertados correctamente');
-      } else {
-        console.log('No hay servicios adicionales para insertar', {
-          hasAdditionalServices,
-          serviciosLength: serviciosAdicionales.length
-        });
+        if (serviciosError) throw serviciosError
       }
 
       onComplete()
       toast({
         title: "Servicio completado",
-        description: "La cita ha sido completada y la transacción creada exitosamente"
+        description: "La cita ha sido completada y el inventario actualizado exitosamente"
       })
     } catch (error: any) {
-      console.error('Error completo:', error);
+      console.error('Error completo:', error)
       toast({
         variant: "destructive",
         title: "Error",
