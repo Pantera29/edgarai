@@ -165,9 +165,15 @@ export function Sidebar() {
           ))}
         </nav>
 
-        <div className="space-y-4">
+        <div className={cn(
+          "flex flex-col gap-4",
+          isCollapsed && "items-center"
+        )}>
           <div className="px-3 py-2">
-            <h2 className="mb-2 px-4 text-lg font-semibold tracking-tight">
+            <h2 className={cn(
+              "mb-2 px-4 text-lg font-semibold tracking-tight",
+              isCollapsed && "hidden"
+            )}>
               Administración
             </h2>
             <div className="space-y-1">
