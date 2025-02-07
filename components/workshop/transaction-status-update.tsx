@@ -27,6 +27,14 @@ interface TransactionStatusUpdateProps {
   onUpdate?: () => void
 }
 
+interface TransactionData {
+  citas: {
+    clientes: {
+      id_uuid: string
+    }
+  }
+}
+
 export function TransactionStatusUpdate({ 
   transactionId, 
   currentStatus,
@@ -40,7 +48,6 @@ export function TransactionStatusUpdate({
     try {
       console.log('Actualizando estado a:', newStatus)
       
-      // Primero actualizamos el estado
       const { error: updateError } = await supabase
         .from('transacciones_servicio')
         .update({ estado: newStatus })
@@ -48,33 +55,50 @@ export function TransactionStatusUpdate({
 
       if (updateError) throw updateError
 
-      // Si el estado es pagado, creamos el NPS
       if (newStatus === 'pagado') {
         console.log('Obteniendo datos del cliente para:', transactionId)
         
-        // Simplificamos la consulta
         const { data, error: clientError } = await supabase
           .from('transacciones_servicio')
-          .select('citas(clientes(id_uuid))')
+          .select(`
+            citas:id_cita (
+              clientes:cliente_id_uuid (
+                id_uuid
+              )
+            )
+          `)
           .eq('id_transaccion', transactionId)
           .single()
 
-        if (clientError) throw clientError
+        if (clientError) {
+          console.error('Error al obtener cliente:', clientError)
+          throw clientError
+        }
         
         console.log('Datos obtenidos:', data)
         
-        const clienteId = data.citas.clientes.id_uuid
+        const clienteId = (data as unknown as TransactionData)?.citas?.clientes?.id_uuid
+        if (!clienteId) {
+          console.error('No se encontró el ID del cliente en:', data)
+          throw new Error('No se pudo obtener el ID del cliente')
+        }
+
         console.log('ID del cliente:', clienteId)
 
         // Verificar si ya existe un NPS
-        const { data: existingNPS } = await supabase
+        const { data: existingNPS, error: npsCheckError } = await supabase
           .from('nps')
           .select('id')
           .eq('transaccion_id', transactionId)
           .maybeSingle()
 
+        if (npsCheckError) {
+          console.error('Error al verificar NPS existente:', npsCheckError)
+          throw npsCheckError
+        }
+
         if (!existingNPS) {
-          console.log('Creando nuevo NPS')
+          console.log('Creando nuevo NPS para transacción:', transactionId)
           const { error: npsError } = await supabase
             .from('nps')
             .insert({
