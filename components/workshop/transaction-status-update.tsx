@@ -5,20 +5,15 @@ import { Check, ChevronsUpDown } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-} from "@/components/ui/command"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
 import { supabase } from "@/lib/supabase"
-import { toast } from "sonner"
+import { useToast } from "@/components/ui/use-toast"
 
 const estados = [
   { value: "pendiente", label: "Pendiente" },
@@ -37,40 +32,96 @@ export function TransactionStatusUpdate({
   currentStatus,
   onUpdate 
 }: TransactionStatusUpdateProps) {
-  const [open, setOpen] = useState(false)
+  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
 
-  const handleSelect = async (value: string) => {
+  const handleStatusChange = async (newStatus: string) => {
     setLoading(true)
     try {
-      const { error } = await supabase
+      console.log('Actualizando estado a:', newStatus)
+      
+      // Primero actualizamos el estado
+      const { error: updateError } = await supabase
         .from('transacciones_servicio')
-        .update({ estado: value })
+        .update({ estado: newStatus })
         .eq('id_transaccion', transactionId)
 
-      if (error) throw error
+      if (updateError) throw updateError
 
-      toast.success('Estado actualizado')
-      onUpdate?.()
-    } catch (error) {
-      console.error('Error:', error)
-      toast.error('Error al actualizar el estado')
+      // Si el estado es pagado, creamos el NPS
+      if (newStatus === 'pagado') {
+        console.log('Obteniendo datos del cliente para:', transactionId)
+        
+        // Simplificamos la consulta
+        const { data, error: clientError } = await supabase
+          .from('transacciones_servicio')
+          .select('citas(clientes(id_uuid))')
+          .eq('id_transaccion', transactionId)
+          .single()
+
+        if (clientError) throw clientError
+        
+        console.log('Datos obtenidos:', data)
+        
+        const clienteId = data.citas.clientes.id_uuid
+        console.log('ID del cliente:', clienteId)
+
+        // Verificar si ya existe un NPS
+        const { data: existingNPS } = await supabase
+          .from('nps')
+          .select('id')
+          .eq('transaccion_id', transactionId)
+          .maybeSingle()
+
+        if (!existingNPS) {
+          console.log('Creando nuevo NPS')
+          const { error: npsError } = await supabase
+            .from('nps')
+            .insert({
+              transaccion_id: transactionId,
+              cliente_id: clienteId,
+              estado: 'pendiente'
+            })
+
+          if (npsError) {
+            console.error('Error al crear NPS:', npsError)
+            throw npsError
+          }
+          console.log('NPS creado exitosamente')
+        } else {
+          console.log('Ya existe un NPS para esta transacción')
+        }
+      }
+
+      toast({
+        title: "Estado actualizado",
+        description: "El estado de la transacción ha sido actualizado exitosamente."
+      })
+
+      if (onUpdate) {
+        onUpdate()
+      }
+
+    } catch (error: any) {
+      console.error('Error completo:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "No se pudo actualizar el estado de la transacción"
+      })
     } finally {
       setLoading(false)
-      setOpen(false)
     }
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          role="combobox"
-          aria-expanded={open}
-          className="justify-between w-[150px]"
-          disabled={loading}
-        >
+    <Select
+      value={currentStatus}
+      onValueChange={handleStatusChange}
+      disabled={loading}
+    >
+      <SelectTrigger className="w-[130px]">
+        <SelectValue>
           <Badge variant={
             currentStatus === 'pagado' ? 'success' :
             currentStatus === 'pendiente' ? 'warning' :
@@ -78,32 +129,15 @@ export function TransactionStatusUpdate({
           }>
             {currentStatus}
           </Badge>
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-[150px] p-0">
-        <Command>
-          <CommandInput placeholder="Buscar estado..." />
-          <CommandEmpty>No se encontró el estado.</CommandEmpty>
-          <CommandGroup>
-            {estados.map((estado) => (
-              <CommandItem
-                key={estado.value}
-                value={estado.value}
-                onSelect={() => handleSelect(estado.value)}
-              >
-                <Check
-                  className={cn(
-                    "mr-2 h-4 w-4",
-                    currentStatus === estado.value ? "opacity-100" : "opacity-0"
-                  )}
-                />
-                {estado.label}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </Command>
-      </PopoverContent>
-    </Popover>
+        </SelectValue>
+      </SelectTrigger>
+      <SelectContent>
+        {estados.map((estado) => (
+          <SelectItem key={estado.value} value={estado.value}>
+            {estado.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   )
 } 

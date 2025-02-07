@@ -20,6 +20,7 @@ import {
   Home,
   Receipt,
   ClipboardList,
+  BarChart,
   type LucideIcon
 } from "lucide-react"
 
@@ -75,6 +76,11 @@ const menuItems: MenuItem[] = [
     title: "Transacciones",
     href: "/transacciones",
     icon: Receipt
+  },
+  {
+    title: "Feedback NPS",
+    href: "/feedback",
+    icon: BarChart
   }
 ];
 

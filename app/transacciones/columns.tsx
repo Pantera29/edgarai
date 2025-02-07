@@ -1,11 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ColumnDef } from "@tanstack/react-table"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { Button } from "@/components/ui/button"
-import { Eye } from "lucide-react"
+import { Eye, HelpCircle, ChevronsUpDown } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import {
   Dialog,
@@ -14,6 +14,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { TransactionStatusUpdate } from "@/components/workshop/transaction-status-update"
+import Link from "next/link"
+import { supabase } from "@/lib/supabase"
 
 interface TransactionProduct {
   cantidad_usada: number
@@ -143,6 +145,63 @@ export const columns: ColumnDef<any>[] = [
                 </div>
               ))}
             </div>
+          )}
+        </div>
+      )
+    }
+  },
+  {
+    accessorKey: "nps",
+    header: "NPS",
+    cell: ({ row }) => {
+      const [npsData, setNpsData] = useState<any>(null)
+      const [loading, setLoading] = useState(true)
+
+      useEffect(() => {
+        const fetchNPS = async () => {
+          const { data, error } = await supabase
+            .from('nps')
+            .select('*')
+            .eq('transaccion_id', row.original.id_transaccion)
+            .maybeSingle()
+
+          if (!error && data) {
+            setNpsData(data)
+          }
+          setLoading(false)
+        }
+
+        fetchNPS()
+      }, [row.original.id_transaccion])
+
+      if (loading) {
+        return <div className="animate-pulse h-4 w-20 bg-muted rounded" />
+      }
+
+      if (!npsData) {
+        return <span className="text-muted-foreground">Sin NPS</span>
+      }
+
+      return (
+        <div className="flex items-center gap-2">
+          {npsData.estado === 'pendiente' ? (
+            <Badge variant="secondary">Encuesta pendiente</Badge>
+          ) : (
+            <Link 
+              href={`/feedback?id=${npsData.id}`}
+              className="flex items-center gap-1 hover:underline"
+            >
+              <span>{npsData.puntaje}/10</span>
+              <span>-</span>
+              <Badge variant={
+                npsData.clasificacion === 'promotor' ? 'success' :
+                npsData.clasificacion === 'neutral' ? 'warning' :
+                'destructive'
+              }>
+                {npsData.clasificacion}
+              </Badge>
+              <HelpCircle className="h-4 w-4 text-muted-foreground" />
+            </Link>
           )}
         </div>
       )
