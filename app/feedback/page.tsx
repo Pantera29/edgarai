@@ -16,6 +16,7 @@ import {
 import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
+import { DateRange } from "react-day-picker"
 
 const columns = [
   {
@@ -75,12 +76,18 @@ const columns = [
   }
 ]
 
+interface Filters {
+  estado: string
+  dateRange: DateRange | undefined
+  clasificacion: string
+}
+
 export default function FeedbackPage() {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({
+  const [filters, setFilters] = useState<Filters>({
     estado: "todos",
-    dateRange: { from: null, to: null },
+    dateRange: undefined,
     clasificacion: "todas"
   })
 
@@ -108,11 +115,8 @@ export default function FeedbackPage() {
         query = query.eq('clasificacion', filters.clasificacion)
       }
 
-      if (filters.dateRange.from) {
+      if (filters.dateRange) {
         query = query.gte('created_at', filters.dateRange.from)
-      }
-
-      if (filters.dateRange.to) {
         query = query.lte('created_at', filters.dateRange.to)
       }
 
