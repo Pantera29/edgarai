@@ -196,11 +196,18 @@ export default function FeedbackPage() {
         />
       </div>
 
-      <DataTable 
-        columns={columns}
-        data={data}
-        loading={loading}
-      />
+      <div className="space-y-4">
+        {loading ? (
+          <div className="flex items-center justify-center p-8">
+            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+          </div>
+        ) : (
+          <DataTable 
+            columns={columns}
+            data={data}
+          />
+        )}
+      </div>
     </div>
   )
 } 
