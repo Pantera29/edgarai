@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'export',
+  basePath: "/edgarai",
+  assetPrefix: "/edgarai/",
   images: {
     unoptimized: true
   },
-  basePath: "/edgarai",
-  assetPrefix: "/edgarai/",
   trailingSlash: true,
   webpack: (config) => {
     config.resolve.fallback = { fs: false, path: false };
