@@ -7,6 +7,11 @@ import { VoiceflowWidget } from "@/components/voiceflow-widget"
 
 const inter = Inter({ subsets: ["latin"] })
 
+export const metadata = {
+  title: 'EdgarAI - BackOffice',
+  description: 'Sistema inteligente para la gestión de talleres mecánicos',
+}
+
 export default function RootLayout({
   children,
 }: {
