@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
@@ -17,7 +17,6 @@ import {
   Settings,
   CalendarX,
   Package,
-  Home,
   Receipt,
   ClipboardList,
   BarChart,
@@ -29,6 +28,7 @@ interface MenuItem {
   href?: string;
   icon: LucideIcon;
   items?: MenuItem[];
+  isSection?: boolean;
 }
 
 const menuItems: MenuItem[] = [
@@ -38,68 +38,116 @@ const menuItems: MenuItem[] = [
     icon: LayoutDashboard
   },
   {
-    title: "Citas",
-    href: "/citas",
-    icon: Calendar
+    title: "Gestión Comercial",
+    icon: Users,
+    isSection: true,
+    items: [
+      {
+        title: "Clientes",
+        href: "/clientes",
+        icon: Users
+      },
+      {
+        title: "Vehículos",
+        href: "/vehiculos",
+        icon: Car
+      },
+      {
+        title: "Conversaciones",
+        href: "/conversaciones",
+        icon: MessageSquare
+      },
+      {
+        title: "Feedback NPS",
+        href: "/feedback",
+        icon: BarChart
+      }
+    ]
   },
   {
-    title: "Servicios Recomendados",
-    href: "/servicios-recomendados",
-    icon: ClipboardList
+    title: "Operaciones",
+    icon: Calendar,
+    isSection: true,
+    items: [
+      {
+        title: "Citas",
+        href: "/citas",
+        icon: Calendar
+      },
+      {
+        title: "Transacciones",
+        href: "/transacciones",
+        icon: Receipt
+      },
+      {
+        title: "Servicios Recomendados",
+        href: "/servicios-recomendados",
+        icon: ClipboardList
+      }
+    ]
   },
   {
-    title: "Clientes",
-    href: "/clientes",
-    icon: Users
-  },
-  {
-    title: "Vehículos",
-    href: "/vehiculos",
-    icon: Car
-  },
-  {
-    title: "Productos",
-    href: "/productos",
-    icon: Package
-  },
-  {
-    title: "Servicios",
-    href: "/servicios",
-    icon: Wrench
-  },
-  {
-    title: "Conversaciones",
-    href: "/conversaciones",
-    icon: MessageSquare
-  },
-  {
-    title: "Transacciones",
-    href: "/transacciones",
-    icon: Receipt
-  },
-  {
-    title: "Feedback NPS",
-    href: "/feedback",
-    icon: BarChart
+    title: "Administración",
+    icon: Settings,
+    isSection: true,
+    items: [
+      {
+        title: "Configuración",
+        href: "/admin/configuracion",
+        icon: Settings
+      },
+      {
+        title: "Fechas Bloqueadas",
+        href: "/admin/fechas-bloqueadas",
+        icon: CalendarX
+      },
+      {
+        title: "Servicios",
+        href: "/servicios",
+        icon: Wrench
+      },
+      {
+        title: "Productos",
+        href: "/productos",
+        icon: Package
+      }
+    ]
   }
 ];
 
 export function Sidebar() {
   const pathname = usePathname()
   const [isCollapsed, setIsCollapsed] = useState(false)
+  
+  const isSectionActive = (item: MenuItem) => {
+    if (!item.items) return false
+    return item.items.some(subItem => 
+      pathname.startsWith(subItem.href!)
+    )
+  }
 
-  const adminLinks = [
-    {
-      href: '/admin/configuracion',
-      label: 'Configuración',
-      icon: Settings,
-    },
-    {
-      href: '/admin/fechas-bloqueadas',
-      label: 'Fechas Bloqueadas',
-      icon: CalendarX,
-    }
-  ];
+  const [expandedSections, setExpandedSections] = useState<string[]>(() => {
+    const activeSections = menuItems
+      .filter(item => item.isSection && isSectionActive(item))
+      .map(item => item.title)
+    return activeSections.length > 0 ? activeSections : []
+  })
+
+  useEffect(() => {
+    menuItems.forEach(item => {
+      if (item.isSection && isSectionActive(item) && !expandedSections.includes(item.title)) {
+        setExpandedSections(prev => [...prev, item.title])
+      }
+    })
+  }, [pathname])
+
+  const toggleSection = (sectionTitle: string) => {
+    setExpandedSections(prev => 
+      prev.includes(sectionTitle)
+        ? prev.filter(title => title !== sectionTitle)
+        : [...prev, sectionTitle]
+    )
+  }
 
   return (
     <div className={cn(
@@ -123,84 +171,92 @@ export function Sidebar() {
 
         <nav className="flex-1 p-4 space-y-2">
           {menuItems.map((item) => (
-            item.href ? (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center space-x-3 p-4 rounded-lg transition-colors",
-                  pathname === item.href
-                    ? "bg-primary/10 text-primary hover:bg-primary/20"
-                    : "hover:bg-gray-100",
-                  isCollapsed && "justify-center p-3"
-                )}
-              >
-                <item.icon className={cn(
-                  "h-6 w-6",
-                  pathname === item.href ? "text-primary" : "text-gray-500"
-                )} />
-                {!isCollapsed && (
-                  <span className="text-sm font-medium">{item.title}</span>
-                )}
-              </Link>
-            ) : (
-              <div key={item.title} className="space-y-1">
-                {item.items?.map((subItem) => (
-                  <Link
-                    key={subItem.href}
-                    href={subItem.href!}
+            <div key={item.title}>
+              {!item.isSection ? (
+                <Link
+                  href={item.href!}
+                  className={cn(
+                    "flex items-center space-x-3 p-4 rounded-lg transition-colors",
+                    pathname === item.href
+                      ? "bg-primary/10 text-primary hover:bg-primary/20"
+                      : "hover:bg-gray-100",
+                    isCollapsed && "justify-center p-3"
+                  )}
+                >
+                  <item.icon className={cn(
+                    "h-6 w-6",
+                    pathname === item.href ? "text-primary" : "text-gray-500"
+                  )} />
+                  {!isCollapsed && (
+                    <span className="text-sm font-medium">{item.title}</span>
+                  )}
+                </Link>
+              ) : (
+                <div className="space-y-1">
+                  <button
+                    onClick={() => !isCollapsed && toggleSection(item.title)}
                     className={cn(
-                      "flex items-center space-x-3 p-4 rounded-lg transition-colors",
-                      pathname === subItem.href
-                        ? "bg-primary/10 text-primary hover:bg-primary/20"
+                      "w-full flex items-center justify-between p-4 rounded-lg transition-colors",
+                      isSectionActive(item)
+                        ? "bg-primary/5 text-primary hover:bg-primary/10"
                         : "hover:bg-gray-100",
                       isCollapsed && "justify-center p-3"
                     )}
                   >
-                    <subItem.icon className={cn(
-                      "h-6 w-6",
-                      pathname === subItem.href ? "text-primary" : "text-gray-500"
-                    )} />
+                    <div className="flex items-center space-x-3">
+                      <item.icon className={cn(
+                        "h-6 w-6",
+                        isSectionActive(item) ? "text-primary" : "text-gray-500"
+                      )} />
+                      {!isCollapsed && (
+                        <span className={cn(
+                          "text-sm font-medium",
+                          isSectionActive(item) && "text-primary"
+                        )}>
+                          {item.title}
+                        </span>
+                      )}
+                    </div>
                     {!isCollapsed && (
-                      <span className="text-sm font-medium">{subItem.title}</span>
+                      <ChevronRight className={cn(
+                        "h-4 w-4 transition-transform",
+                        expandedSections.includes(item.title) && "transform rotate-90",
+                        isSectionActive(item) ? "text-primary" : "text-gray-500"
+                      )} />
                     )}
-                  </Link>
-                ))}
-              </div>
-            )
+                  </button>
+                  
+                  {(expandedSections.includes(item.title) || isCollapsed) && (
+                    <div className={cn("space-y-1", isCollapsed && "mt-1")}>
+                      {item.items?.map((subItem) => (
+                        <Link
+                          key={subItem.href}
+                          href={subItem.href!}
+                          className={cn(
+                            "flex items-center space-x-3 p-4 rounded-lg transition-colors",
+                            pathname === subItem.href
+                              ? "bg-primary/10 text-primary hover:bg-primary/20"
+                              : "hover:bg-gray-100",
+                            isCollapsed && "justify-center p-3",
+                            !isCollapsed && "pl-12"
+                          )}
+                        >
+                          <subItem.icon className={cn(
+                            "h-6 w-6",
+                            pathname === subItem.href ? "text-primary" : "text-gray-500"
+                          )} />
+                          {!isCollapsed && (
+                            <span className="text-sm font-medium">{subItem.title}</span>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           ))}
         </nav>
-
-        <div className={cn(
-          "flex flex-col gap-4",
-          isCollapsed && "items-center"
-        )}>
-          <div className="px-3 py-2">
-            <h2 className={cn(
-              "mb-2 px-4 text-lg font-semibold tracking-tight",
-              isCollapsed && "hidden"
-            )}>
-              Administración
-            </h2>
-            <div className="space-y-1">
-              {adminLinks.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className={cn(
-                    'flex items-center rounded-lg px-3 py-2 transition-all hover:text-slate-900 dark:hover:text-slate-50',
-                    pathname === link.href
-                      ? 'bg-slate-100 text-slate-900 dark:bg-slate-800 dark:text-slate-50'
-                      : 'text-slate-500 dark:text-slate-400'
-                  )}
-                >
-                  <link.icon className="mr-2 h-4 w-4" />
-                  {!isCollapsed && link.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )
