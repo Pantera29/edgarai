@@ -9,11 +9,9 @@ import {
   Users,
   Car,
   Calendar,
-  MessageSquare,
   ChevronLeft,
   ChevronRight,
   Wrench,
-  FileText,
   Settings,
   CalendarX,
   Package,
@@ -51,11 +49,6 @@ const menuItems: MenuItem[] = [
         title: "Vehículos",
         href: "/vehiculos",
         icon: Car
-      },
-      {
-        title: "Conversaciones",
-        href: "/conversaciones",
-        icon: MessageSquare
       },
       {
         title: "Feedback NPS",
@@ -193,61 +186,76 @@ export function Sidebar() {
                 </Link>
               ) : (
                 <div className="space-y-1">
-                  <button
-                    onClick={() => !isCollapsed && toggleSection(item.title)}
-                    className={cn(
-                      "w-full flex items-center justify-between p-4 rounded-lg transition-colors",
-                      isSectionActive(item)
-                        ? "bg-primary/5 text-primary hover:bg-primary/10"
-                        : "hover:bg-gray-100",
-                      isCollapsed && "justify-center p-3"
-                    )}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <item.icon className={cn(
-                        "h-6 w-6",
-                        isSectionActive(item) ? "text-primary" : "text-gray-500"
-                      )} />
-                      {!isCollapsed && (
-                        <span className={cn(
-                          "text-sm font-medium",
-                          isSectionActive(item) && "text-primary"
-                        )}>
-                          {item.title}
-                        </span>
+                  {!isCollapsed ? (
+                    <>
+                      <button
+                        onClick={() => toggleSection(item.title)}
+                        className={cn(
+                          "w-full flex items-center justify-between p-4 rounded-lg transition-colors",
+                          isSectionActive(item)
+                            ? "bg-primary/5 text-primary hover:bg-primary/10"
+                            : "hover:bg-gray-100"
+                        )}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <item.icon className={cn(
+                            "h-6 w-6",
+                            isSectionActive(item) ? "text-primary" : "text-gray-500"
+                          )} />
+                          <span className={cn(
+                            "text-sm font-medium",
+                            isSectionActive(item) && "text-primary"
+                          )}>
+                            {item.title}
+                          </span>
+                        </div>
+                        <ChevronRight className={cn(
+                          "h-4 w-4 transition-transform",
+                          expandedSections.includes(item.title) && "transform rotate-90",
+                          isSectionActive(item) ? "text-primary" : "text-gray-500"
+                        )} />
+                      </button>
+                      
+                      {expandedSections.includes(item.title) && (
+                        <div className="space-y-1">
+                          {item.items?.map((subItem) => (
+                            <Link
+                              key={subItem.href}
+                              href={subItem.href!}
+                              className={cn(
+                                "flex items-center space-x-3 p-4 rounded-lg transition-colors pl-12",
+                                pathname === subItem.href
+                                  ? "bg-primary/10 text-primary hover:bg-primary/20"
+                                  : "hover:bg-gray-100"
+                              )}
+                            >
+                              <subItem.icon className={cn(
+                                "h-6 w-6",
+                                pathname === subItem.href ? "text-primary" : "text-gray-500"
+                              )} />
+                              <span className="text-sm font-medium">{subItem.title}</span>
+                            </Link>
+                          ))}
+                        </div>
                       )}
-                    </div>
-                    {!isCollapsed && (
-                      <ChevronRight className={cn(
-                        "h-4 w-4 transition-transform",
-                        expandedSections.includes(item.title) && "transform rotate-90",
-                        isSectionActive(item) ? "text-primary" : "text-gray-500"
-                      )} />
-                    )}
-                  </button>
-                  
-                  {(expandedSections.includes(item.title) || isCollapsed) && (
-                    <div className={cn("space-y-1", isCollapsed && "mt-1")}>
+                    </>
+                  ) : (
+                    <div className="space-y-1">
                       {item.items?.map((subItem) => (
                         <Link
                           key={subItem.href}
                           href={subItem.href!}
                           className={cn(
-                            "flex items-center space-x-3 p-4 rounded-lg transition-colors",
+                            "flex items-center justify-center p-3 rounded-lg transition-colors",
                             pathname === subItem.href
                               ? "bg-primary/10 text-primary hover:bg-primary/20"
-                              : "hover:bg-gray-100",
-                            isCollapsed && "justify-center p-3",
-                            !isCollapsed && "pl-12"
+                              : "hover:bg-gray-100"
                           )}
                         >
                           <subItem.icon className={cn(
                             "h-6 w-6",
                             pathname === subItem.href ? "text-primary" : "text-gray-500"
                           )} />
-                          {!isCollapsed && (
-                            <span className="text-sm font-medium">{subItem.title}</span>
-                          )}
                         </Link>
                       ))}
                     </div>
