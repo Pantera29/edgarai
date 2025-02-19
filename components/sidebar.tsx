@@ -143,6 +143,10 @@ export function Sidebar() {
     )
   }
 
+  if (pathname === "/login/" || pathname === "/register/") {
+    return (<div></div>)
+  }
+  
   return (
     <div className={cn(
       "h-screen border-r bg-white transition-all duration-300",
@@ -292,7 +296,5 @@ export function Sidebar() {
           </button>
         </div>
       </div>
-    </div>
   )
 }
-

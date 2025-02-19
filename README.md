@@ -2,6 +2,25 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
+Before starting the project, you need to install all dependencies. Run the following command:
+
+```bash
+npm install next@latest react@latest react-dom@latest --legacy-peer-deps
+```
+
+This will install the necessary packages, avoiding dependency conflicts.
+
+Additionally, you must create a `.env` file in the root of your project and add the following environment variables:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+```
+
+Make sure to replace `your-supabase-url` and `your-supabase-anon-key` with your actual Supabase project credentials.
+
+## Lunch App
+
 First, run the development server:
 
 ```bash
@@ -34,3 +53,4 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
