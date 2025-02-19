@@ -23,6 +23,8 @@ import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Badge } from "@/components/ui/badge"
 import { TooltipProvider } from '@radix-ui/react-tooltip'
+import Link from "next/link"
+import { MessageSquare, ArrowRight, Phone, Clock } from 'lucide-react'
 
 interface Servicio {
   nombre: string;
@@ -68,275 +70,251 @@ interface DashboardData {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042']
 
-export default function DashboardPage() {
-  const [data, setData] = useState<DashboardData | null>(null)
-  const supabase = createClientComponentClient()
+export default function LandingPage() {
+  // Base de llamadas más grande
+  const allCalls = [
+    {
+      location: "Satélite",
+      type: "Servicio Mayor",
+      time: "2m 26s",
+      timeAgo: "hace 2 minutos",
+      status: "Resuelto",
+      score: "4/5",
+      asesor: "Edgar #1"
+    },
+    {
+      location: "Polanco",
+      type: "Cambio de Aceite",
+      time: "1m 45s",
+      timeAgo: "hace 5 minutos",
+      status: "Resuelto",
+      score: "5/5",
+      asesor: "Edgar #2"
+    },
+    {
+      location: "Interlomas",
+      type: "Afinación",
+      time: "3m 12s",
+      timeAgo: "hace 8 minutos",
+      status: "En proceso",
+      score: "4/5",
+      asesor: "Edgar #1"
+    },
+    {
+      location: "Santa Fe",
+      type: "Revisión de Frenos",
+      time: "2m 55s",
+      timeAgo: "hace 10 minutos",
+      status: "Resuelto",
+      score: "5/5",
+      asesor: "Edgar #3"
+    },
+    {
+      location: "Coyoacán",
+      type: "Servicio Básico",
+      time: "1m 58s",
+      timeAgo: "hace 12 minutos",
+      status: "Resuelto",
+      score: "4/5",
+      asesor: "Edgar #2"
+    },
+    {
+      location: "Lomas Verdes",
+      type: "Diagnóstico General",
+      time: "1m 15s",
+      timeAgo: "hace 1 minuto",
+      status: "En proceso",
+      score: "5/5",
+      asesor: "Edgar #2"
+    },
+    {
+      location: "Tecamachalco",
+      type: "Cambio de Frenos",
+      time: "3m 40s",
+      timeAgo: "hace 4 minutos",
+      status: "Resuelto",
+      score: "5/5",
+      asesor: "Edgar #3"
+    },
+    {
+      location: "Naucalpan",
+      type: "Alineación",
+      time: "2m 10s",
+      timeAgo: "hace 3 minutos",
+      status: "En proceso",
+      score: "4/5",
+      asesor: "Edgar #1"
+    }
+  ];
+
+  // Estado para las llamadas activas
+  const [activeCalls, setActiveCalls] = useState(allCalls.slice(0, 5));
+  const [isExiting, setIsExiting] = useState(false);
 
   useEffect(() => {
-    cargarDatos()
-  }, [])
+    const updateCalls = () => {
+      setIsExiting(true);
 
-  const cargarDatos = async () => {
-    try {
-      // Total de clientes
-      const { count: totalClientes } = await supabase
-        .from('clientes')
-        .select('*', { count: 'exact' })
+      setTimeout(() => {
+        // Tomamos las primeras 4 llamadas y las movemos una posición hacia abajo
+        const newCalls = [...activeCalls.slice(0, 4)];
+        
+        // Elegimos una nueva llamada aleatoria para poner al principio
+        const randomCall = allCalls[Math.floor(Math.random() * allCalls.length)];
+        const newCall = {
+          ...randomCall,
+          time: `${Math.floor(Math.random() * 3) + 1}m ${Math.floor(Math.random() * 59)}s`,
+          timeAgo: `hace ${Math.floor(Math.random() * 5) + 1} minutos`
+        };
 
-      // Total de vehículos
-      const { count: totalVehiculos } = await supabase
-        .from('vehiculos')
-        .select('*', { count: 'exact' })
+        // La insertamos al principio
+        newCalls.unshift(newCall);
 
-      // Citas pendientes
-      const { count: citasPendientes } = await supabase
-        .from('citas')
-        .select('*', { count: 'exact' })
-        .eq('estado', 'pendiente')
+        setActiveCalls(newCalls);
+        setIsExiting(false);
+      }, 800);
+    };
 
-      // Citas de hoy
-      const hoy = new Date().toISOString().split('T')[0]
-      const { count: citasHoy } = await supabase
-        .from('citas')
-        .select('*', { count: 'exact' })
-        .gte('fecha_hora', hoy)
-        .lt('fecha_hora', hoy + 'T23:59:59')
-
-      // Servicios por estado
-      const { data: serviciosPorEstado } = await supabase
-        .from('citas')
-        .select('estado, count')
-        .select('estado')
-        .then(({ data }) => {
-          const conteo: { [key: string]: number } = {}
-          data?.forEach(item => {
-            conteo[item.estado] = (conteo[item.estado] || 0) + 1
-          })
-          return {
-            data: Object.entries(conteo).map(([estado, cantidad]) => ({
-              estado,
-              cantidad
-            }))
-          }
-        })
-
-      // Ingresos mensuales (simulados con citas completadas)
-      const { data: ingresosMensuales } = await supabase
-        .from('citas')
-        .select('fecha_hora, estado')
-        .eq('estado', 'completada')
-        .then(({ data }) => {
-          const ingresos: { [key: string]: number } = {}
-          data?.forEach(item => {
-            const mes = new Date(item.fecha_hora).toLocaleString('es', { month: 'long' })
-            // Simulamos un ingreso aleatorio entre 1000 y 5000 por servicio
-            ingresos[mes] = (ingresos[mes] || 0) + Math.floor(Math.random() * 4000 + 1000)
-          })
-          return {
-            data: Object.entries(ingresos).map(([mes, total]) => ({
-              mes,
-              ingresos: total
-            }))
-          }
-        })
-
-      // Obtener la fecha actual al inicio del día
-      const hoyInicio = new Date()
-      hoyInicio.setHours(0, 0, 0, 0)
-
-      // Obtener fecha límite (4 días después)
-      const fechaLimite = new Date(hoyInicio)
-      fechaLimite.setDate(fechaLimite.getDate() + 4)
-
-      const { data: proximasCitas } = await supabase
-        .from('citas')
-        .select(`
-          id_uuid,
-          fecha_hora,
-          estado,
-          clientes (
-            nombre
-          ),
-          servicios (
-            nombre
-          )
-        `) as { data: CitaSupabase[] | null }
-
-      console.log('Citas obtenidas:', proximasCitas)
-
-      const citasFormateadas = proximasCitas?.map(cita => ({
-        id_uuid: cita.id_uuid,
-        fecha_hora: cita.fecha_hora,
-        estado: cita.estado,
-        cliente: {
-          nombre: cita.clientes.nombre || 'Error al cargar cliente'
-        },
-        servicios: cita.servicios ? [{ nombre: cita.servicios.nombre }] : []
-      })) || []
-
-      console.log('Citas formateadas:', citasFormateadas)
-
-      setData({
-        totalClientes: totalClientes || 0,
-        totalVehiculos: totalVehiculos || 0,
-        citasPendientes: citasPendientes || 0,
-        citasHoy: citasHoy || 0,
-        serviciosPorEstado: serviciosPorEstado || [],
-        ingresosMensuales: ingresosMensuales || [],
-        proximasCitas: citasFormateadas
-      })
-    } catch (error) {
-      console.error('Error cargando datos:', error)
-    }
-  }
-
-  if (!data) return <div>Cargando...</div>
+    const interval = setInterval(updateCalls, 2000);
+    return () => clearInterval(interval);
+  }, [activeCalls]);
 
   return (
-    <div className="flex-1 space-y-4 p-8 pt-6">
-      <div className="flex items-center justify-between space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-      </div>
-      <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="overview">Vista General</TabsTrigger>
-          <TabsTrigger value="analytics">Analíticas</TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Clientes
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{data.totalClientes}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Vehículos Registrados
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{data.totalVehiculos}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Citas Pendientes
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{data.citasPendientes}</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Citas Hoy
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{data.citasHoy}</div>
-              </CardContent>
-            </Card>
+    <div className="min-h-screen bg-white">
+      {/* Navbar simplificado */}
+      <nav className="py-6 px-6">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <div className="text-xl font-light">edgar<span className="font-medium">AI</span></div>
+          <div className="flex gap-8 items-center">
+            <a href="/backoffice" className="text-gray-600 hover:text-black">Login</a>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card className="col-span-1">
-              <CardHeader>
-                <CardTitle>Servicios por Estado</CardTitle>
-              </CardHeader>
-              <CardContent className="pl-2">
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={data.serviciosPorEstado}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="cantidad"
-                    >
-                      {data.serviciosPorEstado.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-            <Card className="col-span-1">
-              <CardHeader>
-                <CardTitle>Ingresos Mensuales</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={data.ingresosMensuales}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="mes" />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="ingresos" stroke="#8884d8" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+        </div>
+      </nav>
+
+      {/* Hero Section */}
+      <section className="py-24">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <h1 className="text-6xl mb-6 font-medium">
+            Conoce a <span className="text-primary">Edgar</span>, tu nuevo asistente de 
+            <span className="text-primary"> servicio con IA</span>
+          </h1>
+          <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
+            Edgar gestiona tus citas, llamadas y seguimientos automáticamente, mejorando la satisfacción de tus clientes y maximizando tus ingresos
+          </p>
+          <div className="flex justify-center gap-4">
+            <button className="bg-black text-white px-6 py-3 rounded flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
+              Hablar con Edgar
+            </button>
+            <button className="text-black px-6 py-3 rounded border border-gray-200 flex items-center gap-2">
+              Agendar Demo
+              <ArrowRight className="w-5 h-5" />
+            </button>
           </div>
-          <Card className="col-span-2">
-            <CardHeader>
-              <CardTitle>Próximas Citas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {data.proximasCitas.map((cita) => (
-                  <div 
-                    key={cita.id_uuid} 
-                    className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/10 transition-colors"
-                  >
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-semibold">{cita.cliente.nombre}</p>
-                        <Badge variant={
-                          cita.estado === 'completada' ? 'success' :
-                          cita.estado === 'cancelada' ? 'destructive' :
-                          cita.estado === 'confirmada' ? 'default' :
-                          'secondary'
-                        }>
-                          {cita.estado}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        {cita.servicios[0]?.nombre || 'Sin servicio'}
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end text-sm">
-                      <p className="font-medium">
-                        {format(new Date(cita.fecha_hora), "d 'de' MMMM", { locale: es })}
-                      </p>
-                      <p className="text-muted-foreground">
-                        {format(new Date(cita.fecha_hora), "HH:mm", { locale: es })}
-                      </p>
+        </div>
+      </section>
+
+      {/* Sección de Estadísticas */}
+      <section className="py-20 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl font-medium">¿Sabías que?</h2>
+            <p className="text-2xl text-gray-800 mt-4">
+              Las agencias están <span className="text-primary font-medium">perdiendo oportunidades</span> por no optimizar su gestión de servicio
+            </p>
+            <p className="text-lg text-gray-600 mt-2">Principales desafíos en la gestión de llamadas</p>
+          </div>
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-white p-8 rounded-xl text-center shadow-sm">
+              <div className="text-4xl font-light text-primary mb-4">40%</div>
+              <p className="text-gray-600">de clientes están insatisfechos con la respuesta a sus llamadas</p>
+            </div>
+            <div className="bg-white p-8 rounded-xl text-center shadow-sm">
+              <div className="text-4xl font-light text-primary mb-4">33%</div>
+              <p className="text-gray-600">de llamadas entrantes no son contestadas</p>
+            </div>
+            <div className="bg-white p-8 rounded-xl text-center shadow-sm">
+              <div className="text-4xl font-light text-primary mb-4">80%</div>
+              <p className="text-gray-600">de leads no reciben seguimiento activo</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Sección de Llamadas en Vivo */}
+      <section className="py-20">
+        <div className="max-w-4xl mx-auto px-6">
+          <h2 className="text-4xl font-medium mb-6">Llamadas en Tiempo Real</h2>
+          <p className="text-gray-600 mb-12">Más de 1 millón de minutos gestionados</p>
+          
+          <div className="space-y-4">
+            {activeCalls.map((call, index) => (
+              <div 
+                key={`${call.location}-${call.time}`}
+                className={`call-item bg-white p-4 rounded-lg border border-gray-100 flex items-center justify-between hover:shadow-md ${
+                  isExiting && index === 4 ? 'exiting' : ''
+                }`}
+                style={{
+                  animationDelay: `${index * 200}ms`
+                }}
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                    <Phone className="w-4 h-4 text-green-600" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-gray-500">{call.asesor}</div>
+                    <div>
+                      <span className="text-gray-600">Alguien de</span>{" "}
+                      <span className="font-medium">{call.location}</span>
+                      <span className="text-gray-600"> solicitó</span>{" "}
+                      <span className="font-medium">{call.type}</span>
                     </div>
                   </div>
-                ))}
-                {data.proximasCitas.length === 0 && (
-                  <div className="text-center py-6 text-muted-foreground">
-                    No hay citas programadas para los próximos días
+                </div>
+                <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-gray-400" />
+                    <span className="text-gray-400">{call.time}</span>
                   </div>
-                )}
+                  <div className={`px-3 py-1 rounded-full text-sm ${
+                    call.status === "Resuelto" 
+                      ? "bg-green-100 text-green-600" 
+                      : "bg-blue-100 text-blue-600"
+                  }`}>
+                    {call.score}
+                  </div>
+                  <div className="text-gray-400 text-sm">{call.timeAgo}</div>
+                </div>
               </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Final */}
+      <section className="py-24 bg-gray-50">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <h2 className="text-4xl font-medium mb-6">¿Listo para conocer a Edgar?</h2>
+          <p className="text-xl text-gray-600 mb-8">Implementación en menos de 24 horas</p>
+          {/* ... botones CTA ... */}
+        </div>
+      </section>
     </div>
-  )
+  );
 }
+
+// Agregar estos estilos en tu globals.css
+/*
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+*/
 
