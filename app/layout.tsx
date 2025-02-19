@@ -1,14 +1,12 @@
 import "@/app/globals.css"
 import { Inter } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
-import { Sidebar } from "@/components/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { VoiceflowWidget } from "@/components/voiceflow-widget"
 
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata = {
-  title: 'EdgarAI - BackOffice',
+  title: 'EdgarAI - Sistema Inteligente para Talleres',
   description: 'Sistema inteligente para la gestión de talleres mecánicos',
 }
 
@@ -22,13 +20,9 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider>
           <TooltipProvider>
-            <div className="flex min-h-screen">
-              <Sidebar />
-              <main className="flex-1">{children}</main>
-            </div>
+            {children}
           </TooltipProvider>
         </ThemeProvider>
-        <VoiceflowWidget />
       </body>
     </html>
   )

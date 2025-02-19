@@ -20,6 +20,7 @@ import {
   BarChart,
   type LucideIcon
 } from "lucide-react"
+import Image from "next/image"
 
 interface MenuItem {
   title: string;
@@ -32,7 +33,7 @@ interface MenuItem {
 const menuItems: MenuItem[] = [
   {
     title: "Dashboard",
-    href: "/",
+    href: "/backoffice",
     icon: LayoutDashboard
   },
   {
@@ -42,17 +43,17 @@ const menuItems: MenuItem[] = [
     items: [
       {
         title: "Clientes",
-        href: "/clientes",
+        href: "/backoffice/clientes",
         icon: Users
       },
       {
         title: "Vehículos",
-        href: "/vehiculos",
+        href: "/backoffice/vehiculos",
         icon: Car
       },
       {
         title: "Feedback NPS",
-        href: "/feedback",
+        href: "/backoffice/feedback",
         icon: BarChart
       }
     ]
@@ -64,17 +65,17 @@ const menuItems: MenuItem[] = [
     items: [
       {
         title: "Citas",
-        href: "/citas",
+        href: "/backoffice/citas",
         icon: Calendar
       },
       {
         title: "Transacciones",
-        href: "/transacciones",
+        href: "/backoffice/transacciones",
         icon: Receipt
       },
       {
         title: "Servicios Recomendados",
-        href: "/servicios-recomendados",
+        href: "/backoffice/servicios-recomendados",
         icon: ClipboardList
       }
     ]
@@ -86,22 +87,22 @@ const menuItems: MenuItem[] = [
     items: [
       {
         title: "Configuración",
-        href: "/admin/configuracion",
+        href: "/backoffice/admin/configuracion",
         icon: Settings
       },
       {
         title: "Fechas Bloqueadas",
-        href: "/admin/fechas-bloqueadas",
+        href: "/backoffice/admin/fechas-bloqueadas",
         icon: CalendarX
       },
       {
         title: "Servicios",
-        href: "/servicios",
+        href: "/backoffice/servicios",
         icon: Wrench
       },
       {
         title: "Productos",
-        href: "/productos",
+        href: "/backoffice/productos",
         icon: Package
       }
     ]
@@ -148,18 +149,27 @@ export function Sidebar() {
       isCollapsed ? "w-[80px]" : "w-[280px]"
     )}>
       <div className="flex h-full flex-col">
-        <div className="p-6 flex items-center border-b">
-          {!isCollapsed && <h1 className="text-xl font-bold flex-1">EdgarAI</h1>}
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors ml-auto"
-          >
-            {isCollapsed ? (
-              <ChevronRight className="h-5 w-5" />
-            ) : (
-              <ChevronLeft className="h-5 w-5" />
+        <div className={cn(
+          "flex items-center border-b h-[56px]",
+          isCollapsed ? "px-4" : "px-6"
+        )}>
+          <div className={cn(
+            "flex items-center gap-2",
+            isCollapsed ? "w-full justify-center" : "flex-1"
+          )}>
+            <div className="p-2">
+              <Image
+                src="/favicon.ico"
+                alt="EdgarAI Logo"
+                width={24}
+                height={24}
+                className="rounded-sm"
+              />
+            </div>
+            {!isCollapsed && (
+              <h1 className="text-xl font-bold">EdgarAI</h1>
             )}
-          </button>
+          </div>
         </div>
 
         <nav className="flex-1 p-4 space-y-2">
@@ -265,6 +275,22 @@ export function Sidebar() {
             </div>
           ))}
         </nav>
+
+        <div className={cn(
+          "border-t p-4",
+          isCollapsed ? "flex justify-center" : "flex justify-end"
+        )}>
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            {isCollapsed ? (
+              <ChevronRight className="h-5 w-5" />
+            ) : (
+              <ChevronLeft className="h-5 w-5" />
+            )}
+          </button>
+        </div>
       </div>
     </div>
   )

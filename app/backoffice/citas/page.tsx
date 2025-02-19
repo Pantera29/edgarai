@@ -1003,8 +1003,8 @@ function CitasPageContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="container mx-auto py-6 space-y-8">
+    <div className="min-h-screen">
+      <div className="space-y-8">
         {/* Métricas */}
         <div className="grid gap-4 md:grid-cols-5">
           <MetricsCard
@@ -1257,13 +1257,18 @@ function CitasPageContent() {
 
 export default function CitasPage() {
   return (
-    <Suspense fallback={
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+    <div className="flex-1 p-8">
+      <div className="flex flex-col gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Citas</h1>
+          <p className="text-gray-500 mt-2">
+            {/* Aquí podríamos agregar un subtítulo si lo necesitas */}
+          </p>
+        </div>
+
+        <CitasPageContent />
       </div>
-    }>
-      <CitasPageContent />
-    </Suspense>
+    </div>
   );
 }
 
