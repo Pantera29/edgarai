@@ -145,7 +145,7 @@ export function Sidebar() {
 
   if (pathname === "/login/" || pathname === "/register/") {
     return (<div></div>)
-  }
+  } 
   
   return (
     <div className={cn(
@@ -296,5 +296,6 @@ export function Sidebar() {
           </button>
         </div>
       </div>
+      </div>
   )
-}
+  }

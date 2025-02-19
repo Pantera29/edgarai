@@ -6,10 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
+const supabase = createClientComponentClient()
+
+
 export default function RegisterPage() {
   const { toast } = useToast();
   const router = useRouter();
-  const supabase = createClientComponentClient();
 
   const [form, setForm] = useState({
     nombres: "",
@@ -68,25 +70,18 @@ export default function RegisterPage() {
 
     const { nombres, apellidos, email, telefono, password } = form;
 
-    // Registro en Supabase
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const supabase = createClientComponentClient()
 
-    if (error) {
-      toast({ variant: "destructive", title: "Error", description: error.message });
-      setLoading(false);
-      return;
-    }
-
-    // Guardar información extra en la tabla "usuarios"
-    const { error: dbError } = await supabase.from("usuarios").insert([
-      { id: data.user?.id, nombres, apellidos, email, telefono }
+    const { error: dbError } = await supabase.from("operario").insert([
+      { email, password, nombres, apellidos, telefono }
     ]);
+
 
     if (dbError) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el usuario en la base de datos" });
     } else {
       toast({ title: "Registro exitoso", description: "Cuenta creada correctamente" });
-      router.push("/dashboard"); // Redirigir al usuario tras el registro
+      router.push("/backoffice"); 
     }
 
     setLoading(false);
