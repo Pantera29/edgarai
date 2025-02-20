@@ -186,7 +186,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="text-xl font-light">edgar<span className="font-medium">AI</span></div>
           <div className="flex gap-8 items-center">
-            <a href="/backoffice" className="text-gray-600 hover:text-black">Login</a>
+            <a href="/login" className="text-gray-600 hover:text-black">Login</a>
           </div>
         </div>
       </nav>

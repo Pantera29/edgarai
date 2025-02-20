@@ -6,13 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
-const supabase = createClientComponentClient()
 
 
 export default function RegisterPage() {
   const { toast } = useToast();
   const router = useRouter();
-
+  const [errorMessage, setErrorMessage] = useState("")
   const [form, setForm] = useState({
     nombres: "",
     apellidos: "",
@@ -22,11 +21,13 @@ export default function RegisterPage() {
     confirmPassword: "",
   });
 
+  
   const [loading, setLoading] = useState(false);
 
   // Manejar cambios en los inputs
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({ ...form, [e.target.name]: e.target.value });
+    setErrorMessage("")
   };
 
   // Validaciones
@@ -65,32 +66,53 @@ export default function RegisterPage() {
     e.preventDefault();
 
     if (!validarDatos()) return;
-
+    
     setLoading(true);
 
     const { nombres, apellidos, email, telefono, password } = form;
 
     const supabase = createClientComponentClient()
 
-    const { error: dbError } = await supabase.from("operario").insert([
-      { email, password, nombres, apellidos, telefono }
-    ]);
+    const { data: operarios, error } = await supabase
+      .from("operario")
+      .select("*")
+      .eq( "email", email );
 
-
-    if (dbError) {
+    if (error ) {
       toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el usuario en la base de datos" });
     } else {
-      toast({ title: "Registro exitoso", description: "Cuenta creada correctamente" });
-      router.push("/backoffice"); 
+      if(operarios.length>0){
+        setErrorMessage("Ya existe un operario registrado con este correo electrónico."); // Establece el mensaje de error
+        setLoading(false);
+      }
+      else {
+        const { error: dbError } = await supabase.from("operario").insert([
+          { email, password, nombres, apellidos, telefono }
+        ]);
+    
+        if (dbError) {
+          toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el usuario en la base de datos" });
+        } else {
+          toast({ title: "Registro exitoso", description: "Cuenta creada correctamente" });
+          router.push("/backoffice"); 
+        }
+    
+        setLoading(false);
+      }
     }
 
-    setLoading(false);
+    
   };
 
+  const handleInputChange = (setter) => (e) => {
+    setter(e.target.value);
+    setErrorMessage(""); // Limpia el mensaje de error cuando hay cambios en los campos
+  };
   return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
         <div className="bg-white p-6 rounded-lg shadow-md w-96">
           <h2 className="text-2xl font-bold mb-4 text-center">Registrarse</h2>
+          {errorMessage && <p className="text-red-500 text-sm">{errorMessage}</p>}
           <form onSubmit={handleRegister} className="space-y-4">
             <Input type="text" name="nombres" placeholder="Nombres" value={form.nombres} onChange={handleChange} required />
             <Input type="text" name="apellidos" placeholder="Apellidos" value={form.apellidos} onChange={handleChange} required />
@@ -102,12 +124,6 @@ export default function RegisterPage() {
               {loading ? "Registrando..." : "Registrarse"}
             </Button>
           </form>
-          <div className="mt-4 text-center">
-            <p className="text-sm">¿Ya tienes cuenta?</p>
-            <Button variant="outline" className="w-full mt-2" onClick={() => router.push("/login")}>
-              Iniciar sesión
-            </Button>
-          </div>
         </div>
       </div>
   );
