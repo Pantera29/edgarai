@@ -104,10 +104,7 @@ export default function RegisterPage() {
     
   };
 
-  const handleInputChange = (setter) => (e) => {
-    setter(e.target.value);
-    setErrorMessage(""); // Limpia el mensaje de error cuando hay cambios en los campos
-  };
+  
   return (
       <div className="flex min-h-screen items-center justify-center bg-gray-100">
         <div className="bg-white p-6 rounded-lg shadow-md w-96">

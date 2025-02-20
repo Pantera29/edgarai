@@ -14,6 +14,16 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState(""); // Estado para el mensaje de error
 
+  const handleChangeEmail = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorMessage("");
+    setEmail(e.target.value); // Actualiza el estado del email
+  };
+
+  const handleChangePassword = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorMessage("");
+    setPassword(e.target.value); // Actualiza el estado de la contraseña
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -37,11 +47,6 @@ export default function LoginPage() {
     setLoading(false);
   };
 
-  const handleInputChange = (setter) => (e) => {
-    setter(e.target.value);
-    setErrorMessage(""); // Limpia el mensaje de error cuando hay cambios en los campos
-  };
-
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-100">
       <div className="bg-white p-6 rounded-lg shadow-md w-96">
@@ -51,14 +56,14 @@ export default function LoginPage() {
             type="email"
             placeholder="Correo electrónico"
             value={email}
-            onChange={handleInputChange(setEmail)} // Limpia el error al cambiar el valor
+            onChange={handleChangeEmail} // Usa la función para actualizar el email
             required
           />
           <Input
             type="password"
             placeholder="Contraseña"
             value={password}
-            onChange={handleInputChange(setPassword)} // Limpia el error al cambiar el valor
+            onChange={handleChangePassword} // Usa la función para actualizar la contraseña
             required
           />
           {/* Muestra el mensaje de error si existe */}
