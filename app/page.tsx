@@ -192,12 +192,11 @@ export default function LandingPage() {
       <section className="py-20">
         <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <h1 className="text-[3.5rem] leading-tight font-serif mb-6">
-              Conoce a <span className="text-primary">Edgar</span> , tu nuevo asistente de servicio con IA
+            <h1 className="text-[3.5rem] leading-tight font-outfit font-semibold mb-6">
+              Conoce a <span className="text-primary">Edgar</span>, tu nuevo asistente de servicio con IA
             </h1>
             <p className="text-xl text-gray-600 mb-12 leading-relaxed">
-              Las herramientas que necesitas para gestionar, hacer crecer y optimizar tu concesionario. 
-              Agendamiento, seguimiento, comunicación y gestión de equipo en un solo lugar.
+            Edgar gestiona tus citas, llamadas y seguimientos automáticamente, mejorando la satisfacción de tus clientes y maximizando tus ingresos
             </p>
             <div className="flex gap-4">
               <button className="bg-black text-white px-6 py-3 rounded-full flex items-center gap-2">
@@ -239,7 +238,7 @@ export default function LandingPage() {
       {/* Nueva sección de características */}
       <section className="py-20">
         <div className="max-w-6xl mx-auto px-6">
-          <h2 className="text-4xl font-medium text-center mb-4">
+          <h2 className="text-4xl font-outfit text-center mb-4">
             IA diseñada específicamente para concesionarios automotrices
           </h2>
           <p className="text-xl text-gray-600 text-center mb-16">
@@ -330,7 +329,7 @@ export default function LandingPage() {
       <section className="py-20 bg-gray-50">
         <div className="max-w-4xl mx-auto px-6">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-medium">¿Sabías que?</h2>
+            <h2 className="text-4xl font-outfit">¿Sabías que?</h2>
             <p className="text-2xl text-gray-800 mt-4">
               Las agencias están <span className="text-primary font-medium">perdiendo oportunidades</span> por no optimizar su gestión de servicio
             </p>
@@ -355,7 +354,7 @@ export default function LandingPage() {
       {/* Sección de Llamadas en Vivo */}
       <section className="py-20">
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-4xl font-medium mb-6">Edgar en Acción</h2>
+          <h2 className="text-4xl font-outfit mb-6">Edgar en Acción</h2>
           
           <div className="space-y-4">
             {activeCalls.map((call, index) => (
@@ -405,7 +404,7 @@ export default function LandingPage() {
       {/* CTA Final */}
       <section className="py-24 bg-gray-50">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className="text-4xl font-medium mb-6">¿Listo para conocer a Edgar?</h2>
+          <h2 className="text-4xl font-outfit mb-6">¿Listo para conocer a Edgar?</h2>
           <p className="text-xl text-gray-600 mb-8">Implementación en menos de 24 horas</p>
           <div className="flex justify-center gap-4">
             <button className="bg-black text-white px-6 py-3 rounded flex items-center gap-2">
@@ -424,6 +423,88 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Sección de FAQs */}
+      <section className="py-20 bg-white">
+        <div className="max-w-4xl mx-auto px-6">
+          <h2 className="text-4xl font-outfit text-center mb-12">Preguntas Frecuentes</h2>
+          <div className="space-y-6">
+            <div className="bg-gray-50 rounded-lg p-6">
+              <h3 className="text-xl font-medium mb-2">¿Cómo funciona Edgar?</h3>
+              <p className="text-gray-600">
+                Edgar utiliza inteligencia artificial avanzada para gestionar llamadas, agendar citas y dar seguimiento a tus clientes de manera automática, 24/7.
+              </p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-6">
+              <h3 className="text-xl font-medium mb-2">¿Cuánto tiempo toma la implementación?</h3>
+              <p className="text-gray-600">
+                La implementación es rápida y sencilla, en menos de 24 horas Edgar estará funcionando en tu concesionario.
+              </p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-6">
+              <h3 className="text-xl font-medium mb-2">¿Se integra con mi sistema actual?</h3>
+              <p className="text-gray-600">
+                Sí, Edgar se integra con los sistemas más populares de gestión de concesionarios y CRMs del mercado.
+              </p>
+            </div>
+            
+            <div className="bg-gray-50 rounded-lg p-6">
+              <h3 className="text-xl font-medium mb-2">¿Qué soporte ofrecen?</h3>
+              <p className="text-gray-600">
+                Ofrecemos soporte técnico 24/7 y un equipo dedicado para asegurar que Edgar funcione perfectamente en tu negocio.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="bg-gray-900 text-gray-300 py-12">
+        <div className="max-w-6xl mx-auto px-6">
+          <div className="grid md:grid-cols-4 gap-8">
+            <div>
+              <div className="text-xl font-light text-white mb-4">
+                edgar<span className="font-medium">AI</span>
+              </div>
+              <p className="text-sm text-gray-400">
+                Transformando la atención al cliente en la industria automotriz con IA
+              </p>
+            </div>
+            
+            <div>
+              <h3 className="font-medium text-white mb-4">Producto</h3>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="hover:text-white transition-colors">Características</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Precios</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Demo</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="font-medium text-white mb-4">Empresa</h3>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="hover:text-white transition-colors">Sobre Nosotros</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Blog</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Contacto</a></li>
+              </ul>
+            </div>
+            
+            <div>
+              <h3 className="font-medium text-white mb-4">Legal</h3>
+              <ul className="space-y-2 text-sm">
+                <li><a href="#" className="hover:text-white transition-colors">Privacidad</a></li>
+                <li><a href="#" className="hover:text-white transition-colors">Términos</a></li>
+              </ul>
+            </div>
+          </div>
+          
+          <div className="border-t border-gray-800 mt-12 pt-8 text-sm text-gray-400">
+            <p>© 2025 EdgarAI. Todos los derechos reservados.</p>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

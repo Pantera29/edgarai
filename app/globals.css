@@ -24,6 +24,7 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+    --font-outfit: 'Outfit', sans-serif;
   }
 }
 
@@ -120,4 +121,8 @@
 .feature-card:hover .feature-icon {
   transform: scale(1.1);
   background-color: rgb(239 246 255);
+}
+
+.font-outfit {
+  font-family: var(--font-outfit);
 }
