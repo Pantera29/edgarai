@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 const supabase = createClientComponentClient()
 
-export async function POST(request: Request) {
+export async function GET(request: Request) {
   try {
     // Obtener los query params desde la URL
     const url = new URL(request.url);
