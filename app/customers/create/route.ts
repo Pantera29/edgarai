@@ -6,16 +6,13 @@ export async function GET(request: Request) {
   try {
     // Obtener los query params desde la URL
     const url = new URL(request.url);
-    const nombre = url.searchParams.get('name');
+    const names = url.searchParams.get('name');
     const email = url.searchParams.get('email');
-    const telefono = url.searchParams.get('phone');
-    const vehiculo_marca = url.searchParams.get('brand');
-    const vehiculo_modelo = url.searchParams.get('model');
-    const vehiculo_año = url.searchParams.get('yead');
-    const vehiculo_kilometraje = url.searchParams.get('km');
+    const phone_number = url.searchParams.get('phone');
+    const dealership_id = url.searchParams.get('dealership_id');
 
     // Verificar que los parámetros requeridos están presentes
-    if (!nombre || !email || !telefono ) {
+    if (!names || !email || !phone_number || !dealership_id ) {
       return NextResponse.json(
         { message: 'Missing required parameters' },
         { status: 400 }
@@ -24,16 +21,13 @@ export async function GET(request: Request) {
 
     // Inserción de datos en la tabla 'clientes' (incluyendo campos de vehículo)
     const { data, error } = await supabase
-      .from('clientes')
+      .from('client')
       .insert([
         {
-          nombre,
+          names,
           email,
-          telefono,
-          vehiculo_marca,
-          vehiculo_modelo,
-          vehiculo_año,
-          vehiculo_kilometraje
+          phone_number,
+          dealership_id
         }
       ]);
 
