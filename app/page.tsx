@@ -156,10 +156,7 @@ export default function LandingPage() {
       setIsExiting(true);
 
       setTimeout(() => {
-        // Tomamos las primeras 4 llamadas y las movemos una posición hacia abajo
-        const newCalls = [...activeCalls.slice(0, 4)];
-        
-        // Elegimos una nueva llamada aleatoria para poner al principio
+        // Elegimos una nueva llamada aleatoria
         const randomCall = allCalls[Math.floor(Math.random() * allCalls.length)];
         const newCall = {
           ...randomCall,
@@ -167,8 +164,8 @@ export default function LandingPage() {
           timeAgo: `hace ${Math.floor(Math.random() * 5) + 1} minutos`
         };
 
-        // La insertamos al principio
-        newCalls.unshift(newCall);
+        // Creamos un nuevo array con la nueva llamada al principio y las 4 primeras llamadas actuales
+        const newCalls = [newCall, ...activeCalls.slice(0, 4)];
 
         setActiveCalls(newCalls);
         setIsExiting(false);
@@ -206,10 +203,105 @@ export default function LandingPage() {
               <MessageSquare className="w-5 h-5" />
               Hablar con Edgar
             </button>
-            <button className="text-black px-6 py-3 rounded border border-gray-200 flex items-center gap-2">
+            <a 
+              href="https://wa.me/525575131257?text=Estoy%20interesado%20en%20conocer%20a%20Edgar"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-black px-6 py-3 rounded border border-gray-200 flex items-center gap-2 hover:bg-gray-50"
+            >
               Agendar Demo
               <ArrowRight className="w-5 h-5" />
-            </button>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* Nueva sección de características */}
+      <section className="py-20">
+        <div className="max-w-6xl mx-auto px-6">
+          <h2 className="text-4xl font-medium text-center mb-4">
+            IA diseñada específicamente para concesionarios automotrices
+          </h2>
+          <p className="text-xl text-gray-600 text-center mb-16">
+            Edgar fue entrenado junto a concesionarios líderes y desarrollado por expertos en IA
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="p-6 rounded-xl">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <rect width="18" height="18" x="3" y="3" rx="2" />
+                  <path d="M7 7h10M7 12h10M7 17h10" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-medium mb-2">Totalmente Personalizable</h3>
+              <p className="text-gray-600">
+                Crea asistentes con personalidades, acentos y comportamientos que tus clientes esperan.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-xl">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.83 6.72 2.24" />
+                  <path d="M21 3v4h-4" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-medium mb-2">Auto-Aprendizaje</h3>
+              <p className="text-gray-600">
+                Edgar aprende con el tiempo las mejores formas de manejar diferentes situaciones basado en tu retroalimentación.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-xl">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-medium mb-2">Alta Visibilidad</h3>
+              <p className="text-gray-600">
+                Visualiza las interacciones de la IA a todos los niveles, desde una llamada individual hasta todo el concesionario.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-xl">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="m5 8 6 6M9.5 8h5v5" />
+                  <path d="M19 11a7 7 0 1 1-7-7" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-medium mb-2">Multilingüe</h3>
+              <p className="text-gray-600">
+                Utiliza más de 30 idiomas, incluso simultáneamente, para entender a cualquier cliente.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-xl">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M19 10c0 3.976-7 11-7 11s-7-7.024-7-11 3.134-7 7-7 7 3.024 7 7Z" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-medium mb-2">Voz Natural</h3>
+              <p className="text-gray-600">
+                Ayuda a tus clientes a sentirse cómodos con voces y patrones de habla naturales y humanos.
+              </p>
+            </div>
+
+            <div className="p-6 rounded-xl">
+              <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M8 18h8M8 6h8M12 2v20" />
+                </svg>
+              </div>
+              <h3 className="text-xl font-medium mb-2">Totalmente Integrado</h3>
+              <p className="text-gray-600">
+                Edgar se conecta con los sistemas más populares de gestión y agendamiento desde el primer día.
+              </p>
+            </div>
           </div>
         </div>
       </section>
@@ -222,7 +314,6 @@ export default function LandingPage() {
             <p className="text-2xl text-gray-800 mt-4">
               Las agencias están <span className="text-primary font-medium">perdiendo oportunidades</span> por no optimizar su gestión de servicio
             </p>
-            <p className="text-lg text-gray-600 mt-2">Principales desafíos en la gestión de llamadas</p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-white p-8 rounded-xl text-center shadow-sm">
@@ -244,8 +335,7 @@ export default function LandingPage() {
       {/* Sección de Llamadas en Vivo */}
       <section className="py-20">
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className="text-4xl font-medium mb-6">Llamadas en Tiempo Real</h2>
-          <p className="text-gray-600 mb-12">Más de 1 millón de minutos gestionados</p>
+          <h2 className="text-4xl font-medium mb-6">Edgar en Acción</h2>
           
           <div className="space-y-4">
             {activeCalls.map((call, index) => (
@@ -297,7 +387,21 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-4xl font-medium mb-6">¿Listo para conocer a Edgar?</h2>
           <p className="text-xl text-gray-600 mb-8">Implementación en menos de 24 horas</p>
-          {/* ... botones CTA ... */}
+          <div className="flex justify-center gap-4">
+            <button className="bg-black text-white px-6 py-3 rounded flex items-center gap-2">
+              <MessageSquare className="w-5 h-5" />
+              Hablar con Edgar
+            </button>
+            <a 
+              href="https://wa.me/525575131257?text=Estoy%20interesado%20en%20conocer%20a%20Edgar"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-black px-6 py-3 rounded border border-gray-200 flex items-center gap-2 hover:bg-gray-50"
+            >
+              Agendar Demo
+              <ArrowRight className="w-5 h-5" />
+            </a>
+          </div>
         </div>
       </section>
     </div>
