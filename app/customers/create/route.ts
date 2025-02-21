@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 const supabase = createClientComponentClient()
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   try {
     // Obtener los query params desde la URL
     const url = new URL(request.url);
@@ -30,6 +30,7 @@ export async function GET(request: Request) {
           dealership_id
         }
       ]);
+      
 
     // Manejar errores de inserción
     if (error) {
