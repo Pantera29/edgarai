@@ -189,29 +189,49 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="py-24">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h1 className="text-6xl mb-6 font-medium">
-            Conoce a <span className="text-primary">Edgar</span>, tu nuevo asistente de 
-            <span className="text-primary"> servicio con IA</span>
-          </h1>
-          <p className="text-xl text-gray-600 mb-12 max-w-2xl mx-auto">
-            Edgar gestiona tus citas, llamadas y seguimientos automáticamente, mejorando la satisfacción de tus clientes y maximizando tus ingresos
-          </p>
-          <div className="flex justify-center gap-4">
-            <button className="bg-black text-white px-6 py-3 rounded flex items-center gap-2">
-              <MessageSquare className="w-5 h-5" />
-              Hablar con Edgar
-            </button>
-            <a 
-              href="https://wa.me/525575131257?text=Estoy%20interesado%20en%20conocer%20a%20Edgar"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-black px-6 py-3 rounded border border-gray-200 flex items-center gap-2 hover:bg-gray-50"
-            >
-              Agendar Demo
-              <ArrowRight className="w-5 h-5" />
-            </a>
+      <section className="py-20">
+        <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-12 items-center">
+          <div>
+            <h1 className="text-[3.5rem] leading-tight font-serif mb-6">
+              Conoce a <span className="text-primary">Edgar</span> , tu nuevo asistente de servicio con IA
+            </h1>
+            <p className="text-xl text-gray-600 mb-12 leading-relaxed">
+              Las herramientas que necesitas para gestionar, hacer crecer y optimizar tu concesionario. 
+              Agendamiento, seguimiento, comunicación y gestión de equipo en un solo lugar.
+            </p>
+            <div className="flex gap-4">
+              <button className="bg-black text-white px-6 py-3 rounded-full flex items-center gap-2">
+                <MessageSquare className="w-5 h-5" />
+                Hablar con Edgar
+              </button>
+              <a 
+                href="https://wa.me/525575131257?text=Estoy%20interesado%20en%20conocer%20a%20Edgar"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-black px-6 py-3 rounded-full border border-gray-200 flex items-center gap-2 hover:bg-gray-50"
+              >
+                Agendar Demo
+                <ArrowRight className="w-5 h-5" />
+              </a>
+            </div>
+          </div>
+          <div className="relative">
+            <div className="aspect-square bg-gray-100 rounded-full overflow-hidden">
+              {/* Aquí podrías poner una imagen o ilustración representativa */}
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-3/4 h-3/4 bg-blue-50 rounded-full flex items-center justify-center">
+                  <svg 
+                    className="w-1/2 h-1/2 text-primary" 
+                    viewBox="0 0 24 24" 
+                    fill="none" 
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                  >
+                    <path d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -227,7 +247,7 @@ export default function LandingPage() {
           </p>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="p-6 rounded-xl">
+            <div className="feature-card p-6 rounded-xl bg-white border border-gray-100">
               <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <rect width="18" height="18" x="3" y="3" rx="2" />
@@ -240,7 +260,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="p-6 rounded-xl">
+            <div className="feature-card p-6 rounded-xl bg-white border border-gray-100">
               <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.85.83 6.72 2.24" />
@@ -253,7 +273,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="p-6 rounded-xl">
+            <div className="feature-card p-6 rounded-xl bg-white border border-gray-100">
               <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
@@ -266,7 +286,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="p-6 rounded-xl">
+            <div className="feature-card p-6 rounded-xl bg-white border border-gray-100">
               <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="m5 8 6 6M9.5 8h5v5" />
@@ -279,7 +299,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="p-6 rounded-xl">
+            <div className="feature-card p-6 rounded-xl bg-white border border-gray-100">
               <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="M19 10c0 3.976-7 11-7 11s-7-7.024-7-11 3.134-7 7-7 7 3.024 7 7Z" />
@@ -291,7 +311,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="p-6 rounded-xl">
+            <div className="feature-card p-6 rounded-xl bg-white border border-gray-100">
               <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center mb-4">
                 <svg className="w-6 h-6 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="M8 18h8M8 6h8M12 2v20" />
