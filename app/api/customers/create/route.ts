@@ -13,6 +13,7 @@ export async function GET(request: Request) {
 
     // Verificar que los parámetros requeridos están presentes
     if (!names || !email || !phone_number || !dealership_id ) {
+      console.log('Missing required parameters - ROMPIMO TODO');
       return NextResponse.json(
         { message: 'Missing required parameters' },
         { status: 400 }

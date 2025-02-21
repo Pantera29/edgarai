@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
-export default function CreateCustomerPage() {
+export default function CustomersCreatePage() {
   const searchParams = useSearchParams();
+  const [status, setStatus] = useState<string | null>(null); // Para el estado de la solicitud
+  const [error, setError] = useState<string | null>(null); // Para errores
 
   useEffect(() => {
     // Obtener los parámetros desde la URL
@@ -15,7 +17,7 @@ export default function CreateCustomerPage() {
 
     // Verificar si todos los parámetros están presentes
     if (!name || !email || !phone || !dealership_id) {
-      console.error('Missing required parameters');
+      setError('Missing required parameters');
       return;
     }
 
@@ -32,20 +34,25 @@ export default function CreateCustomerPage() {
         if (response.ok) {
           const data = await response.json();
           console.log('Customer created:', data);
+          setStatus('Customer created successfully');
         } else {
           console.error('Failed to create customer:', response.statusText);
+          setError('Failed to create customer');
         }
       } catch (error) {
         console.error('Error during fetch:', error);
+        setError('Error during fetch');
       }
     };
 
     // Llamar a la función para hacer el GET
     fetchData();
-  }, [searchParams]); // Dependencia searchParams para que se ejecute cuando cambien
+  }, [searchParams]);
 
   return (
-    // Página en blanco
-    <div></div>
+    <div>
+      {status && <p>{status}</p>}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+    </div>
   );
 }
