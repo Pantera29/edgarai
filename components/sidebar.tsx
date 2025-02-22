@@ -18,6 +18,7 @@ import {
   Receipt,
   ClipboardList,
   BarChart,
+  Bell,
   type LucideIcon
 } from "lucide-react"
 import Image from "next/image"
@@ -55,6 +56,11 @@ const menuItems: MenuItem[] = [
         title: "Feedback NPS",
         href: "/backoffice/feedback",
         icon: BarChart
+      },
+      {
+        title: "Recordatorios",
+        href: "/backoffice/recordatorios",
+        icon: Bell
       }
     ]
   },
