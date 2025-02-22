@@ -41,7 +41,7 @@ interface Recordatorio {
   vehiculos: {
     marca: string
     modelo: string
-    año: number
+    anio: number
   }
 }
 
@@ -76,15 +76,15 @@ export default function RecordatoriosPage() {
         vehiculos (
           marca,
           modelo,
-          año
+          anio
         )
       `)
       .order('fecha_recordatorio', { ascending: true })
 
     if (data) {
-      setRecordatorios(data)
-      setFilteredRecordatorios(data)
-      updateStats(data)
+      setRecordatorios(data as Recordatorio[])
+      setFilteredRecordatorios(data as Recordatorio[])
+      updateStats(data as Recordatorio[])
     }
   }
 
@@ -231,7 +231,7 @@ export default function RecordatoriosPage() {
                   <TableRow key={recordatorio.id_recordatorio}>
                     <TableCell>{recordatorio.clientes.nombre}</TableCell>
                     <TableCell>
-                      {recordatorio.vehiculos.marca} {recordatorio.vehiculos.modelo} {recordatorio.vehiculos.año}
+                      {recordatorio.vehiculos.marca} {recordatorio.vehiculos.modelo} {recordatorio.vehiculos.anio}
                     </TableCell>
                     <TableCell>
                       {recordatorio.tipo === 'venta_inicial' ? 'Venta Inicial' : 'Servicio Regular'}
