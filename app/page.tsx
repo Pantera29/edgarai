@@ -151,6 +151,7 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState('');
   const [casoActivo, setCasoActivo] = useState('agendamiento');
   const [visibleMessages, setVisibleMessages] = useState<number>(0);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Efecto para animar los mensajes cuando cambia el caso activo
   useEffect(() => {
@@ -191,10 +192,11 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white pt-[88px]">
       {/* Navbar con logo a la izquierda */}
-      <nav className="py-6 px-6 border-b">
+      <nav className="py-6 px-6 border-b fixed w-full top-0 bg-white z-50">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
+          {/* Logo */}
           <div className="flex items-center gap-3">
             <Image
               src="/favicon.ico"
@@ -203,12 +205,65 @@ export default function LandingPage() {
               height={32}
               className="rounded-sm"
             />
-            <div className="text-2xl font-light">
+            <div className="text-2xl">
               edgar<span className="font-medium">AI</span>
             </div>
           </div>
-          
-          <div className="flex items-center gap-8">
+
+          {/* Botón hamburguesa para móvil */}
+          <button 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden flex flex-col gap-1"
+          >
+            <div className="w-6 h-[2px] bg-gray-800"></div>
+            <div className="w-6 h-[2px] bg-gray-800"></div>
+            <div className="w-6 h-[2px] bg-gray-800"></div>
+          </button>
+
+          {/* Menú móvil */}
+          {mobileMenuOpen && (
+            <div className="absolute top-full left-0 right-0 bg-white border-b shadow-lg md:hidden">
+              <div className="p-6 space-y-6">
+                <button 
+                  onClick={() => {
+                    scrollToSection('caracteristicas');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left text-xl"
+                >
+                  Características
+                </button>
+                <button 
+                  onClick={() => {
+                    scrollToSection('casos-de-uso');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left text-xl"
+                >
+                  Casos de Uso
+                </button>
+                <a 
+                  href="/login" 
+                  className="block text-xl"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Login Agencia
+                </a>
+                <a 
+                  href="https://wa.me/525575131257?text=Estoy%20interesado%20en%20conocer%20a%20Edgar"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block bg-primary text-white px-4 py-3 rounded-full text-center text-xl"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Agendar demo
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* Menú de escritorio */}
+          <div className="hidden md:flex items-center gap-8">
             <button 
               onClick={() => scrollToSection('caracteristicas')} 
               className="text-gray-600 hover:text-black"
@@ -236,10 +291,10 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* Hero Section simplificado */}
+      {/* Hero Section */}
       <section className="py-32 bg-[#FDF8F6]">
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h1 className="text-[3.5rem] leading-tight font-outfit font-semibold mb-6">
+          <h1 className="text-[2.5rem] md:text-[3.5rem] leading-tight font-outfit font-semibold mb-6">
             <span className="text-primary">Edgar</span>, el asistente virtual que
             <br />
             automatiza tu área de servicio
@@ -715,32 +770,27 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className="text-4xl font-outfit mb-6">¿Listo para conocer a Edgar?</h2>
           <p className="text-xl text-gray-600 mb-8">Implementación en menos de 24 horas</p>
-          <div className="flex justify-center gap-4">
-            <button className="bg-black text-white px-6 py-3 rounded flex items-center gap-2">
-              <MessageSquare className="w-5 h-5" />
-              Hablar con Edgar
-            </button>
+          <div className="flex justify-center">
             <a 
               href="https://wa.me/525575131257?text=Estoy%20interesado%20en%20conocer%20a%20Edgar"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-black px-6 py-3 rounded border border-gray-200 flex items-center gap-2 hover:bg-gray-50"
+              className="bg-primary text-white px-8 py-4 rounded-full text-lg hover:bg-primary/90 transition-colors"
             >
               Agendar Demo
-              <ArrowRight className="w-5 h-5" />
             </a>
           </div>
         </div>
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-300 py-8">
+      <footer className="bg-[#0A0A0A] text-gray-300 py-8">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="flex justify-between items-center">
-            <div className="text-xl font-light text-white">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="text-2xl text-white">
               edgar<span className="font-medium">AI</span>
             </div>
-            <p className="text-sm text-gray-400">
+            <p className="text-gray-400">
               © 2025 EdgarAI. Todos los derechos reservados.
             </p>
           </div>
