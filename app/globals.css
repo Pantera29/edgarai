@@ -63,7 +63,7 @@
 @keyframes slideIn {
   from {
     opacity: 0;
-    transform: translateY(-30px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
@@ -125,4 +125,50 @@
 
 .font-outfit {
   font-family: var(--font-outfit);
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slideDown {
+  animation: slideDown 0.2s ease-out;
+}
+
+::selection {
+  background-color: rgba(59, 130, 246, 0.2); /* Color primary con opacidad */
+  color: currentColor;
+}
+
+::-moz-selection {
+  background-color: rgba(59, 130, 246, 0.2);
+  color: currentColor;
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out forwards;
+}
+
+.typing-indicator {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.typing-indicator::after {
+  content: '';
+  animation: typing 1s infinite;
+}
+
+@keyframes typing {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
 }
