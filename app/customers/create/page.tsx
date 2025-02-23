@@ -1,27 +1,26 @@
-"use client"
+// app/customers/create/page.tsx
+
+"use client"; // Este archivo es un componente del cliente
 
 import { useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 
-export default function CustomersCreatePage() {
-  const searchParams = useSearchParams();
-  const [status, setStatus] = useState<string | null>(null); // Para el estado de la solicitud
-  const [error, setError] = useState<string | null>(null); // Para errores
+export default function Page() {
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [queryParams, setQueryParams] = useState<{ [key: string]: string }>({});
 
   useEffect(() => {
-    // Obtener los parámetros desde la URL
+    const searchParams = new URLSearchParams(window.location.search);
     const name = searchParams.get('name');
     const email = searchParams.get('email');
     const phone = searchParams.get('phone');
     const dealership_id = searchParams.get('dealership_id');
 
-    // Verificar si todos los parámetros están presentes
     if (!name || !email || !phone || !dealership_id) {
       setError('Missing required parameters');
       return;
     }
 
-    // Hacer la solicitud al endpoint GET
     const fetchData = async () => {
       try {
         const response = await fetch(
@@ -45,9 +44,8 @@ export default function CustomersCreatePage() {
       }
     };
 
-    // Llamar a la función para hacer el GET
     fetchData();
-  }, [searchParams]);
+  }, [queryParams]);
 
   return (
     <div>

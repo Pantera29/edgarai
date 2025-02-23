@@ -20,6 +20,16 @@ export async function GET(request: Request) {
       );
     }
 
+
+    const {  data: clientData, error: clientError } = await supabase
+      .from("client")
+      .select("*")
+      .match({ email: email, phone_number: phone_number });
+
+      if(clientError || clientData.length > 0){
+        return NextResponse.json({ message: 'Client already exists' }, { status: 200 });
+      }
+
     // Inserción de datos en la tabla 'clientes' (incluyendo campos de vehículo)
     const { data, error } = await supabase
       .from('client')
