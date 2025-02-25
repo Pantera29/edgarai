@@ -46,7 +46,6 @@ function TransaccionesContent() {
     estado: '',
     cliente: ''
   })
-  const [totals, setTotals] = useState({ count: 0, amount: 0 })
   const [showDetails, setShowDetails] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
 
@@ -109,32 +108,11 @@ function TransaccionesContent() {
               modelo,
               placa
             )
-          ),
-          transaccion_productos (
-            cantidad_usada,
-            precio_unitario,
-            productos (
-              nombre
-            )
           )
         `)
         .order('fecha_transaccion', { ascending: false })
 
       if (error) throw error
-
-      // Calcular el total de todas las transacciones en el cliente
-      const totalAmount = transacciones?.reduce((sum, transaction) => {
-        const transactionTotal = transaction.transaccion_productos?.reduce(
-          (subSum: number, prod: any) => subSum + (prod.cantidad_usada * prod.precio_unitario),
-          0
-        ) || 0
-        return sum + transactionTotal
-      }, 0) || 0
-
-      setTotals({ 
-        count: transacciones?.length || 0, 
-        amount: totalAmount
-      })
       
       setData(transacciones || [])
       setPageCount(Math.ceil((transacciones?.length || 0) / 10))
@@ -167,9 +145,6 @@ function TransaccionesContent() {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Transacciones</h2>
-          <p className="text-muted-foreground mt-2">
-            {totals.count} transacciones, Total: ${totals.amount.toLocaleString()}
-          </p>
         </div>
         <Button onClick={() => setShowNewTransaction(true)}>
           Nueva Transacción
@@ -313,24 +288,6 @@ function TransaccionesContent() {
                     : 'Fecha no disponible'
                   }
                 </p>
-              </div>
-            </div>
-
-            <div>
-              <h4 className="font-medium mb-2">Productos</h4>
-              <div className="border rounded-md divide-y">
-                {selectedTransaction?.transaccion_productos?.map((producto: any, index: number) => (
-                  <div key={index} className="p-3 flex justify-between items-center">
-                    <span>{producto.productos.nombre}</span>
-                    <div className="flex items-center gap-4">
-                      <span>{producto.cantidad_usada} unidades</span>
-                      <span>${producto.precio_unitario}</span>
-                      <span className="font-medium">
-                        ${(producto.cantidad_usada * producto.precio_unitario).toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
-                ))}
               </div>
             </div>
           </div>

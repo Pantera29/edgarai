@@ -135,6 +135,10 @@ export default function RecordatoriosPage() {
 
   return (
     <div className="p-8 space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Recordatorios</h1>
+      </div>
+
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -149,7 +153,7 @@ export default function RecordatoriosPage() {
             <CardTitle className="text-sm font-medium">Enviados</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats.enviados}</div>
+            <div className="text-2xl font-bold text-green-600">{stats.enviados}</div>
           </CardContent>
         </Card>
         <Card>

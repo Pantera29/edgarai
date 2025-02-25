@@ -14,7 +14,6 @@ import {
   Wrench,
   Settings,
   CalendarX,
-  Package,
   Receipt,
   ClipboardList,
   BarChart,
@@ -105,11 +104,6 @@ const menuItems: MenuItem[] = [
         title: "Servicios",
         href: "/backoffice/servicios",
         icon: Wrench
-      },
-      {
-        title: "Productos",
-        href: "/backoffice/productos",
-        icon: Package
       }
     ]
   }
