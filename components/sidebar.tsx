@@ -124,13 +124,7 @@ export function Sidebar() {
   }, []); // Solo se ejecuta una vez, cuando el componente se monta
 
   const router = useRouter();
-  let token : string | null = ''
-  useEffect(() => {
-    if (searchParams) {
-      token = searchParams.get('token');
-    }
-  }, [searchParams]); // Se ejecuta cada vez que searchParams cambia
-
+  const token : string | null =  searchParams?.get('token') || null;
 
   const [isCollapsed, setIsCollapsed] = useState(false)
   
