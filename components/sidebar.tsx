@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { usePathname, useSearchParams } from "next/navigation" // Importa useSearchParams
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
   Users,
@@ -111,7 +112,25 @@ const menuItems: MenuItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname()
-  const searchParams = useSearchParams() // Obtén los query params
+
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
+
+  useEffect(() => {
+    // El código dentro de useEffect se ejecuta solo en el lado del cliente
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params); // Guarda los query params en el estado
+    }
+  }, []); // Solo se ejecuta una vez, cuando el componente se monta
+
+  const router = useRouter();
+  let token : string | null = ''
+  useEffect(() => {
+    if (searchParams) {
+      token = searchParams.get('token');
+    }
+  }, [searchParams]); // Se ejecuta cada vez que searchParams cambia
+
 
   const [isCollapsed, setIsCollapsed] = useState(false)
   
@@ -149,7 +168,7 @@ export function Sidebar() {
     return (<div></div>)
   } 
 
-  const queryString = searchParams ? `?${searchParams.toString()}` : ""
+  const queryString = token ? `?token=${token}` : ""
 
   
   return (
