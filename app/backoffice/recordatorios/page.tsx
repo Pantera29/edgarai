@@ -26,22 +26,27 @@ import { Input } from "@/components/ui/input"
 import { CalendarIcon, Search, Eye } from "lucide-react"
 
 interface Recordatorio {
-  id_recordatorio: string
-  tipo: 'venta_inicial' | 'servicio_regular'
-  fecha_base: string
-  fecha_recordatorio: string
-  fecha_envio: string | null
-  estado: 'pendiente' | 'enviado' | 'completado' | 'cancelado' | 'error'
-  notas: string
-  clientes: {
-    nombre: string
+  reminder_id: string
+  client_id_uuid: string
+  vehicle_id: string
+  type: 'initial_sale' | 'regular_service'
+  base_date: string
+  reminder_date: string
+  sent_date: string | null
+  status: 'pending' | 'sent' | 'completed' | 'cancelled' | 'error'
+  notes: string
+  created_at: string
+  updated_at: string
+  client: {
+    names: string
     email: string
-    telefono: string
+    phone_number: string
   }
-  vehiculos: {
-    marca: string
-    modelo: string
-    anio: number
+  vehicles: {
+    make: string
+    model: string
+    year: number
+    license_plate: string
   }
 }
 
@@ -65,21 +70,27 @@ export default function RecordatoriosPage() {
 
   const fetchRecordatorios = async () => {
     const { data, error } = await supabase
-      .from('recordatorios')
+      .from('reminders')
       .select(`
         *,
-        clientes (
-          nombre,
+        client!reminders_client_id_fkey (
+          names,
           email,
-          telefono
+          phone_number
         ),
-        vehiculos (
-          marca,
-          modelo,
-          anio
+        vehicles!reminders_vehicle_id_fkey (
+          make,
+          model,
+          year,
+          license_plate
         )
       `)
-      .order('fecha_recordatorio', { ascending: true })
+      .order('reminder_date', { ascending: true })
+
+    if (error) {
+      console.error('Error fetching recordatorios:', error)
+      return
+    }
 
     if (data) {
       setRecordatorios(data as Recordatorio[])
@@ -92,10 +103,10 @@ export default function RecordatoriosPage() {
     const today = new Date().toISOString().split('T')[0]
     
     setStats({
-      pendientes: data.filter(r => r.estado === 'pendiente').length,
-      enviados: data.filter(r => r.estado === 'enviado').length,
-      paraHoy: data.filter(r => r.fecha_recordatorio.startsWith(today)).length,
-      conError: data.filter(r => r.estado === 'error').length
+      pendientes: data.filter(r => r.status === 'pending').length,
+      enviados: data.filter(r => r.status === 'sent').length,
+      paraHoy: data.filter(r => r.reminder_date.startsWith(today)).length,
+      conError: data.filter(r => r.status === 'error').length
     })
   }
 
@@ -103,31 +114,43 @@ export default function RecordatoriosPage() {
     let filtered = recordatorios
     
     if (estado !== 'todos') {
-      filtered = filtered.filter(r => r.estado === estado)
+      filtered = filtered.filter(r => r.status === mapEstado(estado))
     }
     
     if (searchTerm) {
       filtered = filtered.filter(r => 
-        r.clientes.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        `${r.vehiculos.marca} ${r.vehiculos.modelo}`.toLowerCase().includes(searchTerm.toLowerCase())
+        r.client.names.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        `${r.vehicles.make} ${r.vehicles.model}`.toLowerCase().includes(searchTerm.toLowerCase())
       )
     }
     
     if (selectedDate) {
       filtered = filtered.filter(r => 
-        r.fecha_recordatorio.startsWith(format(selectedDate, 'yyyy-MM-dd'))
+        r.reminder_date.startsWith(format(selectedDate, 'yyyy-MM-dd'))
       )
     }
     
     setFilteredRecordatorios(filtered)
   }
 
+  const mapEstado = (estado: string): string => {
+    const mapeo = {
+      'pendiente': 'pending',
+      'enviado': 'sent',
+      'completado': 'completed',
+      'cancelado': 'cancelled',
+      'error': 'error',
+      'todos': 'todos'
+    }
+    return mapeo[estado as keyof typeof mapeo]
+  }
+
   const getEstadoBadge = (estado: string) => {
     const badges = {
-      pendiente: <Badge variant="outline">Pendiente</Badge>,
-      enviado: <Badge className="bg-green-100 text-green-800">Enviado</Badge>,
-      completado: <Badge className="bg-blue-100 text-blue-800">Completado</Badge>,
-      cancelado: <Badge variant="secondary">Cancelado</Badge>,
+      pending: <Badge variant="outline">Pendiente</Badge>,
+      sent: <Badge className="bg-green-100 text-green-800">Enviado</Badge>,
+      completed: <Badge className="bg-blue-100 text-blue-800">Completado</Badge>,
+      cancelled: <Badge variant="secondary">Cancelado</Badge>,
       error: <Badge variant="destructive">Error</Badge>
     }
     return badges[estado as keyof typeof badges]
@@ -232,21 +255,22 @@ export default function RecordatoriosPage() {
               </TableHeader>
               <TableBody>
                 {filteredRecordatorios.map((recordatorio) => (
-                  <TableRow key={recordatorio.id_recordatorio}>
-                    <TableCell>{recordatorio.clientes.nombre}</TableCell>
+                  <TableRow key={recordatorio.reminder_id}>
+                    <TableCell>{recordatorio.client.names}</TableCell>
                     <TableCell>
-                      {recordatorio.vehiculos.marca} {recordatorio.vehiculos.modelo} {recordatorio.vehiculos.anio}
+                      {recordatorio.vehicles.make} {recordatorio.vehicles.model} {recordatorio.vehicles.year}
+                      {recordatorio.vehicles.license_plate && ` (${recordatorio.vehicles.license_plate})`}
                     </TableCell>
                     <TableCell>
-                      {recordatorio.tipo === 'venta_inicial' ? 'Venta Inicial' : 'Servicio Regular'}
+                      {recordatorio.type === 'initial_sale' ? 'Venta Inicial' : 'Servicio Regular'}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(recordatorio.fecha_base), 'dd/MM/yyyy')}
+                      {format(new Date(recordatorio.base_date), 'dd/MM/yyyy')}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(recordatorio.fecha_recordatorio), 'dd/MM/yyyy')}
+                      {format(new Date(recordatorio.reminder_date), 'dd/MM/yyyy')}
                     </TableCell>
-                    <TableCell>{getEstadoBadge(recordatorio.estado)}</TableCell>
+                    <TableCell>{getEstadoBadge(recordatorio.status)}</TableCell>
                     <TableCell className="text-right">
                       <Button variant="ghost" size="icon">
                         <Eye className="h-4 w-4" />
