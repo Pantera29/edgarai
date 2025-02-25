@@ -6,7 +6,7 @@ export const generateToken = (payload: any) => {
     return jwt.sign(payload, secretKey, {expiresIn: '1h'} );
 };
 
-export const verifyToken = (token: string) => {
+export const verifyToken = (token: string | null) => {
   try{
     if(!token) 
         return null;

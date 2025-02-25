@@ -20,10 +20,12 @@ import {
   Legend
 } from 'recharts'
 import { format } from 'date-fns'
-import { es } from 'date-fns/locale'
+import { es, ro } from 'date-fns/locale'
 import { Badge } from "@/components/ui/badge"
 import { TooltipProvider } from '@radix-ui/react-tooltip'
-
+import { verifyToken } from '../jwt/token'
+import { useRouter } from "next/navigation";
+import { NextResponse } from 'next/server';
 interface Servicio {
   nombre: string;
 }
@@ -70,6 +72,28 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042']
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
+
+  useEffect(() => {
+    // El código dentro de useEffect se ejecuta solo en el lado del cliente
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params); // Guarda los query params en el estado
+    }
+  }, []); // Solo se ejecuta una vez, cuando el componente se monta
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (searchParams) {
+      const token = searchParams.get('token');
+      const dataToken = verifyToken(token)
+      if(dataToken === null){
+        router.push("/login");
+      }
+    }
+  }, [searchParams]); // Se ejecuta cada vez que searchParams cambia
+
   const supabase = createClientComponentClient()
 
   useEffect(() => {
@@ -186,6 +210,7 @@ export default function DashboardPage() {
   }
 
   if (!data) return <div>Cargando...</div>
+
 
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">

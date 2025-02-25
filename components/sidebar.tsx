@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useSearchParams } from "next/navigation" // Importa useSearchParams
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 import {
@@ -111,6 +111,8 @@ const menuItems: MenuItem[] = [
 
 export function Sidebar() {
   const pathname = usePathname()
+  const searchParams = useSearchParams() // Obtén los query params
+
   const [isCollapsed, setIsCollapsed] = useState(false)
   
   const isSectionActive = (item: MenuItem) => {
@@ -146,6 +148,9 @@ export function Sidebar() {
   if (pathname === "/login/" || pathname === "/register/") {
     return (<div></div>)
   } 
+
+  const queryString = searchParams ? `?${searchParams.toString()}` : ""
+
   
   return (
     <div className={cn(
@@ -181,7 +186,7 @@ export function Sidebar() {
             <div key={item.title}>
               {!item.isSection ? (
                 <Link
-                  href={item.href!}
+                  href={`${item.href!}${queryString}`}
                   className={cn(
                     "flex items-center space-x-3 p-4 rounded-lg transition-colors",
                     pathname === item.href
@@ -235,7 +240,7 @@ export function Sidebar() {
                           {item.items?.map((subItem) => (
                             <Link
                               key={subItem.href}
-                              href={subItem.href!}
+                              href={`${subItem.href!}${queryString}`}
                               className={cn(
                                 "flex items-center space-x-3 p-4 rounded-lg transition-colors pl-12",
                                 pathname === subItem.href
@@ -258,7 +263,7 @@ export function Sidebar() {
                       {item.items?.map((subItem) => (
                         <Link
                           key={subItem.href}
-                          href={subItem.href!}
+                          href={`${subItem.href!}${queryString}`}
                           className={cn(
                             "flex items-center justify-center p-3 rounded-lg transition-colors",
                             pathname === subItem.href

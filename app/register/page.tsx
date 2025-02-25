@@ -58,20 +58,15 @@ export default function RegisterPage() {
 
   // Validaciones
   const validarDatos = () => {
-    const { nombres, apellidos, email, telefono, password, confirmPassword, dealership_id } = form;
+    const { nombres, apellidos, email,  password, confirmPassword, dealership_id } = form;
 
-    if (!nombres.trim() || !apellidos.trim() || !email.trim() || !telefono.trim() || !password.trim() || !confirmPassword.trim() || !dealership_id) {
+    if (!nombres.trim() || !apellidos.trim() || !email.trim() ||  !password.trim() || !confirmPassword.trim() || !dealership_id) {
       toast({ variant: "destructive", title: "Error", description: "Todos los campos son obligatorios" });
       return false;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       toast({ variant: "destructive", title: "Error", description: "Correo inválido" });
-      return false;
-    }
-
-    if (!/^\d+$/.test(telefono)) {
-      toast({ variant: "destructive", title: "Error", description: "El número de teléfono debe contener solo números" });
       return false;
     }
 
@@ -95,12 +90,12 @@ export default function RegisterPage() {
     
     setLoading(true);
 
-    const { nombres, apellidos, email, telefono, password, dealership_id } = form;
+    const { nombres, apellidos, email,  password, dealership_id } = form;
 
     const supabase = createClientComponentClient()
 
     const { data: operarios, error } = await supabase
-      .from("operario")
+      .from("worker_agency")
       .select("*")
       .eq( "email", email );
 
@@ -112,14 +107,14 @@ export default function RegisterPage() {
         setLoading(false);
       }
       else {
-        const { error: dbError } = await supabase.from("operario").insert([
+        const { error: dbError } = await supabase.from("worker_agency").insert([
           { 
             email, 
             password, 
-            nombres, 
-            apellidos, 
-            telefono,
-            dealership_id 
+            names : nombres, 
+            surnames :apellidos, 
+            dealership_id,
+            active : true
           }
         ]);
     
@@ -147,7 +142,6 @@ export default function RegisterPage() {
             <Input type="text" name="nombres" placeholder="Nombres" value={form.nombres} onChange={handleChange} required />
             <Input type="text" name="apellidos" placeholder="Apellidos" value={form.apellidos} onChange={handleChange} required />
             <Input type="email" name="email" placeholder="Correo electrónico" value={form.email} onChange={handleChange} required />
-            <Input type="text" name="telefono" placeholder="Número de teléfono" value={form.telefono} onChange={handleChange} required />
             <select 
               name="dealership_id"
               value={form.dealership_id}
