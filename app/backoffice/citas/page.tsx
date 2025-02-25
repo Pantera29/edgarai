@@ -69,8 +69,6 @@ import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment
 import { BlockedDate, HorarioOperacion } from '@/types/workshop'
 import { MetricsCard } from "@/components/metrics-card"
 import AppointmentDialog from "@/components/workshop/appointment-dialog"
-import { ProductSelector } from "@/components/workshop/product-selector"
-import { TransactionProduct } from "@/types/transaction"
 import { Textarea } from "@/components/ui/textarea"
 import { useSearchParams } from "next/navigation"
 
@@ -180,20 +178,10 @@ const RevisionFinalModal = ({
 }: RevisionFinalModalProps) => {
   const { toast } = useToast()
   const [hasAdditionalServices, setHasAdditionalServices] = useState<boolean | null>(null)
-  const [selectedProducts, setSelectedProducts] = useState<TransactionProduct[]>([])
   const [loading, setLoading] = useState(false)
   const [serviciosAdicionales, setServiciosAdicionales] = useState<ServicioAdicional[]>([])
   
   const handleSubmit = async () => {
-    if (selectedProducts.length === 0) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "Debe seleccionar al menos un producto utilizado"
-      });
-      return;
-    }
-
     setLoading(true)
     try {
       // 1. Actualizar estado de la cita
@@ -205,53 +193,17 @@ const RevisionFinalModal = ({
       if (citaError) throw citaError
 
       // 2. Crear la transacción
-      const { data: transaccion, error: transaccionError } = await supabase
+      const { error: transaccionError } = await supabase
         .from('transacciones_servicio')
         .insert({
           id_cita: cita.id_uuid,
           estado: 'pendiente',
           fecha_transaccion: new Date().toISOString()
         })
-        .select()
-        .single()
 
       if (transaccionError) throw transaccionError
 
-      // 3. Registrar productos utilizados y actualizar stock
-      for (const producto of selectedProducts) {
-        // Primero obtener el stock actual
-        const { data: stockData, error: stockCheckError } = await supabase
-          .from('productos')
-          .select('stock_actual')
-          .eq('id_producto', producto.id_producto)
-          .single()
-
-        if (stockCheckError) throw stockCheckError
-
-        // Insertar en transaccion_productos
-        const { error: productoError } = await supabase
-          .from('transaccion_productos')
-          .insert({
-            id_transaccion: transaccion.id_transaccion,
-            id_producto: producto.id_producto,
-            cantidad_usada: producto.cantidad,
-            precio_unitario: producto.precio_unitario
-          })
-
-        if (productoError) throw productoError
-
-        // Actualizar stock directamente
-        const { error: stockError } = await supabase
-          .from('productos')
-          .update({ 
-            stock_actual: stockData.stock_actual - producto.cantidad
-          })
-          .eq('id_producto', producto.id_producto)
-
-        if (stockError) throw stockError
-      }
-
-      // 4. Registrar servicios adicionales si existen
+      // 3. Registrar servicios adicionales si existen
       if (hasAdditionalServices && serviciosAdicionales.length > 0) {
         const serviciosParaInsertar = serviciosAdicionales.map(servicio => ({
           appointment_id: cita.id_uuid,
@@ -275,7 +227,7 @@ const RevisionFinalModal = ({
       onComplete()
       toast({
         title: "Servicio completado",
-        description: "La cita ha sido completada y el inventario actualizado exitosamente"
+        description: "La cita ha sido completada exitosamente"
       })
     } catch (error: any) {
       console.error('Error completo:', error)
@@ -288,11 +240,6 @@ const RevisionFinalModal = ({
       setLoading(false)
     }
   }
-
-  // Calcular el total de productos
-  const totalProductos = selectedProducts.reduce((sum, product) => 
-    sum + (product.cantidad * product.precio_unitario), 0
-  );
 
   const agregarServicioAdicional = () => {
     setServiciosAdicionales([...serviciosAdicionales, {
@@ -315,94 +262,32 @@ const RevisionFinalModal = ({
           </DialogDescription>
         </DialogHeader>
 
-        {/* Primera sección: Servicios y Productos Utilizados */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-medium">Servicios y Productos Utilizados</h3>
-          <ProductSelector onSelect={(product) => {
-            const existingProduct = selectedProducts.find(p => p.id_producto === product.id_producto)
-            if (existingProduct) {
-              toast({
-                variant: "destructive",
-                title: "Producto ya agregado",
-                description: "Este producto ya fue agregado a la lista"
-              })
-              return
-            }
-            setSelectedProducts([...selectedProducts, product])
-          }} />
-
-          {/* Lista de productos seleccionados */}
-          {selectedProducts.length > 0 && (
-            <div className="border rounded-md p-4 space-y-2">
-              {selectedProducts.map((product) => (
-                <div key={product.id_producto} className="flex justify-between items-center">
-                  <span>{product.nombre}</span>
-                  <div className="flex items-center gap-4">
-                    <Input
-                      type="number"
-                      min="1"
-                      className="w-20"
-                      value={product.cantidad}
-                      onChange={(e) => {
-                        const newQuantity = Number(e.target.value)
-                        setSelectedProducts(selectedProducts.map(p =>
-                          p.id_producto === product.id_producto
-                            ? { ...p, cantidad: newQuantity, subtotal: newQuantity * p.precio_unitario }
-                            : p
-                        ))
-                      }}
-                    />
-                    <span>${product.subtotal}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedProducts(selectedProducts.filter(p => p.id_producto !== product.id_producto))
-                      }}
-                    >
-                      Eliminar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              
-              {/* Agregar el total */}
-              <div className="flex justify-end border-t pt-4 mt-4">
-                <span className="text-lg font-semibold">
-                  Total: ${totalProductos.toLocaleString()}
-                </span>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Segunda sección: Servicios Adicionales */}
+        {/* Servicios Adicionales */}
         <div className="space-y-4">
           <h3 className="text-lg font-medium">Servicios Adicionales Detectados</h3>
-          <div className="flex gap-4">
-            <Button 
-              variant={hasAdditionalServices === true ? "default" : "outline"}
-              onClick={() => setHasAdditionalServices(true)}
-            >
-              Sí
-            </Button>
-            <Button 
-              variant={hasAdditionalServices === false ? "default" : "outline"}
-              onClick={() => setHasAdditionalServices(false)}
-            >
-              No
-            </Button>
+          <div className="space-y-2">
+            <Label>¿Se detectaron servicios adicionales recomendados?</Label>
+            <div className="flex gap-4">
+              <Button
+                variant={hasAdditionalServices === true ? "default" : "outline"}
+                onClick={() => setHasAdditionalServices(true)}
+              >
+                Sí
+              </Button>
+              <Button
+                variant={hasAdditionalServices === false ? "default" : "outline"}
+                onClick={() => {
+                  setHasAdditionalServices(false)
+                  setServiciosAdicionales([])
+                }}
+              >
+                No
+              </Button>
+            </div>
           </div>
+
           {hasAdditionalServices && (
             <div className="space-y-4">
-              <Button 
-                variant="outline" 
-                onClick={agregarServicioAdicional}
-                className="w-full"
-              >
-                Agregar Servicio Adicional
-              </Button>
-              
               {serviciosAdicionales.map((servicio, index) => (
                 <div key={index} className="border rounded-md p-4 space-y-4">
                   <div className="flex justify-between items-center">
@@ -504,6 +389,14 @@ const RevisionFinalModal = ({
                   </div>
                 </div>
               ))}
+              
+              <Button
+                type="button"
+                variant="outline"
+                onClick={agregarServicioAdicional}
+              >
+                Agregar Servicio Adicional
+              </Button>
             </div>
           )}
         </div>
@@ -512,11 +405,8 @@ const RevisionFinalModal = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
-          <Button 
-            onClick={handleSubmit} 
-            disabled={loading || selectedProducts.length === 0}
-          >
-            {loading ? "Guardando..." : "Guardar y Completar"}
+          <Button onClick={handleSubmit} disabled={loading}>
+            {loading ? "Guardando..." : "Completar Servicio"}
           </Button>
         </DialogFooter>
       </DialogContent>

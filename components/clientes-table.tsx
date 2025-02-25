@@ -111,16 +111,7 @@ export function ClientesTable({ clientes, loading = false, onClienteDeleted }: P
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
                       <Link 
-                        href={`/clientes/${cliente['id_uuid']}/historial`}
-                        className="flex items-center"
-                      >
-                        <History className="mr-2 h-4 w-4" />
-                        Ver Historial
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem asChild>
-                      <Link 
-                        href={`/clientes/${cliente['id_uuid']}/editar`}
+                        href={`/backoffice/clientes/${cliente['id_uuid']}/editar`}
                         className="flex items-center"
                       >
                         <Edit className="mr-2 h-4 w-4" />

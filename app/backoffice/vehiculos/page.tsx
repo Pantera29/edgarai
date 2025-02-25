@@ -57,21 +57,6 @@ interface Vehiculo {
   kilometraje_actual: number | null
   fecha_ultimo_servicio: string | null
   fecha_proximo_servicio: string | null
-  tipo_garantia: string | null
-  fecha_vencimiento_garantia: string | null
-  estado_garantia: string | null
-}
-
-interface PropietarioHistorial {
-  id_uuid: string
-  id_vehiculo: string
-  id_cliente: string
-  fecha_inicio: string
-  fecha_fin: string | null
-  notas_transferencia: string | null
-  cliente: {
-    nombre: string
-  }
 }
 
 interface ServicioHistorial {
@@ -105,9 +90,6 @@ interface NuevoVehiculo {
   placa: string
   vin: string
   kilometraje_actual: number
-  tipo_garantia: string | null
-  fecha_vencimiento_garantia: string | null
-  estado_garantia: 'vigente' | 'vencida' | null
 }
 
 export default function VehiculosPage() {
@@ -117,7 +99,6 @@ export default function VehiculosPage() {
   const [filtroMarca, setFiltroMarca] = useState("todas")
   const [marcasDisponibles, setMarcasDisponibles] = useState<string[]>([])
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState<string | null>(null)
-  const [historialPropietarios, setHistorialPropietarios] = useState<PropietarioHistorial[]>([])
   const [servicios, setServicios] = useState<ServicioHistorial[]>([])
   const [showDetalles, setShowDetalles] = useState(false)
   const [citasServicios, setCitasServicios] = useState<CitaServicio[]>([])
@@ -132,10 +113,7 @@ export default function VehiculosPage() {
     color: '',
     placa: '',
     vin: '',
-    kilometraje_actual: 0,
-    tipo_garantia: null,
-    fecha_vencimiento_garantia: null,
-    estado_garantia: null
+    kilometraje_actual: 0
   })
   const supabase = createClientComponentClient()
 
@@ -198,19 +176,7 @@ export default function VehiculosPage() {
 
   const cargarDetallesVehiculo = async (vehiculoId: string) => {
     try {
-      // Cargar historial de propietarios
-      const { data: historialData, error: historialError } = await supabase
-        .from('historial_propietarios')
-        .select(`
-          *,
-          cliente:clientes(nombre)
-        `)
-        .eq('id_vehiculo', vehiculoId)
-        .order('fecha_inicio', { ascending: false })
-
-      if (historialError) throw historialError
-
-      // Cargar citas de servicios
+      // Mantener solo la carga de citas de servicios
       const { data: citasData, error: citasError } = await supabase
         .from('citas')
         .select(`
@@ -227,7 +193,7 @@ export default function VehiculosPage() {
         .order('fecha_hora', { ascending: false })
 
       if (citasError) throw citasError
-      setHistorialPropietarios(historialData || [])
+      
       setCitasServicios(citasData?.map(cita => ({
         ...cita,
         servicios: cita.servicios.map(servicio => ({
@@ -287,12 +253,7 @@ export default function VehiculosPage() {
     try {
       const { data, error } = await supabase
         .from('vehiculos')
-        .insert([{
-          ...nuevoVehiculo,
-          fecha_vencimiento_garantia: nuevoVehiculo.fecha_vencimiento_garantia || null,
-          estado_garantia: nuevoVehiculo.estado_garantia || null,
-          tipo_garantia: nuevoVehiculo.tipo_garantia || null
-        }])
+        .insert([nuevoVehiculo])
         .select('*, cliente:clientes(nombre)')
 
       if (error) {
@@ -310,10 +271,7 @@ export default function VehiculosPage() {
         color: '',
         placa: '',
         vin: '',
-        kilometraje_actual: 0,
-        tipo_garantia: null,
-        fecha_vencimiento_garantia: null,
-        estado_garantia: null
+        kilometraje_actual: 0
       })
     } catch (error) {
       console.error('Error al crear vehículo:', error)
@@ -326,7 +284,7 @@ export default function VehiculosPage() {
         <h2 className="text-3xl font-bold tracking-tight">Vehículos</h2>
         <div className="flex items-center space-x-2">
           <Button asChild>
-            <Link href="/vehiculos/nuevo">Registrar Vehículo</Link>
+            <Link href="/backoffice/vehiculos/nuevo">Registrar Vehículo</Link>
           </Button>
         </div>
       </div>
@@ -364,7 +322,6 @@ export default function VehiculosPage() {
               <TableHead>Placa</TableHead>
               <TableHead>Kilometraje</TableHead>
               <TableHead>Último Servicio</TableHead>
-              <TableHead>Estado</TableHead>
               <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
@@ -379,7 +336,7 @@ export default function VehiculosPage() {
                 </TableCell>
                 <TableCell>
                   <Link 
-                    href={`/clientes?id=${vehiculo.id_cliente_uuid}`}
+                    href={`/backoffice/clientes?id=${vehiculo.id_cliente_uuid}`}
                     className="text-blue-600 hover:underline"
                   >
                     {vehiculo.cliente.nombre}
@@ -391,11 +348,6 @@ export default function VehiculosPage() {
                   {vehiculo.fecha_ultimo_servicio ? 
                     format(new Date(vehiculo.fecha_ultimo_servicio), 'PP', { locale: es }) : 
                     'Sin servicios'}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={vehiculo.estado_garantia === 'vigente' ? 'success' : 'destructive'}>
-                    {vehiculo.estado_garantia || 'Sin garantía'}
-                  </Badge>
                 </TableCell>
                 <TableCell className="text-right">
                   <Button 
@@ -427,10 +379,6 @@ export default function VehiculosPage() {
                   <Car className="h-4 w-4 mr-2" />
                   Información
                 </TabsTrigger>
-                <TabsTrigger value="historial">
-                  <Clock className="h-4 w-4 mr-2" />
-                  Historial de Propietarios
-                </TabsTrigger>
                 <TabsTrigger value="servicios">
                   <Wrench className="h-4 w-4 mr-2" />
                   Servicios
@@ -459,39 +407,6 @@ export default function VehiculosPage() {
                           {/* ... más detalles del vehículo ... */}
                         </div>
                     ))}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="historial">
-                <Card>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Propietario</TableHead>
-                          <TableHead>Fecha Inicio</TableHead>
-                          <TableHead>Fecha Fin</TableHead>
-                          <TableHead>Notas</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {historialPropietarios.map((registro) => (
-                          <TableRow key={registro.id_uuid}>
-                            <TableCell>{registro.cliente.nombre}</TableCell>
-                            <TableCell>
-                              {format(new Date(registro.fecha_inicio), 'PP', { locale: es })}
-                            </TableCell>
-                            <TableCell>
-                              {registro.fecha_fin 
-                                ? format(new Date(registro.fecha_fin), 'PP', { locale: es })
-                                : 'Propietario actual'}
-                            </TableCell>
-                            <TableCell>{registro.notas_transferencia || '-'}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -662,64 +577,6 @@ export default function VehiculosPage() {
                   required
                 />
               </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="tipo_garantia" className="text-right">
-                  Tipo Garantía
-                </Label>
-                <Select
-                  value={nuevoVehiculo.tipo_garantia || ''}
-                  onValueChange={(value) => setNuevoVehiculo({...nuevoVehiculo, tipo_garantia: value})}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Seleccione tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="basica">Básica</SelectItem>
-                    <SelectItem value="extendida">Extendida</SelectItem>
-                    <SelectItem value="premium">Premium</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {nuevoVehiculo.tipo_garantia && (
-                <>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="fecha_vencimiento_garantia" className="text-right">
-                      Vencimiento Garantía
-                    </Label>
-                    <Input
-                      id="fecha_vencimiento_garantia"
-                      name="fecha_vencimiento_garantia"
-                      type="date"
-                      value={nuevoVehiculo.fecha_vencimiento_garantia || ''}
-                      onChange={handleInputChange}
-                      className="col-span-3"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="estado_garantia" className="text-right">
-                      Estado Garantía
-                    </Label>
-                    <Select
-                      value={nuevoVehiculo.estado_garantia || ''}
-                      onValueChange={(value) => setNuevoVehiculo({
-                        ...nuevoVehiculo, 
-                        estado_garantia: value as 'vigente' | 'vencida'
-                      })}
-                    >
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Seleccione estado" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="vigente">Vigente</SelectItem>
-                        <SelectItem value="vencida">Vencida</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </>
-              )}
             </div>
             <DialogFooter>
               <Button type="submit">Guardar Vehículo</Button>
