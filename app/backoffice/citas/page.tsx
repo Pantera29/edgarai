@@ -69,8 +69,6 @@ import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment
 import { BlockedDate, HorarioOperacion } from '@/types/workshop'
 import { MetricsCard } from "@/components/metrics-card"
 import AppointmentDialog from "@/components/workshop/appointment-dialog"
-import { ProductSelector } from "@/components/workshop/product-selector"
-import { TransactionProduct } from "@/types/transaction"
 import { Textarea } from "@/components/ui/textarea"
 import { useSearchParams } from "next/navigation"
 
