@@ -28,7 +28,7 @@ export default function NuevoClientePage() {
 
       if (error) throw error
 
-      router.push(`${getBaseUrl()}/clientes`)
+      router.push(`${getBaseUrl()}/backoffice/clientes`)
     } catch (error) {
       console.error('Error al crear cliente:', error)
     }

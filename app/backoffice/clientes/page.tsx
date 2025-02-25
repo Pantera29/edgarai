@@ -159,7 +159,7 @@ export default function ClientesPage() {
         <h2 className="text-3xl font-bold tracking-tight">Clientes</h2>
         <div className="flex items-center space-x-2">
           <Button asChild>
-            <Link href="/clientes/nuevo">Registrar Cliente</Link>
+            <Link href="/backoffice/clientes/nuevo">Registrar Cliente</Link>
           </Button>
         </div>
       </div>

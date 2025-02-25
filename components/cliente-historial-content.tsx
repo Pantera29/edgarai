@@ -53,8 +53,8 @@ export default function ClienteHistorialContent({ clientId }: ClienteHistorialCo
   }, [clientId]);
 
   const breadcrumbItems = [
-    { label: "Clientes", href: `${getBaseUrl()}/clientes` },
-    { label: "Historial de Servicios", href: `${getBaseUrl()}/clientes/${clientId}/historial` }
+    { label: "Clientes", href: `${getBaseUrl()}/backoffice/clientes` },
+    { label: "Historial de Servicios", href: `${getBaseUrl()}/backoffice/clientes/${clientId}/historial` }
   ];
 
   if (loading) {
