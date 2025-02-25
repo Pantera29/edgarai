@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import {generateToken} from '../jwt/token';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,7 +39,9 @@ export default function LoginPage() {
       setErrorMessage("Hubo un error en el inicio de sesión.");
     } else {
       if (operarios.length > 0) {
-        router.push("/backoffice"); 
+        const operario = operarios[0];
+        const token =  generateToken({ id: operario.id, email: operario.email, dealership_id: operario.dealership_id});
+        router.push("/backoffice?token=" + token); 
       } else {
         setErrorMessage("No se encontró ningún operario con ese correo y contraseña."); // Establece el mensaje de error
       }
