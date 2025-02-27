@@ -32,6 +32,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { MoreHorizontal } from 'lucide-react'
+import { useRouter } from "next/navigation"
+import { verifyToken } from "@/app/jwt/token"
 
 interface Servicio {
   id: string
@@ -42,6 +44,39 @@ interface Servicio {
 }
 
 export default function ServiciosPage() {
+
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
+    null
+  );
+  const [token, setToken] = useState<string>("");
+  const [dataToken, setDataToken] = useState<object>({});
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params); // Guarda los query params en el estado
+    }
+  }, []);
+
+  useEffect(() => {
+    if (searchParams) {
+      const tokenValue = searchParams.get("token"); // Obtiene el token de los query params
+      if (tokenValue) {
+        setToken(tokenValue); // Usa setToken para actualizar el estado
+        const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
+        
+        // Si el token no es válido, redirigir al login
+        if (verifiedDataToken === null) {
+          router.push("/login");
+        }
+        setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+
+      }
+    }
+  }, [searchParams, router]); 
+
   const { toast } = useToast()
   const [servicios, setServicios] = useState<Servicio[]>([])
   const [mostrarFormulario, setMostrarFormulario] = useState(false)

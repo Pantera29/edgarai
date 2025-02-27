@@ -17,7 +17,8 @@ import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { DateRange } from "react-day-picker"
-
+import { useRouter } from "next/navigation"
+import { verifyToken } from "../../jwt/token"
 const columns = [
   {
     accessorKey: "created_at",
@@ -83,6 +84,40 @@ interface Filters {
 }
 
 export default function FeedbackPage() {
+
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
+    null
+  );
+  const [token, setToken] = useState<string>("");
+  const [dataToken, setDataToken] = useState<object>({});
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params); // Guarda los query params en el estado
+    }
+  }, []);
+
+  useEffect(() => {
+    if (searchParams) {
+      const tokenValue = searchParams.get("token"); // Obtiene el token de los query params
+      if (tokenValue) {
+        setToken(tokenValue); // Usa setToken para actualizar el estado
+        const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
+        
+        // Si el token no es válido, redirigir al login
+        if (verifiedDataToken === null) {
+          router.push("/login");
+        }
+        setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+
+      }
+    }
+  }, [searchParams, router]); 
+
+
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<Filters>({

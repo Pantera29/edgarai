@@ -1,5 +1,6 @@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 
+
 interface PageProps {
   params: {
     id: string;

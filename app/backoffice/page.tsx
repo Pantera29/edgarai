@@ -72,28 +72,40 @@ const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042']
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
-  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
+  
 
-  useEffect(() => {
-    // El código dentro de useEffect se ejecuta solo en el lado del cliente
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      setSearchParams(params); // Guarda los query params en el estado
-    }
-  }, []); // Solo se ejecuta una vez, cuando el componente se monta
-
-  const router = useRouter();
-
-  useEffect(() => {
-    if (searchParams) {
-      const token = searchParams.get('token');
-      const dataToken = verifyToken(token)
-      if(dataToken === null){
-        router.push("/login");
-      }
-    }
-  }, [searchParams]); // Se ejecuta cada vez que searchParams cambia
-
+        const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
+          null
+        );
+        const [token, setToken] = useState<string>("");
+        const [dataToken, setDataToken] = useState<object>({});
+      
+        const router = useRouter();
+      
+        useEffect(() => {
+          if (typeof window !== "undefined") {
+            const params = new URLSearchParams(window.location.search);
+            setSearchParams(params); // Guarda los query params en el estado
+          }
+        }, []);
+      
+        useEffect(() => {
+          if (searchParams) {
+            const tokenValue = searchParams.get("token"); // Obtiene el token de los query params
+            if (tokenValue) {
+              setToken(tokenValue); // Usa setToken para actualizar el estado
+              const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
+              
+              // Si el token no es válido, redirigir al login
+              if (verifiedDataToken === null) {
+                router.push("/login");
+              }
+              setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+      
+            }
+          }
+        }, [searchParams, router]); 
+  
   const supabase = createClientComponentClient()
 
   useEffect(() => {

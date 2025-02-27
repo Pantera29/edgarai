@@ -1,6 +1,5 @@
 "use client"
 
-import { useState } from "react"
 import {
   Table,
   TableBody,
@@ -29,6 +28,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
+import { verifyToken } from "../app/jwt/token";
+import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+
 
 interface Cliente {
   id_uuid: string
@@ -40,10 +43,15 @@ interface Cliente {
 interface Props {
   clientes: Cliente[]
   loading?: boolean
+  token: string
   onClienteDeleted?: () => void
 }
 
-export function ClientesTable({ clientes, loading = false, onClienteDeleted }: Props) {
+export function ClientesTable({ clientes, loading = false, token='',onClienteDeleted }: Props) {
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
+    null
+  );
+
   const { toast } = useToast()
   const [clienteAEliminar, setClienteAEliminar] = useState<Cliente | null>(null)
   const [eliminando, setEliminando] = useState(false)
@@ -111,7 +119,7 @@ export function ClientesTable({ clientes, loading = false, onClienteDeleted }: P
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
                       <Link 
-                        href={`/backoffice/clientes/${cliente['id_uuid']}/editar`}
+                        href={`/backoffice/clientes/${cliente['id_uuid']}/editar?token=${token}`}
                         className="flex items-center"
                       >
                         <Edit className="mr-2 h-4 w-4" />

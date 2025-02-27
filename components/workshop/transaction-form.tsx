@@ -18,7 +18,8 @@ import { TransactionStatus } from "@/types/transaction"
 import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
 import { format } from "date-fns"
-
+import { useRouter } from "next/navigation"
+import { verifyToken } from "@/app/jwt/token"
 const formSchema = z.object({
   id_cita: z.string().uuid(),
   estado_pago: z.enum(['pendiente', 'pagado', 'anulado']),
@@ -28,9 +29,34 @@ const formSchema = z.object({
 interface TransactionFormProps {
   appointmentId?: string
   onSuccess?: () => void
+  token : string
 }
 
-export function TransactionForm({ appointmentId, onSuccess }: TransactionFormProps) {
+export function TransactionForm({ appointmentId, onSuccess, token }: TransactionFormProps) {
+
+     
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
+    null
+  );
+  const [dataToken, setDataToken] = useState<object>({});
+
+  const router = useRouter();
+
+  useEffect(() => {
+        const verifiedDataToken = verifyToken(token); // Verifica el token
+        
+        // Si el token no es válido, redirigir al login
+        if (verifiedDataToken === null) {
+          router.push("/login");
+        }
+        setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+
+      }
+
+, [searchParams, router]); 
+
+
+
   const [loading, setLoading] = useState(false)
   const [completedAppointments, setCompletedAppointments] = useState<any[]>([])
   const [selectedAppointment, setSelectedAppointment] = useState(appointmentId || '')

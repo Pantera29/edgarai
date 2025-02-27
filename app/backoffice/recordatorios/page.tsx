@@ -24,7 +24,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { CalendarIcon, Search, Eye } from "lucide-react"
-
+import { useRouter } from "next/navigation"
+import { verifyToken } from "@/app/jwt/token"
 interface Recordatorio {
   reminder_id: string
   client_id_uuid: string
@@ -51,6 +52,43 @@ interface Recordatorio {
 }
 
 export default function RecordatoriosPage() {
+  
+
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
+    null
+  );
+  const [token, setToken] = useState<string>("");
+  const [dataToken, setDataToken] = useState<object>({});
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params); // Guarda los query params en el estado
+    }
+  }, []);
+
+  useEffect(() => {
+    if (searchParams) {
+      const tokenValue = searchParams.get("token"); // Obtiene el token de los query params
+      if (tokenValue) {
+        setToken(tokenValue); // Usa setToken para actualizar el estado
+        const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
+        
+        // Si el token no es válido, redirigir al login
+        if (verifiedDataToken === null) {
+          router.push("/login");
+        }
+        setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+
+      }
+    }
+  }, [searchParams, router]); 
+
+
+
+
   const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([])
   const [filteredRecordatorios, setFilteredRecordatorios] = useState<Recordatorio[]>([])
   const [searchTerm, setSearchTerm] = useState("")

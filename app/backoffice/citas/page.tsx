@@ -71,6 +71,8 @@ import { MetricsCard } from "@/components/metrics-card"
 import AppointmentDialog from "@/components/workshop/appointment-dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { verifyToken } from "@/app/jwt/token"
 
 // Mover esta definición al inicio, antes de las interfaces
 type EstadoCita = 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
@@ -415,6 +417,41 @@ const RevisionFinalModal = ({
 }
 
 function CitasPageContent() {
+  
+
+  const [searchParamsToken, setSearchParams] = useState<URLSearchParams | null>(
+    null
+  );
+  const [token, setToken] = useState<string>("");
+  const [dataToken, setDataToken] = useState<object>({});
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params); // Guarda los query params en el estado
+    }
+  }, []);
+
+  useEffect(() => {
+    if (searchParamsToken) {
+      const tokenValue = searchParamsToken.get("token"); // Obtiene el token de los query params
+      if (tokenValue) {
+        setToken(tokenValue); // Usa setToken para actualizar el estado
+        const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
+        
+        // Si el token no es válido, redirigir al login
+        if (verifiedDataToken === null) {
+          router.push("/login");
+        }
+        setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+
+      }
+    }
+  }, [searchParamsToken, router]); 
+
+
   const { toast } = useToast()
   const [citas, setCitas] = useState<Cita[]>([])
   const [clientes, setClientes] = useState<Cliente[]>([])
@@ -749,7 +786,7 @@ function CitasPageContent() {
             <div className="space-y-2">
               <p>La cita ha sido marcada como completada</p>
               <Button asChild>
-                <Link href={`/transacciones/nueva?id_cita=${citaId}`}>
+                <Link href={`/transacciones/nueva?id_cita=${citaId}&token=${token}`}>
                   Crear Transacción
                 </Link>
               </Button>
@@ -1038,7 +1075,7 @@ function CitasPageContent() {
                   <TableCell>{cita.servicios?.nombre}</TableCell>
                   <TableCell>
                     <Link 
-                      href={`/vehiculos?id=${cita.vehiculo_id_uuid}`} 
+                      href={`/vehiculos?id=${cita.vehiculo_id_uuid}&token=${token}`} 
                       className="text-blue-600 hover:underline"
                     >
                       {cita.vehiculos?.marca} {cita.vehiculos?.modelo}
@@ -1082,7 +1119,7 @@ function CitasPageContent() {
                         )}
                         {cita.estado === ESTADO_COMPLETADA && (
                           <DropdownMenuItem asChild>
-                            <Link href={`/transacciones?id_cita=${cita.id_uuid}`}>
+                            <Link href={`/transacciones?id_cita=${cita.id_uuid}&token=${token}`}>
                               Crear Transacción
                             </Link>
                           </DropdownMenuItem>

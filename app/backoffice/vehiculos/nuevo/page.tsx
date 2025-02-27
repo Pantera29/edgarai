@@ -8,14 +8,45 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getBaseUrl } from "@/lib/utils"
-
+import { verifyToken } from '../../../jwt/token'
 interface Cliente {
   id_uuid: string;
   nombre: string;
 }
 
 export default function NuevoVehiculoPage() {
-  const router = useRouter()
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
+      null
+    );
+    const [token, setToken] = useState<string>("");
+    const [dataToken, setDataToken] = useState<object>({});
+  
+    const router = useRouter();
+  
+    useEffect(() => {
+      if (typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        setSearchParams(params); // Guarda los query params en el estado
+      }
+    }, []);
+  
+    useEffect(() => {
+      if (searchParams) {
+        const tokenValue = searchParams.get("token"); // Obtiene el token de los query params
+        if (tokenValue) {
+          setToken(tokenValue); // Usa setToken para actualizar el estado
+          const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
+          
+          // Si el token no es válido, redirigir al login
+          if (verifiedDataToken === null) {
+            router.push("/login");
+          }
+          setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+  
+        }
+      }
+    }, [searchParams, router]); 
+    
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [formData, setFormData] = useState({
     id_cliente_uuid: "",

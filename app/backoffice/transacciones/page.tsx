@@ -17,7 +17,8 @@ import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDebouncedCallback } from 'use-debounce'
-
+import { useRouter } from "next/navigation"
+import { verifyToken } from "@/app/jwt/token"
 interface Filters {
   startDate: Date | null
   endDate: Date | null
@@ -33,6 +34,44 @@ const estadosTabs = [
 ]
 
 function TransaccionesContent() {
+  
+
+     
+  const [searchParamsToken, setSearchParams] = useState<URLSearchParams | null>(
+    null
+  );
+  const [token, setToken] = useState<string>("");
+  const [dataToken, setDataToken] = useState<object>({});
+
+  const router = useRouter();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params); // Guarda los query params en el estado
+    }
+  }, []);
+
+  useEffect(() => {
+    if (searchParamsToken) {
+      const tokenValue = searchParamsToken.get("token"); // Obtiene el token de los query params
+      if (tokenValue) {
+        setToken(tokenValue); // Usa setToken para actualizar el estado
+        const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
+        
+        // Si el token no es válido, redirigir al login
+        if (verifiedDataToken === null) {
+          router.push("/login");
+        }
+        setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+
+      }
+    }
+  }, [searchParamsToken, router]); 
+
+
+
+
   const searchParams = useSearchParams()
   const idCita = searchParams.get('id_cita')
   const [loading, setLoading] = useState(false)
@@ -265,6 +304,7 @@ function TransaccionesContent() {
                 table.dispatchEvent(event)
               }
             }}
+            token={token} 
           />
         </DialogContent>
       </Dialog>

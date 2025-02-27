@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment-calendar"
+import { verifyToken } from "@/app/jwt/token"
 
 interface AppointmentDialogProps {
   open: boolean;
@@ -54,6 +55,42 @@ export default function AppointmentDialog({
   const [appointments, setAppointments] = useState<any[]>([])
 
   const loadData = async () => {
+    
+      const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
+        null
+      );
+      const [token, setToken] = useState<string>("");
+      const [dataToken, setDataToken] = useState<object>({});
+    
+      const router = useRouter();
+    
+      useEffect(() => {
+        if (typeof window !== "undefined") {
+          const params = new URLSearchParams(window.location.search);
+          setSearchParams(params); // Guarda los query params en el estado
+        }
+      }, []);
+    
+      useEffect(() => {
+        if (searchParams) {
+          const tokenValue = searchParams.get("token"); // Obtiene el token de los query params
+          if (tokenValue) {
+            setToken(tokenValue); // Usa setToken para actualizar el estado
+            const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
+            
+            // Si el token no es válido, redirigir al login
+            if (verifiedDataToken === null) {
+              router.push("/login");
+            }
+            setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+    
+          }
+        }
+      }, [searchParams, router]); 
+    
+    
+    
+
     try {
       const [
         { data: clientesData, error: clientesError },
