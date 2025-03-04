@@ -3,12 +3,6 @@ const nextConfig = {
   experimental: {
     webpackBuildWorker: true,
   },
-  output: 'export',
-  basePath: "",
-  assetPrefix: "/",
-  images: {
-    unoptimized: true
-  },
   trailingSlash: true,
   webpack: (config) => {
     config.resolve.fallback = { fs: false, path: false };
