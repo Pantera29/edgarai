@@ -548,12 +548,12 @@ function CitasPageContent() {
   useEffect(() => {
     const loadConfig = async () => {
       const { data: configData, error } = await supabase
-        .from('configuracion_taller')
-        .select('duracion_turno')
+        .from('dealership_configuration')
+        .select('shift_duration')
         .single();
 
       if (!error && configData) {
-        setTurnDuration(configData.duracion_turno);
+        setTurnDuration(configData.shift_duration);
       }
     };
 
@@ -563,9 +563,9 @@ function CitasPageContent() {
   useEffect(() => {
     const loadOperatingHours = async () => {
       const { data, error } = await supabase
-        .from('horarios_operacion')
+        .from('operating_hours')
         .select('*')
-        .order('dia_semana');
+        .order('day_of_week');
 
       if (!error) {
         setOperatingHours(data || []);
@@ -574,7 +574,7 @@ function CitasPageContent() {
 
     const loadBlockedDates = async () => {
       const { data, error } = await supabase
-        .from('fechas_bloqueadas')
+        .from('blocked_dates')
         .select('*');
 
       if (!error) {
@@ -704,21 +704,21 @@ function CitasPageContent() {
       const dayOfWeek = date.getDay() || 7;
       
       // Verificar horario operativo
-      const horario = operatingHours.find(h => h.dia_semana === dayOfWeek);
-      if (!horario || !horario.es_dia_laboral) {
+      const horario = operatingHours.find(h => h.day_of_week === dayOfWeek);
+      if (!horario || !horario.is_working_day) {
         return false;
       }
 
       // Verificar bloqueos
       const dateStr = format(date, 'yyyy-MM-dd');
-      const bloqueo = blockedDates.find(b => b.fecha === dateStr);
-      if (bloqueo?.dia_completo) {
+      const bloqueo = blockedDates.find(b => b.date === dateStr);
+      if (bloqueo?.full_day) {
         return false;
       }
 
       const timeStr = format(date, 'HH:mm:ss');
-      if (bloqueo?.hora_inicio && bloqueo?.hora_fin) {
-        if (timeStr >= bloqueo.hora_inicio && timeStr <= bloqueo.hora_fin) {
+      if (bloqueo?.start_time && bloqueo?.end_time) {
+        if (timeStr >= bloqueo.start_time && timeStr <= bloqueo.end_time) {
           return false;
         }
       }
@@ -737,7 +737,7 @@ function CitasPageContent() {
 
       // Verificar capacidad máxima
       const citasSimultaneas = citasExistentes.length;
-      return citasSimultaneas < horario.servicios_simultaneos_max;
+      return citasSimultaneas < horario.max_simultaneous_services;
 
     } catch (error) {
       console.error('Error al verificar disponibilidad:', error);

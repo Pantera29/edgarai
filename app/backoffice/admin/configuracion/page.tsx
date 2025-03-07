@@ -28,35 +28,61 @@ export default function WorkshopConfiguration() {
   const loadAll = async () => {
     setIsLoading(true);
     try {
+      // Obtener un dealership_id válido
+      const { data: dealershipData, error: dealershipError } = await supabase
+        .from('dealerships')
+        .select('id')
+        .limit(1)
+        .single();
+
+      if (dealershipError) {
+        console.error('Error al cargar dealership:', dealershipError);
+        toast.error('Error al cargar la información del concesionario');
+        return;
+      }
+
+      const validDealershipId = dealershipData?.id;
+
       // Cargar configuración
       const { data: configData } = await supabase
-        .from('configuracion_taller')
+        .from('dealership_configuration')
         .select('*')
+        .eq('dealership_id', validDealershipId)
         .limit(1)
         .single();
 
       if (configData) {
         setConfig(configData);
+      } else {
+        // Si no existe una configuración, crear una predeterminada
+        const defaultConfig: TallerConfig = {
+          dealership_id: validDealershipId,
+          shift_duration: 30,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+        setConfig(defaultConfig);
       }
 
       // Cargar horarios
       const { data: schedulesData } = await supabase
-        .from('horarios_operacion')
+        .from('operating_hours')
         .select('*')
-        .order('dia_semana');
+        .eq('dealership_id', validDealershipId)
+        .order('day_of_week');
 
       if (schedulesData && schedulesData.length > 0) {
         setSchedules(schedulesData);
       } else {
-        // Crear horarios por defecto con dia_semana de 1 a 7
+        // Crear horarios por defecto con day_of_week de 1 a 7
         const defaultSchedules = DAYS.map((_, index) => ({
-          id_horario: crypto.randomUUID(),
-          id_taller: configData?.id_taller || crypto.randomUUID(),
-          dia_semana: index + 1, // Ajustar a 1-7
-          es_dia_laboral: index !== 0,
-          hora_apertura: '09:00:00',
-          hora_cierre: '18:00:00',
-          servicios_simultaneos_max: 3
+          schedule_id: crypto.randomUUID(),
+          dealership_id: validDealershipId, // Usar un ID válido de dealership
+          day_of_week: index + 1, // Ajustar a 1-7
+          is_working_day: index !== 0,
+          opening_time: '09:00:00',
+          closing_time: '18:00:00',
+          max_simultaneous_services: 3
         }));
         setSchedules(defaultSchedules);
       }
@@ -70,19 +96,44 @@ export default function WorkshopConfiguration() {
 
   const handleSave = async () => {
     try {
+      // Obtener un dealership_id válido
+      const { data: dealershipData, error: dealershipError } = await supabase
+        .from('dealerships')
+        .select('id')
+        .limit(1)
+        .single();
+
+      if (dealershipError) {
+        console.error('Error al cargar dealership:', dealershipError);
+        toast.error('Error al guardar: no se encontró un concesionario válido');
+        return;
+      }
+
+      const validDealershipId = dealershipData?.id;
+
+      // Asegurarse de que config tenga el dealership_id correcto
+      const updatedConfig = {
+        ...config,
+        dealership_id: validDealershipId,
+        updated_at: new Date().toISOString()
+      };
+
       // Guardar todo
       const { error: configError } = await supabase
-        .from('configuracion_taller')
-        .upsert({
-          ...config,
-          actualizado_el: new Date().toISOString()
-        });
+        .from('dealership_configuration')
+        .upsert(updatedConfig);
 
       if (configError) throw configError;
 
+      // Asegurar que todos los horarios tengan el dealership_id correcto
+      const updatedSchedules = schedules.map(schedule => ({
+        ...schedule,
+        dealership_id: validDealershipId
+      }));
+
       const { error: scheduleError } = await supabase
-        .from('horarios_operacion')
-        .upsert(schedules);
+        .from('operating_hours')
+        .upsert(updatedSchedules);
 
       if (scheduleError) throw scheduleError;
 
@@ -98,7 +149,7 @@ export default function WorkshopConfiguration() {
   const updateSchedule = (index: number, updates: any) => {
     setSchedules(current =>
       current.map(schedule =>
-        schedule.dia_semana === index + 1 // Ajustar a 1-7
+        schedule.day_of_week === index + 1 // Ajustar a 1-7
           ? { ...schedule, ...updates }
           : schedule
       )
@@ -133,10 +184,10 @@ export default function WorkshopConfiguration() {
                 min="15"
                 max="60"
                 step="5"
-                value={config?.duracion_turno || 30}
+                value={config?.shift_duration || 30}
                 onChange={(e) => setConfig(prev => ({
                   ...prev!,
-                  duracion_turno: parseInt(e.target.value)
+                  shift_duration: parseInt(e.target.value)
                 }))}
                 disabled={!isEditing}
                 className="max-w-[200px]"
@@ -151,36 +202,36 @@ export default function WorkshopConfiguration() {
           </CardHeader>
           <CardContent className="space-y-4">
             {DAYS.map((day, index) => {
-              const schedule = schedules.find(s => s.dia_semana === index + 1); // Ajustar a 1-7
+              const schedule = schedules.find(s => s.day_of_week === index + 1); // Ajustar a 1-7
               if (!schedule) return null;
 
               return (
                 <div key={index} className={cn(
                   "p-4 border rounded-lg",
-                  schedule.es_dia_laboral ? "bg-card" : "bg-muted"
+                  schedule.is_working_day ? "bg-card" : "bg-muted"
                 )}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <Switch
-                        checked={schedule.es_dia_laboral}
+                        checked={schedule.is_working_day}
                         onCheckedChange={(checked) => 
-                          updateSchedule(index, { es_dia_laboral: checked })
+                          updateSchedule(index, { is_working_day: checked })
                         }
                         disabled={!isEditing}
                       />
                       <Label>{day}</Label>
                     </div>
 
-                    {schedule.es_dia_laboral && (
+                    {schedule.is_working_day && (
                       <div className="flex items-center gap-4">
                         <div className="flex items-center gap-2">
                           <Clock className="h-4 w-4" />
                           <Input
                             type="time"
-                            value={schedule.hora_apertura.slice(0, 5)}
+                            value={schedule.opening_time.slice(0, 5)}
                             onChange={(e) => 
                               updateSchedule(index, { 
-                                hora_apertura: e.target.value + ':00' 
+                                opening_time: e.target.value + ':00' 
                               })
                             }
                             disabled={!isEditing}
@@ -189,10 +240,10 @@ export default function WorkshopConfiguration() {
                           <span>-</span>
                           <Input
                             type="time"
-                            value={schedule.hora_cierre.slice(0, 5)}
+                            value={schedule.closing_time.slice(0, 5)}
                             onChange={(e) => 
                               updateSchedule(index, { 
-                                hora_cierre: e.target.value + ':00' 
+                                closing_time: e.target.value + ':00' 
                               })
                             }
                             disabled={!isEditing}
@@ -203,10 +254,10 @@ export default function WorkshopConfiguration() {
                           type="number"
                           min="1"
                           max="10"
-                          value={schedule.servicios_simultaneos_max}
+                          value={schedule.max_simultaneous_services}
                           onChange={(e) => 
                             updateSchedule(index, { 
-                              servicios_simultaneos_max: parseInt(e.target.value) 
+                              max_simultaneous_services: parseInt(e.target.value) 
                             })
                           }
                           disabled={!isEditing}

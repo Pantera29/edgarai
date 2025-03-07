@@ -43,18 +43,18 @@ export default function BlockedDates() {
     try {
       // Cargar fechas bloqueadas
       const { data: blockedData, error: blockedError } = await supabase
-        .from('fechas_bloqueadas')
+        .from('blocked_dates')
         .select('*')
-        .order('fecha');
+        .order('date');
 
       if (blockedError) throw blockedError;
       setBlockedDates(blockedData || []);
 
       // Cargar horarios de operación
       const { data: hoursData, error: hoursError } = await supabase
-        .from('horarios_operacion')
+        .from('operating_hours')
         .select('*')
-        .order('dia_semana');
+        .order('day_of_week');
 
       if (hoursError) throw hoursError;
       
@@ -80,7 +80,7 @@ export default function BlockedDates() {
   const handleDateSelect = (date: Date | undefined) => {
     if (date) {
       const dayOfWeek = getDayOfWeek(date);
-      const schedule = operatingHours.find(h => h.dia_semana === dayOfWeek);
+      const schedule = operatingHours.find(h => h.day_of_week === dayOfWeek);
       
       console.log('Selección de fecha:', {
         date,
@@ -89,7 +89,7 @@ export default function BlockedDates() {
         allSchedules: operatingHours
       });
 
-      if (!schedule || !schedule.es_dia_laboral) {
+      if (!schedule || !schedule.is_working_day) {
         setSelectedDate({
           date,
           isNonWorkingDay: true,
@@ -117,9 +117,9 @@ export default function BlockedDates() {
 
     try {
       const { error } = await supabase
-        .from('fechas_bloqueadas')
+        .from('blocked_dates')
         .delete()
-        .eq('id_bloqueo', blockToDelete.id_bloqueo);
+        .eq('block_id', blockToDelete.block_id);
 
       if (error) throw error;
 
@@ -173,17 +173,17 @@ export default function BlockedDates() {
               ) : (
                 blockedDates.map(block => (
                   <div
-                    key={block.id_bloqueo}
+                    key={block.block_id}
                     className="flex items-center justify-between p-4 border rounded-lg"
                   >
-                    <div>
-                      <p className="font-medium">
-                        {format(parseISO(block.fecha), 'PPP', { locale: es })}
+                    <div className="flex flex-col">
+                      <p className="text-sm font-medium">
+                        {format(parseISO(block.date), 'PPP', { locale: es })}
                       </p>
-                      <p className="text-sm text-muted-foreground">{block.motivo}</p>
-                      {!block.dia_completo && (
+                      <p className="text-sm text-muted-foreground">{block.reason}</p>
+                      {!block.full_day && (
                         <p className="text-sm">
-                          {block.hora_inicio} - {block.hora_fin}
+                          {block.start_time} - {block.end_time}
                         </p>
                       )}
                     </div>
@@ -232,7 +232,7 @@ export default function BlockedDates() {
             <AlertDialogTitle>¿Confirmar eliminación?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Se eliminará el bloqueo para el día{' '}
-              {blockToDelete && format(parseISO(blockToDelete.fecha), 'PPP', { locale: es })}.
+              {blockToDelete && format(parseISO(blockToDelete.date), 'PPP', { locale: es })}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

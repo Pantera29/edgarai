@@ -55,9 +55,9 @@ export default function BlockDateDialog({
       date,
       jsDay: dayOfWeek,
       dbDay: dbDayOfWeek,
-      schedule: operatingHours.find(h => h.dia_semana === dbDayOfWeek)
+      schedule: operatingHours.find(h => h.day_of_week === dbDayOfWeek)
     });
-    return operatingHours.find(h => h.dia_semana === dbDayOfWeek);
+    return operatingHours.find(h => h.day_of_week === dbDayOfWeek);
   };
 
   const currentSchedule = getDaySchedule(date);
@@ -65,11 +65,11 @@ export default function BlockDateDialog({
   useEffect(() => {
     if (open) {
       if (editingBlock) {
-        setDate(parseISO(editingBlock.fecha));
-        setMotivo(editingBlock.motivo);
-        setDiaCompleto(editingBlock.dia_completo);
-        setHoraInicio(editingBlock.hora_inicio || '09:00');
-        setHoraFin(editingBlock.hora_fin || '18:00');
+        setDate(parseISO(editingBlock.date));
+        setMotivo(editingBlock.reason);
+        setDiaCompleto(editingBlock.full_day);
+        setHoraInicio(editingBlock.start_time || '09:00');
+        setHoraFin(editingBlock.end_time || '18:00');
       } else if (selectedDate) {
         setDate(selectedDate.date);
         setMotivo('');
@@ -91,30 +91,41 @@ export default function BlockDateDialog({
   }, [open, editingBlock, selectedDate]);
 
   const validateSchedule = () => {
-    if (!currentSchedule?.es_dia_laboral) {
-      return {
-        isValid: false,
-        message: 'Este día está configurado como no operativo'
-      };
+    // Si no hay fecha o no se encontró el horario, no se puede continuar
+    if (!date || !currentSchedule) {
+      return false;
     }
 
-    if (!diaCompleto) {
+    // Verificar si es un día laboral
+    if (!currentSchedule.is_working_day) {
+      toast({
+        title: "Día no laboral",
+        description: "No se pueden programar bloqueos en días no laborales."
+      });
+      return false;
+    }
+
+    // Verificar que la hora de inicio sea menor que la hora de fin para bloqueos parciales
+    if (!diaCompleto && horaInicio && horaFin) {
+      // Validar que las horas estén dentro del horario de operación
+      if (horaInicio < currentSchedule.opening_time || horaFin > currentSchedule.closing_time) {
+        toast({
+          title: "Horario fuera de operación",
+          description: `El horario debe estar entre ${currentSchedule.opening_time.slice(0, 5)} y ${currentSchedule.closing_time.slice(0, 5)}.`
+        });
+        return false;
+      }
+
       if (horaInicio >= horaFin) {
-        return {
-          isValid: false,
-          message: 'La hora de fin debe ser posterior a la hora de inicio'
-        };
-      }
-
-      if (horaInicio < currentSchedule.hora_apertura || horaFin > currentSchedule.hora_cierre) {
-        return {
-          isValid: false,
-          message: `El horario debe estar dentro del horario operativo (${currentSchedule.hora_apertura} - ${currentSchedule.hora_cierre})`
-        };
+        toast({
+          title: "Horario inválido",
+          description: "La hora de inicio debe ser anterior a la hora de fin."
+        });
+        return false;
       }
     }
 
-    return { isValid: true };
+    return true;
   };
 
   const handleSave = async () => {
@@ -129,47 +140,55 @@ export default function BlockDateDialog({
     const validation = validateSchedule();
     console.log('Resultado validación:', validation); // Debug
 
-    if (!validation.isValid) {
-      toast.error(validation.message);
+    if (!validation) {
       return;
     }
 
     setIsLoading(true);
     try {
-      // Obtener el id_taller de la configuración actual
-      const { data: configData, error: configError } = await supabase
-        .from('configuracion_taller')
-        .select('id_taller')
+      // Obtener un dealership_id válido de la configuración actual
+      const { data: dealershipData, error: dealershipError } = await supabase
+        .from('dealerships')
+        .select('id')
         .limit(1)
         .single();
 
-      if (configError || !configData?.id_taller) {
-        console.error('Error al obtener id_taller:', configError);
-        throw new Error('No se encontró el ID del taller');
+      if (dealershipError) {
+        console.error('Error al obtener dealership_id:', dealershipError);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo obtener la información del concesionario."
+        });
+        setIsLoading(false);
+        return;
       }
+
+      const dealership_id = dealershipData.id;
 
       // Usar startOfDay para evitar problemas de zona horaria
       const normalizedDate = startOfDay(date);
-      
+
+      // Preparar datos para guardar
       const blockData = {
-        id_bloqueo: editingBlock?.id_bloqueo || crypto.randomUUID(),
-        id_taller: configData.id_taller,
-        fecha: format(normalizedDate, 'yyyy-MM-dd'),
-        motivo: motivo.trim(),
-        dia_completo: diaCompleto,
-        hora_inicio: diaCompleto ? null : horaInicio,
-        hora_fin: diaCompleto ? null : horaFin,
-        creado_el: editingBlock?.creado_el || new Date().toISOString(),
-        actualizado_el: new Date().toISOString()
+        block_id: editingBlock?.block_id || crypto.randomUUID(),
+        dealership_id: dealership_id,
+        date: format(normalizedDate, 'yyyy-MM-dd'),
+        reason: motivo.trim(),
+        full_day: diaCompleto,
+        start_time: diaCompleto ? null : horaInicio,
+        end_time: diaCompleto ? null : horaFin,
+        created_at: editingBlock?.created_at || new Date().toISOString(),
+        updated_at: new Date().toISOString()
       };
 
       console.log('Guardando bloqueo:', blockData); // Debug
 
       // Usar upsert para manejar tanto creación como edición
       const { error: saveError } = await supabase
-        .from('fechas_bloqueadas')
+        .from('blocked_dates')
         .upsert(blockData, {
-          onConflict: 'id_bloqueo',
+          onConflict: 'block_id',
           ignoreDuplicates: false // Asegura que se actualice si existe
         });
 
@@ -224,7 +243,7 @@ export default function BlockDateDialog({
             </DialogTitle>
           </DialogHeader>
 
-          {date && !currentSchedule?.es_dia_laboral && (
+          {date && !currentSchedule?.is_working_day && (
             <div className="relative w-full rounded-lg border p-4 border-destructive/50 text-destructive">
               <AlertCircle className="h-4 w-4 absolute left-4 top-4" />
               <div className="text-sm pl-7">
@@ -234,11 +253,11 @@ export default function BlockDateDialog({
             </div>
           )}
 
-          {date && currentSchedule?.es_dia_laboral && (
+          {date && currentSchedule?.is_working_day && (
             <div className="relative w-full rounded-lg border p-4">
               <Clock className="h-4 w-4 absolute left-4 top-4" />
               <div className="text-sm pl-7">
-                Horario operativo del día: {currentSchedule.hora_apertura} - {currentSchedule.hora_cierre}
+                Horario operativo del día: {currentSchedule.opening_time.slice(0, 5)} - {currentSchedule.closing_time.slice(0, 5)}
               </div>
             </div>
           )}

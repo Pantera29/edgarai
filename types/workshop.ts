@@ -1,22 +1,22 @@
 import { es } from 'date-fns/locale';
 
 export interface TallerConfig {
-  id_taller: string;
-  duracion_turno: number;
-  creado_el: string;
-  actualizado_el: string;
+  dealership_id: string;
+  shift_duration: number;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface HorarioOperacion {
   id: string;
-  id_taller: string;
-  dia_semana: number;
-  hora_apertura: string;
-  hora_cierre: string;
-  es_dia_laboral: boolean;
-  servicios_simultaneos_max: number;
-  creado_el?: string;
-  actualizado_el?: string;
+  dealership_id: string;
+  day_of_week: number;
+  opening_time: string;
+  closing_time: string;
+  is_working_day: boolean;
+  max_simultaneous_services: number;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface BlockedTime {
@@ -54,15 +54,15 @@ export interface ServiceBay {
 }
 
 export interface BlockedDate {
-  id_bloqueo: string;
-  id_taller: string;
-  fecha: string;
-  motivo: string;
-  dia_completo: boolean;
-  hora_inicio?: string | null;
-  hora_fin?: string | null;
-  creado_el: string;
-  actualizado_el: string;
+  block_id: string;
+  dealership_id: string;
+  date: string;
+  reason: string;
+  full_day: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface SelectedDateInfo {
