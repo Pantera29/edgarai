@@ -83,8 +83,8 @@ export default function BlockDateDialog({
 
         // Usar el horario del schedule que viene en selectedDate
         if (selectedDate.schedule) {
-          setHoraInicio(selectedDate.schedule.hora_apertura);
-          setHoraFin(selectedDate.schedule.hora_cierre);
+          setHoraInicio(selectedDate.schedule.opening_time);
+          setHoraFin(selectedDate.schedule.closing_time);
         }
       }
     }

@@ -33,8 +33,8 @@ export function EnhancedCalendar({
   useEffect(() => {
     // Obtener los días no laborables
     const inactiveDays = operatingHours
-      .filter(h => !h.es_dia_laboral)
-      .map(h => h.dia_semana);
+      .filter(h => !h.is_working_day)
+      .map(h => h.day_of_week);
 
     console.log('Días no laborables de BD:', inactiveDays); // Debug
 
@@ -58,12 +58,12 @@ export function EnhancedCalendar({
       },
       fullyBlocked: (date: Date) => {
         return blockedDates.some(block => 
-          block.fecha === format(date, 'yyyy-MM-dd') && block.dia_completo
+          block.date === format(date, 'yyyy-MM-dd') && block.full_day
         );
       },
       partiallyBlocked: (date: Date) => {
         return blockedDates.some(block => 
-          block.fecha === format(date, 'yyyy-MM-dd') && !block.dia_completo
+          block.date === format(date, 'yyyy-MM-dd') && !block.full_day
         );
       },
       past: (date: Date) => isBefore(date, startOfDay(new Date())) && !isToday(date),
@@ -141,8 +141,8 @@ export function EnhancedCalendar({
     // Usar la misma lógica de conversión
     const dayOfWeek = date.getDay() === 0 ? 1 : date.getDay() + 1;
     const dateStr = format(date, 'yyyy-MM-dd');
-    const isWorkingDay = operatingHours.find(h => h.dia_semana === dayOfWeek)?.es_dia_laboral;
-    const blockInfo = blockedDates.find(b => b.fecha === dateStr);
+    const isWorkingDay = operatingHours.find(h => h.day_of_week === dayOfWeek)?.is_working_day;
+    const blockInfo = blockedDates.find(b => b.date === dateStr);
 
     // Debug para verificar
     console.log('getDayState:', {
@@ -159,17 +159,17 @@ export function EnhancedCalendar({
       };
     }
 
-    if (blockInfo?.dia_completo) {
+    if (blockInfo?.full_day) {
       return {
         type: 'fullyBlocked',
-        message: `Bloqueado: ${blockInfo.motivo}`
+        message: `Bloqueado: ${blockInfo.reason}`
       };
     }
 
-    if (blockInfo && !blockInfo.dia_completo) {
+    if (blockInfo && !blockInfo.full_day) {
       return {
         type: 'partiallyBlocked',
-        message: `Bloqueado de ${blockInfo.hora_inicio} a ${blockInfo.hora_fin}: ${blockInfo.motivo}`
+        message: `Bloqueado de ${blockInfo.start_time} a ${blockInfo.end_time}: ${blockInfo.reason}`
       };
     }
 
