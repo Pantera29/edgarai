@@ -1,7 +1,7 @@
+'use client';
+
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { Database } from "@/lib/db"
+import { useEffect, useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 
 interface PageProps {
@@ -11,7 +11,11 @@ interface PageProps {
 }
 
 export async function generateStaticParams() {
-  const supabase = createServerComponentClient<Database>({ cookies })
+  // Esta función se ejecuta durante el build time y no afecta el componente del lado del cliente
+  const { createServerComponentClient } = await import("@supabase/auth-helpers-nextjs")
+  const { cookies } = await import("next/headers")
+  
+  const supabase = createServerComponentClient({ cookies })
   
   const { data: servicios } = await supabase
     .from('services')
@@ -23,12 +27,41 @@ export async function generateStaticParams() {
 }
 
 export default function ServicioPage({ params }: PageProps) {
-  // Obtener datos del servicio
-  const { data: servicio } = await createClientComponentClient<Database>()
-    .from('services')
-    .select('*')
-    .eq('id_uuid', params.id)
-    .single()
+  const [servicio, setServicio] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  
+  useEffect(() => {
+    async function loadServicio() {
+      try {
+        const supabase = createClientComponentClient()
+        const { data, error } = await supabase
+          .from('services')
+          .select('*')
+          .eq('id_uuid', params.id)
+          .single()
+          
+        if (error) {
+          console.error('Error cargando servicio:', error)
+        } else {
+          setServicio(data)
+        }
+      } catch (err) {
+        console.error('Error:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadServicio()
+  }, [params.id])
+
+  if (loading) {
+    return <div className="p-4">Cargando servicio...</div>
+  }
+  
+  if (!servicio) {
+    return <div className="p-4">Servicio no encontrado</div>
+  }
 
   return (
     <div>
