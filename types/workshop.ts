@@ -86,8 +86,10 @@ export interface Vehiculo {
 
 export interface Servicio {
   id_uuid: string;
-  nombre: string;
-  duracion_estimada: number;
+  service_name: string;
+  description?: string;
+  duration_minutes: number;
+  price?: number;
 }
 
 export type AppointmentStatus = 'pendiente' | 'en_proceso' | 'completada' | 'cancelada';

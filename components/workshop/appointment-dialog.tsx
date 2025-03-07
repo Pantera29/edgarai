@@ -55,52 +55,17 @@ export default function AppointmentDialog({
   const [appointments, setAppointments] = useState<any[]>([])
 
   const loadData = async () => {
-    
-      const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
-        null
-      );
-      const [token, setToken] = useState<string>("");
-      const [dataToken, setDataToken] = useState<object>({});
-    
-      const router = useRouter();
-    
-      useEffect(() => {
-        if (typeof window !== "undefined") {
-          const params = new URLSearchParams(window.location.search);
-          setSearchParams(params); // Guarda los query params en el estado
-        }
-      }, []);
-    
-      useEffect(() => {
-        if (searchParams) {
-          const tokenValue = searchParams.get("token"); // Obtiene el token de los query params
-          if (tokenValue) {
-            setToken(tokenValue); // Usa setToken para actualizar el estado
-            const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
-            
-            // Si el token no es válido, redirigir al login
-            if (verifiedDataToken === null) {
-              router.push("/login");
-            }
-            setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
-    
-          }
-        }
-      }, [searchParams, router]); 
-    
-    
-    
-
+    setIsLoading(true);
     try {
-      const [
-        { data: clientesData, error: clientesError },
-        { data: vehiculosData, error: vehiculosError },
-        { data: serviciosData, error: serviciosError }
-      ] = await Promise.all([
+      // Cargar clientes y vehículos
+      const [{ data: clientesData, error: clientesError }, { data: vehiculosData, error: vehiculosError }] = await Promise.all([
         supabase.from('clientes').select('*').order('nombre'),
-        supabase.from('vehiculos').select('*').order('marca, modelo'),
-        supabase.from('servicios').select('*').order('nombre')
+        supabase.from('vehiculos').select('*')
       ]);
+
+      // Cargar servicios
+      const { data: serviciosData, error: serviciosError } = await 
+        supabase.from('services').select('*').order('service_name');
 
       if (clientesError) throw clientesError;
       if (vehiculosError) throw vehiculosError;
@@ -333,7 +298,7 @@ export default function AppointmentDialog({
                   <SelectContent>
                     {servicios.map((servicio) => (
                       <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
-                        {servicio.nombre} ({servicio.duracion_estimada} min)
+                        {servicio.service_name} ({servicio.duration_minutes} min)
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -359,7 +324,7 @@ export default function AppointmentDialog({
                         onTimeSlotSelect={(slot) => onSlotChange(slot.time)}
                         selectedService={selectedService ? {
                           id: selectedService,
-                          duration: servicios.find(s => s.id_uuid === selectedService)?.duracion_estimada || 0
+                          duration: servicios.find(s => s.id_uuid === selectedService)?.duration_minutes || 0
                         } : undefined}
                       />
                     </div>

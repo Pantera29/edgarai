@@ -34,13 +34,14 @@ import {
 import { MoreHorizontal } from 'lucide-react'
 import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
+import { Textarea } from "@/components/ui/textarea"
 
 interface Servicio {
   id: string
-  nombre: string
-  descripcion: string
-  duracion_estimada: number
-  precio: number
+  service_name: string
+  description: string
+  duration_minutes: number
+  price: number
 }
 
 export default function ServiciosPage() {
@@ -81,35 +82,40 @@ export default function ServiciosPage() {
   const [servicios, setServicios] = useState<Servicio[]>([])
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [nuevoServicio, setNuevoServicio] = useState<Omit<Servicio, 'id'>>({
-    nombre: "",
-    descripcion: "",
-    duracion_estimada: 0,
-    precio: 0
+  const [formData, setFormData] = useState<Omit<Servicio, 'id'>>({
+    service_name: "",
+    description: "",
+    duration_minutes: 0,
+    price: 0
   })
   const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null)
   const [editando, setEditando] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     cargarServicios()
   }, [])
 
   async function cargarServicios() {
-    const { data, error } = await supabase
-      .from('servicios')
-      .select('*')
-      .order('nombre')
-    
-    if (error) {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('services')
+        .select('*')
+        .order('service_name')
+
+      if (error) throw error
+      setServicios(data)
+    } catch (error) {
+      console.error('Error al cargar servicios:', error)
       toast({
-        variant: "destructive",
         title: "Error",
-        description: "No se pudieron cargar los servicios"
+        description: "No se pudieron cargar los servicios",
+        variant: "destructive",
       })
-      return
+    } finally {
+      setLoading(false)
     }
-    
-    setServicios(data)
   }
 
   const formatPrice = (price: number) => {
@@ -121,143 +127,97 @@ export default function ServiciosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!nuevoServicio.nombre.trim()) {
+    if (!formData.service_name || !formData.duration_minutes) {
       toast({
+        title: "Error",
+        description: "Por favor completa los campos requeridos",
         variant: "destructive",
-        title: "Error de validación",
-        description: "El nombre es obligatorio"
       })
       return
     }
 
-    if (nuevoServicio.duracion_estimada <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Error de validación",
-        description: "La duración debe ser mayor a 0 minutos"
-      })
-      return
-    }
-
-    if (nuevoServicio.precio < 0) {
-      toast({
-        variant: "destructive",
-        title: "Error de validación",
-        description: "El precio no puede ser negativo"
-      })
-      return
-    }
-
-    setLoading(true)
-
+    setIsSubmitting(true)
     try {
-      const { data, error } = await supabase
-        .from('servicios')
-        .insert([{
-          nombre: nuevoServicio.nombre,
-          descripcion: nuevoServicio.descripcion,
-          duracion_estimada: nuevoServicio.duracion_estimada,
-          precio: nuevoServicio.precio
-        }])
-        .select()
+      const { error } = await supabase
+        .from('services')
+        .insert([
+          {
+            service_name: formData.service_name,
+            description: formData.description,
+            duration_minutes: formData.duration_minutes,
+            price: formData.price
+          }
+        ])
 
       if (error) throw error
 
-      if (data) {
-        toast({
-          title: "Servicio guardado",
-          description: "El servicio se ha registrado correctamente",
-        })
-        setServicios([...servicios, data[0]])
-        setMostrarFormulario(false)
-        setNuevoServicio({
-          nombre: "",
-          descripcion: "",
-          duracion_estimada: 0,
-          precio: 0
-        })
-      }
-    } catch (error) {
+      setMostrarFormulario(false)
+      setFormData({
+        service_name: '',
+        description: '',
+        duration_minutes: 30,
+        price: 0
+      })
       toast({
-        variant: "destructive",
+        title: "Éxito",
+        description: "Servicio agregado correctamente",
+      })
+      cargarServicios()
+    } catch (error) {
+      console.error('Error al crear servicio:', error)
+      toast({
         title: "Error",
-        description: "Hubo un problema al guardar el servicio"
+        description: "No se pudo crear el servicio",
+        variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
   }
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
-    
-    if (!servicioSeleccionado!.nombre.trim()) {
+    if (!servicioSeleccionado) return
+
+    if (!servicioSeleccionado.service_name || !servicioSeleccionado.duration_minutes) {
       toast({
+        title: "Error",
+        description: "Por favor completa los campos requeridos",
         variant: "destructive",
-        title: "Error de validación",
-        description: "El nombre es obligatorio"
       })
       return
     }
 
-    if (servicioSeleccionado!.duracion_estimada <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Error de validación",
-        description: "La duración debe ser mayor a 0 minutos"
-      })
-      return
-    }
-
-    if (servicioSeleccionado!.precio < 0) {
-      toast({
-        variant: "destructive",
-        title: "Error de validación",
-        description: "El precio no puede ser negativo"
-      })
-      return
-    }
-
-    if (!window.confirm('¿Está seguro de guardar los cambios?')) {
-      return
-    }
-
-    setLoading(true)
-
+    setIsSubmitting(true)
     try {
-      const { data, error } = await supabase
-        .from('servicios')
+      const { error } = await supabase
+        .from('services')
         .update({
-          nombre: servicioSeleccionado!.nombre,
-          descripcion: servicioSeleccionado!.descripcion,
-          duracion_estimada: servicioSeleccionado!.duracion_estimada,
-          precio: servicioSeleccionado!.precio
+          service_name: servicioSeleccionado.service_name,
+          description: servicioSeleccionado.description,
+          duration_minutes: servicioSeleccionado.duration_minutes,
+          price: servicioSeleccionado.price
         })
-        .eq('id', servicioSeleccionado!.id)
-        .select()
+        .eq('id', servicioSeleccionado.id)
 
       if (error) throw error
 
-      if (data) {
-        toast({
-          title: "Servicio actualizado",
-          description: "Los cambios se han guardado correctamente",
-        })
-        setServicios(servicios.map(s => 
-          s.id === servicioSeleccionado!.id ? data[0] : s
-        ))
-        setEditando(false)
-        setServicioSeleccionado(null)
-      }
-    } catch (error) {
+      setEditando(false)
+      setServicioSeleccionado(null)
       toast({
-        variant: "destructive",
+        title: "Éxito",
+        description: "Servicio actualizado correctamente",
+      })
+      cargarServicios()
+    } catch (error) {
+      console.error('Error al actualizar servicio:', error)
+      toast({
         title: "Error",
-        description: "Hubo un problema al actualizar el servicio"
+        description: "No se pudo actualizar el servicio",
+        variant: "destructive",
       })
     } finally {
-      setLoading(false)
+      setIsSubmitting(false)
     }
   }
 
@@ -285,10 +245,10 @@ export default function ServiciosPage() {
         <TableBody>
           {servicios.map((servicio) => (
             <TableRow key={servicio.id}>
-              <TableCell className="font-medium">{servicio.nombre}</TableCell>
-              <TableCell>{servicio.descripcion}</TableCell>
-              <TableCell>{servicio.duracion_estimada} min</TableCell>
-              <TableCell>{formatPrice(servicio.precio)}</TableCell>
+              <TableCell className="font-medium">{servicio.service_name}</TableCell>
+              <TableCell>{servicio.description || '-'}</TableCell>
+              <TableCell>{servicio.duration_minutes}</TableCell>
+              <TableCell>{formatPrice(servicio.price || 0)}</TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -323,49 +283,46 @@ export default function ServiciosPage() {
           </DialogHeader>
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="nombre" className="text-right">Nombre *</Label>
+              <div className="space-y-1">
+                <Label htmlFor="nombre">Nombre del Servicio</Label>
                 <Input
                   id="nombre"
-                  className="col-span-3"
-                  value={nuevoServicio.nombre}
-                  onChange={(e) => setNuevoServicio({...nuevoServicio, nombre: e.target.value})}
-                  required
+                  value={formData.service_name}
+                  onChange={(e) => setFormData({ ...formData, service_name: e.target.value })}
+                  placeholder="Ej: Cambio de aceite"
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="descripcion" className="text-right">Descripción</Label>
-                <Input
+              <div className="space-y-1">
+                <Label htmlFor="descripcion">Descripción</Label>
+                <Textarea
                   id="descripcion"
-                  className="col-span-3"
-                  value={nuevoServicio.descripcion}
-                  onChange={(e) => setNuevoServicio({...nuevoServicio, descripcion: e.target.value})}
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Descripción del servicio"
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="duracion" className="text-right">Duración (min) *</Label>
-                <Input
-                  id="duracion"
-                  type="number"
-                  min="1"
-                  className="col-span-3"
-                  value={nuevoServicio.duracion_estimada}
-                  onChange={(e) => setNuevoServicio({...nuevoServicio, duracion_estimada: Number(e.target.value)})}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="precio" className="text-right">Precio *</Label>
-                <Input
-                  id="precio"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="col-span-3"
-                  value={nuevoServicio.precio}
-                  onChange={(e) => setNuevoServicio({...nuevoServicio, precio: Number(e.target.value)})}
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="duracion">Duración (minutos)</Label>
+                  <Input
+                    id="duracion"
+                    type="number"
+                    min="5"
+                    value={formData.duration_minutes}
+                    onChange={(e) => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="precio">Precio</Label>
+                  <Input
+                    id="precio"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.price}
+                    onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -387,57 +344,52 @@ export default function ServiciosPage() {
           </DialogHeader>
           <form onSubmit={handleUpdate}>
             <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-nombre" className="text-right">Nombre *</Label>
+              <div className="space-y-1">
+                <Label htmlFor="edit-nombre">Nombre del Servicio</Label>
                 <Input
                   id="edit-nombre"
-                  className="col-span-3"
-                  value={servicioSeleccionado?.nombre}
+                  value={servicioSeleccionado?.service_name}
                   onChange={(e) => setServicioSeleccionado(prev => 
-                    prev ? {...prev, nombre: e.target.value} : prev
+                    prev ? {...prev, service_name: e.target.value} : prev
                   )}
-                  required
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-descripcion" className="text-right">Descripción</Label>
-                <Input
+              <div className="space-y-1">
+                <Label htmlFor="edit-descripcion">Descripción</Label>
+                <Textarea
                   id="edit-descripcion"
-                  className="col-span-3"
-                  value={servicioSeleccionado?.descripcion}
+                  value={servicioSeleccionado?.description}
                   onChange={(e) => setServicioSeleccionado(prev => 
-                    prev ? {...prev, descripcion: e.target.value} : prev
+                    prev ? {...prev, description: e.target.value} : prev
                   )}
                 />
               </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-duracion" className="text-right">Duración (min) *</Label>
-                <Input
-                  id="edit-duracion"
-                  type="number"
-                  min="1"
-                  className="col-span-3"
-                  value={servicioSeleccionado?.duracion_estimada}
-                  onChange={(e) => setServicioSeleccionado(prev => 
-                    prev ? {...prev, duracion_estimada: Number(e.target.value)} : prev
-                  )}
-                  required
-                />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="edit-precio" className="text-right">Precio *</Label>
-                <Input
-                  id="edit-precio"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  className="col-span-3"
-                  value={servicioSeleccionado?.precio}
-                  onChange={(e) => setServicioSeleccionado(prev => 
-                    prev ? {...prev, precio: Number(e.target.value)} : prev
-                  )}
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label htmlFor="edit-duracion">Duración (minutos)</Label>
+                  <Input
+                    id="edit-duracion"
+                    type="number"
+                    min="5"
+                    value={servicioSeleccionado?.duration_minutes}
+                    onChange={(e) => setServicioSeleccionado(prev => 
+                      prev ? {...prev, duration_minutes: parseInt(e.target.value) || 0} : prev
+                    )}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="edit-precio">Precio</Label>
+                  <Input
+                    id="edit-precio"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={servicioSeleccionado?.price}
+                    onChange={(e) => setServicioSeleccionado(prev => 
+                      prev ? {...prev, price: parseFloat(e.target.value) || 0} : prev
+                    )}
+                  />
+                </div>
               </div>
             </div>
             <DialogFooter>
