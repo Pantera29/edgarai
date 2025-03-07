@@ -34,6 +34,29 @@ export interface Database {
           created_at: string
         }
       }
+      services: {
+        Row: {
+          'id_uuid': string
+          service_name: string
+          description: string | null
+          duration_minutes: number
+          price: number
+          created_at: string
+        }
+        Insert: {
+          'id_uuid'?: string
+          service_name: string
+          description?: string | null
+          duration_minutes: number
+          price?: number
+        }
+        Update: {
+          service_name?: string
+          description?: string | null
+          duration_minutes?: number
+          price?: number
+        }
+      }
       recordatorios_mantenimiento: {
         Row: {
           id: string

@@ -26,7 +26,7 @@ interface TimeSlot {
 }
 
 type Cita = Database['public']['Tables']['citas']['Row'] & {
-  servicios: Database['public']['Tables']['servicios']['Row']
+  services: Database['public']['Tables']['services']['Row']
 }
 
 export function AvailabilityCalendar() {
@@ -47,7 +47,7 @@ export function AvailabilityCalendar() {
         .from('citas')
         .select(`
           *,
-          servicios (*)
+          services (*)
         `)
         .gte('fecha_hora', format(new Date(), 'yyyy-MM-dd'))
 
@@ -70,7 +70,7 @@ export function AvailabilityCalendar() {
 
             const isBooked = (citas as Cita[] | null)?.some(cita => {
               const citaStart = new Date(cita.fecha_hora)
-              const citaEnd = new Date(citaStart.getTime() + (cita.servicios?.duracion_estimada || 60) * 60000)
+              const citaEnd = new Date(citaStart.getTime() + (cita.services?.duration_minutes || 60) * 60000)
               return (start >= citaStart && start < citaEnd) || 
                      (end > citaStart && end <= citaEnd)
             })

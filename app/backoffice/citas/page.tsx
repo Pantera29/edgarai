@@ -85,8 +85,9 @@ interface Cliente {
 
 interface Servicio {
   id_uuid: string
-  nombre: string
-  duracion_estimada: number
+  service_name: string
+  description: string
+  duration_minutes: number
 }
 
 interface CitaDB {
@@ -113,10 +114,10 @@ interface Cita {
     id_uuid: string
     nombre: string
   }
-  servicios: {
+  services: {
     id_uuid: string
-    nombre: string
-    duracion_estimada: number
+    service_name: string
+    duration_minutes: number
   }
   vehiculos: {
     id_uuid: string
@@ -484,18 +485,65 @@ function CitasPageContent() {
 
   const cargarDatos = async () => {
     try {
+      // Limpiar datos actuales
+      setServicios([]);
+      
+      // Cargar clientes
       const { data: clientesData, error: clientesError } = await supabase
         .from('clientes')
         .select('id_uuid, nombre')
 
-      if (clientesError) throw clientesError
+      if (clientesError) {
+        console.error('Error al cargar clientes:', clientesError);
+        throw clientesError;
+      }
 
+      // Cargar servicios
       const { data: serviciosData, error: serviciosError } = await supabase
-        .from('servicios')
-        .select('id_uuid, nombre, duracion_estimada')
+        .from('services')
+        .select('*')
+        .order('service_name')
 
-      if (serviciosError) throw serviciosError
+      console.log('Servicios raw data:', serviciosData);
+      
+      if (serviciosError) {
+        console.error('Error al cargar servicios:', serviciosError);
+        throw serviciosError;
+      }
+      
+      // Imprimir datos directamente de la respuesta
+      console.log('¿serviciosData es un array?', Array.isArray(serviciosData));
+      console.log('Longitud de serviciosData:', serviciosData?.length);
+      
+      // Asegurarnos de que los datos se procesen correctamente antes de actualizar el estado
+      let serviciosFormateados: Servicio[] = [];
+      
+      // Procesamiento directo, sin formateo adicional
+      if (Array.isArray(serviciosData)) {
+        // Usar los datos tal como vienen, sin transformación
+        serviciosFormateados = serviciosData;
+        console.log('Usando servicios sin transformar:', serviciosFormateados);
+      }
+      
+      console.log('Longitud de servicios formateados:', serviciosFormateados.length);
+      
+      // Actualizar el estado directamente con los datos recibidos
+      setServicios(serviciosFormateados);
+      
+      // Verificar el estado después de la actualización
+      setTimeout(() => {
+        console.log('Estado de servicios después de actualizar:', servicios);
+      }, 100);
 
+      // También agregar un console.log de cada servicio para ver la estructura exacta
+      serviciosFormateados.forEach((servicio, idx) => {
+        console.log(`Servicio ${idx}:`, servicio);
+        console.log(`Propiedades:`, Object.keys(servicio));
+        console.log(`id_uuid:`, servicio.id_uuid);
+        console.log(`service_name:`, servicio.service_name);
+      });
+      
+      // Cargar citas
       const { data: citasData, error: citasError } = await supabase
         .from('citas')
         .select(`
@@ -511,10 +559,10 @@ function CitasPageContent() {
             id_uuid,
             nombre
           ),
-          servicios!citas_servicio_id_uuid_fkey (
+          services!citas_servicio_id_uuid_fkey (
             id_uuid,
-            nombre,
-            duracion_estimada
+            service_name,
+            duration_minutes
           ),
           vehiculos!citas_vehiculo_id_uuid_fkey (
             id_uuid,
@@ -526,11 +574,25 @@ function CitasPageContent() {
         `)
         .order('fecha_hora', { ascending: true })
 
-      if (citasError) throw citasError
+      if (citasError) {
+        console.error('Error al cargar citas:', citasError);
+        throw citasError;
+      }
 
-      setClientes(clientesData || [])
-      setServicios(serviciosData || [])
-      setCitas((citasData || []) as unknown as Cita[])
+      // Actualizar estado con los datos obtenidos
+      console.log('Actualizando estado con datos:', {
+        clientes: clientesData?.length || 0,
+        servicios: serviciosData?.length || 0, 
+        citas: citasData?.length || 0
+      });
+      
+      setClientes(clientesData || []);
+      setCitas(Array.isArray(citasData) ? citasData as unknown as Cita[] : []);
+      
+      // Imprimir los estados actualizados para depurar
+      setTimeout(() => {
+        console.log('Estado de servicios después de cargarDatos:', servicios)
+      }, 500)
     } catch (error) {
       console.error('Error al cargar datos:', error)
       toast({
@@ -542,8 +604,17 @@ function CitasPageContent() {
   }
 
   useEffect(() => {
-    cargarDatos()
-  }, [])
+    console.log('Cargando datos iniciales...');
+    cargarDatos();
+
+    // Recargar datos cada 30 segundos para pruebas
+    const interval = setInterval(() => {
+      console.log('Recargando datos...');
+      cargarDatos();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     const loadConfig = async () => {
@@ -605,7 +676,7 @@ function CitasPageContent() {
           
           if (serviceData.service_name) {
             const matchingService = servicios.find(s => 
-              s.nombre.toLowerCase() === serviceData.service_name.toLowerCase()
+              s.service_name.toLowerCase() === serviceData.service_name.toLowerCase()
             );
             if (matchingService) {
               setSelectedService(matchingService);
@@ -626,7 +697,7 @@ function CitasPageContent() {
     
     const disponible = await verificarDisponibilidad(
       nuevaCita.fecha_hora, 
-      servicio.duracion_estimada
+      servicio.duration_minutes
     )
     
     if (!disponible) {
@@ -839,10 +910,10 @@ function CitasPageContent() {
             "id uuid",
             nombre
           ),
-          servicio:servicios!servicio_id uuid (
+          servicio:services!servicio_id uuid (
             "id uuid",
-            nombre,
-            duracion_estimada
+            service_name,
+            duration_minutes
           )
         `)
         .eq('uuid id', citaId)
@@ -929,6 +1000,14 @@ function CitasPageContent() {
     setMostrarFormulario(true);
   };
 
+  // Agrega un log justo antes del return
+  console.log('Renderizando CitasPageContent con servicios:', servicios);
+  
+  // Debug servicios antes de renderizar
+  console.log('Servicios antes de renderizar:', servicios);
+  console.log('¿Servicios es array?', Array.isArray(servicios));
+  console.log('Longitud de servicios:', servicios.length);
+  
   return (
     <div className="min-h-screen">
       <div className="space-y-8">
@@ -976,21 +1055,40 @@ function CitasPageContent() {
           <div className="p-4 border-b">
             <div className="flex items-center gap-4">
               <h3 className="text-lg font-medium">Seleccionar Servicio</h3>
-              <Select value={selectedService?.id_uuid || ''} onValueChange={(value) => {
-                const service = servicios.find(s => s.id_uuid === value);
-                setSelectedService(service || null);
-              }}>
-                <SelectTrigger className="w-[300px]">
-                  <SelectValue placeholder="Seleccione un servicio para agendar" />
-                </SelectTrigger>
-                <SelectContent>
-                  {servicios.map((servicio) => (
-                    <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
-                      {servicio.nombre} ({servicio.duracion_estimada} min)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Verificar si hay servicios disponibles */}
+              {(!Array.isArray(servicios) || servicios.length === 0) ? (
+                <div className="text-red-500">No hay servicios disponibles. Por favor, cree servicios primero.</div>
+              ) : (
+                <Select 
+                  value={selectedService?.id_uuid || ''} 
+                  onValueChange={(value) => {
+                    console.log('Valor seleccionado:', value);
+                    console.log('Buscando en servicios:', servicios);
+                    const service = servicios.find(s => {
+                      console.log('Comparando:', s.id_uuid, 'con', value);
+                      return s.id_uuid === value;
+                    });
+                    console.log('Servicio encontrado:', service);
+                    setSelectedService(service || null);
+                  }}
+                >
+                  <SelectTrigger className="w-[300px]">
+                    <SelectValue placeholder="Seleccione un servicio para agendar" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {servicios.map((servicio, idx) => {
+                      console.log(`Renderizando servicio ${idx}:`, servicio);
+                      console.log(`ID:`, servicio.id_uuid);
+                      console.log(`Nombre:`, servicio.service_name);
+                      return (
+                        <SelectItem key={servicio.id_uuid || `service-${idx}`} value={servicio.id_uuid || ''}>
+                          {servicio.service_name || `Servicio ${idx + 1}`} ({servicio.duration_minutes || 0} min)
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
@@ -1004,7 +1102,7 @@ function CitasPageContent() {
             onTimeSlotSelect={handleTimeSlotSelect}
             selectedService={selectedService ? {
               id: selectedService.id_uuid,
-              duration: selectedService.duracion_estimada
+              duration: selectedService.duration_minutes
             } : undefined}
           />
         </div>
@@ -1072,7 +1170,7 @@ function CitasPageContent() {
               {citasFiltradas.map((cita) => (
                 <TableRow key={cita.id_uuid}>
                   <TableCell>{cita.clientes?.nombre}</TableCell>
-                  <TableCell>{cita.servicios?.nombre}</TableCell>
+                  <TableCell>{cita.services?.service_name}</TableCell>
                   <TableCell>
                     <Link 
                       href={`/vehiculos?id=${cita.vehiculo_id_uuid}&token=${token}`} 

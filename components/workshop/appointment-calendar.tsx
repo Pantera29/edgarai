@@ -376,7 +376,7 @@ export function AppointmentCalendar({
       const slotAppointments = existingAppointments.filter(app => {
         const appTime = format(new Date(app.fecha_hora), 'HH:mm');
         const appEndTime = format(
-          addMinutes(new Date(app.fecha_hora), app.servicios.duracion_estimada),
+          addMinutes(new Date(app.fecha_hora), app.services.duration_minutes),
           'HH:mm'
         );
         
@@ -397,8 +397,8 @@ export function AppointmentCalendar({
       const mappedAppointments = slotAppointments.map(app => ({
         id: app.id_uuid,
         clientName: app.clientes.nombre,
-        serviceName: app.servicios.nombre,
-        duration: app.servicios.duracion_estimada
+        serviceName: app.services.service_name,
+        duration: app.services.duration_minutes
       }));
       
       slots.push({
