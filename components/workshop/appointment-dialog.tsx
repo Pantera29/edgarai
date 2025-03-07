@@ -131,7 +131,7 @@ export default function AppointmentDialog({
 
   const loadBlockedDates = async () => {
     const { data, error } = await supabase
-      .from('fechas_bloqueadas')
+      .from('blocked_dates')
       .select('*');
 
     if (!error) {
