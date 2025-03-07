@@ -1,5 +1,5 @@
 import React, { useState, useEffect, ChangeEvent } from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
@@ -11,6 +11,7 @@ import { es } from "date-fns/locale";
 import { useRouter } from "next/navigation";
 import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment-calendar"
 import { verifyToken } from "@/app/jwt/token"
+import { Input } from "@/components/ui/input"
 
 interface AppointmentDialogProps {
   open: boolean;
@@ -38,6 +39,7 @@ export default function AppointmentDialog({
   recommendedServiceId,
 }: AppointmentDialogProps) {
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('');
@@ -46,7 +48,7 @@ export default function AppointmentDialog({
   const [selectedService, setSelectedService] = useState('');
   const [estado, setEstado] = useState<'pendiente' | 'en_proceso' | 'completada' | 'cancelada'>('pendiente');
   const [notas, setNotas] = useState('');
-  const [servicios, setServicios] = useState<any[]>([]);
+  const [servicios, setServicios] = useState<Servicio[]>([]);
   const supabase = createClientComponentClient();
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -80,6 +82,8 @@ export default function AppointmentDialog({
         title: "Error",
         description: "Error al cargar la información"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -231,11 +235,14 @@ export default function AppointmentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogTrigger asChild>
+        <Button variant="outline" onClick={loadData}>Nueva Cita</Button>
+      </DialogTrigger>
       <DialogContent className="max-w-4xl">
         <DialogHeader>
-          <DialogTitle>Agendar Nueva Cita</DialogTitle>
+          <DialogTitle>Nueva Cita</DialogTitle>
           <DialogDescription>
-            Complete los datos de la cita. Todos los campos son obligatorios.
+            Complete los datos para agendar una nueva cita
           </DialogDescription>
         </DialogHeader>
 
