@@ -10,21 +10,7 @@ interface PageProps {
   };
 }
 
-export async function generateStaticParams() {
-  // Esta función se ejecuta durante el build time y no afecta el componente del lado del cliente
-  const { createServerComponentClient } = await import("@supabase/auth-helpers-nextjs")
-  const { cookies } = await import("next/headers")
-  
-  const supabase = createServerComponentClient({ cookies })
-  
-  const { data: servicios } = await supabase
-    .from('services')
-    .select('id_uuid')
-  
-  return servicios?.map((servicio) => ({
-    id: servicio.id_uuid
-  })) || []
-}
+export { generateStaticParams } from './generateStaticParams'
 
 export default function ServicioPage({ params }: PageProps) {
   const [servicio, setServicio] = useState<any>(null)
