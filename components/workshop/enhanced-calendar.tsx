@@ -146,10 +146,10 @@ export function EnhancedCalendar({
 
     // Debug para verificar
     console.log('getDayState:', {
-      fecha: dateStr,
+      date: dateStr,
       dayOfWeek,
       isWorkingDay,
-      horarios: operatingHours
+      schedules: operatingHours
     });
 
     if (!isWorkingDay) {
