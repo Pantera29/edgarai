@@ -11,4 +11,12 @@ export async function generateStaticParams() {
   return servicios?.map((servicio) => ({
     id: servicio.id_uuid
   })) || []
+}
+
+export default function ServicioLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return children
 } 

@@ -10,8 +10,6 @@ interface PageProps {
   };
 }
 
-export { generateStaticParams } from './generateStaticParams'
-
 export default function ServicioPage({ params }: PageProps) {
   const [servicio, setServicio] = useState<any>(null)
   const [loading, setLoading] = useState(true)
