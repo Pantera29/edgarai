@@ -120,9 +120,9 @@ export default function AppointmentDialog({
 
   const loadOperatingHours = async () => {
     const { data, error } = await supabase
-      .from('horarios_operacion')
+      .from('operating_hours')
       .select('*')
-      .order('dia_semana');
+      .order('day_of_week');
 
     if (!error) {
       setOperatingHours(data || []);
