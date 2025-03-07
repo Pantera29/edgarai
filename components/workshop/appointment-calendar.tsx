@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Calendar } from "@/components/ui/calendar";
-import { format, parseISO, isToday, isBefore, startOfDay, addMinutes, parse, addMonths } from 'date-fns';
+import { format, parseISO, isToday, isBefore, startOfDay, addMinutes, parse, addMonths, differenceInMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { cn } from "@/lib/utils";
 import {
@@ -289,11 +289,22 @@ export function AppointmentCalendar({
 
   const calculateDayAvailability = (date: Date): DayAvailability => {
     const dayOfWeek = date.getDay() === 0 ? 1 : date.getDay() + 1;
-    const schedule = operatingHours.find(h => h.dia_semana === dayOfWeek);
+    const schedule = operatingHours.find(h => h.day_of_week === dayOfWeek);
     const dateStr = format(date, 'yyyy-MM-dd');
-    const block = blockedDates.find(b => b.fecha === dateStr);
+    const block = blockedDates.find(b => b.date === dateStr);
     
-    if (!schedule || !schedule.es_dia_laboral) {
+    if (!schedule || !schedule.is_working_day) {
+      return { 
+        percentage: 0, 
+        status: 'blocked', 
+        totalSlots: 0, 
+        availableSlots: 0,
+        isFullyBlocked: true,
+        isPartiallyBlocked: false
+      };
+    }
+    
+    if (block?.full_day) {
       return { 
         percentage: 0, 
         status: 'blocked', 
@@ -301,134 +312,116 @@ export function AppointmentCalendar({
         availableSlots: 0,
         isFullyBlocked: true,
         isPartiallyBlocked: false,
-        blockReason: 'Día no laborable'
+        blockReason: block.reason
       };
     }
 
-    if (block?.dia_completo) {
-      return { 
-        percentage: 0, 
-        status: 'blocked', 
-        totalSlots: 0, 
-        availableSlots: 0,
-        isFullyBlocked: true,
-        isPartiallyBlocked: false,
-        blockReason: block.motivo
-      };
-    }
-
-    const isPartiallyBlocked = !!block && !block.dia_completo;
-
-    // Calcular slots totales del día
-    const startTime = parse(schedule.hora_apertura, 'HH:mm:ss', date);
-    const endTime = parse(schedule.hora_cierre, 'HH:mm:ss', date);
-    const totalMinutes = (endTime.getTime() - startTime.getTime()) / (1000 * 60);
-    const totalSlots = Math.floor(totalMinutes / turnDuration) * schedule.servicios_simultaneos_max;
-
-    // Calcular slots ocupados
-    const dayAppointments = appointments.filter(app => 
+    const startTime = parse(schedule.opening_time, 'HH:mm:ss', date);
+    const endTime = parse(schedule.closing_time, 'HH:mm:ss', date);
+    const totalMinutes = differenceInMinutes(endTime, startTime);
+    const totalSlots = Math.floor(totalMinutes / turnDuration) * schedule.max_simultaneous_services;
+    
+    // Contar citas existentes para este día
+    const existingAppointments = appointments.filter(app => 
       format(new Date(app.fecha_hora), 'yyyy-MM-dd') === dateStr
     );
-
-    const occupiedSlots = dayAppointments.reduce((acc, app) => {
-      const duration = app.servicios.duracion_estimada;
-      return acc + Math.ceil(duration / turnDuration);
-    }, 0);
-
-    const availablePercentage = ((totalSlots - occupiedSlots) / totalSlots) * 100;
-
-    const occupancyPercentage = 100 - availablePercentage; // Convertimos disponibilidad a ocupación
     
-    // Determinar el estado basado en ocupación
-    let status: DayAvailability['status'];
-    if (occupancyPercentage > 80) {
-      status = 'low';        // Baja disponibilidad (ocupación > 80%)
-    } else if (occupancyPercentage > 50) {
-      status = 'medium';     // Parcialmente ocupado (ocupación entre 50% y 80%)
-    } else {
-      status = 'high';       // Alta disponibilidad (ocupación < 50%)
+    const isPartiallyBlocked = !!block && !block.full_day;
+        
+    // Calcular disponibilidad
+    let availableSlots = totalSlots;
+    if (existingAppointments.length > 0 || isPartiallyBlocked) {
+      availableSlots = generateTimeSlots(date).reduce((total, slot) => 
+        total + (slot.available || 0), 0);
     }
-
+    
+    const percentage = totalSlots > 0 ? Math.round((availableSlots / totalSlots) * 100) : 0;
+    
+    let status: DayAvailability['status'] = 'high';
+    if (percentage <= 30) status = 'low';
+    else if (percentage <= 70) status = 'medium';
+    
     return {
-      percentage: availablePercentage,
-      status,
+      percentage,
+      status: isPartiallyBlocked ? 'blocked' : status,
       totalSlots,
-      availableSlots: totalSlots - occupiedSlots,
-      nextAvailable: undefined,
-      peakHours: undefined,
+      availableSlots,
       isFullyBlocked: false,
       isPartiallyBlocked,
-      blockReason: block?.motivo
+      blockReason: block?.reason
     };
   };
 
-  // Generar slots de tiempo disponibles para el día seleccionado
   const generateTimeSlots = (date: Date) => {
     const dayOfWeek = date.getDay() === 0 ? 1 : date.getDay() + 1;
-    const schedule = operatingHours.find(h => h.dia_semana === dayOfWeek);
+    const schedule = operatingHours.find(h => h.day_of_week === dayOfWeek);
     
-    if (!schedule || !schedule.es_dia_laboral) {
+    if (!schedule || !schedule.is_working_day) {
       return [];
     }
-
-    const slots: TimeSlot[] = [];
-    const startTime = parse(schedule.hora_apertura, 'HH:mm:ss', date);
-    const endTime = parse(schedule.hora_cierre, 'HH:mm:ss', date);
-    const dateStr = format(date, 'yyyy-MM-dd');
     
-    // Obtener citas existentes para este día
-    const dayAppointments = appointments.filter(app => 
+    const slots: TimeSlot[] = [];
+    const startTime = parse(schedule.opening_time, 'HH:mm:ss', date);
+    const endTime = parse(schedule.closing_time, 'HH:mm:ss', date);
+    
+    // Filtrar citas para este día
+    const dateStr = format(date, 'yyyy-MM-dd');
+    const existingAppointments = appointments.filter(app => 
       format(new Date(app.fecha_hora), 'yyyy-MM-dd') === dateStr
     );
     
-    let currentTime = startTime;
-    while (currentTime < endTime) {
-      const timeStr = format(currentTime, 'HH:mm');
-      const isBlocked = isTimeBlocked(date, timeStr);
-      
-      // Encontrar citas que ocupan este slot
-      const slotAppointments = dayAppointments.filter(app => {
+    // Generar slots con intervalos según la duración del turno
+    for (let time = startTime; isBefore(time, endTime); time = addMinutes(time, turnDuration)) {
+      const timeString = format(time, 'HH:mm:ss');
+      const slotAppointments = existingAppointments.filter(app => {
         const appTime = format(new Date(app.fecha_hora), 'HH:mm');
         const appEndTime = format(
           addMinutes(new Date(app.fecha_hora), app.servicios.duracion_estimada),
           'HH:mm'
         );
-        return timeStr >= appTime && timeStr < appEndTime;
+        
+        const slotTime = format(time, 'HH:mm');
+        const slotEndTime = format(addMinutes(time, turnDuration), 'HH:mm');
+        
+        return (
+          (appTime <= slotTime && appEndTime > slotTime) ||
+          (appTime >= slotTime && appTime < slotEndTime)
+        );
       });
-
-      // Calcular espacios disponibles
+      
       const occupiedSpaces = slotAppointments.length;
-      const availableSpaces = isBlocked ? 0 : 
-        Math.max(0, schedule.servicios_simultaneos_max - occupiedSpaces);
-
+      const isBlocked = isTimeBlocked(date, timeString);
+      const available = isBlocked ? 0 : 
+        Math.max(0, schedule.max_simultaneous_services - occupiedSpaces);
+      
+      const mappedAppointments = slotAppointments.map(app => ({
+        id: app.id_uuid,
+        clientName: app.clientes.nombre,
+        serviceName: app.servicios.nombre,
+        duration: app.servicios.duracion_estimada
+      }));
+      
       slots.push({
-        time: timeStr,
-        available: availableSpaces,
+        time: timeString,
+        available,
         isBlocked,
-        blockReason: isBlocked ? getBlockReason(date, timeStr) : undefined,
-        existingAppointments: slotAppointments.map(app => ({
-          id: app.id_uuid,
-          clientName: app.clientes.nombre,
-          serviceName: app.servicios.nombre,
-          duration: app.servicios.duracion_estimada
-        }))
+        blockReason: isBlocked ? getBlockReason(date, timeString) : undefined,
+        existingAppointments: mappedAppointments.length > 0 ? mappedAppointments : undefined
       });
-
-      currentTime = addMinutes(currentTime, turnDuration);
     }
-
+    
     return slots;
   };
 
   const isTimeBlocked = (date: Date, time: string) => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    const block = blockedDates.find(b => b.fecha === dateStr);
+    const block = blockedDates.find(b => b.date === dateStr);
     
     if (!block) return false;
-    if (block.dia_completo) return true;
+    if (block.full_day) return true;
     
-    if (block.hora_inicio && block.hora_fin) {
-      return time >= block.hora_inicio && time <= block.hora_fin;
+    if (block.start_time && block.end_time) {
+      return time >= block.start_time && time <= block.end_time;
     }
     
     return false;
@@ -436,8 +429,8 @@ export function AppointmentCalendar({
 
   const getBlockReason = (date: Date, time: string): string => {
     const dateStr = format(date, 'yyyy-MM-dd');
-    const block = blockedDates.find(b => b.fecha === dateStr);
-    return block?.motivo || 'Horario no disponible';
+    const block = blockedDates.find(b => b.date === dateStr);
+    return block?.reason || 'Horario no disponible';
   };
 
   const validateServiceDuration = (slot: TimeSlot) => {
