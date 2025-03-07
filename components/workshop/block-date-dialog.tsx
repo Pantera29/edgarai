@@ -98,10 +98,7 @@ export default function BlockDateDialog({
 
     // Verificar si es un día laboral
     if (!currentSchedule.is_working_day) {
-      toast({
-        title: "Día no laboral",
-        description: "No se pueden programar bloqueos en días no laborales."
-      });
+      toast.error("No se pueden programar bloqueos en días no laborales.");
       return false;
     }
 
@@ -109,18 +106,12 @@ export default function BlockDateDialog({
     if (!diaCompleto && horaInicio && horaFin) {
       // Validar que las horas estén dentro del horario de operación
       if (horaInicio < currentSchedule.opening_time || horaFin > currentSchedule.closing_time) {
-        toast({
-          title: "Horario fuera de operación",
-          description: `El horario debe estar entre ${currentSchedule.opening_time.slice(0, 5)} y ${currentSchedule.closing_time.slice(0, 5)}.`
-        });
+        toast.error(`El horario debe estar entre ${currentSchedule.opening_time.slice(0, 5)} y ${currentSchedule.closing_time.slice(0, 5)}.`);
         return false;
       }
 
       if (horaInicio >= horaFin) {
-        toast({
-          title: "Horario inválido",
-          description: "La hora de inicio debe ser anterior a la hora de fin."
-        });
+        toast.error("La hora de inicio debe ser anterior a la hora de fin.");
         return false;
       }
     }
@@ -155,11 +146,7 @@ export default function BlockDateDialog({
 
       if (dealershipError) {
         console.error('Error al obtener dealership_id:', dealershipError);
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: "No se pudo obtener la información del concesionario."
-        });
+        toast.error("No se pudo obtener la información del concesionario.");
         setIsLoading(false);
         return;
       }
