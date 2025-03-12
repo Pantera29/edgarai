@@ -118,7 +118,7 @@ function CitasPageContent() {
         .order('fecha_hora', { ascending: true })
 
       if (error) throw error;
-      setCitas(citasData || []);
+      //setCitas(citasData as Cita[]); -> aca quedo rompmiendo
     } catch (error) {
       toast({
         variant: "destructive",

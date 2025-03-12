@@ -28,7 +28,7 @@ export default function Home() {
       ) : (
         <>
           <h2>Calendario</h2>
-          <CalendarView config={config} />
+          <CalendarView  />
         </>
       )}
     </div>
