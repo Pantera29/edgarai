@@ -76,6 +76,13 @@ export interface Cliente {
   nombre: string;
 }
 
+export interface Client {
+  id: string,
+  names: string,
+  email: string,
+  phone_number: string,
+}
+
 export interface Vehiculo {
   id_uuid: string;
   marca: string;
@@ -84,7 +91,24 @@ export interface Vehiculo {
   id_cliente_uuid: string;
 }
 
+export interface Vehicle {
+  id_uuid: string;
+  make: string;
+  model: string;
+  license_plate: string;
+  client_id: string;
+}
+
+
 export interface Servicio {
+  id_uuid: string;
+  service_name: string;
+  description?: string;
+  duration_minutes: number;
+  price?: number;
+}
+
+export interface Service {
   id_uuid: string;
   service_name: string;
   description?: string;
