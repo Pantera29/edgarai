@@ -30,20 +30,28 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMessage(""); // Resetea el mensaje de error antes de intentar el login
 
-    const { data: operarios, error } = await supabase
-      .from("operario")
+    const { data: workers, error } = await supabase
+      .from("worker_agency")
       .select("*")
-      .match({ email: email, password: password });
+      .match({ email: email, password: password })
+      .eq('active', true); // Solo seleccionar trabajadores activos
 
     if (error) {
+      console.error("Error de inicio de sesión:", error);
       setErrorMessage("Hubo un error en el inicio de sesión.");
     } else {
-      if (operarios.length > 0) {
-        const operario = operarios[0];
-        const token =  generateToken({ id: operario.id, email: operario.email, dealership_id: operario.dealership_id});
+      if (workers && workers.length > 0) {
+        const worker = workers[0];
+        const token = generateToken({ 
+          id: worker.id, 
+          email: worker.email, 
+          dealership_id: worker.dealership_id,
+          names: worker.names,
+          surnames: worker.surnames
+        });
         router.push("/backoffice?token=" + token); 
       } else {
-        setErrorMessage("No se encontró ningún operario con ese correo y contraseña."); // Establece el mensaje de error
+        setErrorMessage("No se encontró ningún trabajador con ese correo y contraseña o la cuenta está inactiva."); // Establece el mensaje de error
       }
     }
 
