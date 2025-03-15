@@ -27,48 +27,56 @@ const columns = [
       format(new Date(row.getValue("created_at")), "PPP", { locale: es })
   },
   {
-    accessorKey: "cliente_nombre",
+    accessorKey: "customer_name",
     header: "Cliente"
   },
   {
-    accessorKey: "estado",
+    accessorKey: "status",
     header: "Estado",
     cell: ({ row }: { row: any }) => (
-      <Badge variant={row.getValue("estado") === "completado" ? "success" : "secondary"}>
-        {row.getValue("estado")}
+      <Badge variant={row.getValue("status") === "completed" ? "success" : "secondary"}>
+        {row.getValue("status") === "completed" ? "completado" : "pendiente"}
       </Badge>
     )
   },
   {
-    accessorKey: "puntaje",
+    accessorKey: "score",
     header: "Puntaje",
     cell: ({ row }: { row: any }) => 
-      row.getValue("puntaje") ? `${row.getValue("puntaje")}/10` : "-"
+      row.getValue("score") ? `${row.getValue("score")}/10` : "-"
   },
   {
-    accessorKey: "clasificacion",
+    accessorKey: "classification",
     header: "Clasificación",
     cell: ({ row }: { row: any }) => {
-      const clasificacion = row.getValue("clasificacion")
-      if (!clasificacion) return "-"
+      const classification = row.getValue("classification")
+      if (!classification) return "-"
+      
+      let displayText = "";
+      switch(classification) {
+        case "promoter": displayText = "promotor"; break;
+        case "neutral": displayText = "neutral"; break;
+        case "detractor": displayText = "detractor"; break;
+        default: displayText = classification;
+      }
       
       return (
         <Badge variant={
-          clasificacion === 'promotor' ? 'success' :
-          clasificacion === 'neutral' ? 'warning' :
+          classification === 'promoter' ? 'success' :
+          classification === 'neutral' ? 'warning' :
           'destructive'
         }>
-          {clasificacion}
+          {displayText}
         </Badge>
       )
     }
   },
   {
-    accessorKey: "transaccion_id",
+    accessorKey: "transaction_id",
     header: "Transacción",
     cell: ({ row }: { row: any }) => (
       <Link 
-        href={`/transacciones?id=${row.getValue("transaccion_id")}`}
+        href={`/transacciones?id=${row.getValue("transaction_id")}`}
         className="text-primary hover:underline"
       >
         Ver transacción
@@ -78,9 +86,9 @@ const columns = [
 ]
 
 interface Filters {
-  estado: string
+  status: string
   dateRange: DateRange | undefined
-  clasificacion: string
+  classification: string
 }
 
 export default function FeedbackPage() {
@@ -121,9 +129,9 @@ export default function FeedbackPage() {
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [filters, setFilters] = useState<Filters>({
-    estado: "todos",
+    status: "todos",
     dateRange: undefined,
-    clasificacion: "todas"
+    classification: "todas"
   })
 
   const fetchData = async () => {
@@ -133,21 +141,27 @@ export default function FeedbackPage() {
         .from('nps')
         .select(`
           *,
-          transacciones_servicio (
-            citas (
-              clientes (
-                nombre
-              )
-            )
+          client (
+            names
           )
         `)
 
-      if (filters.estado !== "todos") {
-        query = query.eq('estado', filters.estado)
+      if (filters.status !== "todos") {
+        // Convertir los valores en español a inglés para la consulta
+        const statusValue = filters.status === "pendiente" ? "pending" : "completed";
+        query = query.eq('status', statusValue);
       }
 
-      if (filters.clasificacion !== "todas") {
-        query = query.eq('clasificacion', filters.clasificacion)
+      if (filters.classification !== "todas") {
+        // Convertir los valores en español a inglés para la consulta
+        let classificationValue;
+        switch (filters.classification) {
+          case "promotor": classificationValue = "promoter"; break;
+          case "neutral": classificationValue = "neutral"; break;
+          case "detractor": classificationValue = "detractor"; break;
+          default: classificationValue = filters.classification;
+        }
+        query = query.eq('classification', classificationValue);
       }
 
       if (filters.dateRange) {
@@ -161,7 +175,7 @@ export default function FeedbackPage() {
 
       const formattedData = data.map(item => ({
         ...item,
-        cliente_nombre: item.transacciones_servicio?.citas?.clientes?.nombre || '-'
+        customer_name: item.client?.names || '-'
       }))
 
       setData(formattedData)
@@ -197,8 +211,8 @@ export default function FeedbackPage() {
 
       <div className="flex gap-4 mb-6">
         <Select
-          value={filters.estado}
-          onValueChange={(value) => setFilters(prev => ({ ...prev, estado: value }))}
+          value={filters.status}
+          onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Estado" />
@@ -211,8 +225,8 @@ export default function FeedbackPage() {
         </Select>
 
         <Select
-          value={filters.clasificacion}
-          onValueChange={(value) => setFilters(prev => ({ ...prev, clasificacion: value }))}
+          value={filters.classification}
+          onValueChange={(value) => setFilters(prev => ({ ...prev, classification: value }))}
         >
           <SelectTrigger className="w-[180px]">
             <SelectValue placeholder="Clasificación" />
