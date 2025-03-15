@@ -22,15 +22,15 @@ import { verifyToken } from "@/app/jwt/token"
 interface Filters {
   startDate: Date | null
   endDate: Date | null
-  estado: string
+  status: string
   cliente: string
 }
 
 const estadosTabs = [
   { value: "todos", label: "Todas" },
-  { value: "pendiente", label: "Pendientes" },
-  { value: "pagado", label: "Pagadas" },
-  { value: "anulado", label: "Anuladas" },
+  { value: "pending", label: "Pendientes" },
+  { value: "paid", label: "Pagadas" },
+  { value: "cancelled", label: "Anuladas" },
 ]
 
 function TransaccionesContent() {
@@ -82,7 +82,7 @@ function TransaccionesContent() {
   const [filters, setFilters] = useState<Filters>({
     startDate: null,
     endDate: null,
-    estado: '',
+    status: '',
     cliente: ''
   })
   const [showDetails, setShowDetails] = useState(false)
@@ -91,7 +91,7 @@ function TransaccionesContent() {
   const initialFilters: Filters = {
     startDate: null,
     endDate: null,
-    estado: 'todos',
+    status: 'todos',
     cliente: ''
   }
 
@@ -118,7 +118,7 @@ function TransaccionesContent() {
     // Si se está limpiando un filtro (cambiando a su valor inicial), ejecutar inmediatamente
     if (
       newFilters.cliente === '' || 
-      newFilters.estado === 'todos' || 
+      newFilters.status === 'todos' || 
       newFilters.startDate === null || 
       newFilters.endDate === null
     ) {
@@ -133,23 +133,23 @@ function TransaccionesContent() {
     setLoading(true)
     try {
       const { data: transacciones, error } = await supabase
-        .from('transacciones_servicio')
+        .from('service_transactions')
         .select(`
           *,
-          citas (
-            id_uuid,
-            fecha_hora,
-            clientes (
-              nombre
+          appointment (
+            id,
+            appointment_date,
+            client (
+              names
             ),
-            vehiculos (
-              marca,
-              modelo,
-              placa
+            vehicle (
+              make,
+              model,
+              license_plate
             )
           )
         `)
-        .order('fecha_transaccion', { ascending: false })
+        .order('transaction_date', { ascending: false })
 
       if (error) throw error
       
@@ -242,8 +242,8 @@ function TransaccionesContent() {
           />
         </div>
         <Tabs
-          value={filters.estado}
-          onValueChange={(value) => handleFilterChange({ estado: value })}>
+          value={filters.status}
+          onValueChange={(value) => handleFilterChange({ status: value })}>
           <TabsList>
             {estadosTabs.map(tab => (
               <TabsTrigger key={tab.value} value={tab.value}>
@@ -253,7 +253,7 @@ function TransaccionesContent() {
           </TabsList>
         </Tabs>
         {(filters.cliente !== '' || 
-          filters.estado !== 'todos' || 
+          filters.status !== 'todos' || 
           filters.startDate !== null || 
           filters.endDate !== null) && (
           <Button
@@ -318,13 +318,13 @@ function TransaccionesContent() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <h4 className="font-medium">Cliente</h4>
-                <p>{selectedTransaction?.citas?.clientes?.nombre}</p>
+                <p>{selectedTransaction?.appointment?.client?.names}</p>
               </div>
               <div>
                 <h4 className="font-medium">Fecha</h4>
                 <p>
-                  {selectedTransaction?.fecha_transaccion ? 
-                    format(new Date(selectedTransaction.fecha_transaccion), "dd/MM/yyyy HH:mm")
+                  {selectedTransaction?.transaction_date ? 
+                    format(new Date(selectedTransaction.transaction_date), "dd/MM/yyyy HH:mm")
                     : 'Fecha no disponible'
                   }
                 </p>
