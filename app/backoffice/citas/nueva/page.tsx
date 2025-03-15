@@ -185,149 +185,152 @@ export default function NuevaReservaPage() {
   };
 
   return (
-    <div>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="cliente" className="text-right">Cliente</Label>
-              <div className="col-span-3">
-                <Select value={selectedClient} onValueChange={setSelectedClient}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione un cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientes.map((cliente) => (
-                      <SelectItem key={cliente.id} value={cliente.id}>
-                        {cliente.names} ( {cliente.phone_number} ) 
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+    <div className="container mx-auto py-6 px-2 max-w-7xl">
+      <div className="bg-white rounded-lg shadow-md p-6">
+        <h1 className="text-2xl font-bold mb-6">Nueva Cita</h1>
+        
+        <div className="space-y-6">
+          <div className="grid grid-cols-12 items-center gap-4">
+            <Label htmlFor="cliente" className="text-right col-span-1">Cliente</Label>
+            <div className="col-span-11">
+              <Select value={selectedClient} onValueChange={setSelectedClient}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione un cliente" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clientes.map((cliente) => (
+                    <SelectItem key={cliente.id} value={cliente.id}>
+                      {cliente.names} ( {cliente.phone_number} ) 
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+          </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="vehiculo" className="text-right">Vehículo</Label>
-              <div className="col-span-3">
-                <Select 
-                  value={selectedVehicle} 
-                  onValueChange={setSelectedVehicle}
-                  disabled={!selectedClient}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={
-                      !selectedClient 
-                        ? "Primero seleccione un cliente" 
-                        : "Seleccione un vehículo"
-                    } />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {filteredVehicles.map((vehiculo) => (
-                      <SelectItem key={vehiculo.id_uuid} value={vehiculo.id_uuid}>
-                        {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}`}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="grid grid-cols-12 items-center gap-4">
+            <Label htmlFor="vehiculo" className="text-right col-span-1">Vehículo</Label>
+            <div className="col-span-11">
+              <Select 
+                value={selectedVehicle} 
+                onValueChange={setSelectedVehicle}
+                disabled={!selectedClient}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={
+                    !selectedClient 
+                      ? "Primero seleccione un cliente" 
+                      : "Seleccione un vehículo"
+                  } />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredVehicles.map((vehiculo) => (
+                    <SelectItem key={vehiculo.id_uuid} value={vehiculo.id_uuid}>
+                      {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+          </div>
 
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="servicio" className="text-right">Servicio</Label>
-              <div className="col-span-3">
-                <Select value={selectedService} onValueChange={setSelectedService}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione un servicio" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {servicios.map((servicio) => (
-                      <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
-                        {servicio.service_name} ({servicio.duration_minutes} min)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+          <div className="grid grid-cols-12 items-center gap-4">
+            <Label htmlFor="servicio" className="text-right col-span-1">Servicio</Label>
+            <div className="col-span-11">
+              <Select value={selectedService} onValueChange={setSelectedService}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione un servicio" />
+                </SelectTrigger>
+                <SelectContent>
+                  {servicios.map((servicio) => (
+                    <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
+                      {servicio.service_name} ({servicio.duration_minutes} min)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+          </div>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-4 items-start gap-4">
-                <Label className="text-right pt-4">Fecha y Hora</Label>
-                <div className="col-span-3">
-                  <div className="grid grid-cols-[70%,1fr] gap-6">
-                    <div className="bg-white rounded-xl border shadow-sm">
-                      <AppointmentCalendar
-                        selectedDate={selectedDate ? handleDate(selectedDate) : new Date()}
-                        onSelect={(date) => handleSelectDate(date)}
-                        blockedDates={blockedDates}
-                        operatingHours={operatingHours}
-                        turnDuration={30}
-                        appointments={appointments}
-                        onTimeSlotSelect={(slot) => setSelectedSlot(slot.time)}
-                        selectedService={selectedService ? {
-                          id: selectedService,
-                          duration: servicios.find(s => s.id_uuid === selectedService)?.duracion_estimada || 0
-                        } : undefined}
-                        
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="estado" className="text-right">Estado</Label>
-              <div className="col-span-3">
-                <Select 
-                  value={estado} 
-                  onValueChange={(value: string) => setEstado(value as AppointmentStatus)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione un estado" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pendiente">Pendiente</SelectItem>
-                    <SelectItem value="en_proceso">En Proceso</SelectItem>
-                    <SelectItem value="completada">Completada</SelectItem>
-                    <SelectItem value="cancelada">Cancelada</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="notas" className="text-right">Notas</Label>
-              <div className="col-span-3">
-                <textarea 
-                  value={notas} 
-                  onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNotas(e.target.value)}
-                  placeholder="Agregue notas adicionales aquí..."
-                  className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+          <div className="grid grid-cols-12 items-start gap-4">
+            <Label className="text-right col-span-1 pt-4">Fecha y Hora</Label>
+            <div className="col-span-11">
+              <div className="bg-white rounded-xl border shadow-sm p-4">
+                <AppointmentCalendar
+                  selectedDate={selectedDate ? handleDate(selectedDate) : new Date()}
+                  onSelect={(date) => handleSelectDate(date)}
+                  blockedDates={blockedDates}
+                  operatingHours={operatingHours}
+                  turnDuration={30}
+                  appointments={appointments}
+                  onTimeSlotSelect={(slot) => setSelectedSlot(slot.time)}
+                  selectedService={selectedService ? {
+                    id: selectedService,
+                    duration: servicios.find(s => s.id_uuid === selectedService)?.duracion_estimada || 0
+                  } : undefined}
                 />
+                {selectedSlot && (
+                  <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-md text-center">
+                    Horario seleccionado: <span className="font-medium">{selectedSlot}</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
 
-          <DialogFooter>
-            <Button 
-              type="button" // Cambia esto a "button" si no quieres que sea submit
-              onClick={handleSubmit} // Ejecuta la función manualmente al hacer clic
-              disabled={isSubmitting}
-              className="relative"
-            >
-              {isSubmitting ? (
-                <>
-                  <span className="opacity-0">Agendar Cita</span>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-white"></div>
-                  </div>
-                </>
-              ) : (
-                "Agendar Cita"
-              )}
-            </Button>
-          </DialogFooter>
+          <div className="grid grid-cols-12 items-center gap-4">
+            <Label htmlFor="estado" className="text-right col-span-1">Estado</Label>
+            <div className="col-span-11">
+              <Select 
+                value={estado} 
+                onValueChange={(value: string) => setEstado(value as AppointmentStatus)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione un estado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendiente">Pendiente</SelectItem>
+                  <SelectItem value="en_proceso">En Proceso</SelectItem>
+                  <SelectItem value="completada">Completada</SelectItem>
+                  <SelectItem value="cancelada">Cancelada</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
 
+          <div className="grid grid-cols-12 items-center gap-4">
+            <Label htmlFor="notas" className="text-right col-span-1">Notas</Label>
+            <div className="col-span-11">
+              <textarea 
+                value={notas} 
+                onChange={(e: ChangeEvent<HTMLTextAreaElement>) => setNotas(e.target.value)}
+                placeholder="Agregue notas adicionales aquí..."
+                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-8 flex justify-end">
+          <Button 
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitting}
+            className="relative"
+          >
+            {isSubmitting ? (
+              <>
+                <span className="opacity-0">Agendar Cita</span>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="h-5 w-5 animate-spin rounded-full border-b-2 border-white"></div>
+                </div>
+              </>
+            ) : (
+              "Agendar Cita"
+            )}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }
