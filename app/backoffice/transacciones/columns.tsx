@@ -12,22 +12,22 @@ import { supabase } from "@/lib/supabase"
 
 export const columns: ColumnDef<any>[] = [
   {
-    accessorKey: "fecha_transaccion",
+    accessorKey: "transaction_date",
     header: "Fecha",
-    cell: ({ row }) => format(new Date(row.getValue("fecha_transaccion")), "PPP", { locale: es })
+    cell: ({ row }) => format(new Date(row.getValue("transaction_date")), "PPP", { locale: es })
   },
   {
-    accessorKey: "citas.clientes.nombre",
+    accessorKey: "appointment.client.names",
     header: "Cliente",
-    cell: ({ row }) => row.original.citas?.clientes?.nombre || '-'
+    cell: ({ row }) => row.original.appointment?.client?.names || '-'
   },
   {
-    accessorKey: "estado",
+    accessorKey: "status",
     header: "Estado de Pago",
     cell: ({ row }) => (
       <TransactionStatusUpdate
-        transactionId={row.original.id_transaccion}
-        currentStatus={row.getValue("estado")}
+        transactionId={row.original.transaction_id}
+        currentStatus={row.getValue("status")}
         onUpdate={() => {
           // Recargar los datos
           const table = document.querySelector('[data-table-key="transacciones"]')
@@ -51,7 +51,7 @@ export const columns: ColumnDef<any>[] = [
           const { data, error } = await supabase
             .from('nps')
             .select('*')
-            .eq('transaccion_id', row.original.id_transaccion)
+            .eq('transaction_id', row.original.transaction_id)
             .maybeSingle()
 
           if (!error && data) {
@@ -61,7 +61,7 @@ export const columns: ColumnDef<any>[] = [
         }
 
         fetchNPS()
-      }, [row.original.id_transaccion])
+      }, [row.original.transaction_id])
 
       if (loading) {
         return <div className="animate-pulse h-4 w-20 bg-muted rounded" />
@@ -73,21 +73,23 @@ export const columns: ColumnDef<any>[] = [
 
       return (
         <div className="flex items-center gap-2">
-          {npsData.estado === 'pendiente' ? (
+          {npsData.status === 'pending' ? (
             <Badge variant="secondary">Encuesta pendiente</Badge>
           ) : (
             <Link 
               href={`/feedback?id=${npsData.id}`}
               className="flex items-center gap-1 hover:underline"
             >
-              <span>{npsData.puntaje}/10</span>
+              <span>{npsData.score}/10</span>
               <span>-</span>
               <Badge variant={
-                npsData.clasificacion === 'promotor' ? 'success' :
-                npsData.clasificacion === 'neutral' ? 'warning' :
+                npsData.classification === 'promoter' ? 'success' :
+                npsData.classification === 'neutral' ? 'warning' :
                 'destructive'
               }>
-                {npsData.clasificacion}
+                {npsData.classification === 'promoter' ? 'promotor' : 
+                 npsData.classification === 'neutral' ? 'neutral' : 
+                 'detractor'}
               </Badge>
               <HelpCircle className="h-4 w-4 text-muted-foreground" />
             </Link>
