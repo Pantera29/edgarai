@@ -68,25 +68,12 @@ interface Modificacion {
   costo: number
 }
 
-interface PropietarioHistorial {
-  id_uuid: string
-  id_vehiculo: string
-  id_cliente: string
-  fecha_inicio: string
-  fecha_fin: string | null
-  notas_transferencia: string | null
-  cliente: {
-    nombre: string
-  }
-}
-
 export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([])
   const [servicios, setServicios] = useState<ServicioHistorial[]>([])
   const [modificaciones, setModificaciones] = useState<Modificacion[]>([])
   const [loading, setLoading] = useState(true)
   const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState<string | null>(null)
-  const [historialPropietarios, setHistorialPropietarios] = useState<PropietarioHistorial[]>([])
   const supabase = createClientComponentClient()
 
   const cargarDatos = useCallback(async () => {
@@ -105,26 +92,12 @@ export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
       if (vehiculosData?.length > 0) {
         setVehiculoSeleccionado(vehiculosData[0].id_uuid)
       }
-
-      // Cargar historial de propietarios
-      const { data: historialData, error: historialError } = await supabase
-        .from('historial_propietarios')
-        .select(`
-          *,
-          cliente:clientes(nombre)
-        `)
-        .eq('id_vehiculo', vehiculoSeleccionado)
-        .order('fecha_inicio', { ascending: false })
-
-      if (historialError) throw historialError
-
-      setHistorialPropietarios(historialData || [])
     } catch (error) {
       console.error('Error cargando datos:', error)
     } finally {
       setLoading(false)
     }
-  }, [clienteId, vehiculoSeleccionado, supabase])
+  }, [clienteId, supabase])
 
   useEffect(() => {
     cargarDatos()
@@ -169,10 +142,6 @@ export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
             <TabsTrigger value="info">
               <Car className="h-4 w-4 mr-2" />
               Información
-            </TabsTrigger>
-            <TabsTrigger value="historial">
-              <Wrench className="h-4 w-4 mr-2" />
-              Historial
             </TabsTrigger>
             <TabsTrigger value="modificaciones">
               <Wrench className="h-4 w-4 mr-2" />
@@ -239,49 +208,6 @@ export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
             </div>
           </TabsContent>
 
-          <TabsContent value="historial">
-            <Card>
-              <CardHeader>
-                <CardTitle>Historial de Propietarios</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Propietario</TableHead>
-                      <TableHead>Fecha Inicio</TableHead>
-                      <TableHead>Fecha Fin</TableHead>
-                      <TableHead>Notas</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {historialPropietarios.map((registro) => (
-                      <TableRow key={registro.id_uuid}>
-                        <TableCell>{registro.cliente.nombre}</TableCell>
-                        <TableCell>
-                          {format(new Date(registro.fecha_inicio), 'PP', { locale: es })}
-                        </TableCell>
-                        <TableCell>
-                          {registro.fecha_fin 
-                            ? format(new Date(registro.fecha_fin), 'PP', { locale: es })
-                            : 'Propietario actual'}
-                        </TableCell>
-                        <TableCell>{registro.notas_transferencia || '-'}</TableCell>
-                      </TableRow>
-                    ))}
-                    {historialPropietarios.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={4} className="text-center py-4">
-                          No hay registros de propietarios anteriores
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
           <TabsContent value="modificaciones">
             <Card>
               <CardHeader>
@@ -296,7 +222,7 @@ export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
               </CardContent>
             </Card>
           </TabsContent>
-
+          
           <TabsContent value="alertas">
             <Card>
               <CardHeader>
@@ -316,5 +242,5 @@ export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
         </Tabs>
       )}
     </div>
-  )
+  );
 } 
