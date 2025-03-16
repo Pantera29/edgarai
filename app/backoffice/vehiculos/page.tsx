@@ -42,14 +42,14 @@ interface Vehiculo {
   client: {
     names: string
   }
-  vin: string | null
+  vin: string | undefined
   make: string
   model: string
   year: number
-  license_plate: string | null
-  last_km: number | null
-  last_service_date: string | null
-  next_service_date: string | null
+  license_plate: string
+  last_km: number | undefined
+  last_service_date: string | undefined
+  next_service_date: string | undefined
 }
 
 interface ServicioHistorial {
@@ -444,7 +444,7 @@ export default function VehiculosPage() {
                 <Input
                   id="vin"
                   name="vin"
-                  value={nuevoVehiculo.vin}
+                  value={nuevoVehiculo.vin ?? ''}
                   onChange={handleInputChange}
                   className="col-span-3"
                 />
@@ -458,7 +458,7 @@ export default function VehiculosPage() {
                   id="last_km"
                   name="last_km"
                   type="number"
-                  value={nuevoVehiculo.last_km}
+                  value={nuevoVehiculo.last_km ?? 0}
                   onChange={handleInputChange}
                   className="col-span-3"
                   required
