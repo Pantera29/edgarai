@@ -4,28 +4,14 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  BarChart,
-  Bar,
-  Legend
-} from 'recharts'
 import { format } from 'date-fns'
-import { es, ro } from 'date-fns/locale'
+import { es } from 'date-fns/locale'
 import { Badge } from "@/components/ui/badge"
 import { TooltipProvider } from '@radix-ui/react-tooltip'
 import { verifyToken } from '../jwt/token'
 import { useRouter } from "next/navigation";
 import { NextResponse } from 'next/server';
+
 interface Servicio {
   nombre: string;
 }
@@ -49,14 +35,6 @@ interface DashboardData {
   totalVehiculos: number
   citasPendientes: number
   citasHoy: number
-  serviciosPorEstado: {
-    estado: string
-    cantidad: number
-  }[]
-  ingresosMensuales: {
-    mes: string
-    ingresos: number
-  }[]
   proximasCitas: {
     id_uuid: string
     fecha_hora: string
@@ -67,8 +45,6 @@ interface DashboardData {
     servicios: Servicio[]
   }[]
 }
-
-const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042']
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -138,43 +114,6 @@ export default function DashboardPage() {
         .gte('fecha_hora', hoy)
         .lt('fecha_hora', hoy + 'T23:59:59')
 
-      // Servicios por estado
-      const { data: serviciosPorEstado } = await supabase
-        .from('appointment')
-        .select('status, count')
-        .select('status')
-        .then(({ data }) => {
-          const conteo: { [key: string]: number } = {}
-          data?.forEach(item => {
-            conteo[item.status] = (conteo[item.status] || 0) + 1
-          })
-          return {
-            data: Object.entries(conteo).map(([estado, cantidad]) => ({
-              estado,
-              cantidad
-            }))
-          }
-        })
-
-      // Ingresos mensuales (simulados con citas completadas)
-      const { data: ingresosMensuales } = await supabase
-        .from('appointment')
-        .select('fecha_hora, status')
-        .eq('status', 'completada')
-        .then(({ data }) => {
-          const ingresos: { [key: string]: number } = {}
-          data?.forEach(item => {
-            const mes = new Date(item.fecha_hora).toLocaleString('es', { month: 'long' })
-            ingresos[mes] = (ingresos[mes] || 0) + Math.floor(Math.random() * 4000 + 1000)
-          })
-          return {
-            data: Object.entries(ingresos).map(([mes, total]) => ({
-              mes,
-              ingresos: total
-            }))
-          }
-        })
-
       // Obtener la fecha actual al inicio del día
       const hoyInicio = new Date()
       hoyInicio.setHours(0, 0, 0, 0)
@@ -212,8 +151,6 @@ export default function DashboardPage() {
         totalVehiculos: totalVehiculos || 0,
         citasPendientes: citasPendientes || 0,
         citasHoy: citasHoy || 0,
-        serviciosPorEstado: serviciosPorEstado || [],
-        ingresosMensuales: ingresosMensuales || [],
         proximasCitas: citasFormateadas
       })
     } catch (error) {
@@ -269,50 +206,6 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{data.citasHoy}</div>
-            </CardContent>
-          </Card>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="col-span-1">
-            <CardHeader>
-              <CardTitle>Servicios por Estado</CardTitle>
-            </CardHeader>
-            <CardContent className="pl-2">
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={data.serviciosPorEstado}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
-                    outerRadius={80}
-                    fill="#8884d8"
-                    dataKey="cantidad"
-                  >
-                    {data.serviciosPorEstado.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-          <Card className="col-span-1">
-            <CardHeader>
-              <CardTitle>Ingresos Mensuales</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={data.ingresosMensuales}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="mes" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="ingresos" stroke="#8884d8" />
-                </LineChart>
-              </ResponsiveContainer>
             </CardContent>
           </Card>
         </div>
