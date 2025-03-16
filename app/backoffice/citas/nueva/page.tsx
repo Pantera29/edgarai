@@ -15,14 +15,43 @@ import { AppointmentCalendar } from "@/components/workshop/appointment-calendar"
 import moment from 'moment-timezone';
 import { verifyToken } from "@/app/jwt/token"
 
-
-const handleDate = (date: string) => {
-  if(!date) 
-    return new Date();
-  const returnedDate = new Date(date);
-  returnedDate.setDate(returnedDate.getDate() + 1);
-  return returnedDate;
+// Extender la interfaz Vehicle para incluir las propiedades adicionales
+interface ExtendedVehicle extends Vehicle {
+  id_uuid?: string;
+  client?: {
+    id: string;
+    names?: string;
+  };
 }
+
+// Interfaz para clientes extendida
+interface ExtendedClient extends Client {
+  names: string;
+}
+
+// Interfaz para servicios extendida
+interface ExtendedService extends Service {
+  id: string;
+  id_uuid?: string;
+  service_name: string;
+  duration_minutes: number;
+}
+
+// Implementar una función más segura para convertir string a fecha
+const stringToSafeDate = (dateString: string | null): Date => {
+  if (!dateString) return new Date();
+  
+  try {
+    // Parseamos la fecha directamente en formato YYYY-MM-DD
+    const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
+    // Creamos una fecha a las 12 del mediodía para evitar problemas de zona horaria
+    // Nota: month-1 porque en JavaScript los meses van de 0-11
+    return new Date(year, month-1, day, 12, 0, 0);
+  } catch (error) {
+    console.error('Error al convertir fecha:', error);
+    return new Date();
+  }
+};
 
 export default function NuevaReservaPage() {
 
@@ -48,15 +77,15 @@ export default function NuevaReservaPage() {
 
 
   const { toast } = useToast();
-  const [clientes, setClientes] = useState<Client[]>([]);
-  const [vehiculos, setVehiculos] = useState<Vehicle[]>([]);
+  const [clientes, setClientes] = useState<ExtendedClient[]>([]);
+  const [vehiculos, setVehiculos] = useState<ExtendedVehicle[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
-  const [filteredVehicles, setFilteredVehicles] = useState<Vehicle[]>([]);
+  const [filteredVehicles, setFilteredVehicles] = useState<ExtendedVehicle[]>([]);
   const [selectedService, setSelectedService] = useState('');
   const [estado, setEstado] = useState<'pendiente' | 'en_proceso' | 'completada' | 'cancelada'>('pendiente');
   const [notas, setNotas] = useState('');
-  const [servicios, setServicios] = useState<any[]>([]);
+  const [servicios, setServicios] = useState<ExtendedService[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -66,12 +95,76 @@ export default function NuevaReservaPage() {
   const [open, setOpen] = useState(true); // Mantener el estado del diálogo abierto
   const supabase = createClientComponentClient();
 
+  // Obtener el texto del vehículo seleccionado
+  const selectedVehicleText = React.useMemo(() => {
+    if (!selectedVehicle) return "";
+    
+    // Buscar el vehículo tanto por id como por id_uuid
+    const vehicle = filteredVehicles.find(v => 
+      v.id === selectedVehicle || 
+      (v.id_uuid && v.id_uuid === selectedVehicle)
+    );
+    
+    if (!vehicle) {
+      console.warn("No se encontró el vehículo para el resumen con ID:", selectedVehicle);
+      return "";
+    }
+    
+    return `${vehicle.make} ${vehicle.model}${vehicle.license_plate ? ` (${vehicle.license_plate})` : ''}`;
+  }, [selectedVehicle, filteredVehicles]);
+
+  // Obtener el texto del cliente seleccionado
+  const selectedClientText = React.useMemo(() => {
+    if (!selectedClient) return "";
+    const client = clientes.find(c => c.id === selectedClient);
+    if (!client) return "";
+    return `${client.names} (${client.phone_number})`;
+  }, [selectedClient, clientes]);
+
+  // Obtener el texto del servicio seleccionado
+  const selectedServiceText = React.useMemo(() => {
+    console.log('Recalculando selectedServiceText. selectedService:', selectedService);
+    console.log('Servicios disponibles:', servicios);
+    
+    if (!selectedService) return "";
+    
+    // Intentar encontrar el servicio tanto por id como por id_uuid
+    const service = servicios.find(s => 
+      s.id === selectedService || 
+      s.id_uuid === selectedService
+    );
+    
+    console.log('Servicio encontrado:', service);
+    
+    if (!service) return "";
+    
+    const text = `${service.service_name} (${service.duration_minutes} min)`;
+    console.log('Texto del servicio seleccionado:', text);
+    return text;
+  }, [selectedService, servicios]);
 
   const handleSelectDate = (date: Date | undefined) => {
     if (date) {
-      // Formatear la fecha a 'yyyy-MM-dd' usando moment
-      const formattedDate = moment(date).format('YYYY-MM-DD');
+      // Creamos una nueva fecha para evitar problemas de zona horaria
+      // Extraemos el año, mes y día correctamente
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      
+      // Creamos una nueva fecha con esos valores pero a las 12 del mediodía para evitar problemas de zona horaria
+      const fixedDate = new Date(year, month, day, 12, 0, 0);
+      
+      // Formateamos la fecha corregida
+      const formattedDate = moment(fixedDate).format('YYYY-MM-DD');
+      
+      console.log("Fecha seleccionada:", {
+        fechaOriginal: date,
+        fechaCorregida: fixedDate,
+        fechaFormateada: formattedDate
+      });
+      
       setSelectedDate(formattedDate);
+      loadAppointments(formattedDate);
     } else {
       setSelectedDate(null);
     }
@@ -92,17 +185,22 @@ export default function NuevaReservaPage() {
       if (clientesError){
         throw clientesError;
       } 
-        if (vehiculosError) {
-          throw vehiculosError;
-        }
+      if (vehiculosError) {
+        throw vehiculosError;
+      }
       if (serviciosError){
         throw serviciosError;
-
       } 
-      setClientes(clientesData );
-      setVehiculos(vehiculosData );
-      setServicios(serviciosData );
+      
+      console.log('Clientes cargados:', clientesData?.length || 0);
+      console.log('Vehículos cargados:', vehiculosData?.length || 0);
+      console.log('Un ejemplo de vehículo:', vehiculosData?.[0]);
+      
+      setClientes(clientesData || []);
+      setVehiculos(vehiculosData || []);
+      setServicios(serviciosData || []);
     } catch (error) {
+      console.error('Error cargando datos:', error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -125,47 +223,233 @@ export default function NuevaReservaPage() {
     }
   };
 
+  const loadAppointments = async (date: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('appointment')
+        .select(`
+          id,
+          appointment_date,
+          appointment_time,
+          service_id,
+          client_id,
+          client:client_id(names),
+          services:service_id(service_name, duration_minutes)
+        `)
+        .eq('appointment_date', date);
+        
+      if (error) throw error;
+      
+      console.log('Datos originales de citas:', data);
+      
+      // Formatear los datos para que sean compatibles con el componente AppointmentCalendar
+      const formattedAppointments = data?.map(app => {
+        console.log('App individual:', app);
+        return {
+          id_uuid: app.id,
+          fecha_hora: `${app.appointment_date}T${app.appointment_time}`,
+          clientes: { 
+            nombre: app.client && typeof app.client === 'object' ? app.client.names : 'Cliente desconocido' 
+          },
+          services: {
+            service_name: app.services && typeof app.services === 'object' ? app.services.service_name : 'Servicio desconocido',
+            duration_minutes: app.services && typeof app.services === 'object' ? app.services.duration_minutes : 30
+          }
+        };
+      }) || [];
+      
+      console.log('Citas formateadas:', formattedAppointments);
+      setAppointments(formattedAppointments);
+    } catch (error) {
+      console.error("Error cargando citas:", error);
+    }
+  };
+
   useEffect(() => {
     loadData();
     loadOperatingHours();
     loadBlockedDates();
   }, []);
 
+  // Depurar la estructura de un item de servicio cuando se cargan
+  useEffect(() => {
+    if (servicios.length > 0) {
+      console.log('Estructura de un servicio:', servicios[0]);
+    }
+  }, [servicios]);
+
+  // Efectos adicionales para depurar
+  useEffect(() => {
+    console.log('selectedService cambió a:', selectedService);
+    // Forzar la actualización del texto cuando cambia el servicio seleccionado
+    if (selectedService) {
+      const service = servicios.find(s => s.id === selectedService);
+      if (service) {
+        console.log('Servicio encontrado por id:', service);
+      } else {
+        // Intentar buscar por otras propiedades si existe alguna confusión con los campos
+        console.log('Buscando servicio por otras propiedades...');
+        const serviceById = servicios.find(s => String(s.id) === String(selectedService));
+        const serviceByUuid = servicios.find(s => s.id_uuid === selectedService);
+        console.log('Por id convertido a string:', serviceById);
+        console.log('Por id_uuid:', serviceByUuid);
+      }
+    }
+  }, [selectedService, servicios]);
+
   useEffect(() => {
     if (selectedClient) {
-      setFilteredVehicles(vehiculos.filter(v => v.client_id === selectedClient));
+      console.log("Filtrando vehículos para cliente ID:", selectedClient);
+      console.log("Vehículos disponibles antes del filtrado:", vehiculos);
+      
+      // Filtrar los vehículos que pertenecen al cliente seleccionado
+      const vehiculosFiltrados = vehiculos.filter(v => {
+        // Verificar si hay coincidencia con client_id
+        const matchesClientId = v.client_id === selectedClient;
+        
+        // Verificar si hay coincidencia con client.id 
+        const matchesNestedClientId = v.client && v.client.id === selectedClient;
+        
+        // Verificar si hay otros tipos de coincidencia (conversión de tipos)
+        const matchesStringConversion = 
+          String(v.client_id) === String(selectedClient);
+        
+        console.log(`Vehículo ${v.id_uuid || v.id}: client_id=${v.client_id}, coincide=${matchesClientId || matchesNestedClientId || matchesStringConversion}`);
+        
+        return matchesClientId || matchesNestedClientId || matchesStringConversion;
+      });
+      
+      console.log("Vehículos filtrados para el cliente:", vehiculosFiltrados);
+      
+      // Pre-seleccionar el primer vehículo si hay vehículos disponibles
+      if (vehiculosFiltrados.length > 0) {
+        const primerVehiculo = vehiculosFiltrados[0];
+        const idVehiculo = primerVehiculo.id_uuid || primerVehiculo.id;
+        
+        console.log("Pre-seleccionando vehículo por defecto:", {
+          make: primerVehiculo.make,
+          model: primerVehiculo.model,
+          id: idVehiculo
+        });
+        
+        setSelectedVehicle(idVehiculo);
+        
+        // Notificar al usuario que se ha seleccionado un vehículo por defecto
+        toast({
+          title: "Vehículo seleccionado",
+          description: `${primerVehiculo.make} ${primerVehiculo.model}`,
+          duration: 3000
+        });
+      } else {
+        setSelectedVehicle('');
+      }
+      
+      setFilteredVehicles(vehiculosFiltrados);
     } else {
       setFilteredVehicles([]);
+      setSelectedVehicle('');
     }
-  }, [selectedClient, vehiculos]);
+  }, [selectedClient, vehiculos, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!selectedClient || !selectedVehicle || !selectedService || !selectedDate || !selectedSlot) {
+    console.log("Valores al enviar:", {
+      cliente: selectedClient,
+      vehiculo: selectedVehicle,
+      servicio: selectedService,
+      fecha: selectedDate,
+      hora: selectedSlot,
+      fechaOriginal: selectedDate,
+      fechaISOString: selectedDate ? new Date(selectedDate).toISOString() : null
+    });
+    
+    // Verificación de campos obligatorios
+    const camposFaltantes = {
+      cliente: !selectedClient,
+      vehiculo: !selectedVehicle,
+      servicio: !selectedService,
+      fecha: !selectedDate,
+      hora: !selectedSlot
+    };
+    
+    const faltanCampos = Object.values(camposFaltantes).some(Boolean);
+    
+    if (faltanCampos) {
+      console.error("Validación fallida - Campos faltantes:", camposFaltantes);
+      
       toast({
         variant: "destructive",
-        title: "Error",
-        description: "Por favor complete todos los campos"
+        title: "Campos incompletos",
+        description: "Por favor complete todos los campos obligatorios"
       });
       return;
     }
-
+    
+    // Verificar que el vehículo seleccionado exista en la lista filtrada
+    const vehiculoEncontrado = filteredVehicles.find(v => 
+      (v.id_uuid && v.id_uuid === selectedVehicle) || v.id === selectedVehicle
+    );
+    
+    if (!vehiculoEncontrado) {
+      console.error("Error crítico: El vehículo seleccionado no existe en la lista filtrada", {
+        selectedVehicle,
+        vehiculosDisponibles: filteredVehicles.map(v => ({ 
+          id: v.id, 
+          id_uuid: v.id_uuid,
+          make: v.make, 
+          model: v.model 
+        }))
+      });
+      
+      toast({
+        variant: "destructive",
+        title: "Error de selección",
+        description: "El vehículo seleccionado no es válido. Por favor, seleccione nuevamente."
+      });
+      return;
+    }
+    
+    console.log("Vehículo verificado correctamente:", {
+      id: vehiculoEncontrado.id,
+      id_uuid: vehiculoEncontrado.id_uuid,
+      make: vehiculoEncontrado.make,
+      model: vehiculoEncontrado.model
+    });
+    
     setIsSubmitting(true);
+    
     try {
-      const { error } = await supabase
+      // Usamos el ID verificado del vehículo
+      const appointmentData = {
+        client_id: selectedClient,
+        vehicle_id: selectedVehicle, // ID que ya verificamos
+        service_id: selectedService,
+        appointment_date: selectedDate,
+        dealership_id: '6b58f82d-baa6-44ce-9941-1a61975d20b5',
+        is_booked: true,
+        appointment_time: selectedSlot
+      };
+      
+      console.log("Datos finales a insertar:", appointmentData);
+      console.log("Fecha formateada que se envía a la BD:", appointmentData.appointment_date);
+      
+      const { data, error } = await supabase
         .from('appointment')
-        .insert([{
-          client_id: selectedClient,
-          vehicle_id: selectedVehicle,
-          service_id: selectedService,
-          appointment_date: selectedDate,
-          dealership_id:'6b58f82d-baa6-44ce-9941-1a61975d20b5',
-          is_booked:true,
-          appointment_time: selectedSlot
-        }]);
+        .insert([appointmentData])
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error detallado de Supabase:", {
+          mensaje: error.message,
+          detalles: error.details,
+          codigo: error.code,
+          hint: error.hint
+        });
+        throw error;
+      }
+      
+      console.log("Cita creada con éxito:", data);
       
       toast({
         title: "Cita agendada",
@@ -174,6 +458,7 @@ export default function NuevaReservaPage() {
       router.replace('/backoffice/citas?token=' + token);
       
     } catch (error) {
+      console.error("Error completo al agendar cita:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -182,6 +467,80 @@ export default function NuevaReservaPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Modificar la función que se llama cuando se selecciona un cliente
+  const handleClientSelection = async (clientId: string) => {
+    console.log('Cliente seleccionado:', clientId);
+    setSelectedClient(clientId);
+    setSelectedVehicle(''); // Resetear vehículo seleccionado
+    
+    // Si no hay ID de cliente, limpiar vehículos
+    if (!clientId) {
+      setFilteredVehicles([]);
+      return;
+    }
+    
+    // Cargar vehículos específicamente para este cliente
+    try {
+      // Primero mostrar un toast de carga
+      toast({
+        title: "Cargando vehículos",
+        description: "Obteniendo vehículos del cliente...",
+        duration: 2000,
+      });
+      
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('make, model');
+        
+      if (error) throw error;
+      
+      console.log('Vehículos disponibles para el cliente:', data);
+      
+      // Verificar si los vehículos tienen el formato correcto
+      const vehiculosValidados = data ? data.map(vehiculo => {
+        console.log(`Vehículo cargado: ID=${vehiculo.id}, Make=${vehiculo.make}, Model=${vehiculo.model}`);
+        return vehiculo;
+      }) : [];
+      
+      setFilteredVehicles(vehiculosValidados);
+      
+      if (!vehiculosValidados || vehiculosValidados.length === 0) {
+        toast({
+          variant: "destructive",
+          title: "Sin vehículos",
+          description: "Este cliente no tiene vehículos registrados. Por favor, registre un vehículo primero."
+        });
+      } else {
+        toast({
+          title: "Vehículos cargados",
+          description: `${vehiculosValidados.length} vehículo(s) disponible(s)`,
+          duration: 2000,
+        });
+      }
+    } catch (error) {
+      console.error('Error cargando vehículos:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error al cargar los vehículos del cliente"
+      });
+    }
+  };
+
+  // Función auxiliar para garantizar consistencia en los IDs
+  const ensureConsistentId = (vehicle: any) => {
+    // Si tiene id_uuid, usar ese
+    if (vehicle && vehicle.id_uuid) return vehicle.id_uuid;
+    // De lo contrario usar id regular
+    if (vehicle && vehicle.id) return vehicle.id;
+    // Si es un string, asumir que ya es un ID
+    if (typeof vehicle === 'string') return vehicle;
+    // Por defecto retornar undefined
+    return undefined;
   };
 
   return (
@@ -193,9 +552,9 @@ export default function NuevaReservaPage() {
           <div className="grid grid-cols-12 items-center gap-4">
             <Label htmlFor="cliente" className="text-right col-span-1">Cliente</Label>
             <div className="col-span-11">
-              <Select value={selectedClient} onValueChange={setSelectedClient}>
+              <Select value={selectedClient} onValueChange={handleClientSelection}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un cliente" />
+                  <SelectValue placeholder={selectedClientText || "Seleccione un cliente"} />
                 </SelectTrigger>
                 <SelectContent>
                   {clientes.map((cliente) => (
@@ -212,8 +571,11 @@ export default function NuevaReservaPage() {
             <Label htmlFor="vehiculo" className="text-right col-span-1">Vehículo</Label>
             <div className="col-span-11">
               <Select 
-                value={selectedVehicle} 
-                onValueChange={setSelectedVehicle}
+                value={selectedVehicle || ''} 
+                onValueChange={(value) => {
+                  console.log("Vehículo seleccionado - ID recibido:", value);
+                  setSelectedVehicle(value);
+                }}
                 disabled={!selectedClient}
               >
                 <SelectTrigger>
@@ -224,11 +586,20 @@ export default function NuevaReservaPage() {
                   } />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredVehicles.map((vehiculo) => (
-                    <SelectItem key={vehiculo.id} value={vehiculo.id}>
-                      {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}`}
-                    </SelectItem>
-                  ))}
+                  {filteredVehicles.length > 0 ? (
+                    filteredVehicles.map((vehiculo) => (
+                      <SelectItem 
+                        key={vehiculo.id_uuid || vehiculo.id} 
+                        value={vehiculo.id_uuid || vehiculo.id}
+                      >
+                        {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}`}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                      {selectedClient ? "No hay vehículos asociados a este cliente" : "Seleccione un cliente primero"}
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -237,13 +608,19 @@ export default function NuevaReservaPage() {
           <div className="grid grid-cols-12 items-center gap-4">
             <Label htmlFor="servicio" className="text-right col-span-1">Servicio</Label>
             <div className="col-span-11">
-              <Select value={selectedService} onValueChange={setSelectedService}>
+              <Select 
+                value={selectedService} 
+                onValueChange={(value) => {
+                  console.log('Servicio seleccionado:', value);
+                  setSelectedService(value);
+                }}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Seleccione un servicio" />
+                  <SelectValue placeholder={selectedServiceText || "Seleccione un servicio"} />
                 </SelectTrigger>
                 <SelectContent>
                   {servicios.map((servicio) => (
-                    <SelectItem key={servicio.id} value={servicio.id}>
+                    <SelectItem key={servicio.id_uuid || servicio.id} value={servicio.id_uuid || servicio.id}>
                       {servicio.service_name} ({servicio.duration_minutes} min)
                     </SelectItem>
                   ))}
@@ -257,16 +634,22 @@ export default function NuevaReservaPage() {
             <div className="col-span-11">
               <div className="bg-white rounded-xl border shadow-sm p-4">
                 <AppointmentCalendar
-                  selectedDate={selectedDate ? handleDate(selectedDate) : new Date()}
+                  selectedDate={selectedDate ? stringToSafeDate(selectedDate) : new Date()}
                   onSelect={(date) => handleSelectDate(date)}
                   blockedDates={blockedDates}
                   operatingHours={operatingHours}
                   turnDuration={30}
                   appointments={appointments}
-                  onTimeSlotSelect={(slot) => setSelectedSlot(slot.time)}
+                  onTimeSlotSelect={(slot) => {
+                    console.log('Slot seleccionado en el componente padre:', slot);
+                    setSelectedSlot(slot.time);
+                  }}
                   selectedService={selectedService ? {
                     id: selectedService,
-                    duration: servicios.find(s => s.id === selectedService)?.duration_minutes || 0
+                    duration: servicios.find(s => 
+                      s.id === selectedService || 
+                      s.id_uuid === selectedService
+                    )?.duration_minutes || 0
                   } : undefined}
                 />
                 {selectedSlot && (
@@ -311,6 +694,36 @@ export default function NuevaReservaPage() {
           </div>
         </div>
 
+        {/* Nueva sección de resumen de la cita */}
+        <div className="mt-6 border-t pt-4">
+          <h2 className="text-lg font-medium mb-3">Resumen de la cita</h2>
+          <div className="bg-blue-50 p-4 rounded-md text-sm">
+            <div className="space-y-2">
+              <div className="grid grid-cols-2">
+                <span className="font-medium">Cliente:</span>
+                <span>{selectedClientText || 'No seleccionado'}</span>
+              </div>
+              <div className="grid grid-cols-2">
+                <span className="font-medium">Vehículo:</span>
+                <span>{selectedVehicleText || 'No seleccionado'}</span>
+              </div>
+              <div className="grid grid-cols-2">
+                <span className="font-medium">Servicio:</span>
+                <span>{selectedServiceText || 'No seleccionado'}</span>
+              </div>
+              <div className="grid grid-cols-2">
+                <span className="font-medium">Fecha:</span>
+                <span>{selectedDate || 'No seleccionada'}</span>
+              </div>
+              <div className="grid grid-cols-2">
+                <span className="font-medium">Horario:</span>
+                <span>{selectedSlot || 'No seleccionado'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Botón de acción */}
         <div className="mt-8 flex justify-end">
           <Button 
             type="button"

@@ -71,6 +71,23 @@ interface Cita {
   } | null
 }
 
+// Crear una función auxiliar para formatear la fecha correctamente
+const formatearFecha = (fechaStr: string) => {
+  // Parseamos la fecha directamente desde YYYY-MM-DD sin ajuste de zona horaria
+  const [year, month, day] = fechaStr.split('-').map(num => parseInt(num, 10));
+  
+  // Crear fecha a mediodía para evitar problemas de zona horaria
+  const fecha = new Date(year, month-1, day, 12, 0, 0);
+  
+  // Formatear la fecha en español (día/mes/año)
+  return fecha.toLocaleDateString('es-ES', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone: 'UTC'  // Usar UTC para evitar ajustes de zona horaria
+  });
+};
+
 function CitasPageContent() {
   const [token, setToken] = useState<string>("");
   const [citas, setCitas] = useState<Cita[]>([])
@@ -176,7 +193,7 @@ function CitasPageContent() {
                   <TableCell>{`${cita.vehicles?.make} ${cita.vehicles?.model} (${cita.vehicles?.license_plate || 'Sin placa'})`}</TableCell>
                   <TableCell>
                     {cita.appointment_date && cita.appointment_time ? 
-                      `${new Date(cita.appointment_date).toLocaleDateString('es-ES')} ${cita.appointment_time}` : 
+                      `${formatearFecha(cita.appointment_date)} ${cita.appointment_time}` : 
                       'No especificada'}
                   </TableCell>
                   <TableCell>{cita.status}</TableCell>
