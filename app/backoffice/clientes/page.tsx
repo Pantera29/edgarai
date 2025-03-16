@@ -27,17 +27,17 @@ import { verifyToken } from "../../jwt/token";
 import { useRouter } from "next/navigation";
 
 interface Cliente {
-  id_uuid: string;
-  nombre: string;
+  id: string;
+  names: string;
   email: string;
-  telefono: string;
+  phone_number: string;
   estado?: "activo" | "inactivo";
 }
 
 interface NuevoCliente {
-  nombre: string;
+  names: string;
   email: string;
-  telefono: string;
+  phone_number: string;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -85,9 +85,9 @@ const router = useRouter();
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState<NuevoCliente>({
-    nombre: "",
+    names: "",
     email: "",
-    telefono: "",
+    phone_number: "",
   });
 
   useEffect(() => {
@@ -106,14 +106,14 @@ const router = useRouter();
     setLoading(true);
     try {
       let query = supabase
-        .from("clientes")
+        .from("client")
         .select("*", { count: "exact" })
-        .order("nombre")
+        .order("names")
         .range((pagina - 1) * ITEMS_PER_PAGE, pagina * ITEMS_PER_PAGE - 1);
 
       if (busqueda) {
         query = query.or(
-          `nombre.ilike.%${busqueda}%,email.ilike.%${busqueda}%,telefono.ilike.%${busqueda}%`
+          `names.ilike.%${busqueda}%,email.ilike.%${busqueda}%,phone_number.ilike.%${busqueda}%`
         );
       }
 
@@ -126,10 +126,10 @@ const router = useRouter();
       if (error) throw error;
 
       const clientesMapeados: Cliente[] = (data || []).map((cliente) => ({
-        id_uuid: cliente.id_uuid,
-        nombre: cliente.nombre,
+        id: cliente.id,
+        names: cliente.names,
         email: cliente.email,
-        telefono: cliente.telefono,
+        phone_number: cliente.phone_number,
         estado: cliente.estado,
       }));
 
@@ -144,13 +144,13 @@ const router = useRouter();
 
   const clientesFiltrados = clientes.filter((cliente) => {
     if (clienteId) {
-      return cliente.id_uuid === clienteId;
+      return cliente.id === clienteId;
     }
 
     return (
-      cliente.nombre.toLowerCase().includes(busqueda.toLowerCase()) ||
+      cliente.names.toLowerCase().includes(busqueda.toLowerCase()) ||
       cliente.email?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cliente.telefono?.includes(busqueda)
+      cliente.phone_number?.includes(busqueda)
     );
   });
 
@@ -170,12 +170,13 @@ const router = useRouter();
     e.preventDefault();
     try {
       const { data, error } = await supabase
-        .from("clientes")
+        .from("client")
         .insert([
           {
-            nombre: nuevoCliente.nombre,
+            names: nuevoCliente.names,
             email: nuevoCliente.email,
-            telefono: nuevoCliente.telefono,
+            phone_number: nuevoCliente.phone_number,
+            dealership_id: '6b58f82d-baa6-44ce-9941-1a61975d20b5'
           },
         ])
         .select();
@@ -185,9 +186,9 @@ const router = useRouter();
       setClientes([...clientes, data[0]]);
       setShowNuevoCliente(false);
       setNuevoCliente({
-        nombre: "",
+        names: "",
         email: "",
-        telefono: "",
+        phone_number: "",
       });
     } catch (error) {
       console.error("Error al crear cliente:", error);

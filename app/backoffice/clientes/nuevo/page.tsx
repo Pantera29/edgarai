@@ -12,14 +12,11 @@ import { useEffect, useState } from "react"
 export default function NuevoClientePage() {
   const router = useRouter()
   
-
-
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
     null
   );
   const [token, setToken] = useState<string>("");
   const [dataToken, setDataToken] = useState<object>({});
-
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -40,17 +37,14 @@ export default function NuevoClientePage() {
           router.push("/login");
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
-
       }
     }
   }, [searchParams, router]); 
-
-  
   
   const [formData, setFormData] = useState({
-    nombre: "",
+    names: "",           // Cambiado de nombre
     email: "",
-    telefono: ""
+    phone_number: ""     // Cambiado de telefono
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -59,8 +53,11 @@ export default function NuevoClientePage() {
 
     try {
       const { data, error } = await supabase
-        .from('clientes')
-        .insert([formData])
+        .from('client')           // Cambiado de clientes
+        .insert([{
+          ...formData,
+          dealership_id: '6b58f82d-baa6-44ce-9941-1a61975d20b5' // Agregar dealership_id
+        }])
         .select()
 
       if (error) throw error
@@ -76,11 +73,11 @@ export default function NuevoClientePage() {
       <h2 className="text-2xl font-bold">Nuevo Cliente</h2>
       <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
         <div className="space-y-2">
-          <Label htmlFor="nombre">Nombre</Label>
+          <Label htmlFor="names">Nombre</Label>
           <Input
-            id="nombre"
-            value={formData.nombre}
-            onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+            id="names"
+            value={formData.names}
+            onChange={(e) => setFormData({ ...formData, names: e.target.value })}
             required
           />
         </div>
@@ -95,11 +92,11 @@ export default function NuevoClientePage() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="telefono">Teléfono</Label>
+          <Label htmlFor="phone_number">Teléfono</Label>
           <Input
-            id="telefono"
-            value={formData.telefono}
-            onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
+            id="phone_number"
+            value={formData.phone_number}
+            onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
             required
           />
         </div>

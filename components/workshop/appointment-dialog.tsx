@@ -46,7 +46,7 @@ export default function AppointmentDialog({
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [filteredVehicles, setFilteredVehicles] = useState<Vehiculo[]>([]);
   const [selectedService, setSelectedService] = useState('');
-  const [estado, setEstado] = useState<'pendiente' | 'en_proceso' | 'completada' | 'cancelada'>('pendiente');
+  const [status, setStatus] = useState<'pendiente' | 'en_proceso' | 'completada' | 'cancelada'>('pendiente');
   const [notas, setNotas] = useState('');
   const [servicios, setServicios] = useState<Servicio[]>([]);
   const supabase = createClientComponentClient();
@@ -62,8 +62,8 @@ export default function AppointmentDialog({
     try {
       // Cargar clientes y vehículos
       const [{ data: clientesData, error: clientesError }, { data: vehiculosData, error: vehiculosError }] = await Promise.all([
-        supabase.from('clientes').select('*').order('nombre'),
-        supabase.from('vehiculos').select('*')
+        supabase.from('client').select('*').order('names'),
+        supabase.from('vehicles').select('*')
       ]);
 
       // Cargar servicios
@@ -113,17 +113,17 @@ export default function AppointmentDialog({
     if (open) {
       const loadAppointments = async () => {
         const { data, error } = await supabase
-          .from('citas')
+          .from('appointment')
           .select(`
             *,
-            servicios:servicio_id_uuid (
+            servicios:service_id (
               id_uuid,
               nombre,
               duracion_estimada
             ),
-            clientes!citas_cliente_id_uuid_fkey (
-              id_uuid,
-              nombre
+            cliente:client_id (
+              id,
+              names
             )
           `)
           .gte('fecha_hora', new Date().toISOString())
@@ -147,10 +147,10 @@ export default function AppointmentDialog({
         setSelectedService(preselectedService.id_uuid);
       }
       if (preselectedVehicleId) {
-        const vehicle = vehiculos.find(v => v.id_uuid === preselectedVehicleId);
+        const vehicle = vehiculos.find(v => v.id === preselectedVehicleId);
         if (vehicle) {
           setSelectedVehicle(preselectedVehicleId);
-          setSelectedClient(vehicle.id_cliente_uuid);
+          setSelectedClient(vehicle.client_id);
         }
       }
     }
@@ -158,7 +158,7 @@ export default function AppointmentDialog({
 
   useEffect(() => {
     if (selectedClient) {
-      setFilteredVehicles(vehiculos.filter(v => v.id_cliente_uuid === selectedClient));
+      setFilteredVehicles(vehiculos.filter(v => v.client_id === selectedClient));
     } else {
       setFilteredVehicles([]);
     }
@@ -182,13 +182,13 @@ export default function AppointmentDialog({
       
       // Crear la cita
       const { data, error } = await supabase
-        .from('citas')
+        .from('appointment')
         .insert([{
-          cliente_id_uuid: selectedClient,
-          vehiculo_id_uuid: selectedVehicle,
-          servicio_id_uuid: selectedService,
+          client_id: selectedClient,
+          vehicle_id: selectedVehicle,
+          service_id: selectedService,
           fecha_hora: fechaHora,
-          estado: estado,
+          status: status,
           notas: notas,
           recommended_service_id: recommendedServiceId || null
         }])
@@ -286,8 +286,8 @@ export default function AppointmentDialog({
                   </SelectTrigger>
                   <SelectContent>
                     {filteredVehicles.map((vehiculo) => (
-                      <SelectItem key={vehiculo.id_uuid} value={vehiculo.id_uuid}>
-                        {`${vehiculo.marca} ${vehiculo.modelo}${vehiculo.placa ? ` (${vehiculo.placa})` : ''}`}
+                      <SelectItem key={vehiculo.id} value={vehiculo.id}>
+                        {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -353,11 +353,11 @@ export default function AppointmentDialog({
 
             {/* Estado */}
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="estado" className="text-right">Estado</Label>
+              <Label htmlFor="status" className="text-right">Estado</Label>
               <div className="col-span-3">
                 <Select 
-                  value={estado} 
-                  onValueChange={(value: string) => setEstado(value as AppointmentStatus)}
+                  value={status} 
+                  onValueChange={(value: string) => setStatus(value as AppointmentStatus)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccione un estado" />

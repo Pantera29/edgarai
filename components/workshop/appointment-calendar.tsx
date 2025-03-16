@@ -321,7 +321,7 @@ export function AppointmentCalendar({
     const totalMinutes = differenceInMinutes(endTime, startTime);
     const totalSlots = Math.floor(totalMinutes / turnDuration) * schedule.max_simultaneous_services;
     
-    // Contar citas existentes para este día
+    // Filtrar citas para este día
     const existingAppointments = appointments.filter(app => 
       format(new Date(app.fecha_hora), 'yyyy-MM-dd') === dateStr
     );

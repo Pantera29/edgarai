@@ -10,13 +10,13 @@ export async function generateStaticParams() {
   const supabase = createClientComponentClient()
   
   const { data: vehiculos } = await supabase
-    .from('vehiculos')
-    .select('id_uuid')
+    .from('vehicles')
+    .select('id')
   
   if (!vehiculos) return []
   
-  return vehiculos.map((vehiculo: { id_uuid: string }) => ({
-    id: vehiculo.id_uuid,
+  return vehiculos.map((vehiculo: { id: string }) => ({
+    id: vehiculo.id,
   }))
 }
 

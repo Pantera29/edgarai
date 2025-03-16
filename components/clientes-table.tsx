@@ -34,16 +34,16 @@ import { useState, useEffect } from "react";
 
 
 interface Cliente {
-  id_uuid: string
-  nombre: string
+  id: string
+  names: string
   email: string
-  telefono: string
+  phone_number: string
 }
 
 interface Props {
   clientes: Cliente[]
   loading?: boolean
-  token: string
+  token?: string
   onClienteDeleted?: () => void
 }
 
@@ -57,35 +57,32 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
   const [eliminando, setEliminando] = useState(false)
 
   const eliminarCliente = async () => {
-    if (!clienteAEliminar) return
-
-    setEliminando(true)
+    if (!clienteAEliminar) return;
+    
     try {
       const { error } = await supabase
-        .from('clientes')
+        .from('client')
         .delete()
-        .eq('id uuid', clienteAEliminar['id_uuid'])
-
-      if (error) throw error
-
+        .eq('id', clienteAEliminar.id);
+        
+      if (error) throw error;
+      
       toast({
         title: "Cliente eliminado",
-        description: "El cliente ha sido eliminado correctamente"
-      })
-
-      onClienteDeleted?.()
+        description: "El cliente ha sido eliminado correctamente."
+      });
+      
+      setClienteAEliminar(null);
+      if (onClienteDeleted) onClienteDeleted();
     } catch (error) {
-      console.error('Error eliminando cliente:', error)
+      console.error("Error eliminando cliente:", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo eliminar el cliente"
-      })
-    } finally {
-      setEliminando(false)
-      setClienteAEliminar(null)
+        description: "No se pudo eliminar el cliente. Inténtalo de nuevo."
+      });
     }
-  }
+  };
 
   if (loading) {
     return <Skeleton className="h-[400px]" />
@@ -104,10 +101,10 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
         </TableHeader>
         <TableBody>
           {clientes.map((cliente) => (
-            <TableRow key={cliente['id_uuid']}>
-              <TableCell>{cliente.nombre}</TableCell>
+            <TableRow key={cliente.id}>
+              <TableCell>{cliente.names}</TableCell>
               <TableCell>{cliente.email}</TableCell>
-              <TableCell>{cliente.telefono}</TableCell>
+              <TableCell>{cliente.phone_number}</TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -119,7 +116,7 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem asChild>
                       <Link 
-                        href={`/backoffice/clientes/${cliente['id_uuid']}/editar?token=${token}`}
+                        href={`/backoffice/clientes/${cliente.id}/editar?token=${token}`}
                         className="flex items-center"
                       >
                         <Edit className="mr-2 h-4 w-4" />
@@ -147,7 +144,7 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
             <DialogTitle>¿Eliminar cliente?</DialogTitle>
             <DialogDescription>
               Esta acción no se puede deshacer. Se eliminará permanentemente el cliente
-              {clienteAEliminar?.nombre} y todos sus datos asociados.
+              {clienteAEliminar?.names} y todos sus datos asociados.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

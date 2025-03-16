@@ -84,21 +84,25 @@ export interface Client {
 }
 
 export interface Vehiculo {
-  id_uuid: string;
-  marca: string;
-  modelo: string;
-  placa: string;
-  id_cliente_uuid: string;
+  id: string;
+  make: string;
+  model: string;
+  license_plate: string;
+  client_id: string;
+  year: number;
+  vin?: string;
+  last_km?: number;
+  last_service_date?: string;
+  next_service_date?: string;
 }
 
 export interface Vehicle {
-  id_uuid: string;
+  id: string;
   make: string;
   model: string;
   license_plate: string;
   client_id: string;
 }
-
 
 export interface Servicio {
   id_uuid: string;

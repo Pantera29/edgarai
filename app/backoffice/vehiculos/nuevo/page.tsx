@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getBaseUrl } from "@/lib/utils"
 import { verifyToken } from '../../../jwt/token'
+
 interface Cliente {
-  id_uuid: string;
-  nombre: string;
+  id: string;           // Cambiado de id_uuid
+  names: string;        // Cambiado de nombre
 }
 
 export default function NuevoVehiculoPage() {
@@ -49,20 +50,21 @@ export default function NuevoVehiculoPage() {
     
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [formData, setFormData] = useState({
-    id_cliente_uuid: "",
-    marca: "",
-    modelo: "",
-    anio: new Date().getFullYear(),
-    placa: "",
-    kilometraje_actual: 0
+    client_id: "",      
+    make: "",           // Cambiado de marca
+    model: "",          // Cambiado de modelo
+    year: new Date().getFullYear(), // Cambiado de anio
+    license_plate: "",  // Cambiado de placa
+    last_km: 0,         // Cambiado de kilometraje_actual
+    vin: ""             // Añadido
   })
 
   useEffect(() => {
     const fetchClientes = async () => {
       const supabase = createClientComponentClient()
       const { data } = await supabase
-        .from('clientes')
-        .select('id_uuid, nombre')
+        .from('client')           // Cambiado de clientes
+        .select('id, names')      // Cambiado de id_uuid, nombre
       
       if (data) setClientes(data)
     }
@@ -76,13 +78,21 @@ export default function NuevoVehiculoPage() {
 
     try {
       const { data, error } = await supabase
-        .from('vehiculos')
-        .insert([formData])
+        .from('vehicles')         
+        .insert([{
+          client_id: formData.client_id,
+          make: formData.make,
+          model: formData.model,
+          year: formData.year,
+          license_plate: formData.license_plate,
+          last_km: formData.last_km,
+          vin: formData.vin
+        }])
         .select()
 
       if (error) throw error
 
-      router.push(`${getBaseUrl()}/vehiculos`)
+      router.push(`${getBaseUrl()}/backoffice/vehiculos`)
     } catch (error) {
       console.error('Error al crear vehículo:', error)
     }
@@ -95,65 +105,73 @@ export default function NuevoVehiculoPage() {
         <div className="space-y-2">
           <Label htmlFor="cliente">Propietario</Label>
           <Select 
-            value={formData.id_cliente_uuid}
-            onValueChange={(value) => setFormData({ ...formData, id_cliente_uuid: value })}
+            value={formData.client_id}
+            onValueChange={(value) => setFormData({ ...formData, client_id: value })}
           >
             <SelectTrigger>
               <SelectValue placeholder="Seleccionar cliente" />
             </SelectTrigger>
             <SelectContent>
               {clientes.map((cliente) => (
-                <SelectItem key={cliente.id_uuid} value={cliente.id_uuid}>
-                  {cliente.nombre}
+                <SelectItem key={cliente.id} value={cliente.id}>
+                  {cliente.names}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="marca">Marca</Label>
+          <Label htmlFor="make">Marca</Label>
           <Input
-            id="marca"
-            value={formData.marca}
-            onChange={(e) => setFormData({ ...formData, marca: e.target.value })}
+            id="make"
+            value={formData.make}
+            onChange={(e) => setFormData({ ...formData, make: e.target.value })}
             required
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="modelo">Modelo</Label>
+          <Label htmlFor="model">Modelo</Label>
           <Input
-            id="modelo"
-            value={formData.modelo}
-            onChange={(e) => setFormData({ ...formData, modelo: e.target.value })}
+            id="model"
+            value={formData.model}
+            onChange={(e) => setFormData({ ...formData, model: e.target.value })}
             required
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="anio">Año</Label>
+          <Label htmlFor="year">Año</Label>
           <Input
-            id="anio"
+            id="year"
             type="number"
-            value={formData.anio}
-            onChange={(e) => setFormData({ ...formData, anio: parseInt(e.target.value) })}
+            value={formData.year}
+            onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value) })}
             required
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="placa">Placa</Label>
+          <Label htmlFor="license_plate">Placa</Label>
           <Input
-            id="placa"
-            value={formData.placa}
-            onChange={(e) => setFormData({ ...formData, placa: e.target.value })}
+            id="license_plate"
+            value={formData.license_plate}
+            onChange={(e) => setFormData({ ...formData, license_plate: e.target.value })}
             required
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="kilometraje">Kilometraje</Label>
+          <Label htmlFor="vin">VIN</Label>
           <Input
-            id="kilometraje"
+            id="vin"
+            value={formData.vin}
+            onChange={(e) => setFormData({ ...formData, vin: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="last_km">Kilometraje</Label>
+          <Input
+            id="last_km"
             type="number"
-            value={formData.kilometraje_actual}
-            onChange={(e) => setFormData({ ...formData, kilometraje_actual: parseInt(e.target.value) })}
+            value={formData.last_km}
+            onChange={(e) => setFormData({ ...formData, last_km: parseInt(e.target.value) })}
             required
           />
         </div>

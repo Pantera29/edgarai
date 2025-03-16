@@ -29,8 +29,8 @@ export function AppointmentStatusUpdate({
     setLoading(true)
     try {
       const { error } = await supabase
-        .from('citas')
-        .update({ estado: newStatus })
+        .from('appointment')
+        .update({ status: newStatus })
         .eq('id_uuid', appointmentId)
 
       if (error) throw error
