@@ -249,11 +249,17 @@ export default function NuevaReservaPage() {
           id_uuid: app.id,
           fecha_hora: `${app.appointment_date}T${app.appointment_time}`,
           clientes: { 
-            nombre: app.client && typeof app.client === 'object' ? app.client.names : 'Cliente desconocido' 
+            nombre: app.client && typeof app.client === 'object' && 'names' in app.client 
+              ? app.client.names 
+              : 'Cliente desconocido' 
           },
           services: {
-            service_name: app.services && typeof app.services === 'object' ? app.services.service_name : 'Servicio desconocido',
-            duration_minutes: app.services && typeof app.services === 'object' ? app.services.duration_minutes : 30
+            service_name: app.services && typeof app.services === 'object' && 'service_name' in app.services 
+              ? app.services.service_name 
+              : 'Servicio desconocido',
+            duration_minutes: app.services && typeof app.services === 'object' && 'duration_minutes' in app.services 
+              ? app.services.duration_minutes 
+              : 30
           }
         };
       }) || [];
