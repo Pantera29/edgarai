@@ -225,7 +225,7 @@ export default function NuevaReservaPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {filteredVehicles.map((vehiculo) => (
-                    <SelectItem key={vehiculo.id_uuid} value={vehiculo.id_uuid}>
+                    <SelectItem key={vehiculo.id} value={vehiculo.id}>
                       {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}`}
                     </SelectItem>
                   ))}
@@ -243,7 +243,7 @@ export default function NuevaReservaPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {servicios.map((servicio) => (
-                    <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
+                    <SelectItem key={servicio.id} value={servicio.id}>
                       {servicio.service_name} ({servicio.duration_minutes} min)
                     </SelectItem>
                   ))}
@@ -266,7 +266,7 @@ export default function NuevaReservaPage() {
                   onTimeSlotSelect={(slot) => setSelectedSlot(slot.time)}
                   selectedService={selectedService ? {
                     id: selectedService,
-                    duration: servicios.find(s => s.id_uuid === selectedService)?.duracion_estimada || 0
+                    duration: servicios.find(s => s.id === selectedService)?.duration_minutes || 0
                   } : undefined}
                 />
                 {selectedSlot && (
