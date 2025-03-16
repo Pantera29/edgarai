@@ -487,14 +487,20 @@ export function AppointmentCalendar({
                   "h-auto py-4 relative group transition-all",
                   isBlocked ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50' :
                   slot.available === 0 ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-50' :
-                  isSelected ? 'bg-primary/20 border-primary ring-2 ring-primary ring-offset-1' :
+                  isSelected ? 'bg-primary/20 border-primary ring-2 ring-primary ring-offset-2 font-semibold shadow-sm' :
                   'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-400'
                 )}
-                disabled={isBlocked || !selectedService || slot.available === 0}
+                disabled={isBlocked || slot.available === 0}
                 onClick={() => {
-                  if (!isBefore(selectedDate!, startOfDay(new Date()))) {
-                    onTimeSlotSelect && onTimeSlotSelect(slot);
+                  if (!isBlocked && slot.available > 0) {
+                    console.log('Slot seleccionado:', slot);
                     setSelectedSlot(slot.time);
+                    if (slot && slot.time) {
+                      console.log('Enviando slot al componente padre:', slot);
+                      onTimeSlotSelect?.(slot);
+                    } else {
+                      console.error('Error: slot no tiene la propiedad time', slot);
+                    }
                   }
                 }}
               >

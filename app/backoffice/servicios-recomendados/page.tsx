@@ -146,12 +146,7 @@ function ServiciosRecomendadosContent() {
     <div className="min-h-screen">
       <div className="space-y-8">
         <div className="grid gap-4 md:grid-cols-5">
-          <h1 className="text-3xl font-bold tracking-tight col-span-4">Servicios Recomendados</h1>
-          <div className="text-right">
-            <Link href={`/backoffice/citas/nueva?token=${token}`}>
-              <Button type="submit" className="relative">Agendar Cita</Button>
-            </Link>
-          </div>
+          <h1 className="text-3xl font-bold tracking-tight col-span-5">Servicios Recomendados</h1>
         </div>
 
         <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab}>
