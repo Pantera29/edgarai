@@ -11,13 +11,13 @@ export async function generateStaticParams() {
   const supabase = createClientComponentClient()
   
   const { data: clientes } = await supabase
-    .from('clientes')
-    .select('id_uuid')
+    .from('client')
+    .select('id')
   
   if (!clientes) return []
   
-  return clientes.map((cliente: { id_uuid: string }) => ({
-    id: cliente.id_uuid,
+  return clientes.map((cliente: { id: string }) => ({
+    id: cliente.id,
   }))
 }
 
@@ -26,9 +26,9 @@ export default async function ClientePage({ params }: PageProps) {
   const supabase = createClientComponentClient()
   
   const { data: cliente } = await supabase
-    .from('clientes')
+    .from('client')
     .select('*')
-    .eq('id_uuid', params.id)
+    .eq('id', params.id)
     .single()
 
   if (!cliente) {
@@ -38,7 +38,11 @@ export default async function ClientePage({ params }: PageProps) {
   return (
     <div>
       <h1>Detalles del Cliente</h1>
-      {/* Renderiza los detalles del cliente aquí */}
+      <div>
+        <h2>{cliente.names}</h2>
+        <p>Email: {cliente.email}</p>
+        <p>Teléfono: {cliente.phone_number}</p>
+      </div>
     </div>
   )
 } 

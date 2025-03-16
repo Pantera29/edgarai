@@ -142,7 +142,7 @@ function TransaccionesContent() {
             client (
               names
             ),
-            vehicle (
+            vehicles (
               make,
               model,
               license_plate

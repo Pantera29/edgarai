@@ -37,7 +37,7 @@ interface Cliente {
 interface CitaSupabase {
   id_uuid: string;
   fecha_hora: string;
-  estado: string;
+  status: string;
   clientes: Cliente;
   servicios: {
     nombre: string;
@@ -60,7 +60,7 @@ interface DashboardData {
   proximasCitas: {
     id_uuid: string
     fecha_hora: string
-    estado: string
+    status: string
     cliente: {
       nombre: string
     }
@@ -116,37 +116,37 @@ export default function DashboardPage() {
     try {
       // Total de clientes
       const { count: totalClientes } = await supabase
-        .from('clientes')
+        .from('client')
         .select('*', { count: 'exact' })
 
       // Total de vehículos
       const { count: totalVehiculos } = await supabase
-        .from('vehiculos')
+        .from('vehicles')
         .select('*', { count: 'exact' })
 
       // Citas pendientes
       const { count: citasPendientes } = await supabase
-        .from('citas')
+        .from('appointment')
         .select('*', { count: 'exact' })
-        .eq('estado', 'pendiente')
+        .eq('status', 'pendiente')
 
       // Citas de hoy
       const hoy = new Date().toISOString().split('T')[0]
       const { count: citasHoy } = await supabase
-        .from('citas')
+        .from('appointment')
         .select('*', { count: 'exact' })
         .gte('fecha_hora', hoy)
         .lt('fecha_hora', hoy + 'T23:59:59')
 
       // Servicios por estado
       const { data: serviciosPorEstado } = await supabase
-        .from('citas')
-        .select('estado, count')
-        .select('estado')
+        .from('appointment')
+        .select('status, count')
+        .select('status')
         .then(({ data }) => {
           const conteo: { [key: string]: number } = {}
           data?.forEach(item => {
-            conteo[item.estado] = (conteo[item.estado] || 0) + 1
+            conteo[item.status] = (conteo[item.status] || 0) + 1
           })
           return {
             data: Object.entries(conteo).map(([estado, cantidad]) => ({
@@ -158,9 +158,9 @@ export default function DashboardPage() {
 
       // Ingresos mensuales (simulados con citas completadas)
       const { data: ingresosMensuales } = await supabase
-        .from('citas')
-        .select('fecha_hora, estado')
-        .eq('estado', 'completada')
+        .from('appointment')
+        .select('fecha_hora, status')
+        .eq('status', 'completada')
         .then(({ data }) => {
           const ingresos: { [key: string]: number } = {}
           data?.forEach(item => {
@@ -184,11 +184,11 @@ export default function DashboardPage() {
       fechaLimite.setDate(fechaLimite.getDate() + 4)
 
       const { data: proximasCitas } = await supabase
-        .from('citas')
+        .from('appointment')
         .select(`
           id_uuid,
           fecha_hora,
-          estado,
+          status,
           clientes (
             nombre
           ),
@@ -200,7 +200,7 @@ export default function DashboardPage() {
       const citasFormateadas = proximasCitas?.map(cita => ({
         id_uuid: cita.id_uuid,
         fecha_hora: cita.fecha_hora,
-        estado: cita.estado,
+        status: cita.status,
         cliente: {
           nombre: cita.clientes.nombre || 'Error al cargar cliente'
         },

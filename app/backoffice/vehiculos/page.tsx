@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
 import { Search } from "lucide-react"
 import {
   Select,
@@ -31,34 +30,26 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog"
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs"
-import { Car, Clock, Wrench } from "lucide-react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Car } from "lucide-react"
 import Link from "next/link"
 import { Label } from "@/components/ui/label"
 import { verifyToken } from '../../jwt/token'
 import { useRouter } from "next/navigation";
 
 interface Vehiculo {
-  id_uuid: string
-  id_cliente_uuid: string
-  cliente: {
-    nombre: string
+  id: string
+  client_id: string
+  client: {
+    names: string
   }
   vin: string | null
-  marca: string
-  modelo: string
-  anio: number
-  color: string | null
-  placa: string | null
-  kilometraje_actual: number | null
-  fecha_ultimo_servicio: string | null
-  fecha_proximo_servicio: string | null
+  make: string
+  model: string
+  year: number
+  license_plate: string | null
+  last_km: number | null
+  last_service_date: string | null
+  next_service_date: string | null
 }
 
 interface ServicioHistorial {
@@ -72,26 +63,19 @@ interface ServicioHistorial {
   estado: string
 }
 
-interface CitaServicio {
-  id_uuid: string
-  fecha_hora: string
-  estado: 'pendiente' | 'confirmada' | 'completada' | 'cancelada'
-  servicios: {
-    nombre: string
-    duracion_estimada: number
-  }[]
-  notas: string
+interface NuevoVehiculo {
+  client_id: string
+  make: string
+  model: string
+  year: number
+  license_plate: string
+  vin: string
+  last_km: number
 }
 
-interface NuevoVehiculo {
-  id_cliente_uuid: string
-  marca: string
-  modelo: string
-  anio: number
-  color: string
-  placa: string
-  vin: string
-  kilometraje_actual: number
+interface ClienteDisponible {
+  id: string
+  names: string
 }
 
 export default function VehiculosPage() {
@@ -132,22 +116,24 @@ export default function VehiculosPage() {
   const [busqueda, setBusqueda] = useState("")
   const [filtroMarca, setFiltroMarca] = useState("todas")
   const [marcasDisponibles, setMarcasDisponibles] = useState<string[]>([])
-  const [vehiculoSeleccionado, setVehiculoSeleccionado] = useState<string | null>(null)
   const [servicios, setServicios] = useState<ServicioHistorial[]>([])
-  const [showDetalles, setShowDetalles] = useState(false)
-  const [citasServicios, setCitasServicios] = useState<CitaServicio[]>([])
   const [vehiculoId, setVehiculoId] = useState<string | null>(null)
   const [showNuevoVehiculo, setShowNuevoVehiculo] = useState(false)
-  const [clientesDisponibles, setClientesDisponibles] = useState<{id_uuid: string, nombre: string}[]>([])
-  const [nuevoVehiculo, setNuevoVehiculo] = useState<NuevoVehiculo>({
-    id_cliente_uuid: '',
-    marca: '',
-    modelo: '',
-    anio: new Date().getFullYear(),
-    color: '',
-    placa: '',
+  const [clientesDisponibles, setClientesDisponibles] = useState<ClienteDisponible[]>([])
+  const [nuevoVehiculo, setNuevoVehiculo] = useState<Vehiculo>({
+    id: '',
+    client_id: '',
+    client: {
+      names: ''
+    },
     vin: '',
-    kilometraje_actual: 0
+    make: '',
+    model: '',
+    year: new Date().getFullYear(),
+    license_plate: '',
+    last_km: 0,
+    last_service_date: '',
+    next_service_date: ''
   })
   const supabase = createClientComponentClient()
 
@@ -161,7 +147,6 @@ export default function VehiculosPage() {
     const id = params.get('id')
     if (id) {
       setVehiculoId(id)
-      cargarDetallesVehiculo(id)
     }
   }, [])
 
@@ -170,18 +155,18 @@ export default function VehiculosPage() {
 
     try {
       const { data, error } = await supabase
-        .from('vehiculos')
+        .from('vehicles')
         .select(`
           *,
-          cliente:clientes(nombre)
+          client:client(names)
         `)
-        .order('marca')
+        .order('make')
 
       if (error) throw error
 
       setVehiculos(data || [])
       // Extraer marcas únicas para el filtro
-      const marcas = Array.from(new Set(data?.map(v => v.marca) || []))
+      const marcas = Array.from(new Set(data?.map(v => v.make) || []))
       setMarcasDisponibles(marcas)
     } catch (error) {
       console.error('Error cargando vehículos:', error)
@@ -193,75 +178,35 @@ export default function VehiculosPage() {
   const vehiculosFiltrados = vehiculos.filter(vehiculo => {
     // Si hay un ID específico, solo mostrar ese vehículo
     if (vehiculoId) {
-      return vehiculo.id_uuid === vehiculoId
+      return vehiculo.id === vehiculoId
     }
 
     // Si no hay ID, aplicar los filtros normales
     const cumpleBusqueda = 
-      vehiculo.marca.toLowerCase().includes(busqueda.toLowerCase()) ||
-      vehiculo.modelo.toLowerCase().includes(busqueda.toLowerCase()) ||
-      vehiculo.placa?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      vehiculo.cliente.nombre.toLowerCase().includes(busqueda.toLowerCase())
+      vehiculo.make.toLowerCase().includes(busqueda.toLowerCase()) ||
+      vehiculo.model.toLowerCase().includes(busqueda.toLowerCase()) ||
+      vehiculo.license_plate?.toLowerCase().includes(busqueda.toLowerCase()) ||
+      vehiculo.client.names.toLowerCase().includes(busqueda.toLowerCase())
     
-    const cumpleFiltroMarca = filtroMarca === "todas" || vehiculo.marca === filtroMarca
+    const cumpleFiltroMarca = filtroMarca === "todas" || vehiculo.make === filtroMarca
 
     return cumpleBusqueda && cumpleFiltroMarca
   })
 
-  const cargarDetallesVehiculo = async (vehiculoId: string) => {
-    try {
-      // Mantener solo la carga de citas de servicios
-      const { data: citasData, error: citasError } = await supabase
-        .from('citas')
-        .select(`
-          id_uuid,
-          fecha_hora,
-          estado,
-          notas,
-          servicios:servicios!citas_servicio_id_uuid_fkey (
-            nombre,
-            duracion_estimada
-          )
-        `)
-        .eq('vehiculo_id_uuid', vehiculoId)
-        .order('fecha_hora', { ascending: false })
-
-      if (citasError) throw citasError
-      
-      setCitasServicios(citasData?.map(cita => ({
-        ...cita,
-        servicios: cita.servicios.map(servicio => ({
-          nombre: servicio.nombre as string,
-          duracion_estimada: servicio.duracion_estimada as number
-        }))
-      })) || [])
-      setVehiculoSeleccionado(vehiculoId)
-      setShowDetalles(true)
-    } catch (error) {
-      console.error('Error cargando detalles:', error)
-    }
-  }
-
   // Agregar un botón para limpiar el filtro
   const limpiarFiltro = () => {
     setVehiculoId(null)
-    setShowDetalles(false)
     // Limpiar la URL
     window.history.pushState({}, '', '/vehiculos')
-  }
-
-  const verDetalles = (vehiculoId: string) => {
-    setVehiculoSeleccionado(vehiculoId)
-    setShowDetalles(true)
   }
 
   // Cargar lista de clientes para el selector
   const cargarClientes = async () => {
     try {
       const { data, error } = await supabase
-        .from('clientes')
-        .select('id_uuid, nombre')
-        .order('nombre')
+        .from('client')
+        .select('id, names')
+        .order('names')
 
       if (error) throw error
       setClientesDisponibles(data || [])
@@ -285,10 +230,21 @@ export default function VehiculosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      // Asegurarse de que todos los campos del formulario coincidan con los de la base de datos
+      const vehiculoData = {
+        client_id: nuevoVehiculo.client_id,
+        make: nuevoVehiculo.make,
+        model: nuevoVehiculo.model,
+        year: nuevoVehiculo.year,
+        license_plate: nuevoVehiculo.license_plate,
+        vin: nuevoVehiculo.vin,
+        last_km: nuevoVehiculo.last_km
+      };
+
       const { data, error } = await supabase
-        .from('vehiculos')
-        .insert([nuevoVehiculo])
-        .select('*, cliente:clientes(nombre)')
+        .from('vehicles')
+        .insert([vehiculoData])
+        .select('*, client:client(names)')
 
       if (error) {
         console.error('Error al crear vehículo:', error)
@@ -298,14 +254,19 @@ export default function VehiculosPage() {
       setVehiculos([...vehiculos, data[0]])
       setShowNuevoVehiculo(false)
       setNuevoVehiculo({
-        id_cliente_uuid: '',
-        marca: '',
-        modelo: '',
-        anio: new Date().getFullYear(),
-        color: '',
-        placa: '',
+        id: '',
+        client_id: '',
+        client: {
+          names: ''
+        },
         vin: '',
-        kilometraje_actual: 0
+        make: '',
+        model: '',
+        year: new Date().getFullYear(),
+        license_plate: '',
+        last_km: 0,
+        last_service_date: '',
+        next_service_date: ''
       })
     } catch (error) {
       console.error('Error al crear vehículo:', error)
@@ -356,145 +317,37 @@ export default function VehiculosPage() {
               <TableHead>Placa</TableHead>
               <TableHead>Kilometraje</TableHead>
               <TableHead>Último Servicio</TableHead>
-              <TableHead className="text-right">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {vehiculosFiltrados.map((vehiculo) => (
-              <TableRow key={vehiculo.id_uuid}>
+              <TableRow key={vehiculo.id}>
                 <TableCell>
                   <div>
-                    <p className="font-medium">{vehiculo.marca} {vehiculo.modelo}</p>
-                    <p className="text-sm text-muted-foreground">{vehiculo.anio}</p>
+                    <p className="font-medium">{vehiculo.make} {vehiculo.model}</p>
+                    <p className="text-sm text-muted-foreground">{vehiculo.year}</p>
                   </div>
                 </TableCell>
                 <TableCell>
                   <Link 
-                    href={`/backoffice/clientes?id=${vehiculo.id_cliente_uuid}`}
+                    href={`/backoffice/clientes?id=${vehiculo.client_id}`}
                     className="text-blue-600 hover:underline"
                   >
-                    {vehiculo.cliente.nombre}
+                    {vehiculo.client.names}
                   </Link>
                 </TableCell>
-                <TableCell>{vehiculo.placa || 'N/A'}</TableCell>
-                <TableCell>{vehiculo.kilometraje_actual ? `${vehiculo.kilometraje_actual} km` : 'N/A'}</TableCell>
+                <TableCell>{vehiculo.license_plate || 'N/A'}</TableCell>
+                <TableCell>{vehiculo.last_km ? `${vehiculo.last_km} km` : 'N/A'}</TableCell>
                 <TableCell>
-                  {vehiculo.fecha_ultimo_servicio ? 
-                    format(new Date(vehiculo.fecha_ultimo_servicio), 'PP', { locale: es }) : 
+                  {vehiculo.last_service_date ? 
+                    format(new Date(vehiculo.last_service_date), 'PP', { locale: es }) : 
                     'Sin servicios'}
-                </TableCell>
-                <TableCell className="text-right">
-                  <Button 
-                    variant="ghost" 
-                    size="sm"
-                    onClick={() => verDetalles(vehiculo.id_uuid)}
-                  >
-                    Ver detalles
-                  </Button>
                 </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-
-      <Dialog open={showDetalles} onOpenChange={setShowDetalles}>
-        <DialogContent className="max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>
-              Detalles del Vehículo
-            </DialogTitle>
-          </DialogHeader>
-          
-          {vehiculoSeleccionado && (
-            <Tabs defaultValue="info" className="space-y-4">
-              <TabsList>
-                <TabsTrigger value="info">
-                  <Car className="h-4 w-4 mr-2" />
-                  Información
-                </TabsTrigger>
-                <TabsTrigger value="servicios">
-                  <Wrench className="h-4 w-4 mr-2" />
-                  Servicios
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="info">
-                <Card>
-                  <CardContent className="pt-6">
-                    {vehiculos
-                      .filter(v => v.id_uuid === vehiculoSeleccionado)
-                      .map(vehiculo => (
-                        <div key={vehiculo.id_uuid} className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-sm font-medium">Marca y Modelo</p>
-                            <p className="text-sm text-muted-foreground">
-                              {vehiculo.marca} {vehiculo.modelo} ({vehiculo.anio})
-                            </p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">VIN</p>
-                            <p className="text-sm text-muted-foreground">
-                              {vehiculo.vin || 'No registrado'}
-                            </p>
-                          </div>
-                          {/* ... más detalles del vehículo ... */}
-                        </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="servicios">
-                <Card>
-                  <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Fecha</TableHead>
-                          <TableHead>Servicio</TableHead>
-                          <TableHead>Estado</TableHead>
-                          <TableHead>Notas</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {citasServicios.map((cita) => (
-                          <TableRow key={cita.id_uuid}>
-                            <TableCell>
-                              {format(new Date(cita.fecha_hora), "PPP 'a las' p", { locale: es })}
-                            </TableCell>
-                            <TableCell>{cita.servicios[0].nombre}</TableCell>
-                            <TableCell>
-                              <Badge
-                                variant={
-                                  cita.estado === 'completada' ? 'success' :
-                                  cita.estado === 'cancelada' ? 'destructive' :
-                                  cita.estado === 'confirmada' ? 'default' :
-                                  'secondary'
-                                }
-                              >
-                                {cita.estado}
-                              </Badge>
-                            </TableCell>
-                            <TableCell>{cita.notas || '-'}</TableCell>
-                          </TableRow>
-                        ))}
-                        {citasServicios.length === 0 && (
-                          <TableRow>
-                            <TableCell colSpan={4} className="text-center py-4">
-                              No hay servicios registrados para este vehículo
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          )}
-        </DialogContent>
-      </Dialog>
 
       <Dialog open={showNuevoVehiculo} onOpenChange={setShowNuevoVehiculo}>
         <DialogTrigger asChild>
@@ -507,20 +360,20 @@ export default function VehiculosPage() {
           <form onSubmit={handleSubmit}>
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="id_cliente_uuid" className="text-right">
+                <Label htmlFor="client_id" className="text-right">
                   Cliente
                 </Label>
                 <Select
-                  value={nuevoVehiculo.id_cliente_uuid}
-                  onValueChange={(value) => setNuevoVehiculo({...nuevoVehiculo, id_cliente_uuid: value})}
+                  value={nuevoVehiculo.client_id}
+                  onValueChange={(value) => setNuevoVehiculo({...nuevoVehiculo, client_id: value})}
                 >
                   <SelectTrigger className="col-span-3">
                     <SelectValue placeholder="Seleccione cliente" />
                   </SelectTrigger>
                   <SelectContent>
                     {clientesDisponibles.map(cliente => (
-                      <SelectItem key={cliente.id_uuid} value={cliente.id_uuid}>
-                        {cliente.nombre}
+                      <SelectItem key={cliente.id} value={cliente.id}>
+                        {cliente.names}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -528,13 +381,13 @@ export default function VehiculosPage() {
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="marca" className="text-right">
+                <Label htmlFor="make" className="text-right">
                   Marca
                 </Label>
                 <Input
-                  id="marca"
-                  name="marca"
-                  value={nuevoVehiculo.marca}
+                  id="make"
+                  name="make"
+                  value={nuevoVehiculo.make}
                   onChange={handleInputChange}
                   className="col-span-3"
                   required
@@ -542,13 +395,13 @@ export default function VehiculosPage() {
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="modelo" className="text-right">
+                <Label htmlFor="model" className="text-right">
                   Modelo
                 </Label>
                 <Input
-                  id="modelo"
-                  name="modelo"
-                  value={nuevoVehiculo.modelo}
+                  id="model"
+                  name="model"
+                  value={nuevoVehiculo.model}
                   onChange={handleInputChange}
                   className="col-span-3"
                   required
@@ -556,14 +409,14 @@ export default function VehiculosPage() {
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="anio" className="text-right">
+                <Label htmlFor="year" className="text-right">
                   Año
                 </Label>
                 <Input
-                  id="anio"
-                  name="anio"
+                  id="year"
+                  name="year"
                   type="number"
-                  value={nuevoVehiculo.anio}
+                  value={nuevoVehiculo.year}
                   onChange={handleInputChange}
                   className="col-span-3"
                   required
@@ -571,13 +424,13 @@ export default function VehiculosPage() {
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="placa" className="text-right">
+                <Label htmlFor="license_plate" className="text-right">
                   Placa
                 </Label>
                 <Input
-                  id="placa"
-                  name="placa"
-                  value={nuevoVehiculo.placa}
+                  id="license_plate"
+                  name="license_plate"
+                  value={nuevoVehiculo.license_plate}
                   onChange={handleInputChange}
                   className="col-span-3"
                   required
@@ -598,14 +451,14 @@ export default function VehiculosPage() {
               </div>
 
               <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="kilometraje_actual" className="text-right">
+                <Label htmlFor="last_km" className="text-right">
                   Kilometraje
                 </Label>
                 <Input
-                  id="kilometraje_actual"
-                  name="kilometraje_actual"
+                  id="last_km"
+                  name="last_km"
                   type="number"
-                  value={nuevoVehiculo.kilometraje_actual}
+                  value={nuevoVehiculo.last_km}
                   onChange={handleInputChange}
                   className="col-span-3"
                   required

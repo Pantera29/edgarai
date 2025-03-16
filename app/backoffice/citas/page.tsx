@@ -21,8 +21,8 @@ import { verifyToken } from "@/app/jwt/token"
 type EstadoCita = 'pendiente' | 'en_proceso' | 'completada' | 'cancelada'
 
 interface Cliente {
-  id_uuid: string
-  nombre: string
+  id: string            // Cambiado de id_uuid
+  names: string         // Cambiado de nombre
 }
 
 interface Servicio {
@@ -31,40 +31,44 @@ interface Servicio {
 }
 
 interface CitaDB {
-  id_uuid: string
-  cliente_id_uuid: string
-  servicio_id_uuid: string
-  vehiculo_id_uuid: string
-  fecha_hora: string
-  estado: EstadoCita
-  notas: string
+  id: bigint                  // Cambiado de id_uuid a id
   created_at: string
+  is_booked: boolean | null
+  appointment_date: string | null  // Cambiado de fecha_hora
+  appointment_time: string | null  // Añadido
+  client_id: string | null
+  vehicle_id: string | null
+  service_id: string | null
+  dealership_id: string | null
+  status: string | null        // Cambiado de estado
 }
 
 interface Cita {
-  id_uuid: string
-  cliente_id_uuid: string
-  servicio_id_uuid: string
-  vehiculo_id_uuid: string
-  fecha_hora: string
-  estado: EstadoCita
-  notas: string
+  id: bigint                   // Cambiado de id_uuid a id
   created_at: string
-  clientes: {
-    id_uuid: string
-    nombre: string
-  }
+  is_booked: boolean | null
+  appointment_date: string | null  // Cambiado de fecha_hora
+  appointment_time: string | null  // Añadido
+  client_id: string | null
+  vehicle_id: string | null
+  service_id: string | null
+  dealership_id: string | null
+  status: string | null         // Cambiado de estado
+  client: {
+    id: string
+    names: string
+  } | null
   services: {
     id_uuid: string
     service_name: string
-  }
-  vehiculos: {
+  } | null
+  vehicles: {
     id_uuid: string
-    marca: string
-    modelo: string
-    placa: string | null
-    id_cliente_uuid: string
-  }
+    make: string
+    model: string
+    license_plate: string | null
+    client_id: string
+  } | null
 }
 
 function CitasPageContent() {
@@ -89,37 +93,41 @@ function CitasPageContent() {
   const cargarCitas = async () => {
     try {
       const { data: citasData, error } = await supabase
-        .from('citas')
+        .from('appointment')
         .select(`
-          id_uuid,
-          cliente_id_uuid,
-          servicio_id_uuid,
-          vehiculo_id_uuid,
-          fecha_hora,
-          estado,
-          notas,
+          id,
           created_at,
-          clientes!citas_cliente_id_uuid_fkey (
-            id_uuid,
-            nombre
+          is_booked,
+          appointment_date,
+          appointment_time,
+          client_id,
+          vehicle_id,
+          service_id,
+          dealership_id,
+          status,
+          client!appointment_client_id_fkey (
+            id,
+            names
           ),
-          services!citas_servicio_id_uuid_fkey (
+          services!appointment_service_id_fkey (
             id_uuid,
             service_name
           ),
-          vehiculos!citas_vehiculo_id_uuid_fkey (
+          vehicles!appointment_vehicle_id_fkey (
             id_uuid,
-            marca,
-            modelo,
-            placa,
-            id_cliente_uuid
+            make,
+            model,
+            license_plate,
+            client_id
           )
         `)
-        .order('fecha_hora', { ascending: true })
+        .order('appointment_date', { ascending: true })
 
       if (error) throw error;
+      console.log("Citas cargadas:", citasData);
       setCitas(citasData as unknown as Cita[]);
     } catch (error) {
+      console.error("Error cargando citas:", error);
       toast({
         variant: "destructive",
         title: "Error",
@@ -162,13 +170,17 @@ function CitasPageContent() {
             </TableHeader>
             <TableBody>
               {citas.map((cita) => (
-                <TableRow key={cita.id_uuid}>
-                  <TableCell>{cita.clientes?.nombre}</TableCell>
+                <TableRow key={cita.id.toString()}>
+                  <TableCell>{cita.client?.names}</TableCell>
                   <TableCell>{cita.services?.service_name}</TableCell>
-                  <TableCell>{`${cita.vehiculos?.marca} ${cita.vehiculos?.modelo} (${cita.vehiculos?.placa || 'Sin placa'})`}</TableCell>
-                  <TableCell>{new Date(cita.fecha_hora).toLocaleString('es-ES')}</TableCell>
-                  <TableCell>{cita.estado}</TableCell>
-                  <TableCell>{cita.notas}</TableCell>
+                  <TableCell>{`${cita.vehicles?.make} ${cita.vehicles?.model} (${cita.vehicles?.license_plate || 'Sin placa'})`}</TableCell>
+                  <TableCell>
+                    {cita.appointment_date && cita.appointment_time ? 
+                      `${new Date(cita.appointment_date).toLocaleDateString('es-ES')} ${cita.appointment_time}` : 
+                      'No especificada'}
+                  </TableCell>
+                  <TableCell>{cita.status}</TableCell>
+                  <TableCell>-</TableCell>
                 </TableRow>
               ))}
               {citas.length === 0 && (

@@ -40,6 +40,16 @@ export const columns: ColumnDef<any>[] = [
     )
   },
   {
+    accessorKey: "appointment.vehicles",
+    header: "Vehículo",
+    cell: ({ row }) => {
+      const vehicle = row.original.appointment?.vehicles;
+      return vehicle 
+        ? `${vehicle.make} ${vehicle.model} (${vehicle.license_plate || 'Sin placa'})`
+        : '-';
+    }
+  },
+  {
     accessorKey: "nps",
     header: "NPS",
     cell: ({ row }) => {

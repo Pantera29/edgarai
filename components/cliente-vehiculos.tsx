@@ -30,22 +30,21 @@ import {
 import { Calendar, Clock, Bell, Wrench, Car, AlertTriangle } from "lucide-react"
 
 interface Vehiculo {
-  id_uuid: string
-  id_cliente_uuid: string
+  id: string
+  client_id: string
   vin: string | null
-  marca: string
-  modelo: string
-  anio: number
-  color: string | null
-  placa: string | null
-  kilometraje_actual: number | null
-  fecha_ultimo_servicio: string | null
-  fecha_proximo_servicio: string | null
-  tipo_garantia: string | null
-  fecha_vencimiento_garantia: string | null
-  estado_garantia: string | null
-  fecha_creacion: string | null
-  fecha_actualizacion: string | null
+  make: string
+  model: string
+  year: number
+  license_plate: string | null
+  last_km: number | null
+  last_service_date: string | null
+  next_service_date: string | null
+  garantia_type: string | null
+  garantia_expiration_date: string | null
+  garantia_state: string | null
+  created_at: string | null
+  updated_at: string | null
 }
 
 interface ServicioHistorial {
@@ -82,15 +81,15 @@ export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
     try {
       // Cargar vehículos
       const { data: vehiculosData, error: vehiculosError } = await supabase
-        .from('vehiculos')
+        .from('vehicles')
         .select('*')
-        .eq('id_cliente_uuid', clienteId)
+        .eq('client_id', clienteId)
 
       if (vehiculosError) throw vehiculosError
 
       setVehiculos(vehiculosData || [])
       if (vehiculosData?.length > 0) {
-        setVehiculoSeleccionado(vehiculosData[0].id_uuid)
+        setVehiculoSeleccionado(vehiculosData[0].id)
       }
     } catch (error) {
       console.error('Error cargando datos:', error)
@@ -104,9 +103,9 @@ export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
   }, [cargarDatos])
 
   const getEstadoGarantia = (vehiculo: Vehiculo) => {
-    if (!vehiculo.fecha_vencimiento_garantia) return 'Sin garantía'
+    if (!vehiculo.garantia_expiration_date) return 'Sin garantía'
     const hoy = new Date()
-    const vencimiento = new Date(vehiculo.fecha_vencimiento_garantia)
+    const vencimiento = new Date(vehiculo.garantia_expiration_date)
     return hoy > vencimiento ? 'Vencida' : 'Vigente'
   }
 
@@ -156,11 +155,11 @@ export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
           <TabsContent value="info" className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {vehiculos.map(vehiculo => (
-                <Card key={vehiculo.id_uuid}>
+                <Card key={vehiculo.id}>
                   <CardHeader>
                     <CardTitle className="flex items-center justify-between">
-                      <span>{vehiculo.marca} {vehiculo.modelo} {vehiculo.anio}</span>
-                      <Badge variant={vehiculo.estado_garantia === 'vigente' ? 'success' : 'destructive'}>
+                      <span>{vehiculo.make} {vehiculo.model} {vehiculo.year}</span>
+                      <Badge variant={vehiculo.garantia_state === 'vigente' ? 'success' : 'destructive'}>
                         {getEstadoGarantia(vehiculo)}
                       </Badge>
                     </CardTitle>
@@ -173,31 +172,27 @@ export function ClienteVehiculos({ clienteId }: { clienteId: string }) {
                       </div>
                       <div>
                         <p className="text-sm font-medium">Placa</p>
-                        <p className="text-sm text-muted-foreground">{vehiculo.placa || 'No registrada'}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Color</p>
-                        <p className="text-sm text-muted-foreground">{vehiculo.color || 'No especificado'}</p>
+                        <p className="text-sm text-muted-foreground">{vehiculo.license_plate || 'No registrada'}</p>
                       </div>
                       <div>
                         <p className="text-sm font-medium">Kilometraje</p>
                         <p className="text-sm text-muted-foreground">
-                          {vehiculo.kilometraje_actual ? `${vehiculo.kilometraje_actual} km` : 'No registrado'}
+                          {vehiculo.last_km ? `${vehiculo.last_km} km` : 'No registrado'}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm font-medium">Último servicio</p>
                         <p className="text-sm text-muted-foreground">
-                          {vehiculo.fecha_ultimo_servicio ? 
-                            format(new Date(vehiculo.fecha_ultimo_servicio), 'PP', { locale: es }) : 
+                          {vehiculo.last_service_date ? 
+                            format(new Date(vehiculo.last_service_date), 'PP', { locale: es }) : 
                             'Sin servicios'}
                         </p>
                       </div>
                       <div>
                         <p className="text-sm font-medium">Próximo servicio</p>
                         <p className="text-sm text-muted-foreground">
-                          {vehiculo.fecha_proximo_servicio ? 
-                            format(new Date(vehiculo.fecha_proximo_servicio), 'PP', { locale: es }) : 
+                          {vehiculo.next_service_date ? 
+                            format(new Date(vehiculo.next_service_date), 'PP', { locale: es }) : 
                             'No programado'}
                         </p>
                       </div>
