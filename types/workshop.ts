@@ -113,7 +113,7 @@ export interface Servicio {
 }
 
 export interface Service {
-  id_uuid: string;
+  id: string;
   service_name: string;
   description?: string;
   duration_minutes: number;
