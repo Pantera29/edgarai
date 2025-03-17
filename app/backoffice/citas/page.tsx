@@ -345,7 +345,7 @@ function CitasPageContent() {
         .update({ 
           appointment_date: nuevaFecha,
           appointment_time: selectedSlot.time,
-          status: 'rescheduled', // Estado en inglés
+          status: 'pending', // Cambiado de 'rescheduled' a 'pending'
           rescheduled_at: new Date().toISOString(),
           rescheduling_history: datosOriginales
         })
@@ -360,7 +360,7 @@ function CitasPageContent() {
             ...cita,
             appointment_date: nuevaFecha,
             appointment_time: selectedSlot.time,
-            status: 'rescheduled',
+            status: 'pending', // Cambiado de 'rescheduled' a 'pending'
             rescheduled_at: new Date().toISOString(),
             rescheduling_history: datosOriginales
           } as Cita; // Forzar el tipo para evitar errores
@@ -445,13 +445,6 @@ function CitasPageContent() {
                 En proceso
               </Button>
               <Button 
-                variant={filtroEstado === "rescheduled" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setFiltroEstado("rescheduled")}
-              >
-                Reagendadas
-              </Button>
-              <Button 
                 variant={filtroEstado === "completed" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setFiltroEstado("completed")}
@@ -512,7 +505,7 @@ function CitasPageContent() {
                         )}
                       </div>
                     )}
-                    {cita.status === 'rescheduled' && cita.rescheduled_at && cita.rescheduling_history && (
+                    {cita.rescheduled_at && cita.rescheduling_history && (
                       <div>
                         <p>Reagendada: {new Date(cita.rescheduled_at).toLocaleDateString('es-ES')}</p>
                         <p>Fecha anterior: {formatearFecha(cita.rescheduling_history.fecha_original)}</p>
@@ -524,10 +517,8 @@ function CitasPageContent() {
                     <div className="flex gap-1">
                       {(cita.status?.toLowerCase() === 'pending' || 
                         cita.status?.toLowerCase() === 'in_progress' || 
-                        cita.status?.toLowerCase() === 'rescheduled' || 
                         cita.status?.toLowerCase() === 'pendiente' || 
-                        cita.status?.toLowerCase() === 'en proceso' || 
-                        cita.status?.toLowerCase() === 'reagendada') && (
+                        cita.status?.toLowerCase() === 'en proceso') && (
                         <>
                           <Button 
                             variant="outline" 
