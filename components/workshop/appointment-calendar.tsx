@@ -37,13 +37,39 @@ export interface TimeSlot {
   }[];
 }
 
+// Añadir esta interfaz antes de las demás
+interface Appointment {
+  id: bigint;
+  client_id: string | null;
+  vehicle_id: string | null;
+  service_id: string | null;
+  appointment_date: string | null;
+  appointment_time: string | null;
+  status: string | null;
+  client?: {
+    id: string;
+    names: string;
+  };
+  services?: {
+    id_uuid: string;
+    service_name: string;
+    duration_minutes: number;
+  };
+  vehicles?: {
+    id_uuid: string;
+    make: string;
+    model: string;
+    license_plate: string | null;
+  };
+}
+
 interface AppointmentCalendarProps {
   selectedDate: Date | null;
   onSelect: (date: Date | undefined) => void;
   blockedDates: BlockedDate[];
   operatingHours: HorarioOperacion[];
   turnDuration: number;
-  appointments: Array<any>;
+  appointments: Appointment[];
   onTimeSlotSelect?: (slot: TimeSlot) => void;
   selectedService?: {
     id: string;
@@ -323,7 +349,7 @@ export function AppointmentCalendar({
     
     // Filtrar citas para este día
     const existingAppointments = appointments.filter(app => 
-      format(new Date(app.fecha_hora), 'yyyy-MM-dd') === dateStr
+      app.appointment_date && format(new Date(app.appointment_date), 'yyyy-MM-dd') === dateStr
     );
     
     const isPartiallyBlocked = !!block && !block.full_day;
@@ -367,16 +393,20 @@ export function AppointmentCalendar({
     // Filtrar citas para este día
     const dateStr = format(date, 'yyyy-MM-dd');
     const existingAppointments = appointments.filter(app => 
-      format(new Date(app.fecha_hora), 'yyyy-MM-dd') === dateStr
+      app.appointment_date && format(new Date(app.appointment_date), 'yyyy-MM-dd') === dateStr
     );
     
     // Generar slots con intervalos según la duración del turno
     for (let time = startTime; isBefore(time, endTime); time = addMinutes(time, turnDuration)) {
       const timeString = format(time, 'HH:mm:ss');
       const slotAppointments = existingAppointments.filter(app => {
-        const appTime = format(new Date(app.fecha_hora), 'HH:mm');
+        if (!app.appointment_date || !app.appointment_time || !app.services?.duration_minutes) {
+          return false;
+        }
+        
+        const appTime = format(new Date(`${app.appointment_date}T${app.appointment_time}`), 'HH:mm');
         const appEndTime = format(
-          addMinutes(new Date(app.fecha_hora), app.services.duration_minutes),
+          addMinutes(new Date(`${app.appointment_date}T${app.appointment_time}`), app.services.duration_minutes),
           'HH:mm'
         );
         
@@ -395,10 +425,10 @@ export function AppointmentCalendar({
         Math.max(0, schedule.max_simultaneous_services - occupiedSpaces);
       
       const mappedAppointments = slotAppointments.map(app => ({
-        id: app.id_uuid,
-        clientName: app.clientes.nombre,
-        serviceName: app.services.service_name,
-        duration: app.services.duration_minutes
+        id: app.id.toString(),
+        clientName: app.client ? app.client.names : 'Cliente',
+        serviceName: app.services ? app.services.service_name : 'Servicio',
+        duration: app.services ? app.services.duration_minutes : 30
       }));
       
       slots.push({

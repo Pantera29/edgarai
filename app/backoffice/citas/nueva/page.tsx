@@ -53,6 +53,21 @@ const stringToSafeDate = (dateString: string | null): Date => {
   }
 };
 
+// Función para traducir estados de inglés a español
+const traducirEstado = (estado: string | null): string => {
+  if (!estado) return 'Desconocido';
+  
+  const traducciones: Record<string, string> = {
+    'pending': 'Pendiente',
+    'in_progress': 'En proceso',
+    'completed': 'Completada',
+    'cancelled': 'Cancelada',
+    'rescheduled': 'Reagendada'
+  };
+  
+  return traducciones[estado] || estado;
+};
+
 export default function NuevaReservaPage() {
 
   const [token, setToken] = useState<string>("");
@@ -83,7 +98,7 @@ export default function NuevaReservaPage() {
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [filteredVehicles, setFilteredVehicles] = useState<ExtendedVehicle[]>([]);
   const [selectedService, setSelectedService] = useState('');
-  const [estado, setEstado] = useState<'pendiente' | 'en_proceso' | 'completada' | 'cancelada'>('pendiente');
+  const [estado, setEstado] = useState<'pending' | 'in_progress' | 'completed' | 'cancelled'>('pending');
   const [notas, setNotas] = useState('');
   const [servicios, setServicios] = useState<ExtendedService[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -366,6 +381,7 @@ export default function NuevaReservaPage() {
       servicio: selectedService,
       fecha: selectedDate,
       hora: selectedSlot,
+      estado: estado,
       fechaOriginal: selectedDate,
       fechaISOString: selectedDate ? new Date(selectedDate).toISOString() : null
     });
@@ -434,7 +450,9 @@ export default function NuevaReservaPage() {
         appointment_date: selectedDate,
         dealership_id: '6b58f82d-baa6-44ce-9941-1a61975d20b5',
         is_booked: true,
-        appointment_time: selectedSlot
+        appointment_time: selectedSlot,
+        status: estado,
+        notes: notas
       };
       
       console.log("Datos finales a insertar:", appointmentData);
@@ -672,16 +690,16 @@ export default function NuevaReservaPage() {
             <div className="col-span-11">
               <Select 
                 value={estado} 
-                onValueChange={(value: string) => setEstado(value as AppointmentStatus)}
+                onValueChange={(value: string) => setEstado(value as 'pending' | 'in_progress' | 'completed' | 'cancelled')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione un estado" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="pendiente">Pendiente</SelectItem>
-                  <SelectItem value="en_proceso">En Proceso</SelectItem>
-                  <SelectItem value="completada">Completada</SelectItem>
-                  <SelectItem value="cancelada">Cancelada</SelectItem>
+                  <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="in_progress">En Proceso</SelectItem>
+                  <SelectItem value="completed">Completada</SelectItem>
+                  <SelectItem value="cancelled">Cancelada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -725,6 +743,27 @@ export default function NuevaReservaPage() {
                 <span className="font-medium">Horario:</span>
                 <span>{selectedSlot || 'No seleccionado'}</span>
               </div>
+              <div className="grid grid-cols-2">
+                <span className="font-medium">Estado:</span>
+                <span>
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    estado === 'pending' ? 'bg-blue-100 text-blue-800' :
+                    estado === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
+                    estado === 'completed' ? 'bg-green-100 text-green-800' :
+                    estado === 'cancelled' ? 'bg-red-100 text-red-800' :
+                    estado === 'rescheduled' ? 'bg-purple-100 text-purple-800' :
+                    'bg-gray-100 text-gray-800'
+                  }`}>
+                    {traducirEstado(estado)}
+                  </span>
+                </span>
+              </div>
+              {notas && (
+                <div className="grid grid-cols-2">
+                  <span className="font-medium">Notas:</span>
+                  <span className="break-words">{notas}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
