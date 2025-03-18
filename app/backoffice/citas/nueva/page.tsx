@@ -449,7 +449,6 @@ export default function NuevaReservaPage() {
         service_id: selectedService,
         appointment_date: selectedDate,
         dealership_id: '6b58f82d-baa6-44ce-9941-1a61975d20b5',
-        is_booked: true,
         appointment_time: selectedSlot,
         status: estado,
         notes: notas
