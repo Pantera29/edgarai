@@ -42,6 +42,7 @@ interface Recordatorio {
     names: string
     email: string
     phone_number: string
+    dealership_id: string
   }
   vehicles: {
     make: string
@@ -82,6 +83,12 @@ export default function RecordatoriosPage() {
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
 
+        // Si hay un dealership_id en el token, cargar los recordatorios de esa agencia
+        if (verifiedDataToken?.dealership_id) {
+          fetchRecordatorios(verifiedDataToken.dealership_id);
+        } else {
+          fetchRecordatorios();
+        }
       }
     }
   }, [searchParams, router]); 
@@ -103,10 +110,11 @@ export default function RecordatoriosPage() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    fetchRecordatorios()
+    // Este efecto se deja vacío porque ahora cargamos los recordatorios
+    // después de verificar el token
   }, [])
 
-  const fetchRecordatorios = async () => {
+  const fetchRecordatorios = async (dealershipIdFromToken?: string) => {
     const { data, error } = await supabase
       .from('reminders')
       .select(`
@@ -114,7 +122,8 @@ export default function RecordatoriosPage() {
         client!reminders_client_id_fkey (
           names,
           email,
-          phone_number
+          phone_number,
+          dealership_id
         ),
         vehicles!reminders_vehicle_id_fkey (
           make,
@@ -131,9 +140,21 @@ export default function RecordatoriosPage() {
     }
 
     if (data) {
-      setRecordatorios(data as Recordatorio[])
-      setFilteredRecordatorios(data as Recordatorio[])
-      updateStats(data as Recordatorio[])
+      // Si hay un dealership_id en el token, filtrar los recordatorios
+      let filteredData = data as Recordatorio[];
+      
+      if (dealershipIdFromToken) {
+        console.log("Filtrando recordatorios por dealership_id:", dealershipIdFromToken);
+        // Filtrar los recordatorios por el dealership_id del cliente
+        filteredData = filteredData.filter(recordatorio => 
+          recordatorio.client && 
+          recordatorio.client.dealership_id === dealershipIdFromToken
+        );
+      }
+      
+      setRecordatorios(filteredData)
+      setFilteredRecordatorios(filteredData)
+      updateStats(filteredData)
     }
   }
 

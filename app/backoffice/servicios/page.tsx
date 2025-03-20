@@ -42,6 +42,7 @@ interface Servicio {
   description: string
   duration_minutes: number
   price: number
+  dealership_id?: string
 }
 
 export default function ServiciosPage() {
@@ -74,6 +75,12 @@ export default function ServiciosPage() {
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
 
+        // Si hay un dealership_id en el token, cargar los servicios de esa agencia
+        if (verifiedDataToken?.dealership_id) {
+          cargarServicios(verifiedDataToken.dealership_id);
+        } else {
+          cargarServicios();
+        }
       }
     }
   }, [searchParams, router]); 
@@ -93,10 +100,10 @@ export default function ServiciosPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
-    cargarServicios()
+    // No hacer nada aquí, ya que cargarServicios se llama después de verificar el token
   }, [])
 
-  async function cargarServicios() {
+  async function cargarServicios(dealershipIdFromToken?: string) {
     setLoading(true)
     try {
       const { data, error } = await supabase
@@ -105,7 +112,18 @@ export default function ServiciosPage() {
         .order('service_name')
 
       if (error) throw error
-      setServicios(data)
+      
+      let filteredServices = data || [];
+      
+      // Filtrar por dealership_id si existe en el token JWT
+      if (dealershipIdFromToken) {
+        console.log("Filtrando servicios por dealership_id:", dealershipIdFromToken);
+        filteredServices = filteredServices.filter(
+          service => !service.dealership_id || service.dealership_id === dealershipIdFromToken
+        );
+      }
+      
+      setServicios(filteredServices)
     } catch (error) {
       console.error('Error al cargar servicios:', error)
       toast({
@@ -138,6 +156,9 @@ export default function ServiciosPage() {
 
     setIsSubmitting(true)
     try {
+      // Obtener el dealership_id del token JWT si existe
+      const dealershipId = (dataToken as any)?.dealership_id;
+      
       const { error } = await supabase
         .from('services')
         .insert([
@@ -145,7 +166,8 @@ export default function ServiciosPage() {
             service_name: formData.service_name,
             description: formData.description,
             duration_minutes: formData.duration_minutes,
-            price: formData.price
+            price: formData.price,
+            dealership_id: dealershipId // Añadir el dealership_id del token
           }
         ])
 

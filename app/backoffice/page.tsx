@@ -18,6 +18,7 @@ interface Servicio {
 
 interface Cliente {
   nombre: string;
+  dealership_id?: string;
 }
 
 interface CitaSupabase {
@@ -78,6 +79,12 @@ export default function DashboardPage() {
               }
               setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
       
+              // Si hay un dealership_id en el token, cargar los datos de esa agencia
+              if (verifiedDataToken?.dealership_id) {
+                cargarDatos(verifiedDataToken.dealership_id);
+              } else {
+                cargarDatos();
+              }
             }
           }
         }, [searchParams, router]); 
@@ -85,34 +92,81 @@ export default function DashboardPage() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    cargarDatos()
+    // Este efecto se deja vacío porque ahora cargamos los datos
+    // después de verificar el token
   }, [])
 
-  const cargarDatos = async () => {
+  const cargarDatos = async (dealershipIdFromToken?: string) => {
     try {
-      // Total de clientes
-      const { count: totalClientes } = await supabase
+      let queryClientes = supabase
         .from('client')
         .select('*', { count: 'exact' })
+      
+      // Filtrar clientes por dealership_id si existe
+      if (dealershipIdFromToken) {
+        console.log("Filtrando clientes por dealership_id:", dealershipIdFromToken);
+        queryClientes = queryClientes.eq('dealership_id', dealershipIdFromToken)
+      }
+      
+      const { count: totalClientes } = await queryClientes
 
-      // Total de vehículos
-      const { count: totalVehiculos } = await supabase
+      // Total de vehículos - filtrar por vehículos asociados a clientes de esta agencia
+      let queryVehiculos = supabase
         .from('vehicles')
-        .select('*', { count: 'exact' })
+        .select(`
+          *,
+          client!vehicles_client_id_fkey (
+            dealership_id
+          )
+        `, { count: 'exact' })
+      
+      // Filtrar vehículos por dealership_id del cliente si existe
+      if (dealershipIdFromToken) {
+        console.log("Filtrando vehículos por dealership_id del cliente:", dealershipIdFromToken);
+        queryVehiculos = queryVehiculos.eq('client.dealership_id', dealershipIdFromToken)
+      }
+      
+      const { count: totalVehiculos } = await queryVehiculos
 
-      // Citas pendientes
-      const { count: citasPendientes } = await supabase
+      // Citas pendientes - filtrar por citas de clientes de esta agencia
+      let queryCitasPendientes = supabase
         .from('appointment')
-        .select('*', { count: 'exact' })
+        .select(`
+          *,
+          client!appointment_client_id_fkey (
+            dealership_id
+          )
+        `, { count: 'exact' })
         .eq('status', 'pendiente')
+      
+      // Filtrar citas pendientes por dealership_id del cliente si existe
+      if (dealershipIdFromToken) {
+        console.log("Filtrando citas pendientes por dealership_id del cliente:", dealershipIdFromToken);
+        queryCitasPendientes = queryCitasPendientes.eq('client.dealership_id', dealershipIdFromToken)
+      }
+      
+      const { count: citasPendientes } = await queryCitasPendientes
 
-      // Citas de hoy
+      // Citas de hoy - filtrar por citas de clientes de esta agencia
       const hoy = new Date().toISOString().split('T')[0]
-      const { count: citasHoy } = await supabase
+      let queryCitasHoy = supabase
         .from('appointment')
-        .select('*', { count: 'exact' })
+        .select(`
+          *,
+          client!appointment_client_id_fkey (
+            dealership_id
+          )
+        `, { count: 'exact' })
         .gte('fecha_hora', hoy)
         .lt('fecha_hora', hoy + 'T23:59:59')
+      
+      // Filtrar citas de hoy por dealership_id del cliente si existe
+      if (dealershipIdFromToken) {
+        console.log("Filtrando citas de hoy por dealership_id del cliente:", dealershipIdFromToken);
+        queryCitasHoy = queryCitasHoy.eq('client.dealership_id', dealershipIdFromToken)
+      }
+      
+      const { count: citasHoy } = await queryCitasHoy
 
       // Obtener la fecha actual al inicio del día
       const hoyInicio = new Date()
@@ -122,26 +176,44 @@ export default function DashboardPage() {
       const fechaLimite = new Date(hoyInicio)
       fechaLimite.setDate(fechaLimite.getDate() + 4)
 
-      const { data: proximasCitas } = await supabase
+      // Próximas citas - filtrar por citas de clientes de esta agencia
+      let queryProximasCitas = supabase
         .from('appointment')
         .select(`
           id_uuid,
           fecha_hora,
           status,
           clientes (
-            nombre
+            nombre,
+            dealership_id
           ),
           servicios (
             nombre
           )
-        `) as { data: CitaSupabase[] | null }
+        `)
+      
+      // Filtrar próximas citas por dealership_id del cliente si existe
+      if (dealershipIdFromToken) {
+        console.log("Filtrando próximas citas por dealership_id del cliente:", dealershipIdFromToken);
+        // Inicialmente no aplicamos el filtro en la consulta, lo haremos manualmente después
+      }
+      
+      const { data: proximasCitas } = await queryProximasCitas as { data: CitaSupabase[] | null }
 
-      const citasFormateadas = proximasCitas?.map(cita => ({
+      // Filtrar manualmente las citas por dealership_id del cliente si es necesario
+      let citasFiltradas = proximasCitas || [];
+      if (dealershipIdFromToken && citasFiltradas.length > 0) {
+        citasFiltradas = citasFiltradas.filter(cita => 
+          cita.clientes && cita.clientes.dealership_id === dealershipIdFromToken
+        );
+      }
+
+      const citasFormateadas = citasFiltradas.map(cita => ({
         id_uuid: cita.id_uuid,
         fecha_hora: cita.fecha_hora,
         status: cita.status,
         cliente: {
-          nombre: cita.clientes.nombre || 'Error al cargar cliente'
+          nombre: cita.clientes?.nombre || 'Error al cargar cliente'
         },
         servicios: cita.servicios ? [{ nombre: cita.servicios.nombre }] : []
       })) || []

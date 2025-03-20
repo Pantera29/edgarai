@@ -71,6 +71,7 @@ const traducirEstado = (estado: string | null): string => {
 export default function NuevaReservaPage() {
 
   const [token, setToken] = useState<string>("");
+  const [verifiedDataToken, setVerifiedDataToken] = useState<any>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -78,18 +79,15 @@ export default function NuevaReservaPage() {
     const tokenValue = params.get("token"); // Obtiene el token de los query params
     if (tokenValue) {
       setToken(tokenValue); // Actualiza el estado con el token
-      const verifiedDataToken = verifyToken(tokenValue);
+      const verifiedData = verifyToken(tokenValue);
       
-      if (!verifiedDataToken) {
+      setVerifiedDataToken(verifiedData);
+      
+      if (!verifiedData) {
         router.push("/login"); // Redirigir si el token es inválido
       }
     }
   }, [router]);
-
-
-
-
-
 
   const { toast } = useToast();
   const [clientes, setClientes] = useState<ExtendedClient[]>([]);
@@ -448,7 +446,7 @@ export default function NuevaReservaPage() {
         vehicle_id: selectedVehicle, // ID que ya verificamos
         service_id: selectedService,
         appointment_date: selectedDate,
-        dealership_id: '6b58f82d-baa6-44ce-9941-1a61975d20b5',
+        dealership_id: verifiedDataToken?.dealership_id || '6b58f82d-baa6-44ce-9941-1a61975d20b5',
         appointment_time: selectedSlot,
         status: estado,
         notes: notas

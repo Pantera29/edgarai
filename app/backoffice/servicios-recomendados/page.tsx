@@ -43,6 +43,7 @@ interface RecommendedService {
     client: {
       id: string
       names: string
+      dealership_id?: string
     } | null
   } | null
   service: {
@@ -54,6 +55,7 @@ interface RecommendedService {
 
 function ServiciosRecomendadosContent() {
   const [token, setToken] = useState<string>("");
+  const [dataToken, setDataToken] = useState<any>(null);
   const [recommendedServices, setRecommendedServices] = useState<RecommendedService[]>([]);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
@@ -69,11 +71,28 @@ function ServiciosRecomendadosContent() {
       
       if (!verifiedDataToken) {
         router.push("/login");
+      } else {
+        setDataToken(verifiedDataToken);
+        
+        // Si hay un dealership_id en el token, cargar los servicios recomendados de esa agencia
+        if (verifiedDataToken?.dealership_id) {
+          loadRecommendedServices(verifiedDataToken.dealership_id);
+        } else {
+          loadRecommendedServices();
+        }
       }
     }
   }, [router]);
 
-  const loadRecommendedServices = async () => {
+  // Actualizar cuando cambia el tab para mantener el filtrado por dealership_id
+  useEffect(() => {
+    if (dataToken?.dealership_id) {
+      // Recargamos manteniendo el filtro por dealership_id cuando cambia el tab
+      loadRecommendedServices(dataToken.dealership_id);
+    }
+  }, [activeTab]);
+
+  const loadRecommendedServices = async (dealershipIdFromToken?: string) => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -88,7 +107,8 @@ function ServiciosRecomendadosContent() {
             client_id,
             client:client_id (
               id,
-              names
+              names,
+              dealership_id
             )
           ),
           service:service_id (
@@ -100,7 +120,18 @@ function ServiciosRecomendadosContent() {
         .order('recommended_date', { ascending: false });
 
       if (error) throw error;
-      setRecommendedServices(data || []);
+      
+      let filteredData = data || [];
+      
+      // Filtrar por dealership_id si existe en el token JWT
+      if (dealershipIdFromToken) {
+        console.log("Filtrando servicios recomendados por dealership_id:", dealershipIdFromToken);
+        filteredData = filteredData.filter(service => 
+          service.vehicle?.client?.dealership_id === dealershipIdFromToken
+        );
+      }
+      
+      setRecommendedServices(filteredData);
     } catch (error) {
       console.error("Error cargando servicios recomendados:", error);
       toast({
@@ -112,10 +143,6 @@ function ServiciosRecomendadosContent() {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    loadRecommendedServices();
-  }, []);
 
   const filteredServices = recommendedServices.filter(service => {
     if (activeTab === "all") return true;
@@ -236,4 +263,4 @@ export default function ServiciosRecomendadosPage() {
       <ServiciosRecomendadosContent />
     </div>
   );
-} 
+}

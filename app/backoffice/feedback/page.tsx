@@ -121,6 +121,12 @@ export default function FeedbackPage() {
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
 
+        // Si hay un dealership_id en el token, cargar los datos de esa agencia
+        if (verifiedDataToken?.dealership_id) {
+          fetchData(verifiedDataToken.dealership_id);
+        } else {
+          fetchData();
+        }
       }
     }
   }, [searchParams, router]); 
@@ -134,7 +140,7 @@ export default function FeedbackPage() {
     classification: "todas"
   })
 
-  const fetchData = async () => {
+  const fetchData = async (dealershipIdFromToken?: string) => {
     setLoading(true)
     try {
       let query = supabase
@@ -142,9 +148,17 @@ export default function FeedbackPage() {
         .select(`
           *,
           client (
-            names
+            names,
+            dealership_id
           )
         `)
+
+      // Filtrar por dealership_id si está disponible
+      if (dealershipIdFromToken) {
+        console.log("Filtrando NPS por dealership_id:", dealershipIdFromToken);
+        // Aquí filtramos por el dealership_id del cliente asociado con el NPS
+        query = query.eq('client.dealership_id', dealershipIdFromToken);
+      }
 
       if (filters.status !== "todos") {
         // Convertir los valores en español a inglés para la consulta
@@ -173,7 +187,16 @@ export default function FeedbackPage() {
 
       if (error) throw error
 
-      const formattedData = data.map(item => ({
+      // Si filtramos por dealership_id, verificamos manualmente los resultados
+      // porque la consulta anterior con eq('client.dealership_id') podría no funcionar como esperamos
+      let filteredData = data;
+      if (dealershipIdFromToken) {
+        filteredData = data.filter(item => 
+          item.client && item.client.dealership_id === dealershipIdFromToken
+        );
+      }
+
+      const formattedData = filteredData.map(item => ({
         ...item,
         customer_name: item.client?.names || '-'
       }))
@@ -187,8 +210,13 @@ export default function FeedbackPage() {
   }
 
   useEffect(() => {
-    fetchData()
-  }, [filters])
+    // Si hay un dealership_id en el token, usarlo al recargar los datos
+    if (dataToken && (dataToken as any).dealership_id) {
+      fetchData((dataToken as any).dealership_id);
+    } else {
+      fetchData();
+    }
+  }, [filters, dataToken])
 
   return (
     <div className="container mx-auto py-10">

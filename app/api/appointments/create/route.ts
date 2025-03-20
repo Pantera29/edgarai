@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { getDealershipId } from "@/lib/config";
 
 // Definimos los canales permitidos
 type AppointmentChannel = 'whatsapp' | 'twilio' | 'manual' | 'web' | 'voiceflow';
@@ -17,7 +18,10 @@ export async function POST(request: Request) {
       appointment_date, 
       appointment_time,
       notes,
-      channel = 'manual' // Valor por defecto si no se proporciona
+      channel = 'manual', // Valor por defecto si no se proporciona
+      dealership_id = null, // Permitir que se envíe un dealership_id explícito
+      dealership_phone = null, // Número de teléfono para buscar el dealership
+      phone_number = null // Mantener para compatibilidad
     } = await request.json();
 
     // Validar campos requeridos
@@ -105,7 +109,11 @@ export async function POST(request: Request) {
         appointment_date,
         appointment_time,
         status: 'pending',
-        dealership_id: '6b58f82d-baa6-44ce-9941-1a61975d20b5',
+        dealership_id: await getDealershipId({ 
+          dealershipId: dealership_id,
+          dealershipPhone: dealership_phone || (channel === 'whatsapp' ? phone_number : null),
+          supabase 
+        }),
         notes: notes || null,
         channel: channel // Añadimos el canal de origen
       }])
