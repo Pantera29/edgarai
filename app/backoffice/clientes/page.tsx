@@ -71,6 +71,10 @@ const router = useRouter();
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
 
+        // Si hay un dealership_id en el token, cargar los clientes de esa agencia
+        if (verifiedDataToken?.dealership_id) {
+          cargarClientes(verifiedDataToken.dealership_id);
+        }
       }
     }
   }, [searchParams, router]); 
@@ -90,9 +94,15 @@ const router = useRouter();
     phone_number: "",
   });
 
+  // Efecto para recargar los clientes cuando cambien los filtros
   useEffect(() => {
-    cargarClientes();
-  }, [busqueda, filtroEstado, pagina]);
+    // Si hay un dealership_id en el token, usarlo al recargar los clientes
+    if (dataToken && (dataToken as any).dealership_id) {
+      cargarClientes((dataToken as any).dealership_id);
+    } else {
+      cargarClientes();
+    }
+  }, [busqueda, filtroEstado, pagina, dataToken]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -102,7 +112,7 @@ const router = useRouter();
     }
   }, []);
 
-  const cargarClientes = async () => {
+  const cargarClientes = async (dealershipIdFromToken?: string) => {
     setLoading(true);
     try {
       let query = supabase
@@ -110,6 +120,12 @@ const router = useRouter();
         .select("*", { count: "exact" })
         .order("names")
         .range((pagina - 1) * ITEMS_PER_PAGE, pagina * ITEMS_PER_PAGE - 1);
+
+      // Filtrar por dealership_id si está disponible en el token
+      if (dealershipIdFromToken) {
+        console.log("Filtrando clientes por dealership_id:", dealershipIdFromToken);
+        query = query.eq("dealership_id", dealershipIdFromToken);
+      }
 
       if (busqueda) {
         query = query.or(
@@ -169,6 +185,11 @@ const router = useRouter();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Usar el dealership_id del token o el valor predeterminado
+      const dealershipId = dataToken && (dataToken as any).dealership_id 
+        ? (dataToken as any).dealership_id 
+        : '6b58f82d-baa6-44ce-9941-1a61975d20b5';
+        
       const { data, error } = await supabase
         .from("client")
         .insert([
@@ -176,7 +197,7 @@ const router = useRouter();
             names: nuevoCliente.names,
             email: nuevoCliente.email,
             phone_number: nuevoCliente.phone_number,
-            dealership_id: '6b58f82d-baa6-44ce-9941-1a61975d20b5'
+            dealership_id: dealershipId
           },
         ])
         .select();

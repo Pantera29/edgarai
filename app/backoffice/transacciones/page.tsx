@@ -65,6 +65,12 @@ function TransaccionesContent() {
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
 
+        // Si hay un dealership_id en el token, cargar las transacciones de esa agencia
+        if (verifiedDataToken?.dealership_id) {
+          fetchTransactions(0, verifiedDataToken.dealership_id);
+        } else {
+          fetchTransactions(0);
+        }
       }
     }
   }, [searchParamsToken, router]); 
@@ -104,8 +110,8 @@ function TransaccionesContent() {
 
   // Crear versión debounced de fetchTransactions
   const debouncedFetch = useDebouncedCallback(
-    (newFilters: Filters) => {
-      fetchTransactions(0)
+    (newFilters: Filters, pageIndex: number = 0, dealershipId?: string) => {
+      fetchTransactions(pageIndex, dealershipId)
     },
     500  // esperar 500ms antes de ejecutar
   )
@@ -122,14 +128,17 @@ function TransaccionesContent() {
       newFilters.startDate === null || 
       newFilters.endDate === null
     ) {
-      fetchTransactions(0)
+      // Obtener dealership_id del token JWT para mantener el filtrado por agencia
+      const dealershipId = (dataToken as any)?.dealership_id;
+      fetchTransactions(0, dealershipId)
     } else {
       // Solo usar debounce para nuevos filtros
-      debouncedFetch(updatedFilters)
+      const dealershipId = (dataToken as any)?.dealership_id;
+      debouncedFetch(updatedFilters, 0, dealershipId)
     }
   }
 
-  const fetchTransactions = async (pageIndex: number) => {
+  const fetchTransactions = async (pageIndex: number, dealershipIdFromToken?: string) => {
     setLoading(true)
     try {
       const { data: transacciones, error } = await supabase
@@ -140,7 +149,8 @@ function TransaccionesContent() {
             id,
             appointment_date,
             client (
-              names
+              names,
+              dealership_id
             ),
             vehicles (
               make,
@@ -153,8 +163,18 @@ function TransaccionesContent() {
 
       if (error) throw error
       
-      setData(transacciones || [])
-      setPageCount(Math.ceil((transacciones?.length || 0) / 10))
+      let filteredTransactions = transacciones || [];
+      
+      // Filtrar por dealership_id si existe en el token JWT
+      if (dealershipIdFromToken) {
+        console.log("Filtrando transacciones por dealership_id:", dealershipIdFromToken);
+        filteredTransactions = filteredTransactions.filter(
+          transaction => transaction.appointment?.client?.dealership_id === dealershipIdFromToken
+        );
+      }
+      
+      setData(filteredTransactions)
+      setPageCount(Math.ceil((filteredTransactions.length || 0) / 10))
     } catch (error) {
       console.error('Error:', error)
       toast({
@@ -169,14 +189,16 @@ function TransaccionesContent() {
 
   // Reemplazar el useEffect existente
   useEffect(() => {
-    fetchTransactions(0)
+    // No hacer nada aquí, ya que fetchTransactions se llama después de verificar el token
   }, []) // Solo ejecutar al montar el componente
 
   // Función para resetear filtros
   const resetFilters = () => {
     setFilters(initialFilters)
     // Llamar directamente a fetchTransactions en lugar de esperar el debounce
-    fetchTransactions(0)
+    // Mantener el filtrado por dealership_id
+    const dealershipId = (dataToken as any)?.dealership_id;
+    fetchTransactions(0, dealershipId)
   }
 
   return (

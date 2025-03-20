@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { getDealershipId } from "@/lib/config";
 
 export async function POST(request: Request) {
   try {
     const supabase = createServerComponentClient({ cookies });
     
     // Obtener datos del cuerpo de la solicitud
-    const { names, email, phone_number, dealership_id } = await request.json();
+    const { names, email, phone_number, dealership_id, dealership_phone } = await request.json();
 
     // Validar campos requeridos
-    if (!names || !email || !phone_number || !dealership_id) {
+    if (!names || !email || !phone_number) {
       return NextResponse.json(
         { message: 'Missing required parameters' },
         { status: 400 }
@@ -48,10 +49,16 @@ export async function POST(request: Request) {
       );
     }
 
+    // Determinar el dealership_id a usar
+    const dealershipIdToUse = dealership_id || await getDealershipId({ 
+      dealershipPhone: dealership_phone, 
+      supabase 
+    });
+
     // Crear nuevo cliente
     const { data: newClient, error: insertError } = await supabase
       .from('client')
-      .insert([{ names, email, phone_number, dealership_id }])
+      .insert([{ names, email, phone_number, dealership_id: dealershipIdToUse }])
       .select()
       .single();
 

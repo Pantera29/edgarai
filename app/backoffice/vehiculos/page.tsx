@@ -107,6 +107,11 @@ export default function VehiculosPage() {
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
 
+        // Si hay un dealership_id en el token, cargar los vehículos de esa agencia
+        if (verifiedDataToken?.dealership_id) {
+          cargarVehiculos(verifiedDataToken.dealership_id);
+          cargarClientes(verifiedDataToken.dealership_id);
+        }
       }
     }
   }, [searchParams, router]); 
@@ -150,17 +155,43 @@ export default function VehiculosPage() {
     }
   }, [])
 
-  const cargarVehiculos = async () => {
+  const cargarVehiculos = async (dealershipIdFromToken?: string) => {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase
+      // Consulta base para obtener los vehículos
+      let query = supabase
         .from('vehicles')
         .select(`
           *,
           client:client(names)
         `)
         .order('make')
+      
+      // Si tenemos un dealership_id del token, filtrar por él usando la relación con client
+      if (dealershipIdFromToken) {
+        console.log("Filtrando vehículos por dealership_id:", dealershipIdFromToken);
+        // Primero obtenemos los clientes de esa agencia
+        const { data: clientsData } = await supabase
+          .from('client')
+          .select('id')
+          .eq('dealership_id', dealershipIdFromToken);
+        
+        if (clientsData && clientsData.length > 0) {
+          // Extraemos los IDs de los clientes
+          const clientIds = clientsData.map(client => client.id);
+          // Filtramos los vehículos por esos clientes
+          query = query.in('client_id', clientIds);
+        } else {
+          // Si no hay clientes, devolver lista vacía
+          setVehiculos([]);
+          setMarcasDisponibles([]);
+          setLoading(false);
+          return;
+        }
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error
 
@@ -201,12 +232,20 @@ export default function VehiculosPage() {
   }
 
   // Cargar lista de clientes para el selector
-  const cargarClientes = async () => {
+  const cargarClientes = async (dealershipIdFromToken?: string) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('client')
         .select('id, names')
         .order('names')
+      
+      // Si tenemos un dealership_id del token, filtrar por él
+      if (dealershipIdFromToken) {
+        console.log("Filtrando clientes por dealership_id:", dealershipIdFromToken);
+        query = query.eq('dealership_id', dealershipIdFromToken);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error
       setClientesDisponibles(data || [])
@@ -230,6 +269,17 @@ export default function VehiculosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
+      // Obtener el cliente seleccionado
+      const selectedClient = clientesDisponibles.find(
+        client => client.id === nuevoVehiculo.client_id
+      );
+      
+      // Si no hay cliente seleccionado, mostrar error
+      if (!selectedClient) {
+        console.error('Debe seleccionar un cliente');
+        return;
+      }
+      
       // Asegurarse de que todos los campos del formulario coincidan con los de la base de datos
       const vehiculoData = {
         client_id: nuevoVehiculo.client_id,

@@ -11,6 +11,7 @@ import { Switch } from "@/components/ui/switch";
 import { Clock } from 'lucide-react';
 import { toast } from "sonner";
 import { cn } from '@/lib/utils';
+import { verifyToken } from "@/app/jwt/token";
 
 const DAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -28,26 +29,47 @@ export default function WorkshopConfiguration() {
   const loadAll = async () => {
     setIsLoading(true);
     try {
-      // Obtener un dealership_id válido
-      const { data: dealershipData, error: dealershipError } = await supabase
-        .from('dealerships')
-        .select('id')
-        .limit(1)
-        .single();
-
-      if (dealershipError) {
-        console.error('Error al cargar dealership:', dealershipError);
-        toast.error('Error al cargar la información del concesionario');
-        return;
+      let dealershipId;
+     
+      // Obtener del token JWT (si está disponible)
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+        
+        if (token) {
+          try {
+            const verifiedDataToken = verifyToken(token);
+            if (verifiedDataToken?.dealership_id) {
+              dealershipId = verifiedDataToken.dealership_id;
+            }
+          } catch (error) {
+            console.error('Error al decodificar el token', error);
+          }
+        }
       }
-
-      const validDealershipId = dealershipData?.id;
+     
+      // Si no hay dealership_id en el token, usar el predeterminado
+      if (!dealershipId) {
+        const { data: dealershipData, error: dealershipError } = await supabase
+          .from('dealerships')
+          .select('id')
+          .limit(1)
+          .single();
+        
+        if (dealershipError) {
+          console.error('Error al cargar dealership:', dealershipError);
+          toast.error('Error al cargar la información del concesionario');
+          return;
+        }
+        
+        dealershipId = dealershipData?.id;
+      }
 
       // Cargar configuración
       const { data: configData } = await supabase
         .from('dealership_configuration')
         .select('*')
-        .eq('dealership_id', validDealershipId)
+        .eq('dealership_id', dealershipId)
         .limit(1)
         .single();
 
@@ -56,7 +78,7 @@ export default function WorkshopConfiguration() {
       } else {
         // Si no existe una configuración, crear una predeterminada
         const defaultConfig: TallerConfig = {
-          dealership_id: validDealershipId,
+          dealership_id: dealershipId,
           shift_duration: 30,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
@@ -68,7 +90,7 @@ export default function WorkshopConfiguration() {
       const { data: schedulesData } = await supabase
         .from('operating_hours')
         .select('*')
-        .eq('dealership_id', validDealershipId)
+        .eq('dealership_id', dealershipId)
         .order('day_of_week');
 
       if (schedulesData && schedulesData.length > 0) {
@@ -77,7 +99,7 @@ export default function WorkshopConfiguration() {
         // Crear horarios por defecto con day_of_week de 1 a 7
         const defaultSchedules = DAYS.map((_, index) => ({
           schedule_id: crypto.randomUUID(),
-          dealership_id: validDealershipId, // Usar un ID válido de dealership
+          dealership_id: dealershipId, // Usar un ID válido de dealership
           day_of_week: index + 1, // Ajustar a 1-7
           is_working_day: index !== 0,
           opening_time: '09:00:00',
@@ -96,25 +118,49 @@ export default function WorkshopConfiguration() {
 
   const handleSave = async () => {
     try {
-      // Obtener un dealership_id válido
-      const { data: dealershipData, error: dealershipError } = await supabase
-        .from('dealerships')
-        .select('id')
-        .limit(1)
-        .single();
+      // Obtener dealership_id del token o usar el actual
+      let dealershipId = config?.dealership_id;
 
-      if (dealershipError) {
-        console.error('Error al cargar dealership:', dealershipError);
-        toast.error('Error al guardar: no se encontró un concesionario válido');
-        return;
+      // Si por alguna razón no tenemos un dealership_id, intentar obtenerlo
+      if (!dealershipId) {
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const token = params.get('token');
+          
+          if (token) {
+            try {
+              const verifiedDataToken = verifyToken(token);
+              if (verifiedDataToken?.dealership_id) {
+                dealershipId = verifiedDataToken.dealership_id;
+              }
+            } catch (error) {
+              console.error('Error al decodificar el token', error);
+            }
+          }
+        }
+
+        // Si seguimos sin tenerlo, buscar uno en la base de datos
+        if (!dealershipId) {
+          const { data: dealershipData, error: dealershipError } = await supabase
+            .from('dealerships')
+            .select('id')
+            .limit(1)
+            .single();
+
+          if (dealershipError) {
+            console.error('Error al cargar dealership:', dealershipError);
+            toast.error('Error al guardar: no se encontró un concesionario válido');
+            return;
+          }
+
+          dealershipId = dealershipData?.id;
+        }
       }
-
-      const validDealershipId = dealershipData?.id;
 
       // Asegurarse de que config tenga el dealership_id correcto
       const updatedConfig = {
         ...config,
-        dealership_id: validDealershipId,
+        dealership_id: dealershipId,
         updated_at: new Date().toISOString()
       };
 
@@ -128,7 +174,7 @@ export default function WorkshopConfiguration() {
       // Asegurar que todos los horarios tengan el dealership_id correcto
       const updatedSchedules = schedules.map(schedule => ({
         ...schedule,
-        dealership_id: validDealershipId
+        dealership_id: dealershipId
       }));
 
       const { error: scheduleError } = await supabase

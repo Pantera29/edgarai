@@ -44,7 +44,6 @@ interface Servicio {
 interface CitaDB {
   id: bigint                  // Cambiado de id_uuid a id
   created_at: string
-  is_booked: boolean | null
   appointment_date: string | null  // Cambiado de fecha_hora
   appointment_time: string | null  // Añadido
   client_id: string | null
@@ -57,7 +56,6 @@ interface CitaDB {
 interface Cita {
   id: bigint                   // Cambiado de id_uuid a id
   created_at: string
-  is_booked: boolean | null
   appointment_date: string | null  // Cambiado de fecha_hora
   appointment_time: string | null  // Añadido
   client_id: string | null
@@ -145,18 +143,22 @@ function CitasPageContent() {
       
       if (!verifiedDataToken) {
         router.push("/login"); // Redirigir si el token es inválido
+      } else {
+        // Guardar el dealership_id del token para usarlo en las cargas
+        cargarCitas(verifiedDataToken.dealership_id);
+        cargarConfiguracion();
       }
     }
   }, [router]);
 
-  const cargarCitas = async () => {
+  const cargarCitas = async (dealershipIdFromToken?: string) => {
     try {
-      const { data: citasData, error } = await supabase
+      // Construir la consulta base
+      let query = supabase
         .from('appointment')
         .select(`
           id,
           created_at,
-          is_booked,
           appointment_date,
           appointment_time,
           client_id,
@@ -183,9 +185,18 @@ function CitasPageContent() {
             license_plate,
             client_id
           )
-        `)
+        `);
+      
+      // Si tenemos un dealership_id del token, filtrar por él
+      if (dealershipIdFromToken) {
+        console.log("Filtrando citas por dealership_id:", dealershipIdFromToken);
+        query = query.eq('dealership_id', dealershipIdFromToken);
+      }
+        
+      // Aplicar ordenamiento
+      const { data: citasData, error } = await query
         .order('appointment_date', { ascending: true })
-        .order('appointment_time', { ascending: true })
+        .order('appointment_time', { ascending: true });
 
       if (error) throw error;
       console.log("Citas cargadas:", citasData);

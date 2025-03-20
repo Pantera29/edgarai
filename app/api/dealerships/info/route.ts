@@ -1,21 +1,27 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { getDealershipId } from "@/lib/config";
 
 /**
- * GET endpoint para obtener información detallada de una agencia incluyendo
- * horarios de operación y configuración
- * 
- * Query params:
- * - dealership_id: ID de la agencia (opcional, si no se proporciona se usará una por defecto)
+ * GET endpoint para obtener información detallada de una agencia
  */
 export async function GET(request: Request) {
   try {
     const supabase = createServerComponentClient({ cookies });
     const { searchParams } = new URL(request.url);
     
-    // Obtener dealership_id de los parámetros o usar uno por defecto
-    const dealershipId = searchParams.get('dealership_id') || '6b58f82d-baa6-44ce-9941-1a61975d20b5';
+    // Obtener parámetros
+    const explicitDealershipId = searchParams.get('dealership_id');
+    const dealershipPhone = searchParams.get('dealership_phone');
+    const phoneNumber = searchParams.get('phone_number'); // Mantener por compatibilidad
+    
+    // Determinar el dealership_id a usar
+    const dealershipId = await getDealershipId({
+      dealershipId: explicitDealershipId,
+      dealershipPhone: dealershipPhone || phoneNumber,
+      supabase
+    });
     
     // Consultas en paralelo para mayor eficiencia
     const [
