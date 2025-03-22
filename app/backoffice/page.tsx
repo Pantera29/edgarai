@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { format } from 'date-fns'
+import { format, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Badge } from "@/components/ui/badge"
 import { TooltipProvider } from '@radix-ui/react-tooltip'
@@ -35,6 +35,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
+import { toast } from "@/components/ui/use-toast"
 
 interface Servicio {
   nombre: string;
@@ -80,6 +81,7 @@ export default function DashboardPage() {
   const [token, setToken] = useState<string>("")
   const [dataToken, setDataToken] = useState<object>({})
   const [tabActivo, setTabActivo] = useState<string>("todas")
+  const [isLoading, setIsLoading] = useState<boolean>(false)
   
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -112,93 +114,155 @@ export default function DashboardPage() {
     }
   }, [searchParams, router])
 
-  const cargarDatos = async (dealershipIdFromToken?: string) => {
+  useEffect(() => {
+    if (searchParams && searchParams.has('data')) {
+      try {
+        const dataParam = searchParams.get('data')
+        if (dataParam) {
+          const decodedData = decodeURIComponent(dataParam)
+          const parsedData = JSON.parse(decodedData)
+          setDataToken(parsedData)
+        }
+      } catch (error) {
+        console.error('Error al procesar data:', error)
+      }
+    }
+  }, [searchParams, router])
+
+  const cargarDatos = async (dealershipId?: string) => {
+    setIsLoading(true);
     try {
-      const fechaActual = new Date()
-      const fechaFormateada = format(fechaActual, 'yyyy-MM-dd')
+      const supabase = createClientComponentClient();
+      const authUser = await supabase.auth.getUser();
+      
+      // Obtener citas del día actual
+      const fechaActual = new Date();
+      const fechaFormateada = format(fechaActual, 'yyyy-MM-dd');
       
       // Obtener estado de las citas del día
       let queryCitas = supabase
         .from('appointment')
         .select(`
-          id_uuid,
-          fecha_hora,
+          id,
+          appointment_date,
+          appointment_time,
           status,
-          duracion,
+          notes,
           client!appointment_client_id_fkey (
-            nombre,
+            names,
             dealership_id
           ),
           services (
-            nombre
+            service_name
           ),
           vehicles (
-            marca,
-            modelo,
-            placa
+            make,
+            model,
+            license_plate
           )
         `)
-        .gte('fecha_hora', `${fechaFormateada}T00:00:00`)
-        .lt('fecha_hora', `${fechaFormateada}T23:59:59`)
+        .eq('appointment_date', fechaFormateada);
       
-      if (dealershipIdFromToken) {
-        queryCitas = queryCitas.eq('client.dealership_id', dealershipIdFromToken)
+      if (dealershipId) {
+        queryCitas = queryCitas.eq('dealership_id', dealershipId);
       }
       
-      const { data: citasData } = await queryCitas
+      const { data: citasData, error: citasError } = await queryCitas;
 
+      if (citasError) throw citasError;
+      
       // Formatear correctamente los datos de las citas
       const citasFormateadas: CitaSupabase[] = (citasData || []).map(cita => ({
-        id_uuid: cita.id_uuid,
-        fecha_hora: cita.fecha_hora,
-        status: cita.status,
-        duracion: cita.duracion,
+        id_uuid: String(cita.id), // Convertir a string para mantener compatibilidad
+        fecha_hora: `${cita.appointment_date}T${cita.appointment_time || '00:00:00'}`,
+        status: cita.status || 'pendiente',
+        duracion: 60, // Valor por defecto ya que no está en la tabla
         clientes: {
-          nombre: cita.client?.[0]?.nombre || '',
+          nombre: cita.client?.[0]?.names || '',
           dealership_id: cita.client?.[0]?.dealership_id
         },
         servicios: {
-          nombre: cita.services?.[0]?.nombre || ''
+          nombre: cita.services?.[0]?.service_name || ''
         },
         vehiculos: cita.vehicles?.[0] ? {
-          marca: cita.vehicles[0].marca || '',
-          modelo: cita.vehicles[0].modelo || '',
-          placa: cita.vehicles[0].placa || ''
+          marca: cita.vehicles[0].make || '',
+          modelo: cita.vehicles[0].model || '',
+          placa: cita.vehicles[0].license_plate || ''
         } : undefined
-      }))
+      }));
 
       // Contar citas por estado
-      const pendientes = citasFormateadas.filter(c => c.status === 'pendiente').length || 0
-      const enCurso = citasFormateadas.filter(c => c.status === 'en_curso').length || 0
-      const finalizadas = citasFormateadas.filter(c => c.status === 'finalizada').length || 0
+      const pendientes = citasFormateadas.filter(c => c.status === 'pendiente').length || 0;
+      const enCurso = citasFormateadas.filter(c => c.status === 'en_curso').length || 0;
+      const finalizadas = citasFormateadas.filter(c => c.status === 'finalizada').length || 0;
 
       // Obtener datos de satisfacción del cliente (NPS)
-      const { data: npsData } = await supabase
-        .from('nps_mensual')
-        .select('valor, tendencia')
-        .order('fecha', { ascending: false })
-        .limit(1)
-        .single()
+      let mesActual = new Date();
+      let haceTreintaDias = new Date(mesActual);
+      haceTreintaDias.setDate(haceTreintaDias.getDate() - 30);
+      
+      let haceSesentaDias = new Date(haceTreintaDias);
+      haceSesentaDias.setDate(haceSesentaDias.getDate() - 30);
+      
+      // Obtener el NPS promedio del último mes
+      let { data: npsDataReciente, error: npsErrorReciente } = await supabase
+        .from('nps')
+        .select('score')
+        .gte('created_at', format(haceTreintaDias, 'yyyy-MM-dd'))
+        .lt('created_at', format(mesActual, 'yyyy-MM-dd'))
+        .eq('status', 'completed');
 
-      // Usar valor predeterminado de 0 para NPS si no hay datos
+      if (npsErrorReciente) throw npsErrorReciente;
+
+      // Obtener el NPS promedio del mes anterior para calcular la tendencia
+      let { data: npsDataAnterior, error: npsErrorAnterior } = await supabase
+        .from('nps')
+        .select('score')
+        .gte('created_at', format(haceSesentaDias, 'yyyy-MM-dd'))
+        .lt('created_at', format(haceTreintaDias, 'yyyy-MM-dd'))
+        .eq('status', 'completed');
+
+      if (npsErrorAnterior) throw npsErrorAnterior;
+
+      // Calcular el NPS promedio actual (últimos 30 días)
+      const npsActual = npsDataReciente && npsDataReciente.length > 0 
+        ? npsDataReciente.reduce((acc, item) => acc + (item.score || 0), 0) / npsDataReciente.length 
+        : 0;
+
+      // Calcular el NPS promedio anterior (de 30 a 60 días atrás)
+      const npsAnterior = npsDataAnterior && npsDataAnterior.length > 0 
+        ? npsDataAnterior.reduce((acc, item) => acc + (item.score || 0), 0) / npsDataAnterior.length 
+        : 0;
+
+      // Calcular la tendencia (diferencia entre NPS actual y anterior)
+      const tendenciaNPS = Math.round(npsActual - npsAnterior);
+
+      // Objeto de satisfacción del cliente
       const satisfaccionCliente = {
-        nps: npsData?.valor || 0, // Valor predeterminado si no hay datos
-        tendencia: npsData?.tendencia || 0  // Valor predeterminado si no hay datos
-      }
+        nps: Math.round(npsActual * 10), // Multiplicamos por 10 para convertir escala 0-10 a 0-100
+        tendencia: tendenciaNPS * 10 // Multiplicamos por 10 para mantener la misma escala
+      };
 
       setData({
+        citasDelDia: citasFormateadas,
         estadoCitas: {
           pendientes,
           enCurso,
           finalizadas
         },
         satisfaccionCliente,
-        citasDelDia: citasFormateadas
-      })
+      });
     } catch (error) {
-      console.error('Error cargando datos:', error)
+      console.error('Error al cargar datos:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar los datos. Intente nuevamente."
+      });
+    } finally {
+      setIsLoading(false);
     }
-  }
+  };
 
   const filtrarCitas = (citas: CitaSupabase[] | undefined) => {
     if (!citas) return []
