@@ -18,7 +18,8 @@ import {
   DollarSign, 
   Plus, 
   Smile, 
-  ChevronRight 
+  ChevronRight,
+  Wrench
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { 
@@ -73,13 +74,20 @@ interface DashboardData {
     tendencia: number;
   };
   citasDelDia: CitaSupabase[];
+  capacidadTaller: {
+    porcentajeOcupacion: number;
+    slotsDisponibles: number;
+    slotsTotal: number;
+    mensaje: string;
+    estado: 'laborable' | 'no_laborable' | 'bloqueado' | 'error' | 'cargando';
+  };
 }
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null)
   const [token, setToken] = useState<string>("")
-  const [dataToken, setDataToken] = useState<object>({})
+  const [dataToken, setDataToken] = useState<{dealership_id?: string}>({})
   const [tabActivo, setTabActivo] = useState<string>("todas")
   const [isLoading, setIsLoading] = useState<boolean>(false)
   
@@ -137,7 +145,102 @@ export default function DashboardPage() {
       
       // Obtener citas del día actual
       const fechaActual = new Date();
+      // Puedes cambiar esta línea para probar con una fecha específica
+      // const fechaPrueba = new Date('2023-11-05'); // Domingo - día no laborable
+      // const fechaFormateada = format(fechaPrueba, 'yyyy-MM-dd');
       const fechaFormateada = format(fechaActual, 'yyyy-MM-dd');
+      console.log("Fecha utilizada en la consulta:", fechaFormateada, "Día de la semana:", fechaActual.getDay());
+      
+      // Obtener la capacidad del taller del endpoint de disponibilidad
+      let capacidadTaller = {
+        porcentajeOcupacion: 0,
+        slotsDisponibles: 0,
+        slotsTotal: 0,
+        mensaje: "",
+        estado: 'cargando' as 'laborable' | 'no_laborable' | 'bloqueado' | 'error' | 'cargando'
+      };
+      
+      try {
+        // Construir la URL del endpoint con los parámetros necesarios
+        let urlEndpoint = `/api/appointments/availability?date=${fechaFormateada}&service_id=f465f949-5ad1-438d-8ac7-f44f2ba34610`;
+        if (dealershipId) {
+          urlEndpoint += `&dealership_id=${dealershipId}`;
+        }
+        
+        console.log("URL completa del endpoint:", urlEndpoint);
+        const respuesta = await fetch(urlEndpoint);
+        const datos = await respuesta.json();
+        
+        console.log("Respuesta del endpoint de disponibilidad:", datos);
+        
+        if (!respuesta.ok) {
+          throw new Error(datos.message || "Error al obtener datos de capacidad");
+        }
+        
+        // Verificar si es un día no laborable o bloqueado
+        if (datos.message === 'Non-working day') {
+          console.log("Día detectado como no laborable");
+          capacidadTaller = {
+            porcentajeOcupacion: 0,
+            slotsDisponibles: 0,
+            slotsTotal: 0,
+            mensaje: "Taller cerrado hoy",
+            estado: 'no_laborable'
+          };
+        } else if (datos.message && datos.message.includes('Day blocked')) {
+          console.log("Día detectado como bloqueado");
+          capacidadTaller = {
+            porcentajeOcupacion: 0,
+            slotsDisponibles: 0,
+            slotsTotal: 0,
+            mensaje: "Taller no disponible hoy",
+            estado: 'bloqueado'
+          };
+        } else if (datos.availableSlots && Array.isArray(datos.availableSlots)) {
+          // Si hay slots disponibles pero son 0, podríamos asumir que es no laborable
+          if (datos.availableSlots.length === 0 && (!datos.totalSlots || datos.totalSlots === 0)) {
+            console.log("Día posiblemente no laborable (slots vacíos)");
+            capacidadTaller = {
+              porcentajeOcupacion: 0,
+              slotsDisponibles: 0,
+              slotsTotal: 0,
+              mensaje: "Taller cerrado hoy",
+              estado: 'no_laborable'
+            };
+          } else {
+            // Calculamos la capacidad basada en la cantidad de slots disponibles
+            const slotsDisponibles = datos.availableSlots.length;
+            
+            // El endpoint devuelve totalSlots igual a availableSlots.length, lo que hace que 
+            // siempre muestre 0% de ocupación. Definimos un total fijo de slots por día.
+            const totalSlotsPorDia = 30; // Suponemos 30 slots por día (ajustar según necesidad)
+            const slotsTotal = totalSlotsPorDia; 
+            const slotsOcupados = slotsTotal - slotsDisponibles;
+            const porcentajeOcupacion = Math.round((slotsOcupados / slotsTotal) * 100);
+            
+            console.log(`Día laborable: ${slotsDisponibles}/${slotsTotal} slots disponibles (${porcentajeOcupacion}% ocupado)`);
+            capacidadTaller = {
+              porcentajeOcupacion,
+              slotsDisponibles,
+              slotsTotal,
+              mensaje: `${slotsDisponibles}/${slotsTotal} slots disponibles`,
+              estado: 'laborable'
+            };
+          }
+        } else {
+          console.log("Formato de respuesta inesperado", datos);
+          throw new Error("Formato de respuesta inesperado");
+        }
+      } catch (error) {
+        console.error("Error al obtener capacidad del taller:", error);
+        capacidadTaller = {
+          porcentajeOcupacion: 0,
+          slotsDisponibles: 0,
+          slotsTotal: 0,
+          mensaje: "No se pudo cargar la información",
+          estado: 'error'
+        };
+      }
       
       // Obtener estado de las citas del día
       let queryCitas = supabase
@@ -251,6 +354,7 @@ export default function DashboardPage() {
           finalizadas
         },
         satisfaccionCliente,
+        capacidadTaller
       });
     } catch (error) {
       console.error('Error al cargar datos:', error);
@@ -324,6 +428,13 @@ export default function DashboardPage() {
     router.push(`/backoffice/citas/nueva${queryParams}`);
   }
 
+  // Efecto para depuración del estado de capacidad del taller
+  useEffect(() => {
+    if (data?.capacidadTaller) {
+      console.log("Estado actual de capacidadTaller:", data.capacidadTaller);
+    }
+  }, [data?.capacidadTaller]);
+
   if (!data) return <div>Cargando...</div>
 
   return (
@@ -339,6 +450,62 @@ export default function DashboardPage() {
       </div>
       
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
+        {/* Capacidad del Taller */}
+        <Card className="shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Capacidad del Taller
+            </CardTitle>
+            <Wrench className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            {data.capacidadTaller.estado !== 'laborable' ? (
+              <div className="flex flex-col items-center justify-center py-6">
+                <div className={`text-xl font-medium ${
+                  data.capacidadTaller.estado === 'error' ? 'text-red-500' : 
+                  data.capacidadTaller.estado === 'bloqueado' ? 'text-amber-600' : 
+                  data.capacidadTaller.estado === 'no_laborable' ? 'text-gray-500' : 
+                  'text-muted-foreground'
+                }`}>
+                  {data.capacidadTaller.mensaje}
+                </div>
+                {data.capacidadTaller.estado === 'error' && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-3"
+                    onClick={() => cargarDatos(dataToken?.dealership_id)}
+                  >
+                    Reintentar
+                  </Button>
+                )}
+              </div>
+            ) : (
+              <>
+                <div className="flex items-baseline mb-2">
+                  <div className="text-2xl font-bold">{data.capacidadTaller.porcentajeOcupacion}%</div>
+                  <span className="ml-1 text-sm text-muted-foreground">ocupación</span>
+                </div>
+                <Progress 
+                  value={data.capacidadTaller.porcentajeOcupacion} 
+                  className="h-2 mt-2 mb-2"
+                >
+                  <div 
+                    className={`h-full w-full flex-1 transition-all ${
+                      data.capacidadTaller.porcentajeOcupacion > 85 ? "bg-red-500" : 
+                      (data.capacidadTaller.porcentajeOcupacion > 60 ? "bg-amber-500" : "bg-green-500")
+                    }`} 
+                    style={{ transform: `translateX(-${100 - data.capacidadTaller.porcentajeOcupacion}%)` }} 
+                  />
+                </Progress>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {data.capacidadTaller.mensaje}
+                </p>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Estado de Citas */}
         <Card className="shadow-sm hover:shadow-md transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
