@@ -9,6 +9,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
     const serviceId = searchParams.get('service_id');
+    const dealershipId = searchParams.get('dealership_id');
 
     if (!date || !serviceId) {
       return NextResponse.json(
@@ -39,11 +40,17 @@ export async function GET(request: Request) {
     const dayOfWeek = jsDate.getDay() === 0 ? 1 : jsDate.getDay() + 1;
 
     // 3. Obtener el horario de operación para ese día
-    const { data: schedule, error: scheduleError } = await supabase
+    let scheduleQuery = supabase
       .from('operating_hours')
       .select('*')
-      .eq('day_of_week', dayOfWeek)
-      .maybeSingle();
+      .eq('day_of_week', dayOfWeek);
+    
+    // Filtrar por dealership_id si está disponible
+    if (dealershipId) {
+      scheduleQuery = scheduleQuery.eq('dealership_id', dealershipId);
+    }
+
+    const { data: schedule, error: scheduleError } = await scheduleQuery.maybeSingle();
 
     if (scheduleError) {
       console.error('Error fetching operating hours:', scheduleError.message);
@@ -62,11 +69,17 @@ export async function GET(request: Request) {
     }
 
     // 4. Verificar si el día está bloqueado
-    const { data: blockedDate, error: blockedError } = await supabase
+    let blockedQuery = supabase
       .from('blocked_dates')
       .select('*')
-      .eq('date', date)
-      .maybeSingle();
+      .eq('date', date);
+    
+    // Filtrar por dealership_id si está disponible
+    if (dealershipId) {
+      blockedQuery = blockedQuery.eq('dealership_id', dealershipId);
+    }
+
+    const { data: blockedDate, error: blockedError } = await blockedQuery.maybeSingle();
 
     if (blockedError) {
       console.error('Error fetching blocked dates:', blockedError.message);
@@ -85,16 +98,34 @@ export async function GET(request: Request) {
     }
 
     // 5. Obtener citas existentes para ese día
-    const { data: appointments, error: appointmentsError } = await supabase
+    let appointmentQuery = supabase
       .from('appointment')
       .select(`
         id,
         appointment_date,
         appointment_time,
         service_id,
-        services:service_id (duration_minutes)
+        services:service_id (duration_minutes),
+        client_id
       `)
       .eq('appointment_date', date);
+    
+    // Filtrar por dealership_id si está disponible 
+    // (asumiendo que hay una relación entre cliente y concesionario)
+    if (dealershipId) {
+      // Obtenemos los clients_id que pertenecen a este dealership
+      const { data: clients } = await supabase
+        .from('client')
+        .select('id')
+        .eq('dealership_id', dealershipId);
+      
+      if (clients && clients.length > 0) {
+        const clientIds = clients.map(c => c.id);
+        appointmentQuery = appointmentQuery.in('client_id', clientIds);
+      }
+    }
+
+    const { data: appointments, error: appointmentsError } = await appointmentQuery;
 
     if (appointmentsError) {
       console.error('Error fetching appointments:', appointmentsError.message);
@@ -114,7 +145,10 @@ export async function GET(request: Request) {
       schedule.max_simultaneous_services
     );
 
-    return NextResponse.json({ availableSlots });
+    return NextResponse.json({ 
+      availableSlots,
+      totalSlots: availableSlots.length
+    });
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json(
@@ -134,6 +168,7 @@ function generateTimeSlots(
   maxSimultaneous: number
 ) {
   const slots: { time: string; available: number }[] = [];
+  const availableSlots: string[] = [];
   const startTime = parse(schedule.opening_time, 'HH:mm:ss', new Date());
   const endTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
   
@@ -158,9 +193,17 @@ function generateTimeSlots(
     const available = Math.max(0, maxSimultaneous - occupiedSpaces);
     
     slots.push({ time: timeStr, available });
+    
+    // Agregar al array de slots disponibles si hay disponibilidad
+    if (available > 0) {
+      // Verificar si hay suficiente tiempo para el servicio completo
+      if (canFitService(time, endTime, serviceDuration)) {
+        availableSlots.push(timeStr);
+      }
+    }
   }
   
-  return slots;
+  return availableSlots;
 }
 
 // Función para verificar si un horario está bloqueado
@@ -200,4 +243,14 @@ function countOccupiedSpaces(time: string, appointments: any[], slotDuration: nu
 function timeToMinutes(timeStr: string) {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+// Función para verificar si un servicio puede caber completamente en el horario
+function canFitService(
+  startTime: Date,
+  endTime: Date,
+  serviceDuration: number
+) {
+  const serviceEndTime = addMinutes(startTime, serviceDuration);
+  return isBefore(serviceEndTime, endTime);
 }
