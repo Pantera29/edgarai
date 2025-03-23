@@ -7,10 +7,20 @@ export async function GET(request: Request) {
     const supabase = createServerComponentClient({ cookies });
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category');
+    const dealership_id = searchParams.get('dealership_id');
+
+    // Verificar si se proporcionó el dealership_id
+    if (!dealership_id) {
+      return NextResponse.json(
+        { message: 'El parámetro dealership_id es obligatorio' },
+        { status: 400 }
+      );
+    }
 
     let query = supabase
       .from('services')
       .select('*')
+      .eq('dealership_id', dealership_id)
       .order('service_name');
 
     // Si se proporciona una categoría, filtrar por ella
