@@ -149,28 +149,26 @@ export default function ConversacionesPage() {
       // Obtener conteo de mensajes para cada conversación
       const conversacionesConConteo = await Promise.all(
         (data || []).map(async (conv) => {
-          const { data: mensajes, error: mensajesError } = await supabase
-            .from("chat_messages")
-            .select("role", { count: "exact" })
-            .eq("conversation_id", conv.id);
+          try {
+            // Extraer mensajes del campo JSONB de la conversación
+            const mensajes = Array.isArray(conv.messages) ? conv.messages : [];
+            
+            const userCount = mensajes.filter((m: any) => m.role === "user").length;
+            const assistantCount = mensajes.filter((m: any) => m.role === "assistant").length;
 
-          if (mensajesError) {
-            console.error("Error al obtener mensajes:", mensajesError);
+            return {
+              ...conv,
+              user_messages_count: userCount,
+              assistant_messages_count: assistantCount
+            };
+          } catch (error) {
+            console.error("Error al obtener mensajes para conversación", conv.id, error);
             return {
               ...conv,
               user_messages_count: 0,
               assistant_messages_count: 0
             };
           }
-
-          const userCount = mensajes?.filter(m => m.role === "user").length || 0;
-          const assistantCount = mensajes?.filter(m => m.role === "assistant").length || 0;
-
-          return {
-            ...conv,
-            user_messages_count: userCount,
-            assistant_messages_count: assistantCount
-          };
         })
       );
 
