@@ -53,6 +53,11 @@ const menuItems: MenuItem[] = [
         icon: Car
       },
       {
+        title: "Conversaciones",
+        href: "/backoffice/conversaciones",
+        icon: ClipboardList
+      },
+      {
         title: "Feedback NPS",
         href: "/backoffice/feedback",
         icon: BarChart
