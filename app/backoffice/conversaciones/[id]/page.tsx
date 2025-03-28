@@ -129,29 +129,90 @@ export default function ConversacionDetallePage() {
         setNuevoEstado(conversacionData.status);
       }
 
-      // Obtener mensajes de la conversación
-      const { data: mensajesData, error: mensajesError } = await supabase
-        .from("chat_messages")
-        .select("*")
-        .eq("conversation_id", conversationId)
-        .order("created_at", { ascending: true });
-
-      if (mensajesError) throw mensajesError;
-      
-      setMensajes(mensajesData || []);
-      
-      // Calcular estadísticas
-      setStatsLoading(true);
-      const totalMensajes = mensajesData?.length || 0;
-      const userMensajes = mensajesData?.filter(m => m.role === "user").length || 0;
-      const assistantMensajes = mensajesData?.filter(m => m.role === "assistant").length || 0;
-      
-      setStats({
-        total: totalMensajes,
-        user: userMensajes,
-        assistant: assistantMensajes
-      });
-      setStatsLoading(false);
+      // Extraer mensajes del campo JSONB
+      try {
+        if (conversacionData && conversacionData.messages) {
+          const mensajesArray = Array.isArray(conversacionData.messages) 
+            ? conversacionData.messages 
+            : [];
+          
+          // Transformar los mensajes al formato esperado
+          const mensajesFormateados = mensajesArray.map((msg: any, index: number) => {
+            console.log("Mensaje original:", msg);
+            
+            // Determinar el contenido del mensaje
+            let contenido = "";
+            if (typeof msg === 'object') {
+              if (msg.content !== undefined) {
+                contenido = msg.content;
+              } else if (msg.text !== undefined) {
+                contenido = msg.text;
+              } else if (msg.message !== undefined) {
+                contenido = msg.message;
+              }
+            } else if (typeof msg === 'string') {
+              contenido = msg;
+            }
+            
+            // Si no hay contenido, usar un placeholder
+            if (!contenido || contenido.trim() === '') {
+              contenido = "[Contenido no disponible]";
+            }
+            
+            // Determinar el rol del mensaje
+            let rol = "user";
+            if (typeof msg === 'object' && msg.role) {
+              rol = msg.role === "assistant" ? "assistant" : "user";
+            } else if (typeof msg === 'object' && (msg.sender === "assistant" || msg.sender === "ai" || msg.sender === "bot")) {
+              rol = "assistant";
+            }
+            
+            const msgFormateado = {
+              id: (typeof msg === 'object' && msg.id) ? msg.id : `msg-${index}`,
+              conversation_id: conversationId,
+              content: contenido,
+              role: rol,
+              created_at: (typeof msg === 'object' && msg.created_at) ? msg.created_at : 
+                        (typeof msg === 'object' && msg.timestamp) ? msg.timestamp : 
+                        new Date().toISOString()
+            };
+            
+            console.log("Mensaje formateado:", msgFormateado);
+            return msgFormateado;
+          });
+          
+          setMensajes(mensajesFormateados);
+          
+          // Calcular estadísticas
+          setStatsLoading(true);
+          const totalMensajes = mensajesFormateados.length;
+          const userMensajes = mensajesFormateados.filter((m: Message) => m.role === "user").length;
+          const assistantMensajes = mensajesFormateados.filter((m: Message) => m.role === "assistant").length;
+          
+          setStats({
+            total: totalMensajes,
+            user: userMensajes,
+            assistant: assistantMensajes
+          });
+        } else {
+          setMensajes([]);
+          setStats({
+            total: 0,
+            user: 0,
+            assistant: 0
+          });
+        }
+      } catch (error) {
+        console.error("Error procesando mensajes:", error);
+        setMensajes([]);
+        setStats({
+          total: 0,
+          user: 0,
+          assistant: 0
+        });
+      } finally {
+        setStatsLoading(false);
+      }
       
     } catch (error) {
       console.error("Error cargando conversación:", error);
@@ -314,7 +375,7 @@ export default function ConversacionDetallePage() {
               
               <Button 
                 variant="outline" 
-                onClick={() => verPerfilCliente(conversacion.client.id)}
+                onClick={() => conversacion.client && verPerfilCliente(conversacion.client.id)}
                 size="sm"
                 className="mb-4 mt-2"
               >

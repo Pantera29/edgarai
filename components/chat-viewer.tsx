@@ -29,6 +29,11 @@ export function ChatViewer({
 }: ChatViewerProps) {
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
+  // Depuración
+  useEffect(() => {
+    console.log("ChatViewer recibió mensajes:", messages);
+  }, [messages]);
+
   // Scroll automático al final cuando se cargan mensajes
   useEffect(() => {
     if (chatContainerRef.current) {
@@ -45,6 +50,24 @@ export function ChatViewer({
   };
 
   const formatMessageContent = (content: string) => {
+    // Asegurar que el contenido sea string
+    if (typeof content !== 'string') {
+      // Si content no es string, intentar convertirlo
+      try {
+        if (content === null || content === undefined) {
+          return "[Contenido vacío]";
+        }
+        if (typeof content === 'object') {
+          return JSON.stringify(content);
+        }
+        content = String(content);
+      } catch (error) {
+        console.error("Error al formatear contenido:", error);
+        return "[Error al mostrar contenido]";
+      }
+    }
+    
+    // Dividir por saltos de línea y renderizar
     return content.split("\n").map((line, i) => (
       <span key={i}>
         {line}
