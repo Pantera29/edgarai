@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, Search } from "lucide-react";
+import { Eye, Search, MessageSquare, Phone } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -39,6 +39,7 @@ interface ConversacionItem {
   status: 'active' | 'closed' | 'pending';
   user_messages_count: number;
   assistant_messages_count: number;
+  channel?: string;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -57,6 +58,7 @@ export default function ConversacionesPage() {
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [filtroFecha, setFiltroFecha] = useState("todas");
+  const [filtroCanal, setFiltroCanal] = useState("todos");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -85,7 +87,7 @@ export default function ConversacionesPage() {
     if (dataToken) {
       cargarConversaciones();
     }
-  }, [dataToken, busqueda, filtroEstado, filtroFecha, pagina]);
+  }, [dataToken, busqueda, filtroEstado, filtroFecha, filtroCanal, pagina]);
 
   const cargarConversaciones = async () => {
     setLoading(true);
@@ -113,6 +115,11 @@ export default function ConversacionesPage() {
 
       if (filtroEstado !== "todos") {
         query = query.eq("status", filtroEstado);
+      }
+      
+      // Filtro por canal
+      if (filtroCanal !== "todos") {
+        query = query.eq("channel", filtroCanal);
       }
 
       // Filtrar por fecha
@@ -211,6 +218,17 @@ export default function ConversacionesPage() {
 
   const totalPaginas = Math.ceil(totalConversaciones / ITEMS_PER_PAGE);
 
+  // Función para obtener el icono según el canal
+  const getCanalIcon = (channel?: string) => {
+    switch (channel) {
+      case 'phone':
+        return <Phone className="h-4 w-4 mr-1 text-blue-500" />;
+      case 'chat':
+      default:
+        return <MessageSquare className="h-4 w-4 mr-1 text-green-500" />;
+    }
+  };
+
   return (
     <div className="px-4 py-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -218,7 +236,7 @@ export default function ConversacionesPage() {
       </div>
 
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -245,6 +263,20 @@ export default function ConversacionesPage() {
           </Select>
           
           <Select
+            value={filtroCanal}
+            onValueChange={setFiltroCanal}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Canal" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los canales</SelectItem>
+              <SelectItem value="chat">Chat web</SelectItem>
+              <SelectItem value="phone">Llamadas</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select
             value={filtroFecha}
             onValueChange={setFiltroFecha}
           >
@@ -266,6 +298,7 @@ export default function ConversacionesPage() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead>Canal</TableHead>
               <TableHead>Identificador</TableHead>
               <TableHead>Cliente</TableHead>
               <TableHead>Última actividad</TableHead>
@@ -290,6 +323,9 @@ export default function ConversacionesPage() {
             ) : (
               conversaciones.map((conversacion) => (
                 <TableRow key={conversacion.id}>
+                  <TableCell className="w-10">
+                    {getCanalIcon(conversacion.channel)}
+                  </TableCell>
                   <TableCell className="font-medium">
                     {conversacion.user_identifier}
                   </TableCell>

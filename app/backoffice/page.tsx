@@ -162,7 +162,7 @@ export default function DashboardPage() {
       
       try {
         // Construir la URL del endpoint con los parámetros necesarios
-        let urlEndpoint = `/api/appointments/availability?date=${fechaFormateada}&service_id=f465f949-5ad1-438d-8ac7-f44f2ba34610`;
+        let urlEndpoint = `/api/appointments/availability?date=${fechaFormateada}&service_id=1147888f-5a7c-4afc-b1aa-25f266c0a8af`;
         if (dealershipId) {
           urlEndpoint += `&dealership_id=${dealershipId}`;
         }

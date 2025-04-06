@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, RefreshCcw } from "lucide-react";
+import { ArrowLeft, RefreshCcw, Phone, MessageSquare, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -37,6 +37,16 @@ interface Conversation {
   status: 'active' | 'closed' | 'pending';
   created_at: string;
   updated_at: string;
+  channel?: string;
+  metadata?: {
+    call_id?: string;
+    call_sid?: string;
+    call_duration?: number;
+    ended_reason?: string;
+    recording_url?: string;
+    summary?: string;
+    transcript?: string;
+  };
   client?: {
     id: string;
     names: string;
@@ -274,6 +284,34 @@ export default function ConversacionDetallePage() {
     }
   };
 
+  const getChannelBadge = (channel?: string) => {
+    switch (channel) {
+      case 'phone':
+        return (
+          <div className="flex items-center">
+            <Phone className="h-4 w-4 mr-1" />
+            <span>Llamada telefónica</span>
+          </div>
+        );
+      case 'chat':
+      default:
+        return (
+          <div className="flex items-center">
+            <MessageSquare className="h-4 w-4 mr-1" />
+            <span>Chat web</span>
+          </div>
+        );
+    }
+  };
+
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return "Desconocida";
+    
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -384,6 +422,11 @@ export default function ConversacionDetallePage() {
             </>
           )}
 
+          <div className="mb-4">
+            <p className="text-sm text-muted-foreground mb-1">Canal</p>
+            <div>{getChannelBadge(conversacion.channel)}</div>
+          </div>
+
           <Separator className="my-4" />
           
           <div className="mb-4">
@@ -417,6 +460,50 @@ export default function ConversacionDetallePage() {
               </Card>
             </div>
           </div>
+          
+          {conversacion.channel === 'phone' && conversacion.metadata && (
+            <>
+              <Separator className="my-4" />
+              
+              <div className="mb-4">
+                <p className="text-sm text-muted-foreground mb-1">Detalles de la llamada</p>
+                <div className="space-y-2 text-sm">
+                  {conversacion.metadata.call_duration && (
+                    <p><span className="font-medium">Duración:</span> {formatDuration(conversacion.metadata.call_duration)}</p>
+                  )}
+                  {conversacion.metadata.ended_reason && (
+                    <p><span className="font-medium">Finalización:</span> {conversacion.metadata.ended_reason}</p>
+                  )}
+                  {conversacion.metadata.call_id && (
+                    <p><span className="font-medium">ID:</span> {conversacion.metadata.call_id}</p>
+                  )}
+                </div>
+              </div>
+              
+              {conversacion.metadata.recording_url && (
+                <div className="mb-4">
+                  <p className="text-sm text-muted-foreground mb-2">Grabación</p>
+                  <audio 
+                    src={conversacion.metadata.recording_url} 
+                    controls 
+                    className="w-full" 
+                  />
+                </div>
+              )}
+              
+              {conversacion.metadata.summary && (
+                <div className="mb-4">
+                  <p className="text-sm text-muted-foreground mb-2 flex items-center">
+                    <FileText className="h-4 w-4 mr-1" />
+                    Resumen de la llamada
+                  </p>
+                  <Card className="p-3 bg-muted/50">
+                    <p className="text-sm">{conversacion.metadata.summary}</p>
+                  </Card>
+                </div>
+              )}
+            </>
+          )}
           
           <div className="flex-grow"></div>
         </Card>
