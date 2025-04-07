@@ -8,7 +8,7 @@ export async function POST(request: Request) {
 
     const requestBody = await request.json();
     const message = requestBody.message || requestBody.Message;
-    
+
     // Validar tipo de mensaje
     if (!message || ((message.type || message.Type) !== "end-of-call-report")) {
       return NextResponse.json(
@@ -17,24 +17,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const {
-      EndedReason,
-      Call,
-      RecordingUrl,
-      Summary,
-      Transcript,
-      Messages
-    } = message;
+    // Use case-insensitive property access with fallbacks
+    const endedReason = message.endedReason || message.EndedReason;
+    const call = message.call || message.Call;
+    const recordingUrl = message.recordingUrl || message.RecordingUrl;
+    const summary = message.summary || message.Summary;
+    const transcript = message.transcript || message.Transcript;
+    const messages = message.messages || message.Messages;
 
     // Validar existencia de número de teléfono del cliente
-    if (!Call || !Call.Customer || !Call.Customer.Number) {
+    if (!call || 
+        !(call.customer || call.Customer) || 
+        !((call.customer && call.customer.number) || (call.Customer && call.Customer.Number))) {
       return NextResponse.json(
         { message: 'Missing required call information: customer number' },
         { status: 400 }
       );
     }
 
-    const customerPhone = Call.Customer.Number;
+    // Safely access nested properties
+    const customer = call.customer || call.Customer;
+    const customerPhone = customer.number || customer.Number;
 
     // Buscar cliente por teléfono
     let clientId = null;
@@ -52,22 +55,22 @@ export async function POST(request: Request) {
     }
 
     // Formatear mensajes
-    const formattedMessages = Array.isArray(Messages)
-      ? Messages.map((msg) => ({
-          role: msg.Role || 'user',
-          content: msg.Message || ''
+    const formattedMessages = Array.isArray(messages)
+      ? messages.map((msg) => ({
+          role: msg.role || msg.Role || 'user',
+          content: msg.message || msg.Message || ''
         }))
       : [];
 
     const metadata = {
-      call_id: Call.Id,
-      call_sid: Call.CallSid,
-      call_duration: Call.CallDuration,
-      ended_reason: EndedReason,
-      recording_url: RecordingUrl,
-      summary: Summary,
-      transcript: Transcript,
-      callObject: Call,
+      call_id: call.id || call.Id,
+      call_sid: call.callSid || call.CallSid,
+      call_duration: call.callDuration || call.CallDuration,
+      ended_reason: endedReason,
+      recording_url: recordingUrl,
+      summary: summary,
+      transcript: transcript,
+      callObject: call,
       original_payload: message
     };
 
