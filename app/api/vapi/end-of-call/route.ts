@@ -7,10 +7,10 @@ export async function POST(request: Request) {
     const supabase = createServerComponentClient({ cookies });
 
     const requestBody = await request.json();
-    const message = requestBody.Message;
-
+    const message = requestBody.message || requestBody.Message;
+    
     // Validar tipo de mensaje
-    if (!message || (message.Type ?? message.type) !== "end-of-call-report") {
+    if (!message || ((message.type || message.Type) !== "end-of-call-report")) {
       return NextResponse.json(
         { message: 'Invalid webhook payload: missing or incorrect Type' },
         { status: 400 }
