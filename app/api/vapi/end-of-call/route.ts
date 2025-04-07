@@ -8,10 +8,10 @@ export async function POST(request: Request) {
     
     // Obtener datos del cuerpo de la solicitud
     const requestBody = await request.json();
-    const { message } = requestBody;
-
-    // Verificar que el mensaje es de tipo end-of-call-report
-    if (!message || message.type !== "end-of-call-report") {
+    const message = requestBody.message || requestBody.Message;
+    const messageType = message?.type || message?.Type;
+    
+    if (!message || messageType !== "end-of-call-report") {
       return NextResponse.json(
         { message: 'Invalid webhook payload' },
         { status: 400 }
