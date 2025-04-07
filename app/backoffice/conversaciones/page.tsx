@@ -471,19 +471,25 @@ export default function ConversacionesPage() {
     const inicioMesActual = startOfMonth(hoy);
     const inicioMesAnterior = startOfMonth(subDays(inicioMesActual, 1));
     
+    // Definir interface para los items de metricas.porFecha
+    interface FechaItem {
+      fecha: string;
+      count: number;
+    }
+    
     // Contar conversaciones de este mes
-    const conversacionesMesActual = metricas.porFecha.filter(item => {
+    const conversacionesMesActual = metricas.porFecha.filter((item: FechaItem) => {
       const [day, month] = item.fecha.split('/').map(Number);
       const fechaItem = new Date(hoy.getFullYear(), month-1, day);
       return fechaItem >= inicioMesActual;
-    }).reduce((sum, item) => sum + item.count, 0);
+    }).reduce((sum: number, item: FechaItem) => sum + item.count, 0);
     
     // Contar conversaciones del mes anterior
-    const conversacionesMesAnterior = metricas.porFecha.filter(item => {
+    const conversacionesMesAnterior = metricas.porFecha.filter((item: FechaItem) => {
       const [day, month] = item.fecha.split('/').map(Number);
       const fechaItem = new Date(hoy.getFullYear(), month-1, day);
       return fechaItem < inicioMesActual && fechaItem >= inicioMesAnterior;
-    }).reduce((sum, item) => sum + item.count, 0);
+    }).reduce((sum: number, item: FechaItem) => sum + item.count, 0);
     
     // Calcular porcentaje de crecimiento
     if (conversacionesMesAnterior === 0) return { porcentaje: 100, creciendo: true };
@@ -507,14 +513,27 @@ export default function ConversacionesPage() {
 
   // Preparar datos para gráfico por canal y fecha
   const prepararDatosGraficoArea = () => {
+    // Definir interface para los items de metricas.porFecha
+    interface FechaItem {
+      fecha: string;
+      count: number;
+    }
+    
+    interface FechaCanalItem {
+      fecha: string;
+      WhatsApp: number;
+      Teléfono: number;
+      [key: string]: any;
+    }
+    
     // Obtener solo los últimos 14 días para no saturar el gráfico
     const ultimosDias = metricas.porFecha.slice(-14);
     
     // Crear mapa para contar por fecha y canal
-    const datosPorFechaCanal: Record<string, any> = {};
+    const datosPorFechaCanal: Record<string, FechaCanalItem> = {};
     
     // Inicializar con 0 para cada fecha y canal
-    ultimosDias.forEach(item => {
+    ultimosDias.forEach((item: FechaItem) => {
       datosPorFechaCanal[item.fecha] = {
         fecha: item.fecha,
         'WhatsApp': 0,
@@ -524,7 +543,7 @@ export default function ConversacionesPage() {
     
     // Usando datos ficticios para demostración
     // En producción, necesitaríamos obtener estos datos de la API
-    ultimosDias.forEach(item => {
+    ultimosDias.forEach((item: FechaItem) => {
       const fecha = item.fecha;
       if (datosPorFechaCanal[fecha]) {
         // Distribución aleatoria entre canales (70% WhatsApp, 30% Teléfono)
@@ -542,12 +561,19 @@ export default function ConversacionesPage() {
 
   // Filtrar datos según canales visibles
   const filtrarDatosGrafico = () => {
+    interface FechaCanalItem {
+      fecha: string;
+      WhatsApp?: number;
+      Teléfono?: number;
+      [key: string]: any;
+    }
+    
     const datos = prepararDatosGraficoArea();
-    return datos.map(item => {
+    return datos.map((item: FechaCanalItem) => {
       const resultado: Record<string, any> = { fecha: item.fecha };
       
       // Solo incluir canales visibles
-      Object.keys(item).forEach(key => {
+      Object.keys(item).forEach((key: string) => {
         if (key === 'fecha' || canalesVisibles[key]) {
           resultado[key] = item[key];
         }
@@ -628,7 +654,7 @@ export default function ConversacionesPage() {
           </div>
           <div className="flex items-center">
             <div className="text-3xl font-bold">
-              {metricas.porCanal.find(canal => canal.name === 'WhatsApp')?.value || 0}
+              {metricas.porCanal.find((canal: {name: string, value: number}) => canal.name === 'WhatsApp')?.value || 0}
             </div>
           </div>
           <div className="mt-3">
@@ -649,7 +675,7 @@ export default function ConversacionesPage() {
           </div>
           <div className="flex items-center">
             <div className="text-3xl font-bold">
-              {metricas.porCanal.find(canal => canal.name === 'Teléfono')?.value || 0}
+              {metricas.porCanal.find((canal: {name: string, value: number}) => canal.name === 'Teléfono')?.value || 0}
             </div>
           </div>
           <div className="mt-3">
