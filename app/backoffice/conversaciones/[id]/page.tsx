@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, RefreshCcw, Phone, MessageSquare, FileText } from "lucide-react";
+import { ArrowLeft, RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -46,6 +46,10 @@ interface Conversation {
     recording_url?: string;
     summary?: string;
     transcript?: string;
+    callObject?: {
+      startedAt?: string;
+      endedAt?: string;
+    };
   };
   client?: {
     id: string;
@@ -81,6 +85,7 @@ export default function ConversacionDetallePage() {
     user: 0,
     assistant: 0
   });
+  const [expandedSummary, setExpandedSummary] = useState(false);
 
   const conversationId = params.id as string;
 
@@ -298,7 +303,7 @@ export default function ConversacionDetallePage() {
         return (
           <div className="flex items-center">
             <MessageSquare className="h-4 w-4 mr-1" />
-            <span>Chat web</span>
+            <span>WhatsApp</span>
           </div>
         );
     }
@@ -310,6 +315,84 @@ export default function ConversacionDetallePage() {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Función para extraer información de citas y costos del resumen
+  const extractInfoFromSummary = (summary?: string) => {
+    if (!summary) return { appointment: null, cost: null, date: null };
+    
+    // Expresión regular mejorada para buscar fechas y horas en diferentes formatos
+    const appointmentRegex = /(cita|turno|agendad[ao]|programad[ao]|ofreci[óo]|confirm[óo])[\s\w]*(para el|el|para|este|próximo)?[\s\w]*(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)?[\s\w]*(\d{1,2})[\s]*(de|del)?[\s]*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)[\s\w]*(a las|alas|a la|para las)?[\s]*(\d{1,2})[:\.]?(\d{2})[\s]*(am|pm|AM|PM|hrs|horas)?/i;
+    
+    // Expresión regular alternativa para capturar solo fechas sin hora específica
+    const dateRegex = /(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)[\s\w]*(\d{1,2})[\s]*(de|del)?[\s]*(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i;
+    
+    // Expresión regular para buscar cantidades de dinero
+    const costRegex = /\$\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)(?:\s*(?:pesos|mxn|dólares|usd))?/i;
+    
+    // Intentar encontrar una cita con la expresión principal
+    let appointmentMatch = summary.match(appointmentRegex);
+    
+    // Si no encuentra con la primera expresión, intentar con la segunda
+    if (!appointmentMatch) {
+      const dateMatch = summary.match(dateRegex);
+      if (dateMatch) {
+        appointmentMatch = dateMatch;
+      }
+    }
+    
+    const costMatch = summary.match(costRegex);
+    
+    // Extraer la fecha completa si existe
+    let dateInfo = null;
+    if (appointmentMatch) {
+      // Intentar extraer una oración completa que contenga la fecha
+      const sentenceWithDate = extractSentenceWithMatch(summary, appointmentMatch[0]);
+      dateInfo = sentenceWithDate || appointmentMatch[0];
+    }
+    
+    return {
+      appointment: appointmentMatch ? appointmentMatch[0] : null,
+      cost: costMatch ? costMatch[0] : null,
+      date: dateInfo
+    };
+  };
+
+  // Función para extraer la oración completa que contiene una coincidencia
+  const extractSentenceWithMatch = (text: string, match: string) => {
+    if (!text || !match) return null;
+    
+    // Dividir el texto en oraciones (usando puntos seguidos de espacio como separador)
+    const sentences = text.split(/\.\s+/);
+    
+    // Encontrar la oración que contiene la coincidencia
+    for (const sentence of sentences) {
+      if (sentence.includes(match)) {
+        return sentence.trim() + '.';
+      }
+    }
+    
+    return null;
+  };
+
+  // Función para calcular la duración total de la llamada
+  const calculateCallDuration = (startedAt?: string, endedAt?: string) => {
+    if (!startedAt || !endedAt) return null;
+    
+    try {
+      const start = new Date(startedAt);
+      const end = new Date(endedAt);
+      const durationMs = end.getTime() - start.getTime();
+      
+      // Convertir a minutos y segundos
+      const minutes = Math.floor(durationMs / 60000);
+      const seconds = Math.floor((durationMs % 60000) / 1000);
+      
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    } catch (error) {
+      console.error("Error calculando duración:", error);
+      return null;
+    }
   };
 
   if (loading) {
@@ -410,15 +493,6 @@ export default function ConversacionDetallePage() {
                 <p>{conversacion.client.phone_number}</p>
                 {conversacion.client.email && <p>{conversacion.client.email}</p>}
               </div>
-              
-              <Button 
-                variant="outline" 
-                onClick={() => conversacion.client && verPerfilCliente(conversacion.client.id)}
-                size="sm"
-                className="mb-4 mt-2"
-              >
-                Ver perfil completo
-              </Button>
             </>
           )}
 
@@ -429,35 +503,49 @@ export default function ConversacionDetallePage() {
 
           <Separator className="my-4" />
           
-          <div className="mb-4">
-            <p className="text-sm text-muted-foreground mb-1">Fechas</p>
-            <div className="space-y-1">
-              <p className="text-xs">
-                <span className="font-medium">Creada:</span> {formatDate(conversacion.created_at)}
-              </p>
-              <p className="text-xs">
-                <span className="font-medium">Última actividad:</span> {formatDate(conversacion.updated_at)}
-              </p>
-            </div>
-          </div>
-          
-          <Separator className="my-4" />
-          
           <div>
             <p className="text-sm text-muted-foreground mb-2">Estadísticas</p>
-            <div className="grid grid-cols-3 gap-2">
-              <Card className="p-3 text-center">
-                <p className="text-2xl font-bold">{stats.total}</p>
-                <p className="text-xs text-muted-foreground">Total</p>
-              </Card>
-              <Card className="p-3 text-center">
-                <p className="text-2xl font-bold">{stats.user}</p>
-                <p className="text-xs text-muted-foreground">Usuario</p>
-              </Card>
-              <Card className="p-3 text-center">
-                <p className="text-2xl font-bold">{stats.assistant}</p>
-                <p className="text-xs text-muted-foreground">Asistente</p>
-              </Card>
+            {conversacion.channel === 'phone' && (
+              <div>
+                <Card className="p-3 flex items-center justify-center">
+                  <Clock className="h-4 w-4 mr-2 text-blue-500" />
+                  <div className="text-center">
+                    <p className="text-xl font-bold">
+                      {conversacion.metadata?.callObject?.startedAt && conversacion.metadata?.callObject?.endedAt 
+                        ? calculateCallDuration(conversacion.metadata.callObject.startedAt, conversacion.metadata.callObject.endedAt)
+                        : formatDuration(conversacion.metadata?.call_duration)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Duración</p>
+                  </div>
+                </Card>
+              </div>
+            )}
+            
+            <div className="mt-3">
+              <p className="text-sm text-muted-foreground mb-1">Fechas</p>
+              <div className="space-y-1">
+                {conversacion.channel === 'phone' && conversacion.metadata?.callObject ? (
+                  <>
+                    <p className="text-xs">
+                      <span className="font-medium">Inicio:</span> {conversacion.metadata.callObject.startedAt ? 
+                        formatDate(conversacion.metadata.callObject.startedAt) : 'No disponible'}
+                    </p>
+                    <p className="text-xs">
+                      <span className="font-medium">Fin:</span> {conversacion.metadata.callObject.endedAt ? 
+                        formatDate(conversacion.metadata.callObject.endedAt) : 'No disponible'}
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs">
+                      <span className="font-medium">Creada:</span> {formatDate(conversacion.created_at)}
+                    </p>
+                    <p className="text-xs">
+                      <span className="font-medium">Última actividad:</span> {formatDate(conversacion.updated_at)}
+                    </p>
+                  </>
+                )}
+              </div>
             </div>
           </div>
           
@@ -468,9 +556,6 @@ export default function ConversacionDetallePage() {
               <div className="mb-4">
                 <p className="text-sm text-muted-foreground mb-1">Detalles de la llamada</p>
                 <div className="space-y-2 text-sm">
-                  {conversacion.metadata.call_duration && (
-                    <p><span className="font-medium">Duración:</span> {formatDuration(conversacion.metadata.call_duration)}</p>
-                  )}
                   {conversacion.metadata.ended_reason && (
                     <p><span className="font-medium">Finalización:</span> {conversacion.metadata.ended_reason}</p>
                   )}
@@ -490,18 +575,6 @@ export default function ConversacionDetallePage() {
                   />
                 </div>
               )}
-              
-              {conversacion.metadata.summary && (
-                <div className="mb-4">
-                  <p className="text-sm text-muted-foreground mb-2 flex items-center">
-                    <FileText className="h-4 w-4 mr-1" />
-                    Resumen de la llamada
-                  </p>
-                  <Card className="p-3 bg-muted/50">
-                    <p className="text-sm">{conversacion.metadata.summary}</p>
-                  </Card>
-                </div>
-              )}
             </>
           )}
           
@@ -513,6 +586,67 @@ export default function ConversacionDetallePage() {
           <div className="bg-muted p-3 border-b">
             <h2 className="font-semibold">Mensajes</h2>
           </div>
+
+          {conversacion.channel === 'phone' && conversacion.metadata?.summary && (
+            <div className="p-4 border-b">
+              <Card className="bg-blue-50 p-4 rounded-lg shadow-sm">
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center text-blue-700 font-medium">
+                    <FileText className="h-5 w-5 mr-2" />
+                    <h3>Resumen de la llamada</h3>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => setExpandedSummary(!expandedSummary)}
+                    className="h-6 w-6 p-0"
+                  >
+                    {expandedSummary ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                  </Button>
+                </div>
+                
+                <p className={`text-sm text-gray-700 mb-4 ${!expandedSummary ? "line-clamp-4" : ""}`}>
+                  {conversacion.metadata.summary}
+                </p>
+                
+                {/* Información extraída */}
+                {(() => {
+                  const { appointment, cost, date } = extractInfoFromSummary(conversacion.metadata.summary);
+                  if (appointment || cost || date) {
+                    return (
+                      <div className="mt-3 space-y-2">
+                        <Separator />
+                        <h4 className="font-medium text-sm text-blue-700 mt-3">Información destacada:</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {date && (
+                            <div className="flex items-start bg-white p-2 rounded border border-blue-100">
+                              <Calendar className="h-4 w-4 text-blue-500 mr-2 mt-0.5" />
+                              <div>
+                                <p className="text-xs font-medium text-blue-700">Cita</p>
+                                <p className="text-sm">{date}</p>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {cost && (
+                            <div className="flex items-start bg-white p-2 rounded border border-blue-100">
+                              <CreditCard className="h-4 w-4 text-green-500 mr-2 mt-0.5" />
+                              <div>
+                                <p className="text-xs font-medium text-green-700">Presupuesto</p>
+                                <p className="text-sm">{cost}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </Card>
+            </div>
+          )}
+
           <ChatViewer messages={mensajes} />
         </Card>
       </div>

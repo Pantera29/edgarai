@@ -19,7 +19,12 @@ import {
   Plus, 
   Smile, 
   ChevronRight,
-  Wrench
+  Wrench,
+  ArrowUpIcon,
+  ArrowDownIcon,
+  TrendingUp,
+  TrendingDown,
+  Users
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { 
@@ -451,17 +456,18 @@ export default function DashboardPage() {
       
       <div className="grid gap-6 grid-cols-1 md:grid-cols-3 lg:grid-cols-3">
         {/* Capacidad del Taller */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Capacidad del Taller
-            </CardTitle>
-            <Wrench className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
+        <Card className="shadow-sm">
+          <div className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Capacidad del Taller</h3>
+              <div className="rounded-md bg-blue-100 p-1">
+                <Wrench className="h-4 w-4 text-blue-600" />
+              </div>
+            </div>
+            
             {data.capacidadTaller.estado !== 'laborable' ? (
               <div className="flex flex-col items-center justify-center py-6">
-                <div className={`text-xl font-medium ${
+                <div className={`text-xl font-bold ${
                   data.capacidadTaller.estado === 'error' ? 'text-red-500' : 
                   data.capacidadTaller.estado === 'bloqueado' ? 'text-amber-600' : 
                   data.capacidadTaller.estado === 'no_laborable' ? 'text-gray-500' : 
@@ -482,10 +488,7 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
-                <div className="flex items-baseline mb-2">
-                  <div className="text-2xl font-bold">{data.capacidadTaller.porcentajeOcupacion}%</div>
-                  <span className="ml-1 text-sm text-muted-foreground">ocupación</span>
-                </div>
+                <div className="text-3xl font-bold">{data.capacidadTaller.porcentajeOcupacion}%</div>
                 <Progress 
                   value={data.capacidadTaller.porcentajeOcupacion} 
                   className="h-2 mt-2 mb-2"
@@ -498,53 +501,73 @@ export default function DashboardPage() {
                     style={{ transform: `translateX(-${100 - data.capacidadTaller.porcentajeOcupacion}%)` }} 
                   />
                 </Progress>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {data.capacidadTaller.mensaje}
-                </p>
+                <div className="mt-3">
+                  <p className="text-xs text-muted-foreground">
+                    <Users className="inline h-3 w-3 mr-1" />
+                    {data.capacidadTaller.mensaje}
+                  </p>
+                </div>
               </>
             )}
-          </CardContent>
+          </div>
         </Card>
 
         {/* Estado de Citas */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Estado de Citas
-            </CardTitle>
-            <CalendarLucideIcon className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex justify-between pt-2">
-              <div className="text-center">
-                <div className="text-xl font-bold text-blue-600">{data.estadoCitas.pendientes}</div>
+        <Card className="shadow-sm">
+          <div className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Estado de Citas</h3>
+              <div className="rounded-md bg-green-100 p-1">
+                <CalendarLucideIcon className="h-4 w-4 text-green-600" />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-3 gap-2 mt-2">
+              <div className="flex flex-col items-center">
+                <div className="bg-blue-100 rounded-full h-10 w-10 flex items-center justify-center mb-2">
+                  <span className="text-sm font-bold text-blue-600">{data.estadoCitas.pendientes}</span>
+                </div>
                 <p className="text-xs text-muted-foreground">Pendientes</p>
               </div>
-              <div className="text-center">
-                <div className="text-xl font-bold text-amber-600">{data.estadoCitas.enCurso}</div>
+              
+              <div className="flex flex-col items-center">
+                <div className="bg-amber-100 rounded-full h-10 w-10 flex items-center justify-center mb-2">
+                  <span className="text-sm font-bold text-amber-600">{data.estadoCitas.enCurso}</span>
+                </div>
                 <p className="text-xs text-muted-foreground">En Curso</p>
               </div>
-              <div className="text-center">
-                <div className="text-xl font-bold text-green-600">{data.estadoCitas.finalizadas}</div>
+              
+              <div className="flex flex-col items-center">
+                <div className="bg-green-100 rounded-full h-10 w-10 flex items-center justify-center mb-2">
+                  <span className="text-sm font-bold text-green-600">{data.estadoCitas.finalizadas}</span>
+                </div>
                 <p className="text-xs text-muted-foreground">Finalizadas</p>
               </div>
             </div>
-          </CardContent>
+          </div>
         </Card>
 
         {/* Satisfacción del Cliente */}
-        <Card className="shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Satisfacción del Cliente
-            </CardTitle>
-            <Smile className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline">
-              <div className="text-2xl font-bold">{data.satisfaccionCliente.nps}</div>
-              <span className="ml-1 text-sm text-muted-foreground">NPS</span>
+        <Card className="shadow-sm">
+          <div className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Satisfacción del Cliente</h3>
+              <div className={`rounded-md p-1 flex items-center gap-1 ${data.satisfaccionCliente.tendencia > 0 ? 'bg-green-100' : data.satisfaccionCliente.tendencia < 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
+                <span className={`text-xs font-medium ${data.satisfaccionCliente.tendencia > 0 ? 'text-green-600' : data.satisfaccionCliente.tendencia < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                  {data.satisfaccionCliente.tendencia > 0 ? '+' : ''}{data.satisfaccionCliente.tendencia}%
+                </span>
+                {data.satisfaccionCliente.tendencia > 0 ? 
+                  <ArrowUpIcon className="h-4 w-4 text-green-600" /> : 
+                  data.satisfaccionCliente.tendencia < 0 ?
+                  <ArrowDownIcon className="h-4 w-4 text-red-600" /> :
+                  null
+                }
+              </div>
             </div>
+            
+            <div className="text-3xl font-bold">{data.satisfaccionCliente.nps}</div>
+            <p className="text-xs text-muted-foreground mb-1">NPS</p>
+            
             <Progress 
               value={data.satisfaccionCliente.nps} 
               className="h-2 mt-2 mb-2"
@@ -557,21 +580,29 @@ export default function DashboardPage() {
                 style={{ transform: `translateX(-${100 - data.satisfaccionCliente.nps}%)` }} 
               />
             </Progress>
-            <div className="flex justify-between text-xs">
+            
+            <div className="flex justify-between text-xs text-muted-foreground">
               <span>0</span>
               <span>50</span>
               <span>100</span>
             </div>
-            <p className="text-xs text-muted-foreground flex items-center mt-2">
-              {data.satisfaccionCliente.tendencia > 0 ? (
-                <><span className="text-green-500">↑</span> {data.satisfaccionCliente.tendencia} pts este mes</>
-              ) : data.satisfaccionCliente.tendencia < 0 ? (
-                <><span className="text-red-500">↓</span> {Math.abs(data.satisfaccionCliente.tendencia)} pts este mes</>
-              ) : (
-                <></>
-              )}
-            </p>
-          </CardContent>
+            
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                {data.satisfaccionCliente.tendencia > 0 ? 
+                  <TrendingUp className="inline h-3 w-3 mr-1 text-green-500" /> : 
+                  data.satisfaccionCliente.tendencia < 0 ?
+                  <TrendingDown className="inline h-3 w-3 mr-1 text-red-500" /> :
+                  <TrendingUp className="inline h-3 w-3 mr-1 text-gray-500" />
+                }
+                {data.satisfaccionCliente.tendencia > 0 ? 
+                  'Mejorando' : 
+                  data.satisfaccionCliente.tendencia < 0 ? 
+                  'Disminuyendo' : 
+                  'Estable'} este mes
+              </p>
+            </div>
+          </div>
         </Card>
       </div>
 
