@@ -5,43 +5,41 @@ import { cookies } from "next/headers";
 export async function POST(request: Request) {
   try {
     const supabase = createServerComponentClient({ cookies });
-    
-    // Obtener datos del cuerpo de la solicitud
+
     const requestBody = await request.json();
-    const message = requestBody.message || requestBody.Message;
-    const messageType = message?.type || message?.Type;
-    
-    if (!message || messageType !== "end-of-call-report") {
+    const message = requestBody.Message;
+
+    // Validar tipo de mensaje
+    if (!message || message.Type !== "end-of-call-report") {
       return NextResponse.json(
-        { message: 'Invalid webhook payload' },
+        { message: 'Invalid webhook payload: missing or incorrect Type' },
         { status: 400 }
       );
     }
 
-    // Extraer campos relevantes del mensaje
     const {
-      endedReason,
-      call,
-      recordingUrl,
-      summary,
-      transcript,
-      messages
+      EndedReason,
+      Call,
+      RecordingUrl,
+      Summary,
+      Transcript,
+      Messages
     } = message;
 
-    // Validar campos requeridos
-    if (!call || !call.customer || !call.customer.number) {
+    // Validar existencia de número de teléfono del cliente
+    if (!Call || !Call.Customer || !Call.Customer.Number) {
       return NextResponse.json(
-        { message: 'Missing required call information' },
+        { message: 'Missing required call information: customer number' },
         { status: 400 }
       );
     }
 
-    const customerPhone = call.customer.number;
+    const customerPhone = Call.Customer.Number;
 
-    // Intentar identificar al cliente basado en el número de teléfono
+    // Buscar cliente por teléfono
     let clientId = null;
     let dealershipId = null;
-    
+
     const { data: clientData } = await supabase
       .from("client")
       .select("id, dealership_id")
@@ -53,28 +51,26 @@ export async function POST(request: Request) {
       dealershipId = clientData.dealership_id;
     }
 
-    // Formatear los mensajes para almacenarlos correctamente
-    const formattedMessages = Array.isArray(messages) 
-      ? messages.map(msg => ({
-          role: msg.role || 'user',
-          content: msg.message
+    // Formatear mensajes
+    const formattedMessages = Array.isArray(Messages)
+      ? Messages.map((msg) => ({
+          role: msg.Role || 'user',
+          content: msg.Message || ''
         }))
       : [];
 
-    // Crear metadata con detalles de la llamada
     const metadata = {
-      call_id: call.id,
-      call_sid: call.callSid,
-      call_duration: call.callDuration,
-      ended_reason: endedReason,
-      recording_url: recordingUrl,
-      summary,
-      transcript,
-      callObject: call,
+      call_id: Call.Id,
+      call_sid: Call.CallSid,
+      call_duration: Call.CallDuration,
+      ended_reason: EndedReason,
+      recording_url: RecordingUrl,
+      summary: Summary,
+      transcript: Transcript,
+      callObject: Call,
       original_payload: message
     };
 
-    // Guardar la conversación en la base de datos
     const { data: conversationData, error } = await supabase
       .from("chat_conversations")
       .insert([
@@ -99,12 +95,14 @@ export async function POST(request: Request) {
       );
     }
 
-    // Devolver respuesta exitosa
     return NextResponse.json(
-      { message: 'End-of-call report processed successfully', conversation: conversationData },
+      {
+        message: 'End-of-call report processed successfully',
+        conversation: conversationData
+      },
       { status: 201 }
     );
-    
+
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json(
@@ -112,4 +110,4 @@ export async function POST(request: Request) {
       { status: 500 }
     );
   }
-} 
+}
