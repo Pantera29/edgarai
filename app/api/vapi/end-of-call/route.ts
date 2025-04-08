@@ -10,6 +10,87 @@ interface MessageItem {
   Message?: string;
 }
 
+// Función para determinar la intención del cliente basada en el resumen o transcripción
+function determineClientIntent(summary: string, transcript: string): string {
+  const text = (summary || transcript || '').toLowerCase();
+  
+  if (text.includes('cita') || text.includes('agendar') || text.includes('programar') || text.includes('reservar')) {
+    return 'agendar_cita';
+  } else if (text.includes('ubicación') || text.includes('dirección') || text.includes('dónde') || text.includes('donde')) {
+    return 'ubicación';
+  } else if (text.includes('horario') || text.includes('hora') || text.includes('abierto') || text.includes('cerrado')) {
+    return 'horario';
+  } else if (text.includes('servicio') || text.includes('reparación') || text.includes('reparacion') || text.includes('mantenimiento')) {
+    return 'servicio';
+  } else if (text.includes('precio') || text.includes('costo') || text.includes('cuánto') || text.includes('cuanto')) {
+    return 'precio';
+  } else {
+    return 'información';
+  }
+}
+
+// Función para determinar si la llamada fue exitosa
+function determineCallSuccess(message: any, summary: string): boolean {
+  // Verificar si hay un campo explícito de evaluación de éxito
+  if (message.successEvaluation !== undefined) {
+    return message.successEvaluation === true || message.successEvaluation === 'true';
+  }
+  
+  // Verificar si hay un campo explícito de éxito
+  if (message.success !== undefined) {
+    return message.success === true || message.success === 'true';
+  }
+  
+  // Analizar el resumen para determinar el éxito
+  if (summary) {
+    const summaryLower = summary.toLowerCase();
+    // Palabras positivas que indican éxito
+    const positiveIndicators = ['exitoso', 'exitosamente', 'resuelto', 'satisfecho', 'gracias', 'perfecto', 'bien'];
+    // Palabras negativas que indican fracaso
+    const negativeIndicators = ['insatisfecho', 'no pudo', 'no pude', 'no se pudo', 'problema', 'falló', 'fallo', 'fracaso'];
+    
+    // Contar indicadores positivos y negativos
+    const positiveCount = positiveIndicators.filter(word => summaryLower.includes(word)).length;
+    const negativeCount = negativeIndicators.filter(word => summaryLower.includes(word)).length;
+    
+    // Si hay más indicadores positivos que negativos, considerar exitosa
+    return positiveCount > negativeCount;
+  }
+  
+  // Por defecto, asumir que la llamada fue exitosa si no podemos determinar lo contrario
+  return true;
+}
+
+// Función para extraer el nombre del agente y el modelo de IA
+function extractAgentAndModel(message: any): { agentName: string | null, aiModel: string | null } {
+  let agentName = null;
+  let aiModel = null;
+  
+  // Intentar extraer el nombre del agente
+  if (message.agent && message.agent.name) {
+    agentName = message.agent.name;
+  } else if (message.agentName) {
+    agentName = message.agentName;
+  } else if (message.agent_name) {
+    agentName = message.agent_name;
+  } else if (message.artifact && message.artifact.agent_name) {
+    agentName = message.artifact.agent_name;
+  }
+  
+  // Intentar extraer el modelo de IA
+  if (message.model) {
+    aiModel = message.model;
+  } else if (message.aiModel) {
+    aiModel = message.aiModel;
+  } else if (message.ai_model) {
+    aiModel = message.ai_model;
+  } else if (message.artifact && message.artifact.model) {
+    aiModel = message.artifact.model;
+  }
+  
+  return { agentName, aiModel };
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = createServerComponentClient({ cookies });
@@ -132,11 +213,36 @@ export async function POST(request: Request) {
         }))
       : [];
 
+    // Extraer información adicional para los nuevos campos
+    const callId = call?.id || call?.Id || message.call_id || message.callId;
+    
+    // Extraer duration_seconds directamente del mensaje principal
+    const durationSeconds = message.durationSeconds || message.duration_seconds || 
+                          call?.callDuration || call?.CallDuration || 
+                          message.duration || null;
+    
+    const wasSuccessful = determineCallSuccess(message, summary);
+    const clientIntent = determineClientIntent(summary, transcript);
+    
+    // Extraer agent_name y ai_model del objeto call.assistant
+    let agentName = null;
+    let aiModel = null;
+    
+    if (call && call.assistant) {
+      agentName = call.assistant.name;
+      aiModel = call.assistant.model?.model || null;
+    } else {
+      // Fallback a la función existente si no está en call.assistant
+      const extracted = extractAgentAndModel(message);
+      agentName = extracted.agentName;
+      aiModel = extracted.aiModel;
+    }
+
     // Construir metadatos con información disponible
     const metadata = {
-      call_id: call?.id || call?.Id,
+      call_id: callId,
       call_sid: call?.callSid || call?.CallSid,
-      call_duration: call?.callDuration || call?.CallDuration,
+      call_duration: durationSeconds,
       ended_reason: endedReason,
       recording_url: recordingUrl,
       summary: summary,
@@ -155,7 +261,17 @@ export async function POST(request: Request) {
           status: 'closed',
           channel: 'phone',
           messages: formattedMessages,
-          metadata
+          metadata,
+          // Nuevos campos
+          duration_seconds: durationSeconds,
+          call_id: callId,
+          ended_reason: endedReason,
+          recording_url: recordingUrl,
+          conversation_summary: summary,
+          was_successful: wasSuccessful,
+          client_intent: clientIntent,
+          agent_name: agentName,
+          ai_model: aiModel
         }
       ])
       .select()
