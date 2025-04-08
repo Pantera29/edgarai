@@ -57,6 +57,16 @@ interface Conversation {
     email: string;
     phone_number: string;
   } | null;
+  // Campos adicionales para la versión actualizada de la tabla
+  duration_seconds?: number;
+  call_id?: string;
+  ended_reason?: string;
+  recording_url?: string;
+  conversation_summary?: string;
+  was_successful?: boolean;
+  client_intent?: string;
+  agent_name?: string;
+  ai_model?: string;
 }
 
 interface Message {
@@ -151,9 +161,11 @@ export default function ConversacionDetallePage() {
             ? conversacionData.messages 
             : [];
           
+          console.log("Array de mensajes original:", mensajesArray);
+          
           // Transformar los mensajes al formato esperado
           const mensajesFormateados = mensajesArray.map((msg: any, index: number) => {
-            console.log("Mensaje original:", msg);
+            console.log(`Procesando mensaje #${index}:`, msg);
             
             // Determinar el contenido del mensaje
             let contenido = "";
@@ -174,13 +186,42 @@ export default function ConversacionDetallePage() {
               contenido = "[Contenido no disponible]";
             }
             
-            // Determinar el rol del mensaje
-            let rol = "user";
-            if (typeof msg === 'object' && msg.role) {
-              // Considerar "bot", "assistant" y "system" como mensajes del asistente
-              rol = (msg.role === "assistant" || msg.role === "bot" || msg.role === "system") ? "assistant" : "user";
-            } else if (typeof msg === 'object' && (msg.sender === "assistant" || msg.sender === "ai" || msg.sender === "bot")) {
-              rol = "assistant";
+            // Determinar el rol del mensaje - LÓGICA CORREGIDA
+            let rol = "user"; // Valor por defecto
+            
+            if (typeof msg === 'object') {
+              // 1. Verificar campo role
+              if (msg.role) {
+                // Considerar varios valores como mensajes del asistente
+                if (["assistant", "bot", "system", "ai"].includes(msg.role.toLowerCase())) {
+                  rol = "assistant";
+                }
+                console.log(`Mensaje #${index} - Rol original: ${msg.role} -> Rol asignado: ${rol}`);
+              } 
+              // 2. Verificar campo sender si role no está presente
+              else if (msg.sender && ["assistant", "ai", "bot"].includes(msg.sender.toLowerCase())) {
+                rol = "assistant";
+                console.log(`Mensaje #${index} - Sender: ${msg.sender} -> Rol asignado: ${rol}`);
+              }
+              // 3. Para transcripciones de llamadas, verificar si es una línea con prefijo
+              else if (contenido.startsWith("AI:")) {
+                rol = "assistant";
+                contenido = contenido.substring(3).trim();
+                console.log(`Mensaje #${index} - Detectado prefijo AI -> Rol asignado: ${rol}`);
+              }
+            }
+            
+            // Determinar la fecha de creación
+            let createdAt = new Date().toISOString();
+            
+            if (typeof msg === 'object') {
+              if (msg.created_at) {
+                createdAt = msg.created_at;
+              } else if (msg.timestamp) {
+                createdAt = msg.timestamp;
+              } else if (msg.time) {
+                createdAt = new Date(msg.time).toISOString();
+              }
             }
             
             const msgFormateado = {
@@ -188,12 +229,10 @@ export default function ConversacionDetallePage() {
               conversation_id: conversationId,
               content: contenido,
               role: rol,
-              created_at: (typeof msg === 'object' && msg.created_at) ? msg.created_at : 
-                        (typeof msg === 'object' && msg.timestamp) ? msg.timestamp : 
-                        new Date().toISOString()
+              created_at: createdAt
             };
             
-            console.log("Mensaje formateado:", msgFormateado);
+            console.log(`Mensaje #${index} formateado:`, msgFormateado);
             return msgFormateado;
           });
           
@@ -396,6 +435,22 @@ export default function ConversacionDetallePage() {
     }
   };
 
+  // Nuevas funciones para mostrar información de los campos adicionales
+  const getClientIntent = (intent?: string) => {
+    if (!intent) return "No disponible";
+    
+    const intents = {
+      "agendar_cita": "Agendar cita",
+      "ubicación": "Consultar ubicación",
+      "horario": "Consultar horario",
+      "servicio": "Información de servicio",
+      "precio": "Consultar precio",
+      "información": "Información general"
+    };
+    
+    return intents[intent as keyof typeof intents] || intent;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -502,6 +557,28 @@ export default function ConversacionDetallePage() {
             <div>{getChannelBadge(conversacion.channel)}</div>
           </div>
 
+          {/* Mostrar campos nuevos si están disponibles */}
+          {conversacion.client_intent && (
+            <div className="mb-4">
+              <p className="text-sm text-muted-foreground mb-1">Intención del cliente</p>
+              <p>{getClientIntent(conversacion.client_intent)}</p>
+            </div>
+          )}
+          
+          {conversacion.agent_name && (
+            <div className="mb-4">
+              <p className="text-sm text-muted-foreground mb-1">Agente</p>
+              <p>{conversacion.agent_name}</p>
+            </div>
+          )}
+          
+          {conversacion.ai_model && (
+            <div className="mb-4">
+              <p className="text-sm text-muted-foreground mb-1">Modelo IA</p>
+              <p className="text-sm">{conversacion.ai_model}</p>
+            </div>
+          )}
+
           <Separator className="my-4" />
           
           <div>
@@ -512,9 +589,12 @@ export default function ConversacionDetallePage() {
                   <Clock className="h-4 w-4 mr-2 text-blue-500" />
                   <div className="text-center">
                     <p className="text-xl font-bold">
-                      {conversacion.metadata?.callObject?.startedAt && conversacion.metadata?.callObject?.endedAt 
-                        ? calculateCallDuration(conversacion.metadata.callObject.startedAt, conversacion.metadata.callObject.endedAt)
-                        : formatDuration(conversacion.metadata?.call_duration)}
+                      {/* Priorizar el nuevo campo duration_seconds si está disponible */}
+                      {conversacion.duration_seconds 
+                        ? formatDuration(conversacion.duration_seconds)
+                        : conversacion.metadata?.callObject?.startedAt && conversacion.metadata?.callObject?.endedAt 
+                          ? calculateCallDuration(conversacion.metadata.callObject.startedAt, conversacion.metadata.callObject.endedAt)
+                          : formatDuration(conversacion.metadata?.call_duration)}
                     </p>
                     <p className="text-xs text-muted-foreground">Duración</p>
                   </div>
@@ -550,27 +630,32 @@ export default function ConversacionDetallePage() {
             </div>
           </div>
           
-          {conversacion.channel === 'phone' && conversacion.metadata && (
+          {conversacion.channel === 'phone' && (
             <>
               <Separator className="my-4" />
               
               <div className="mb-4">
                 <p className="text-sm text-muted-foreground mb-1">Detalles de la llamada</p>
                 <div className="space-y-2 text-sm">
-                  {conversacion.metadata.ended_reason && (
-                    <p><span className="font-medium">Finalización:</span> {conversacion.metadata.ended_reason}</p>
+                  {/* Utilizar el campo específico si está disponible, sino usar el del objeto metadata */}
+                  {(conversacion.ended_reason || conversacion.metadata?.ended_reason) && (
+                    <p><span className="font-medium">Finalización:</span> {conversacion.ended_reason || conversacion.metadata?.ended_reason}</p>
                   )}
-                  {conversacion.metadata.call_id && (
-                    <p><span className="font-medium">ID:</span> {conversacion.metadata.call_id}</p>
+                  {(conversacion.call_id || conversacion.metadata?.call_id) && (
+                    <p><span className="font-medium">ID:</span> {conversacion.call_id || conversacion.metadata?.call_id}</p>
+                  )}
+                  {conversacion.was_successful !== undefined && (
+                    <p><span className="font-medium">Resultado:</span> {conversacion.was_successful ? 'Exitosa' : 'No exitosa'}</p>
                   )}
                 </div>
               </div>
               
-              {conversacion.metadata.recording_url && (
+              {/* Utilizar el campo específico de grabación si está disponible */}
+              {(conversacion.recording_url || conversacion.metadata?.recording_url) && (
                 <div className="mb-4">
                   <p className="text-sm text-muted-foreground mb-2">Grabación</p>
                   <audio 
-                    src={conversacion.metadata.recording_url} 
+                    src={conversacion.recording_url || conversacion.metadata?.recording_url} 
                     controls 
                     className="w-full" 
                   />
@@ -588,7 +673,7 @@ export default function ConversacionDetallePage() {
             <h2 className="font-semibold">Mensajes</h2>
           </div>
 
-          {conversacion.channel === 'phone' && conversacion.metadata?.summary && (
+          {conversacion.channel === 'phone' && (conversacion.conversation_summary || conversacion.metadata?.summary) && (
             <div className="p-4 border-b">
               <Card className="bg-blue-50 p-4 rounded-lg shadow-sm">
                 <div className="flex justify-between items-start mb-2">
@@ -607,12 +692,12 @@ export default function ConversacionDetallePage() {
                 </div>
                 
                 <p className={`text-sm text-gray-700 mb-4 ${!expandedSummary ? "line-clamp-4" : ""}`}>
-                  {conversacion.metadata.summary}
+                  {conversacion.conversation_summary || conversacion.metadata?.summary}
                 </p>
                 
                 {/* Información extraída */}
                 {(() => {
-                  const { appointment, cost, date } = extractInfoFromSummary(conversacion.metadata.summary);
+                  const { appointment, cost, date } = extractInfoFromSummary(conversacion.conversation_summary || conversacion.metadata?.summary);
                   if (appointment || cost || date) {
                     return (
                       <div className="mt-3 space-y-2">
@@ -653,4 +738,4 @@ export default function ConversacionDetallePage() {
       </div>
     </div>
   );
-} 
+}
