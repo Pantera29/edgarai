@@ -177,7 +177,8 @@ export default function ConversacionDetallePage() {
             // Determinar el rol del mensaje
             let rol = "user";
             if (typeof msg === 'object' && msg.role) {
-              rol = msg.role === "assistant" ? "assistant" : "user";
+              // Considerar "bot", "assistant" y "system" como mensajes del asistente
+              rol = (msg.role === "assistant" || msg.role === "bot" || msg.role === "system") ? "assistant" : "user";
             } else if (typeof msg === 'object' && (msg.sender === "assistant" || msg.sender === "ai" || msg.sender === "bot")) {
               rol = "assistant";
             }
