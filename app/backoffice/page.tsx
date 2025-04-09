@@ -145,222 +145,56 @@ export default function DashboardPage() {
   const cargarDatos = async (dealershipId?: string) => {
     setIsLoading(true);
     try {
-      const supabase = createClientComponentClient();
-      const authUser = await supabase.auth.getUser();
-      
-      // Obtener citas del día actual
-      const fechaActual = new Date();
-      // Puedes cambiar esta línea para probar con una fecha específica
-      // const fechaPrueba = new Date('2023-11-05'); // Domingo - día no laborable
-      // const fechaFormateada = format(fechaPrueba, 'yyyy-MM-dd');
-      const fechaFormateada = format(fechaActual, 'yyyy-MM-dd');
-      console.log("Fecha utilizada en la consulta:", fechaFormateada, "Día de la semana:", fechaActual.getDay());
-      
-      // Obtener la capacidad del taller del endpoint de disponibilidad
-      let capacidadTaller = {
-        porcentajeOcupacion: 0,
-        slotsDisponibles: 0,
-        slotsTotal: 0,
-        mensaje: "",
-        estado: 'cargando' as 'laborable' | 'no_laborable' | 'bloqueado' | 'error' | 'cargando'
-      };
-      
-      try {
-        // Construir la URL del endpoint con los parámetros necesarios
-        let urlEndpoint = `/api/appointments/availability?date=${fechaFormateada}&service_id=1147888f-5a7c-4afc-b1aa-25f266c0a8af`;
-        if (dealershipId) {
-          urlEndpoint += `&dealership_id=${dealershipId}`;
-        }
-        
-        console.log("URL completa del endpoint:", urlEndpoint);
-        const respuesta = await fetch(urlEndpoint);
-        const datos = await respuesta.json();
-        
-        console.log("Respuesta del endpoint de disponibilidad:", datos);
-        
-        if (!respuesta.ok) {
-          throw new Error(datos.message || "Error al obtener datos de capacidad");
-        }
-        
-        // Verificar si es un día no laborable o bloqueado
-        if (datos.message === 'Non-working day') {
-          console.log("Día detectado como no laborable");
-          capacidadTaller = {
-            porcentajeOcupacion: 0,
-            slotsDisponibles: 0,
-            slotsTotal: 0,
-            mensaje: "Taller cerrado hoy",
-            estado: 'no_laborable'
-          };
-        } else if (datos.message && datos.message.includes('Day blocked')) {
-          console.log("Día detectado como bloqueado");
-          capacidadTaller = {
-            porcentajeOcupacion: 0,
-            slotsDisponibles: 0,
-            slotsTotal: 0,
-            mensaje: "Taller no disponible hoy",
-            estado: 'bloqueado'
-          };
-        } else if (datos.availableSlots && Array.isArray(datos.availableSlots)) {
-          // Si hay slots disponibles pero son 0, podríamos asumir que es no laborable
-          if (datos.availableSlots.length === 0 && (!datos.totalSlots || datos.totalSlots === 0)) {
-            console.log("Día posiblemente no laborable (slots vacíos)");
-            capacidadTaller = {
-              porcentajeOcupacion: 0,
-              slotsDisponibles: 0,
-              slotsTotal: 0,
-              mensaje: "Taller cerrado hoy",
-              estado: 'no_laborable'
-            };
-          } else {
-            // Calculamos la capacidad basada en la cantidad de slots disponibles
-            const slotsDisponibles = datos.availableSlots.length;
-            
-            // El endpoint devuelve totalSlots igual a availableSlots.length, lo que hace que 
-            // siempre muestre 0% de ocupación. Definimos un total fijo de slots por día.
-            const totalSlotsPorDia = 30; // Suponemos 30 slots por día (ajustar según necesidad)
-            const slotsTotal = totalSlotsPorDia; 
-            const slotsOcupados = slotsTotal - slotsDisponibles;
-            const porcentajeOcupacion = Math.round((slotsOcupados / slotsTotal) * 100);
-            
-            console.log(`Día laborable: ${slotsDisponibles}/${slotsTotal} slots disponibles (${porcentajeOcupacion}% ocupado)`);
-            capacidadTaller = {
-              porcentajeOcupacion,
-              slotsDisponibles,
-              slotsTotal,
-              mensaje: `${slotsDisponibles}/${slotsTotal} slots disponibles`,
-              estado: 'laborable'
-            };
-          }
-        } else {
-          console.log("Formato de respuesta inesperado", datos);
-          throw new Error("Formato de respuesta inesperado");
-        }
-      } catch (error) {
-        console.error("Error al obtener capacidad del taller:", error);
-        capacidadTaller = {
-          porcentajeOcupacion: 0,
-          slotsDisponibles: 0,
-          slotsTotal: 0,
-          mensaje: "No se pudo cargar la información",
-          estado: 'error'
-        };
-      }
-      
-      // Obtener estado de las citas del día
-      let queryCitas = supabase
-        .from('appointment')
-        .select(`
-          id,
-          appointment_date,
-          appointment_time,
-          status,
-          notes,
-          client!appointment_client_id_fkey (
-            names,
-            dealership_id
-          ),
-          services (
-            service_name
-          ),
-          vehicles (
-            make,
-            model,
-            license_plate
-          )
-        `)
-        .eq('appointment_date', fechaFormateada);
-      
-      if (dealershipId) {
-        queryCitas = queryCitas.eq('dealership_id', dealershipId);
-      }
-      
-      const { data: citasData, error: citasError } = await queryCitas;
-
-      if (citasError) throw citasError;
-      
-      // Formatear correctamente los datos de las citas
-      const citasFormateadas: CitaSupabase[] = (citasData || []).map(cita => ({
-        id_uuid: String(cita.id), // Convertir a string para mantener compatibilidad
-        fecha_hora: `${cita.appointment_date}T${cita.appointment_time || '00:00:00'}`,
-        status: cita.status || 'pendiente',
-        duracion: 60, // Valor por defecto ya que no está en la tabla
-        clientes: {
-          nombre: cita.client?.[0]?.names || '',
-          dealership_id: cita.client?.[0]?.dealership_id
-        },
-        servicios: {
-          nombre: cita.services?.[0]?.service_name || ''
-        },
-        vehiculos: cita.vehicles?.[0] ? {
-          marca: cita.vehicles[0].make || '',
-          modelo: cita.vehicles[0].model || '',
-          placa: cita.vehicles[0].license_plate || ''
-        } : undefined
-      }));
-
-      // Contar citas por estado
-      const pendientes = citasFormateadas.filter(c => c.status === 'pendiente').length || 0;
-      const enCurso = citasFormateadas.filter(c => c.status === 'en_curso').length || 0;
-      const finalizadas = citasFormateadas.filter(c => c.status === 'finalizada').length || 0;
-
-      // Obtener datos de satisfacción del cliente (NPS)
-      let mesActual = new Date();
-      let haceTreintaDias = new Date(mesActual);
-      haceTreintaDias.setDate(haceTreintaDias.getDate() - 30);
-      
-      let haceSesentaDias = new Date(haceTreintaDias);
-      haceSesentaDias.setDate(haceSesentaDias.getDate() - 30);
-      
-      // Obtener el NPS promedio del último mes
-      let { data: npsDataReciente, error: npsErrorReciente } = await supabase
-        .from('nps')
-        .select('score')
-        .gte('created_at', format(haceTreintaDias, 'yyyy-MM-dd'))
-        .lt('created_at', format(mesActual, 'yyyy-MM-dd'))
-        .eq('status', 'completed');
-
-      if (npsErrorReciente) throw npsErrorReciente;
-
-      // Obtener el NPS promedio del mes anterior para calcular la tendencia
-      let { data: npsDataAnterior, error: npsErrorAnterior } = await supabase
-        .from('nps')
-        .select('score')
-        .gte('created_at', format(haceSesentaDias, 'yyyy-MM-dd'))
-        .lt('created_at', format(haceTreintaDias, 'yyyy-MM-dd'))
-        .eq('status', 'completed');
-
-      if (npsErrorAnterior) throw npsErrorAnterior;
-
-      // Calcular el NPS promedio actual (últimos 30 días)
-      const npsActual = npsDataReciente && npsDataReciente.length > 0 
-        ? npsDataReciente.reduce((acc, item) => acc + (item.score || 0), 0) / npsDataReciente.length 
-        : 0;
-
-      // Calcular el NPS promedio anterior (de 30 a 60 días atrás)
-      const npsAnterior = npsDataAnterior && npsDataAnterior.length > 0 
-        ? npsDataAnterior.reduce((acc, item) => acc + (item.score || 0), 0) / npsDataAnterior.length 
-        : 0;
-
-      // Calcular la tendencia (diferencia entre NPS actual y anterior)
-      const tendenciaNPS = Math.round(npsActual - npsAnterior);
-
-      // Objeto de satisfacción del cliente
-      const satisfaccionCliente = {
-        nps: Math.round(npsActual * 10), // Multiplicamos por 10 para convertir escala 0-10 a 0-100
-        tendencia: tendenciaNPS * 10 // Multiplicamos por 10 para mantener la misma escala
-      };
-
-      setData({
-        citasDelDia: citasFormateadas,
+      // Datos de demostración
+      const datosDemoDashboard: DashboardData = {
         estadoCitas: {
-          pendientes,
-          enCurso,
-          finalizadas
+          pendientes: 8,
+          enCurso: 5,
+          finalizadas: 12
         },
-        satisfaccionCliente,
-        capacidadTaller
-      });
+        satisfaccionCliente: {
+          nps: 85,
+          tendencia: 12
+        },
+        citasDelDia: [
+          {
+            id_uuid: '1',
+            fecha_hora: '2024-03-20T09:00:00',
+            status: 'pendiente',
+            clientes: { nombre: 'Juan Pérez' },
+            servicios: { nombre: 'Mantenimiento Preventivo' },
+            vehiculos: { marca: 'Toyota', modelo: 'Corolla', placa: 'ABC123' },
+            duracion: 60
+          },
+          {
+            id_uuid: '2',
+            fecha_hora: '2024-03-20T10:30:00',
+            status: 'en_curso',
+            clientes: { nombre: 'María García' },
+            servicios: { nombre: 'Cambio de Aceite' },
+            vehiculos: { marca: 'Honda', modelo: 'Civic', placa: 'XYZ789' },
+            duracion: 45
+          },
+          {
+            id_uuid: '3',
+            fecha_hora: '2024-03-20T11:15:00',
+            status: 'finalizada',
+            clientes: { nombre: 'Carlos Rodríguez' },
+            servicios: { nombre: 'Diagnóstico General' },
+            vehiculos: { marca: 'Volkswagen', modelo: 'Golf', placa: 'DEF456' },
+            duracion: 90
+          }
+        ],
+        capacidadTaller: {
+          porcentajeOcupacion: 75,
+          slotsDisponibles: 8,
+          slotsTotal: 30,
+          mensaje: '8/30 slots disponibles',
+          estado: 'laborable'
+        }
+      };
+
+      setData(datosDemoDashboard);
     } catch (error) {
       console.error('Error al cargar datos:', error);
       toast({
