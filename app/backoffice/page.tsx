@@ -79,13 +79,6 @@ interface DashboardData {
     tendencia: number;
   };
   citasDelDia: CitaSupabase[];
-  capacidadTaller: {
-    porcentajeOcupacion: number;
-    slotsDisponibles: number;
-    slotsTotal: number;
-    mensaje: string;
-    estado: 'laborable' | 'no_laborable' | 'bloqueado' | 'error' | 'cargando';
-  };
 }
 
 export default function DashboardPage() {
@@ -145,56 +138,93 @@ export default function DashboardPage() {
   const cargarDatos = async (dealershipId?: string) => {
     setIsLoading(true);
     try {
-      // Datos de demostración
-      const datosDemoDashboard: DashboardData = {
-        estadoCitas: {
-          pendientes: 8,
-          enCurso: 5,
-          finalizadas: 12
+      // Obtener la fecha actual en formato YYYY-MM-DD
+      const fechaActual = new Date().toISOString().split('T')[0];
+      
+      // 1. Obtener estado de citas (pendientes, en curso, finalizadas)
+      const { data: estadoCitasData, error: estadoCitasError } = await supabase
+        .from('appointment')
+        .select('status')
+        .eq('dealership_id', dealershipId || '')
+        .eq('appointment_date', fechaActual);
+      
+      if (estadoCitasError) throw estadoCitasError;
+      
+      // Contar citas por estado
+      const estadoCitas = {
+        pendientes: estadoCitasData?.filter(cita => cita.status === 'pending').length || 0,
+        enCurso: estadoCitasData?.filter(cita => cita.status === 'in_progress').length || 0,
+        finalizadas: estadoCitasData?.filter(cita => cita.status === 'completed').length || 0
+      };
+      
+      // 2. Obtener citas del día
+      const { data: citasDelDiaData, error: citasDelDiaError } = await supabase
+        .from('appointment')
+        .select(`
+          id,
+          appointment_date,
+          appointment_time,
+          status,
+          client_id,
+          vehicle_id,
+          service_id,
+          client:client_id (
+            id,
+            names
+          ),
+          services:service_id (
+            id_uuid,
+            service_name,
+            duration_minutes
+          ),
+          vehicles:vehicle_id (
+            id_uuid,
+            make,
+            model,
+            license_plate
+          )
+        `)
+        .eq('appointment_date', fechaActual)
+        .eq('dealership_id', dealershipId || '')
+        .order('appointment_time', { ascending: true });
+      
+      if (citasDelDiaError) throw citasDelDiaError;
+      
+      // Transformar los datos para que coincidan con la interfaz CitaSupabase
+      const citasDelDia = citasDelDiaData?.map(cita => ({
+        id_uuid: cita.id.toString(),
+        fecha_hora: `${cita.appointment_date}T${cita.appointment_time}`,
+        status: cita.status || 'pending',
+        clientes: {
+          nombre: cita.client?.[0]?.names || 'Cliente desconocido',
+          dealership_id: dealershipId || ''
         },
-        satisfaccionCliente: {
-          nps: 85,
-          tendencia: 12
+        servicios: {
+          nombre: cita.services?.[0]?.service_name || 'Servicio desconocido'
         },
-        citasDelDia: [
-          {
-            id_uuid: '1',
-            fecha_hora: '2024-03-20T09:00:00',
-            status: 'pendiente',
-            clientes: { nombre: 'Juan Pérez' },
-            servicios: { nombre: 'Mantenimiento Preventivo' },
-            vehiculos: { marca: 'Toyota', modelo: 'Corolla', placa: 'ABC123' },
-            duracion: 60
-          },
-          {
-            id_uuid: '2',
-            fecha_hora: '2024-03-20T10:30:00',
-            status: 'en_curso',
-            clientes: { nombre: 'María García' },
-            servicios: { nombre: 'Cambio de Aceite' },
-            vehiculos: { marca: 'Honda', modelo: 'Civic', placa: 'XYZ789' },
-            duracion: 45
-          },
-          {
-            id_uuid: '3',
-            fecha_hora: '2024-03-20T11:15:00',
-            status: 'finalizada',
-            clientes: { nombre: 'Carlos Rodríguez' },
-            servicios: { nombre: 'Diagnóstico General' },
-            vehiculos: { marca: 'Volkswagen', modelo: 'Golf', placa: 'DEF456' },
-            duracion: 90
-          }
-        ],
-        capacidadTaller: {
-          porcentajeOcupacion: 75,
-          slotsDisponibles: 8,
-          slotsTotal: 30,
-          mensaje: '8/30 slots disponibles',
-          estado: 'laborable'
-        }
+        vehiculos: cita.vehicles?.[0] ? {
+          marca: cita.vehicles[0].make,
+          modelo: cita.vehicles[0].model,
+          placa: cita.vehicles[0].license_plate || 'Sin placa'
+        } : undefined,
+        duracion: cita.services?.[0]?.duration_minutes || 60
+      })) || [];
+      
+      // 3. Satisfacción del cliente (NPS) - Por ahora usamos valores por defecto
+      // TODO: Implementar cuando se tenga la tabla de feedback
+      const satisfaccionCliente = {
+        nps: 0,
+        tendencia: 0
+      };
+      
+      // Construir el objeto de datos del dashboard
+      const datosDashboard: DashboardData = {
+        estadoCitas,
+        satisfaccionCliente,
+        citasDelDia
       };
 
-      setData(datosDemoDashboard);
+      setData(datosDashboard);
     } catch (error) {
       console.error('Error al cargar datos:', error);
       toast({
@@ -267,13 +297,6 @@ export default function DashboardPage() {
     router.push(`/backoffice/citas/nueva${queryParams}`);
   }
 
-  // Efecto para depuración del estado de capacidad del taller
-  useEffect(() => {
-    if (data?.capacidadTaller) {
-      console.log("Estado actual de capacidadTaller:", data.capacidadTaller);
-    }
-  }, [data?.capacidadTaller]);
-
   if (!data) return <div>Cargando...</div>
 
   return (
@@ -287,65 +310,8 @@ export default function DashboardPage() {
           </Button>
         </div>
       </div>
-      
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3 lg:grid-cols-3">
-        {/* Capacidad del Taller */}
-        <Card className="shadow-sm">
-          <div className="p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Capacidad del Taller</h3>
-              <div className="rounded-md bg-blue-100 p-1">
-                <Wrench className="h-4 w-4 text-blue-600" />
-              </div>
-            </div>
-            
-            {data.capacidadTaller.estado !== 'laborable' ? (
-              <div className="flex flex-col items-center justify-center py-6">
-                <div className={`text-xl font-bold ${
-                  data.capacidadTaller.estado === 'error' ? 'text-red-500' : 
-                  data.capacidadTaller.estado === 'bloqueado' ? 'text-amber-600' : 
-                  data.capacidadTaller.estado === 'no_laborable' ? 'text-gray-500' : 
-                  'text-muted-foreground'
-                }`}>
-                  {data.capacidadTaller.mensaje}
-                </div>
-                {data.capacidadTaller.estado === 'error' && (
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="mt-3"
-                    onClick={() => cargarDatos(dataToken?.dealership_id)}
-                  >
-                    Reintentar
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <>
-                <div className="text-3xl font-bold">{data.capacidadTaller.porcentajeOcupacion}%</div>
-                <Progress 
-                  value={data.capacidadTaller.porcentajeOcupacion} 
-                  className="h-2 mt-2 mb-2"
-                >
-                  <div 
-                    className={`h-full w-full flex-1 transition-all ${
-                      data.capacidadTaller.porcentajeOcupacion > 85 ? "bg-red-500" : 
-                      (data.capacidadTaller.porcentajeOcupacion > 60 ? "bg-amber-500" : "bg-green-500")
-                    }`} 
-                    style={{ transform: `translateX(-${100 - data.capacidadTaller.porcentajeOcupacion}%)` }} 
-                  />
-                </Progress>
-                <div className="mt-3">
-                  <p className="text-xs text-muted-foreground">
-                    <Users className="inline h-3 w-3 mr-1" />
-                    {data.capacidadTaller.mensaje}
-                  </p>
-                </div>
-              </>
-            )}
-          </div>
-        </Card>
 
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
         {/* Estado de Citas */}
         <Card className="shadow-sm">
           <div className="p-6">
