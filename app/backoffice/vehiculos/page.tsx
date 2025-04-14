@@ -83,7 +83,7 @@ export default function VehiculosPage() {
     null
   );
   const [token, setToken] = useState<string>("");
-  const [dataToken, setDataToken] = useState<object>({});
+  const [dataToken, setDataToken] = useState<{dealership_id?: string}>({});
 
   const router = useRouter();
 
@@ -269,18 +269,15 @@ export default function VehiculosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      // Obtener el cliente seleccionado
       const selectedClient = clientesDisponibles.find(
         client => client.id === nuevoVehiculo.client_id
       );
       
-      // Si no hay cliente seleccionado, mostrar error
       if (!selectedClient) {
         console.error('Debe seleccionar un cliente');
         return;
       }
       
-      // Asegurarse de que todos los campos del formulario coincidan con los de la base de datos
       const vehiculoData = {
         client_id: nuevoVehiculo.client_id,
         make: nuevoVehiculo.make,
@@ -291,17 +288,18 @@ export default function VehiculosPage() {
         last_km: nuevoVehiculo.last_km
       };
 
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('vehicles')
         .insert([vehiculoData])
-        .select('*, client:client(names)')
 
       if (error) {
         console.error('Error al crear vehículo:', error)
         return
       }
 
-      setVehiculos([...vehiculos, data[0]])
+      // Recargar la lista completa de vehículos
+      await cargarVehiculos(dataToken?.dealership_id);
+      
       setShowNuevoVehiculo(false)
       setNuevoVehiculo({
         id: '',
