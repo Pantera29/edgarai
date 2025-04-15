@@ -19,6 +19,7 @@ import {
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { toast } from "sonner";
 import { BlockedDate, HorarioOperacion, SelectedDateInfo } from '@/types/workshop';
+import { verifyToken } from "@/app/jwt/token";
 
 interface BlockDateDialogProps {
   open: boolean;
@@ -137,21 +138,19 @@ export default function BlockDateDialog({
 
     setIsLoading(true);
     try {
-      // Obtener un dealership_id válido de la configuración actual
-      const { data: dealershipData, error: dealershipError } = await supabase
-        .from('dealerships')
-        .select('id')
-        .limit(1)
-        .single();
-
-      if (dealershipError) {
-        console.error('Error al obtener dealership_id:', dealershipError);
-        toast.error("No se pudo obtener la información del concesionario.");
-        setIsLoading(false);
+      // Obtener el dealership_id del token
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      if (!token) {
+        toast.error('No se encontró el token de autenticación');
         return;
       }
 
-      const dealership_id = dealershipData.id;
+      const verifiedData = verifyToken(token);
+      if (!verifiedData?.dealership_id) {
+        toast.error('No se pudo verificar el concesionario');
+        return;
+      }
 
       // Usar startOfDay para evitar problemas de zona horaria
       const normalizedDate = startOfDay(date);
@@ -159,7 +158,7 @@ export default function BlockDateDialog({
       // Preparar datos para guardar
       const blockData = {
         block_id: editingBlock?.block_id || crypto.randomUUID(),
-        dealership_id: dealership_id,
+        dealership_id: verifiedData.dealership_id,
         date: format(normalizedDate, 'yyyy-MM-dd'),
         reason: motivo.trim(),
         full_day: diaCompleto,
