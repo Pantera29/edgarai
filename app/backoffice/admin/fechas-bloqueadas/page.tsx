@@ -22,6 +22,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { EnhancedCalendar } from '@/components/workshop/enhanced-calendar';
+import { verifyToken } from "@/app/jwt/token";
 
 export default function BlockedDates() {
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
@@ -41,10 +42,25 @@ export default function BlockedDates() {
   const loadData = async () => {
     setIsLoading(true);
     try {
+      // Obtener el dealership_id del token
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      if (!token) {
+        toast.error('No se encontró el token de autenticación');
+        return;
+      }
+
+      const verifiedData = verifyToken(token);
+      if (!verifiedData?.dealership_id) {
+        toast.error('No se pudo verificar el concesionario');
+        return;
+      }
+
       // Cargar fechas bloqueadas
       const { data: blockedData, error: blockedError } = await supabase
         .from('blocked_dates')
         .select('*')
+        .eq('dealership_id', verifiedData.dealership_id)
         .order('date');
 
       if (blockedError) throw blockedError;
@@ -54,6 +70,7 @@ export default function BlockedDates() {
       const { data: hoursData, error: hoursError } = await supabase
         .from('operating_hours')
         .select('*')
+        .eq('dealership_id', verifiedData.dealership_id)
         .order('day_of_week');
 
       if (hoursError) throw hoursError;

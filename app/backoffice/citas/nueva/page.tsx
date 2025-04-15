@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { Client, Vehicle, Service, AppointmentStatus, BlockedDate, HorarioOperacion } from '@/types/workshop';
+import { Client, Vehicle, Service, AppointmentStatus, BlockedDate, HorarioOperacion, TallerConfig } from '@/types/workshop';
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { useRouter } from "next/navigation";
@@ -72,6 +72,7 @@ export default function NuevaReservaPage() {
 
   const [token, setToken] = useState<string>("");
   const [verifiedDataToken, setVerifiedDataToken] = useState<any>(null);
+  const [tallerConfig, setTallerConfig] = useState<TallerConfig | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -239,16 +240,50 @@ export default function NuevaReservaPage() {
   };
 
   const loadOperatingHours = async () => {
-    const { data, error } = await supabase.from('operating_hours').select('*').order('day_of_week');
-    if (!error) {
+    try {
+      if (!verifiedDataToken?.dealership_id) {
+        console.error('No se encontró dealership_id en el token');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('operating_hours')
+        .select('*')
+        .eq('dealership_id', verifiedDataToken.dealership_id)
+        .order('day_of_week');
+
+      if (error) {
+        console.error('Error al cargar horarios:', error);
+        return;
+      }
+
       setOperatingHours(data || []);
+    } catch (error) {
+      console.error('Error al cargar horarios:', error);
     }
   };
 
   const loadBlockedDates = async () => {
-    const { data, error } = await supabase.from('blocked_dates').select('*');
-    if (!error) {
+    try {
+      if (!verifiedDataToken?.dealership_id) {
+        console.error('No se encontró dealership_id en el token');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('blocked_dates')
+        .select('*')
+        .eq('dealership_id', verifiedDataToken.dealership_id)
+        .order('date');
+
+      if (error) {
+        console.error('Error al cargar fechas bloqueadas:', error);
+        return;
+      }
+
       setBlockedDates(data || []);
+    } catch (error) {
+      console.error('Error al cargar fechas bloqueadas:', error);
     }
   };
 
@@ -300,11 +335,36 @@ export default function NuevaReservaPage() {
     }
   };
 
+  const loadConfig = async () => {
+    try {
+      if (!verifiedDataToken?.dealership_id) {
+        console.error('No se encontró dealership_id en el token');
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('dealership_configuration')
+        .select('*')
+        .eq('dealership_id', verifiedDataToken.dealership_id)
+        .single();
+
+      if (error) {
+        console.error('Error al cargar la configuración:', error);
+        return;
+      }
+
+      setTallerConfig(data);
+    } catch (error) {
+      console.error('Error al cargar la configuración:', error);
+    }
+  };
+
   useEffect(() => {
     if (verifiedDataToken?.dealership_id) {
       loadData();
       loadOperatingHours();
       loadBlockedDates();
+      loadConfig();
     }
   }, [verifiedDataToken]);
 
@@ -677,7 +737,7 @@ export default function NuevaReservaPage() {
                   onSelect={(date) => handleSelectDate(date)}
                   blockedDates={blockedDates}
                   operatingHours={operatingHours}
-                  turnDuration={30}
+                  turnDuration={tallerConfig?.shift_duration || 30}
                   appointments={appointments}
                   onTimeSlotSelect={(slot) => {
                     console.log('Slot seleccionado en el componente padre:', slot);
@@ -688,7 +748,7 @@ export default function NuevaReservaPage() {
                     duration: servicios.find(s => 
                       s.id === selectedService || 
                       s.id_uuid === selectedService
-                    )?.duration_minutes || 0
+                    )?.duration_minutes || tallerConfig?.shift_duration || 30
                   } : undefined}
                 />
                 {selectedSlot && (
