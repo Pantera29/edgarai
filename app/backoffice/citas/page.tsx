@@ -27,6 +27,17 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment-calendar"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
+import { Card } from "@/components/ui/card"
+import { Users, Clock, AlertTriangle, TrendingUp, CheckCircle } from "lucide-react"
 
 // Mover esta definición al inicio, antes de las interfaces
 type EstadoCita = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled'
@@ -121,6 +132,7 @@ const traducirEstado = (estado: string | null): string => {
 
 function CitasPageContent() {
   const [token, setToken] = useState<string>("");
+  const [dataToken, setDataToken] = useState<{dealership_id?: string} | null>(null);
   const [citas, setCitas] = useState<Cita[]>([])
   const [cancelDialog, setCancelDialog] = useState(false)
   const [rescheduleDialog, setRescheduleDialog] = useState(false)
@@ -133,27 +145,48 @@ function CitasPageContent() {
   const [filtroEstado, setFiltroEstado] = useState<string | null>(null)
   const router = useRouter();
   const { toast } = useToast()
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
 
+  // Nuevo estado para métricas
+  const [metricas, setMetricas] = useState({
+    total: 0,
+    pendientes: 0,
+    enProceso: 0,
+    completadas: 0,
+    canceladas: 0
+  });
+
+  // Efecto principal para token y dealership_id
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const tokenValue = params.get("token"); // Obtiene el token de los query params
+    const tokenValue = params.get("token");
     if (tokenValue) {
-      setToken(tokenValue); // Actualiza el estado con el token
+      setToken(tokenValue);
       const verifiedDataToken = verifyToken(tokenValue);
       
       if (!verifiedDataToken) {
-        router.push("/login"); // Redirigir si el token es inválido
+        router.push("/login");
       } else {
-        // Guardar el dealership_id del token para usarlo en las cargas
-        cargarCitas(verifiedDataToken.dealership_id);
-        cargarConfiguracion();
+        setDataToken(verifiedDataToken);
       }
     }
   }, [router]);
 
-  const cargarCitas = async (dealershipIdFromToken?: string) => {
+  // Efecto para cargar citas cuando cambia el dataToken o los filtros
+  useEffect(() => {
+    if (dataToken?.dealership_id) {
+      cargarCitas(dataToken.dealership_id);
+    }
+  }, [dataToken, filtroEstado]);
+
+  const cargarCitas = async (dealershipIdFromToken: string) => {
+    if (!dealershipIdFromToken) {
+      console.error("No se proporcionó dealership_id");
+      return;
+    }
+
     try {
-      // Construir la consulta base
       let query = supabase
         .from('appointment')
         .select(`
@@ -185,46 +218,40 @@ function CitasPageContent() {
             license_plate,
             client_id
           )
-        `);
-      
-      // Si tenemos un dealership_id del token, filtrar por él
-      if (dealershipIdFromToken) {
-        console.log("Filtrando citas por dealership_id:", dealershipIdFromToken);
-        query = query.eq('dealership_id', dealershipIdFromToken);
-      }
-        
-      // Aplicar ordenamiento
-      const { data: citasData, error } = await query
+        `)
+        .eq('dealership_id', dealershipIdFromToken)
         .order('appointment_date', { ascending: true })
         .order('appointment_time', { ascending: true });
 
+      const { data: citasData, error } = await query;
+
       if (error) throw error;
-      console.log("Citas cargadas:", citasData);
+      console.log("Citas cargadas para dealership_id", dealershipIdFromToken, ":", citasData);
       
       // Obtener la fecha actual en formato YYYY-MM-DD
       const fechaActual = new Date().toISOString().split('T')[0];
       
-      // Ordenar las citas: primero las futuras (más cercanas primero), luego las pasadas (más recientes primero)
+      // Ordenar las citas: primero las futuras, luego las pasadas
       const citasOrdenadas = [...citasData as unknown as Cita[]].sort((a, b) => {
-        const fechaA = a.appointment_date || '';
-        const fechaB = b.appointment_date || '';
-        
-        // Si ambas citas son futuras o ambas son pasadas
-        if ((fechaA >= fechaActual && fechaB >= fechaActual) || 
-            (fechaA < fechaActual && fechaB < fechaActual)) {
-          // Ordenar por fecha y luego por hora
-          if (fechaA !== fechaB) {
-            return fechaA.localeCompare(fechaB);
+        // Si alguna cita no tiene fecha, ponerla al final
+        if (!a.appointment_date) return 1;
+        if (!b.appointment_date) return -1;
+
+        // Comparar con la fecha actual
+        const esFuturaA = a.appointment_date >= fechaActual;
+        const esFuturaB = b.appointment_date >= fechaActual;
+
+        // Si ambas son futuras o ambas son pasadas, ordenar por fecha y hora
+        if (esFuturaA === esFuturaB) {
+          if (a.appointment_date !== b.appointment_date) {
+            return a.appointment_date.localeCompare(b.appointment_date);
           }
-          
           // Si las fechas son iguales, ordenar por hora
-          const horaA = a.appointment_time || '';
-          const horaB = b.appointment_time || '';
-          return horaA.localeCompare(horaB);
+          return (a.appointment_time || '').localeCompare(b.appointment_time || '');
         }
-        
-        // Si una es futura y otra es pasada, la futura va primero
-        return fechaA >= fechaActual ? -1 : 1;
+
+        // Poner las citas futuras primero
+        return esFuturaA ? -1 : 1;
       });
       
       setCitas(citasOrdenadas);
@@ -404,9 +431,26 @@ function CitasPageContent() {
     cargarConfiguracion();
   }, []);
 
+  // Efecto para calcular métricas
   useEffect(() => {
-    cargarCitas();
-  }, []);
+    const calcularMetricas = () => {
+      const total = citas.length;
+      const pendientes = citas.filter(cita => cita.status === 'pending').length;
+      const enProceso = citas.filter(cita => cita.status === 'in_progress').length;
+      const completadas = citas.filter(cita => cita.status === 'completed').length;
+      const canceladas = citas.filter(cita => cita.status === 'cancelled').length;
+
+      setMetricas({
+        total,
+        pendientes,
+        enProceso,
+        completadas,
+        canceladas
+      });
+    };
+
+    calcularMetricas();
+  }, [citas]);
 
   // Filtrar citas según el estado seleccionado
   const citasFiltradas = useMemo(() => {
@@ -415,6 +459,38 @@ function CitasPageContent() {
       ? citas.filter(cita => cita.status === filtroEstado)
       : citas;
   }, [citas, filtroEstado]);
+
+  // Calcular el total de páginas basado en las citas filtradas
+  const totalPages = Math.ceil(citasFiltradas.length / itemsPerPage);
+
+  // Obtener las citas para la página actual
+  const citasPaginadas = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    return citasFiltradas.slice(startIndex, endIndex);
+  }, [citasFiltradas, currentPage]);
+
+  // Función para cambiar de página
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Función para generar el rango de páginas a mostrar
+  const getPageRange = () => {
+    const range = [];
+    const maxPagesToShow = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let end = Math.min(totalPages, start + maxPagesToShow - 1);
+
+    if (end - start + 1 < maxPagesToShow) {
+      start = Math.max(1, end - maxPagesToShow + 1);
+    }
+
+    for (let i = start; i <= end; i++) {
+      range.push(i);
+    }
+    return range;
+  };
 
   return (
     <div className="min-h-screen">
@@ -427,6 +503,85 @@ function CitasPageContent() {
               <Button type="submit" className="relative" > Agendar Cita </Button>
             </Link>
           </div>
+        </div>
+
+        {/* Cards de Métricas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Total de Citas */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Total Citas</h3>
+              <div className="rounded-md bg-blue-100 p-1">
+                <CalendarClock className="h-4 w-4 text-blue-600" />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold">{metricas.total}</div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <Users className="inline h-3 w-3 mr-1" />
+                Total de citas registradas
+              </p>
+            </div>
+          </Card>
+
+          {/* Citas Pendientes */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Citas Pendientes</h3>
+              <div className="rounded-md bg-yellow-100 p-1">
+                <Clock className="h-4 w-4 text-yellow-600" />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold">{metricas.pendientes}</div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <AlertTriangle className="inline h-3 w-3 mr-1" />
+                Requieren atención
+              </p>
+            </div>
+          </Card>
+
+          {/* Citas en Proceso */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">En Proceso</h3>
+              <div className="rounded-md bg-blue-100 p-1">
+                <TrendingUp className="h-4 w-4 text-blue-600" />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold">{metricas.enProceso}</div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <Clock className="inline h-3 w-3 mr-1" />
+                Servicios en curso
+              </p>
+            </div>
+          </Card>
+
+          {/* Citas Completadas */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Completadas</h3>
+              <div className="rounded-md bg-green-100 p-1">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold">{metricas.completadas}</div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <CheckCircle className="inline h-3 w-3 mr-1" />
+                Servicios finalizados
+              </p>
+            </div>
+          </Card>
         </div>
 
         {/* Lista de Citas */}
@@ -485,7 +640,7 @@ function CitasPageContent() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {citasFiltradas.map((cita) => (
+              {citasPaginadas.map((cita) => (
                 <TableRow key={cita.id.toString()}>
                   <TableCell>{cita.client?.names}</TableCell>
                   <TableCell>{cita.services?.service_name}</TableCell>
@@ -563,7 +718,7 @@ function CitasPageContent() {
                   </TableCell>
                 </TableRow>
               ))}
-              {citasFiltradas.length === 0 && (
+              {citasPaginadas.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center py-4">
                     {filtroEstado 
@@ -575,6 +730,65 @@ function CitasPageContent() {
               )}
             </TableBody>
           </Table>
+
+          {/* Paginación - Modificada para mostrarse siempre que haya al menos una cita */}
+          {citasFiltradas.length > 0 && (
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center border-t pt-4">
+              <div className="text-sm text-muted-foreground order-2 sm:order-1">
+                Mostrando {Math.min(citasFiltradas.length, ((currentPage - 1) * itemsPerPage) + 1)} a {Math.min(currentPage * itemsPerPage, citasFiltradas.length)} de {citasFiltradas.length} citas
+              </div>
+              <div className="order-1 sm:order-2">
+                <Pagination>
+                  <PaginationContent>
+                    {totalPages > 1 && (
+                      <>
+                        <PaginationItem>
+                          <PaginationLink
+                            onClick={() => handlePageChange(1)}
+                            disabled={currentPage === 1}
+                          >
+                            <ChevronsLeft className="h-4 w-4" />
+                          </PaginationLink>
+                        </PaginationItem>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            onClick={() => handlePageChange(currentPage - 1)}
+                            disabled={currentPage === 1}
+                          />
+                        </PaginationItem>
+                        
+                        {getPageRange().map((page) => (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              onClick={() => handlePageChange(page)}
+                              isActive={currentPage === page}
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={() => handlePageChange(currentPage + 1)}
+                            disabled={currentPage === totalPages}
+                          />
+                        </PaginationItem>
+                        <PaginationItem>
+                          <PaginationLink
+                            onClick={() => handlePageChange(totalPages)}
+                            disabled={currentPage === totalPages}
+                          >
+                            <ChevronsRight className="h-4 w-4" />
+                          </PaginationLink>
+                        </PaginationItem>
+                      </>
+                    )}
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Diálogo de Cancelación */}
