@@ -5,7 +5,7 @@ import { DataTable } from "@/components/ui/data-table"
 import { supabase } from "@/lib/supabase"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { Card } from "@/components/ui/card"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import {
   Select,
   SelectContent,
@@ -19,6 +19,8 @@ import Link from "next/link"
 import { DateRange } from "react-day-picker"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "../../jwt/token"
+import { ArrowUp, ArrowDown, Clock, MessageSquare } from "lucide-react"
+
 const columns = [
   {
     accessorKey: "created_at",
@@ -134,11 +136,37 @@ export default function FeedbackPage() {
 
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [npsData, setNpsData] = useState({
+    currentScore: 0,
+    trend: 0, // positivo significa mejora, negativo significa deterioro
+    promoters: 0,
+    detractors: 0
+  })
   const [filters, setFilters] = useState<Filters>({
     status: "todos",
     dateRange: undefined,
     classification: "todas"
   })
+
+  // Función para calcular el NPS
+  const calculateNPS = (responses: any[]) => {
+    if (!responses.length) return { score: 0, promoters: 0, detractors: 0 };
+    
+    const promoters = responses.filter(r => r.score >= 9).length;
+    const detractors = responses.filter(r => r.score <= 6).length;
+    const total = responses.length;
+    
+    const score = Math.round(((promoters - detractors) / total) * 100);
+    
+    return { score, promoters, detractors };
+  }
+
+  // Función para calcular la tendencia del NPS
+  const calculateNPSTrend = (currentData: any[], previousData: any[]) => {
+    const currentNPS = calculateNPS(currentData).score;
+    const previousNPS = calculateNPS(previousData).score;
+    return currentNPS - previousNPS;
+  }
 
   const fetchData = async (dealershipIdFromToken?: string) => {
     setLoading(true)
@@ -152,22 +180,20 @@ export default function FeedbackPage() {
             dealership_id
           )
         `)
+        .order('created_at', { ascending: false })
 
       // Filtrar por dealership_id si está disponible
       if (dealershipIdFromToken) {
         console.log("Filtrando NPS por dealership_id:", dealershipIdFromToken);
-        // Aquí filtramos por el dealership_id del cliente asociado con el NPS
         query = query.eq('client.dealership_id', dealershipIdFromToken);
       }
 
       if (filters.status !== "todos") {
-        // Convertir los valores en español a inglés para la consulta
         const statusValue = filters.status === "pendiente" ? "pending" : "completed";
         query = query.eq('status', statusValue);
       }
 
       if (filters.classification !== "todas") {
-        // Convertir los valores en español a inglés para la consulta
         let classificationValue;
         switch (filters.classification) {
           case "promotor": classificationValue = "promoter"; break;
@@ -178,20 +204,13 @@ export default function FeedbackPage() {
         query = query.eq('classification', classificationValue);
       }
 
-      if (filters.dateRange) {
-        query = query.gte('created_at', filters.dateRange.from)
-        query = query.lte('created_at', filters.dateRange.to)
-      }
-
-      const { data, error } = await query
+      const { data: allData, error } = await query
 
       if (error) throw error
 
-      // Si filtramos por dealership_id, verificamos manualmente los resultados
-      // porque la consulta anterior con eq('client.dealership_id') podría no funcionar como esperamos
-      let filteredData = data;
+      let filteredData = allData;
       if (dealershipIdFromToken) {
-        filteredData = data.filter(item => 
+        filteredData = allData.filter(item => 
           item.client && item.client.dealership_id === dealershipIdFromToken
         );
       }
@@ -200,6 +219,32 @@ export default function FeedbackPage() {
         ...item,
         customer_name: item.client?.names || '-'
       }))
+
+      // Calcular NPS actual y tendencia
+      const today = new Date();
+      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const firstDayOfPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const lastDayOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+
+      const currentMonthData = formattedData.filter(item => 
+        new Date(item.created_at) >= firstDayOfMonth && 
+        new Date(item.created_at) <= today
+      );
+
+      const previousMonthData = formattedData.filter(item => 
+        new Date(item.created_at) >= firstDayOfPrevMonth && 
+        new Date(item.created_at) <= lastDayOfPrevMonth
+      );
+
+      const { score: currentScore, promoters, detractors } = calculateNPS(currentMonthData);
+      const trend = calculateNPSTrend(currentMonthData, previousMonthData);
+
+      setNpsData({
+        currentScore,
+        trend,
+        promoters,
+        detractors
+      });
 
       setData(formattedData)
     } catch (error) {
@@ -223,17 +268,69 @@ export default function FeedbackPage() {
       <h1 className="text-3xl font-bold mb-8">Feedback NPS</h1>
 
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <Card className="p-4">
-          <h3 className="font-medium mb-2">NPS Score</h3>
-          {/* Implementar cálculo de NPS */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">NPS Score</CardTitle>
+            {npsData.trend >= 0 ? (
+              <ArrowUp className="h-4 w-4 text-green-500" />
+            ) : (
+              <ArrowDown className="h-4 w-4 text-red-500" />
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-1">
+              <div className="text-2xl font-bold">{npsData.currentScore}%</div>
+              <div className="flex items-center gap-2">
+                {Math.abs(npsData.trend)}%
+                <p className="text-xs text-muted-foreground">
+                  vs. mes anterior
+                </p>
+              </div>
+              <div className="text-xs text-muted-foreground mt-2">
+                {npsData.promoters} promotores · {npsData.detractors} detractores
+              </div>
+            </div>
+          </CardContent>
         </Card>
-        <Card className="p-4">
-          <h3 className="font-medium mb-2">Respuestas Pendientes</h3>
-          {/* Mostrar contador de pendientes */}
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Respuestas Pendientes</CardTitle>
+            <Clock className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-1">
+              <div className="text-2xl font-bold">
+                {data.filter(item => item.status === 'pending').length || 0}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Esperando feedback de clientes
+              </p>
+            </div>
+          </CardContent>
         </Card>
-        <Card className="p-4">
-          <h3 className="font-medium mb-2">Última Respuesta</h3>
-          {/* Mostrar fecha de última respuesta */}
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Última Respuesta</CardTitle>
+            <MessageSquare className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col gap-1">
+              <div className="text-2xl font-bold">
+                {data.length > 0 
+                  ? format(new Date(data[0].created_at), "dd MMM", { locale: es })
+                  : "Sin datos"
+                }
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {data.length > 0 
+                  ? `${data[0].customer_name || 'Cliente'} - ${data[0].score || 0}/10`
+                  : "No hay respuestas registradas"
+                }
+              </p>
+            </div>
+          </CardContent>
         </Card>
       </div>
 
