@@ -185,12 +185,28 @@ export default function NuevaReservaPage() {
   
   const loadData = async () => {
     try {
+      // Verificar que tenemos el dealership_id del token
+      if (!verifiedDataToken?.dealership_id) {
+        console.error('No se encontró dealership_id en el token');
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo verificar el concesionario"
+        });
+        return;
+      }
+
       const [
         { data: clientesData, error: clientesError },
         { data: vehiculosData, error: vehiculosError },
         { data: serviciosData, error: serviciosError }
       ] = await Promise.all([
-        supabase.from('client').select('*').order('names'),
+        // Filtrar clientes por dealership_id
+        supabase
+          .from('client')
+          .select('*')
+          .eq('dealership_id', verifiedDataToken.dealership_id)
+          .order('names'),
         supabase.from('vehicles').select('*').order('make, model'),
         supabase.from('services').select('*').order('service_name')
       ]);
@@ -285,10 +301,12 @@ export default function NuevaReservaPage() {
   };
 
   useEffect(() => {
-    loadData();
-    loadOperatingHours();
-    loadBlockedDates();
-  }, []);
+    if (verifiedDataToken?.dealership_id) {
+      loadData();
+      loadOperatingHours();
+      loadBlockedDates();
+    }
+  }, [verifiedDataToken]);
 
   // Depurar la estructura de un item de servicio cuando se cargan
   useEffect(() => {
