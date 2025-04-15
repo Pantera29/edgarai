@@ -37,7 +37,7 @@ import { verifyToken } from '../../jwt/token'
 import { useRouter } from "next/navigation";
 
 interface Vehiculo {
-  id: string
+  id_uuid: string
   client_id: string
   client: {
     names: string
@@ -126,7 +126,7 @@ export default function VehiculosPage() {
   const [showNuevoVehiculo, setShowNuevoVehiculo] = useState(false)
   const [clientesDisponibles, setClientesDisponibles] = useState<ClienteDisponible[]>([])
   const [nuevoVehiculo, setNuevoVehiculo] = useState<Vehiculo>({
-    id: '',
+    id_uuid: '',
     client_id: '',
     client: {
       names: ''
@@ -143,10 +143,6 @@ export default function VehiculosPage() {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    cargarVehiculos()
-  }, [])
-
-  useEffect(() => {
     // Obtener el ID del vehículo de la URL si existe
     const params = new URLSearchParams(window.location.search)
     const id = params.get('id')
@@ -159,57 +155,54 @@ export default function VehiculosPage() {
     setLoading(true)
 
     try {
-      // Consulta base para obtener los vehículos
-      let query = supabase
+      // Si no hay dealership_id, no cargar nada
+      if (!dealershipIdFromToken) {
+        setVehiculos([]);
+        setMarcasDisponibles([]);
+        return;
+      }
+
+      // Consulta directa usando dealership_id
+      const { data, error } = await supabase
         .from('vehicles')
         .select(`
           *,
           client:client(names)
         `)
-        .order('make')
-      
-      // Si tenemos un dealership_id del token, filtrar por él usando la relación con client
-      if (dealershipIdFromToken) {
-        console.log("Filtrando vehículos por dealership_id:", dealershipIdFromToken);
-        // Primero obtenemos los clientes de esa agencia
-        const { data: clientsData } = await supabase
-          .from('client')
-          .select('id')
-          .eq('dealership_id', dealershipIdFromToken);
-        
-        if (clientsData && clientsData.length > 0) {
-          // Extraemos los IDs de los clientes
-          const clientIds = clientsData.map(client => client.id);
-          // Filtramos los vehículos por esos clientes
-          query = query.in('client_id', clientIds);
-        } else {
-          // Si no hay clientes, devolver lista vacía
-          setVehiculos([]);
-          setMarcasDisponibles([]);
-          setLoading(false);
-          return;
-        }
-      }
+        .eq('dealership_id', dealershipIdFromToken)
+        .order('make');
 
-      const { data, error } = await query;
+      if (error) throw error;
 
-      if (error) throw error
-
-      setVehiculos(data || [])
+      console.log('Vehículos cargados:', data);
+      // Verificar que cada vehículo tenga un ID
+      const vehiculosConId = data?.map(v => {
+        console.log('ID del vehículo:', v.id_uuid);
+        return v;
+      }) || [];
+      setVehiculos(vehiculosConId);
       // Extraer marcas únicas para el filtro
-      const marcas = Array.from(new Set(data?.map(v => v.make) || []))
-      setMarcasDisponibles(marcas)
+      const marcas = Array.from(new Set(data?.map(v => v.make) || []));
+      setMarcasDisponibles(marcas);
     } catch (error) {
-      console.error('Error cargando vehículos:', error)
+      console.error('Error cargando vehículos:', error);
+      setVehiculos([]);
+      setMarcasDisponibles([]);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
+
+  useEffect(() => {
+    if (dataToken?.dealership_id) {
+      cargarVehiculos(dataToken.dealership_id);
+    }
+  }, [dataToken]);
 
   const vehiculosFiltrados = vehiculos.filter(vehiculo => {
     // Si hay un ID específico, solo mostrar ese vehículo
     if (vehiculoId) {
-      return vehiculo.id === vehiculoId
+      return vehiculo.id_uuid === vehiculoId
     }
 
     // Si no hay ID, aplicar los filtros normales
@@ -302,7 +295,7 @@ export default function VehiculosPage() {
       
       setShowNuevoVehiculo(false)
       setNuevoVehiculo({
-        id: '',
+        id_uuid: '',
         client_id: '',
         client: {
           names: ''
@@ -321,13 +314,32 @@ export default function VehiculosPage() {
     }
   }
 
+  const handleEditVehicle = (vehiculo: Vehiculo) => {
+    try {
+      console.log('Iniciando edición de vehículo');
+      console.log('Datos del vehículo:', vehiculo);
+      console.log('Token actual:', token);
+      
+      if (!vehiculo.id_uuid) {
+        console.error('Error: ID de vehículo no disponible');
+        return;
+      }
+
+      const editUrl = `/backoffice/vehiculos/${vehiculo.id_uuid}/editar?token=${token}`;
+      console.log('Redirigiendo a:', editUrl);
+      router.push(editUrl);
+    } catch (error) {
+      console.error('Error al intentar editar:', error);
+    }
+  };
+
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Vehículos</h2>
         <div className="flex items-center space-x-2">
           <Button asChild>
-            <Link href="/backoffice/vehiculos/nuevo">Registrar Vehículo</Link>
+            <Link href={`/backoffice/vehiculos/nuevo?token=${token}`}>Registrar Vehículo</Link>
           </Button>
         </div>
       </div>
@@ -365,11 +377,12 @@ export default function VehiculosPage() {
               <TableHead>Placa</TableHead>
               <TableHead>Kilometraje</TableHead>
               <TableHead>Último Servicio</TableHead>
+              <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {vehiculosFiltrados.map((vehiculo) => (
-              <TableRow key={vehiculo.id}>
+              <TableRow key={vehiculo.id_uuid}>
                 <TableCell>
                   <div>
                     <p className="font-medium">{vehiculo.make} {vehiculo.model}</p>
@@ -391,134 +404,33 @@ export default function VehiculosPage() {
                     format(new Date(vehiculo.last_service_date), 'PP', { locale: es }) : 
                     'Sin servicios'}
                 </TableCell>
+                <TableCell>
+                  {vehiculo.id_uuid ? (
+                    <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}?token=${token}`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                      >
+                        Editar
+                      </Button>
+                    </Link>
+                  ) : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      disabled
+                    >
+                      Editar
+                    </Button>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </div>
-
-      <Dialog open={showNuevoVehiculo} onOpenChange={setShowNuevoVehiculo}>
-        <DialogTrigger asChild>
-          <Button>Registrar Vehículo</Button>
-        </DialogTrigger>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Registrar Nuevo Vehículo</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="client_id" className="text-right">
-                  Cliente
-                </Label>
-                <Select
-                  value={nuevoVehiculo.client_id}
-                  onValueChange={(value) => setNuevoVehiculo({...nuevoVehiculo, client_id: value})}
-                >
-                  <SelectTrigger className="col-span-3">
-                    <SelectValue placeholder="Seleccione cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientesDisponibles.map(cliente => (
-                      <SelectItem key={cliente.id} value={cliente.id}>
-                        {cliente.names}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="make" className="text-right">
-                  Marca
-                </Label>
-                <Input
-                  id="make"
-                  name="make"
-                  value={nuevoVehiculo.make}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="model" className="text-right">
-                  Modelo
-                </Label>
-                <Input
-                  id="model"
-                  name="model"
-                  value={nuevoVehiculo.model}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="year" className="text-right">
-                  Año
-                </Label>
-                <Input
-                  id="year"
-                  name="year"
-                  type="number"
-                  value={nuevoVehiculo.year}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="license_plate" className="text-right">
-                  Placa
-                </Label>
-                <Input
-                  id="license_plate"
-                  name="license_plate"
-                  value={nuevoVehiculo.license_plate}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="vin" className="text-right">
-                  VIN
-                </Label>
-                <Input
-                  id="vin"
-                  name="vin"
-                  value={nuevoVehiculo.vin ?? ''}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                />
-              </div>
-
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="last_km" className="text-right">
-                  Kilometraje
-                </Label>
-                <Input
-                  id="last_km"
-                  name="last_km"
-                  type="number"
-                  value={nuevoVehiculo.last_km ?? 0}
-                  onChange={handleInputChange}
-                  className="col-span-3"
-                  required
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit">Guardar Vehículo</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 } 

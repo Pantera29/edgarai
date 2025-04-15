@@ -144,9 +144,15 @@ export default function DashboardPage() {
       // 1. Obtener estado de citas (pendientes, en curso, finalizadas)
       const { data: estadoCitasData, error: estadoCitasError } = await supabase
         .from('appointment')
-        .select('status')
+        .select(`
+          status,
+          client!inner (
+            dealership_id
+          )
+        `)
+        .eq('appointment_date', fechaActual)
         .eq('dealership_id', dealershipId || '')
-        .eq('appointment_date', fechaActual);
+        .eq('client.dealership_id', dealershipId || '');
       
       if (estadoCitasError) throw estadoCitasError;
       
@@ -168,9 +174,10 @@ export default function DashboardPage() {
           client_id,
           vehicle_id,
           service_id,
-          client:client_id (
+          client!inner (
             id,
-            names
+            names,
+            dealership_id
           ),
           services:service_id (
             id_uuid,
@@ -186,29 +193,37 @@ export default function DashboardPage() {
         `)
         .eq('appointment_date', fechaActual)
         .eq('dealership_id', dealershipId || '')
+        .eq('client.dealership_id', dealershipId || '')
         .order('appointment_time', { ascending: true });
       
       if (citasDelDiaError) throw citasDelDiaError;
       
       // Transformar los datos para que coincidan con la interfaz CitaSupabase
-      const citasDelDia = citasDelDiaData?.map(cita => ({
-        id_uuid: cita.id.toString(),
-        fecha_hora: `${cita.appointment_date}T${cita.appointment_time}`,
-        status: cita.status || 'pending',
-        clientes: {
-          nombre: cita.client?.[0]?.names || 'Cliente desconocido',
-          dealership_id: dealershipId || ''
-        },
-        servicios: {
-          nombre: cita.services?.[0]?.service_name || 'Servicio desconocido'
-        },
-        vehiculos: cita.vehicles?.[0] ? {
-          marca: cita.vehicles[0].make,
-          modelo: cita.vehicles[0].model,
-          placa: cita.vehicles[0].license_plate || 'Sin placa'
-        } : undefined,
-        duracion: cita.services?.[0]?.duration_minutes || 60
-      })) || [];
+      const citasDelDia = citasDelDiaData?.map(cita => {
+        // Obtener el primer elemento de cada array de relaciones
+        const clienteData = Array.isArray(cita.client) ? cita.client[0] : cita.client;
+        const servicioData = Array.isArray(cita.services) ? cita.services[0] : cita.services;
+        const vehiculoData = Array.isArray(cita.vehicles) ? cita.vehicles[0] : cita.vehicles;
+
+        return {
+          id_uuid: cita.id.toString(),
+          fecha_hora: `${cita.appointment_date}T${cita.appointment_time}`,
+          status: cita.status || 'pending',
+          clientes: {
+            nombre: clienteData?.names || 'Cliente desconocido',
+            dealership_id: dealershipId || ''
+          },
+          servicios: {
+            nombre: servicioData?.service_name || 'Servicio desconocido'
+          },
+          vehiculos: vehiculoData ? {
+            marca: vehiculoData.make,
+            modelo: vehiculoData.model,
+            placa: vehiculoData.license_plate || 'Sin placa'
+          } : undefined,
+          duracion: servicioData?.duration_minutes || 60
+        };
+      }) || [];
       
       // 3. Satisfacción del cliente (NPS) - Por ahora usamos valores por defecto
       // TODO: Implementar cuando se tenga la tabla de feedback
@@ -242,11 +257,11 @@ export default function DashboardPage() {
     
     switch (tabActivo) {
       case "pendientes":
-        return citas.filter(cita => cita.status === "pendiente")
+        return citas.filter(cita => cita.status === "pending")
       case "enCurso":
-        return citas.filter(cita => cita.status === "en_curso")
+        return citas.filter(cita => cita.status === "in_progress")
       case "finalizadas":
-        return citas.filter(cita => cita.status === "finalizada")
+        return citas.filter(cita => cita.status === "completed")
       default:
         return citas
     }
@@ -254,12 +269,14 @@ export default function DashboardPage() {
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "pendiente":
+      case "pending":
         return <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">Pendiente</Badge>
-      case "en_curso":
+      case "in_progress":
         return <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200">En curso</Badge>
-      case "finalizada":
+      case "completed":
         return <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">Finalizada</Badge>
+      case "cancelled":
+        return <Badge variant="outline" className="bg-red-50 text-red-600 border-red-200">Cancelada</Badge>
       default:
         return <Badge variant="outline">Desconocido</Badge>
     }
@@ -267,21 +284,27 @@ export default function DashboardPage() {
 
   const getActionButton = (cita: CitaSupabase) => {
     switch (cita.status) {
-      case "pendiente":
+      case "pending":
         return (
           <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50">
             Iniciar
           </Button>
         )
-      case "en_curso":
+      case "in_progress":
         return (
           <Button variant="outline" size="sm" className="text-amber-600 border-amber-200 hover:bg-amber-50">
             Finalizar
           </Button>
         )
-      case "finalizada":
+      case "completed":
         return (
           <Button variant="outline" size="sm" className="text-muted-foreground">
+            Ver detalles
+          </Button>
+        )
+      case "cancelled":
+        return (
+          <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50">
             Ver detalles
           </Button>
         )
@@ -417,11 +440,12 @@ export default function DashboardPage() {
               </Button>
             </div>
             <Tabs value={tabActivo} onValueChange={setTabActivo} className="mt-2">
-              <TabsList className="grid grid-cols-4 w-full max-w-md">
+              <TabsList className="grid grid-cols-5 w-full max-w-md">
                 <TabsTrigger value="todas">Todas</TabsTrigger>
                 <TabsTrigger value="pendientes">Pendientes</TabsTrigger>
                 <TabsTrigger value="enCurso">En Curso</TabsTrigger>
                 <TabsTrigger value="finalizadas">Finalizadas</TabsTrigger>
+                <TabsTrigger value="canceladas">Canceladas</TabsTrigger>
               </TabsList>
             </Tabs>
           </CardHeader>

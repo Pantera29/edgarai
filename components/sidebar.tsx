@@ -19,6 +19,7 @@ import {
   ClipboardList,
   BarChart,
   Bell,
+  LogOut,
   type LucideIcon
 } from "lucide-react"
 import Image from "next/image"
@@ -305,8 +306,22 @@ export function Sidebar() {
 
         <div className={cn(
           "border-t p-4",
-          isCollapsed ? "flex justify-center" : "flex justify-end"
+          isCollapsed ? "flex justify-center" : "flex justify-between items-center"
         )}>
+          <button
+            onClick={() => {
+              // Redirigir al login sin token
+              router.push("/login");
+            }}
+            className={cn(
+              "p-2 hover:bg-gray-100 rounded-full transition-colors flex items-center gap-2",
+              isCollapsed ? "justify-center" : ""
+            )}
+          >
+            <LogOut className="h-5 w-5 text-red-500" />
+            {!isCollapsed && <span className="text-sm text-red-500">Cerrar sesión</span>}
+          </button>
+          
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="p-2 hover:bg-gray-100 rounded-full transition-colors"

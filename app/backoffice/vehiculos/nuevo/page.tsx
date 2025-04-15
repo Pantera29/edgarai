@@ -9,74 +9,153 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getBaseUrl } from "@/lib/utils"
 import { verifyToken } from '../../../jwt/token'
+import { toast } from "@/components/ui/use-toast"
 
 interface Cliente {
   id: string;           // Cambiado de id_uuid
   names: string;        // Cambiado de nombre
 }
 
+interface TokenData {
+  dealership_id: string;
+  [key: string]: any;
+}
+
 export default function NuevoVehiculoPage() {
-  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
-      null
-    );
-    const [token, setToken] = useState<string>("");
-    const [dataToken, setDataToken] = useState<object>({});
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
+  const [token, setToken] = useState<string>("");
+  const [dataToken, setDataToken] = useState<TokenData | null>(null);
   
-    const router = useRouter();
+  const router = useRouter();
   
-    useEffect(() => {
-      if (typeof window !== "undefined") {
-        const params = new URLSearchParams(window.location.search);
-        setSearchParams(params); // Guarda los query params en el estado
-      }
-    }, []);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params);
+    }
+  }, []);
   
-    useEffect(() => {
-      if (searchParams) {
-        const tokenValue = searchParams.get("token"); // Obtiene el token de los query params
-        if (tokenValue) {
-          setToken(tokenValue); // Usa setToken para actualizar el estado
-          const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
-          
-          // Si el token no es válido, redirigir al login
-          if (verifiedDataToken === null) {
-            router.push("/login");
-          }
-          setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
-  
+  useEffect(() => {
+    if (searchParams) {
+      const tokenValue = searchParams.get("token");
+      if (tokenValue) {
+        setToken(tokenValue);
+        const verifiedDataToken = verifyToken(tokenValue);
+        
+        if (verifiedDataToken === null) {
+          router.push("/login");
+          return;
         }
+        setDataToken(verifiedDataToken as TokenData);
+      } else {
+        router.push("/login");
       }
-    }, [searchParams, router]); 
-    
-  const [clientes, setClientes] = useState<Cliente[]>([])
+    }
+  }, [searchParams, router]); 
+
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState({
     client_id: "",      
-    make: "",           // Cambiado de marca
-    model: "",          // Cambiado de modelo
-    year: new Date().getFullYear(), // Cambiado de anio
-    license_plate: "",  // Cambiado de placa
-    last_km: 0,         // Cambiado de kilometraje_actual
-    vin: ""             // Añadido
-  })
+    make: "",           
+    model: "",          
+    year: new Date().getFullYear(),
+    license_plate: "",  
+    last_km: 0,         
+    vin: ""             
+  });
 
   useEffect(() => {
     const fetchClientes = async () => {
-      const supabase = createClientComponentClient()
-      const { data } = await supabase
-        .from('client')           // Cambiado de clientes
-        .select('id, names')      // Cambiado de id_uuid, nombre
+      if (!dataToken?.dealership_id) return;
       
-      if (data) setClientes(data)
-    }
+      try {
+        setLoading(true);
+        setError(null);
+        const supabase = createClientComponentClient();
+        const { data, error } = await supabase
+          .from('client')
+          .select('id, names')
+          .eq('dealership_id', dataToken.dealership_id);
+        
+        if (error) throw error;
+        
+        if (data) {
+          setClientes(data);
+        }
+      } catch (err) {
+        console.error('Error al cargar clientes:', err);
+        setError('Error al cargar la lista de clientes');
+      } finally {
+        setLoading(false);
+      }
+    };
 
-    fetchClientes()
-  }, [])
+    fetchClientes();
+  }, [dataToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     const supabase = createClientComponentClient()
 
     try {
+      // Validaciones
+      if (formData.year < 1900 || formData.year > new Date().getFullYear() + 1) {
+        toast({
+          title: "Error",
+          description: "El año debe estar entre 1900 y el año siguiente",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (formData.last_km < 0) {
+        toast({
+          title: "Error",
+          description: "El kilometraje no puede ser negativo",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (formData.license_plate.length < 5 || formData.license_plate.length > 8) {
+        toast({
+          title: "Error",
+          description: "La placa debe tener entre 5 y 8 caracteres",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (formData.vin && (formData.vin.length < 17 || formData.vin.length > 17)) {
+        toast({
+          title: "Error",
+          description: "El VIN debe tener exactamente 17 caracteres",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!formData.make.trim()) {
+        toast({
+          title: "Error",
+          description: "La marca es requerida",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!formData.model.trim()) {
+        toast({
+          title: "Error",
+          description: "El modelo es requerido",
+          variant: "destructive"
+        });
+        return;
+      }
+
       const { data, error } = await supabase
         .from('vehicles')         
         .insert([{
@@ -86,13 +165,14 @@ export default function NuevoVehiculoPage() {
           year: formData.year,
           license_plate: formData.license_plate,
           last_km: formData.last_km,
-          vin: formData.vin
+          vin: formData.vin,
+          dealership_id: dataToken?.dealership_id
         }])
         .select()
 
       if (error) throw error
 
-      router.push(`${getBaseUrl()}/backoffice/vehiculos`)
+      router.push(`${getBaseUrl()}/backoffice/vehiculos?token=${token}`)
     } catch (error) {
       console.error('Error al crear vehículo:', error)
     }
@@ -109,14 +189,20 @@ export default function NuevoVehiculoPage() {
             onValueChange={(value) => setFormData({ ...formData, client_id: value })}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Seleccionar cliente" />
+              <SelectValue placeholder={loading ? "Cargando..." : "Seleccionar cliente"} />
             </SelectTrigger>
             <SelectContent>
-              {clientes.map((cliente) => (
-                <SelectItem key={cliente.id} value={cliente.id}>
-                  {cliente.names}
-                </SelectItem>
-              ))}
+              {error ? (
+                <SelectItem value="error">Error al cargar clientes</SelectItem>
+              ) : clientes.length === 0 ? (
+                <SelectItem value="empty">No hay clientes disponibles</SelectItem>
+              ) : (
+                clientes.map((cliente) => (
+                  <SelectItem key={cliente.id} value={cliente.id}>
+                    {cliente.names}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         </div>
