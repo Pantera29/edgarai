@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label"
 import { getBaseUrl } from "@/lib/utils"
 import { verifyToken } from '../../../jwt/token'
 import { useEffect, useState } from "react"
+import { toast } from "@/components/ui/use-toast"
 
 export default function NuevoClientePage() {
   const router = useRouter()
@@ -52,19 +53,83 @@ export default function NuevoClientePage() {
     const supabase = createClientComponentClient()
 
     try {
+      // Validaciones
+      if (!formData.names.trim()) {
+        toast({
+          title: "Error",
+          description: "El nombre es requerido",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (formData.names.length < 2) {
+        toast({
+          title: "Error",
+          description: "El nombre debe tener al menos 2 caracteres",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Validación de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(formData.email)) {
+        toast({
+          title: "Error",
+          description: "Por favor ingrese un email válido",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Validación de teléfono (formato básico: números, espacios, +, -)
+      const phoneRegex = /^[+]?[\d\s-]{8,}$/;
+      if (!phoneRegex.test(formData.phone_number)) {
+        toast({
+          title: "Error",
+          description: "Por favor ingrese un número de teléfono válido",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Verificar si hay un dealership_id en el token
+      if (!dataToken || !(dataToken as any).dealership_id) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo determinar la agencia. Por favor, inicie sesión nuevamente."
+        });
+        return;
+      }
+      
+      const dealershipId = (dataToken as any).dealership_id;
+      
       const { data, error } = await supabase
-        .from('client')           // Cambiado de clientes
+        .from('client')
         .insert([{
           ...formData,
-          dealership_id: '6b58f82d-baa6-44ce-9941-1a61975d20b5' // Agregar dealership_id
+          dealership_id: dealershipId
         }])
         .select()
 
       if (error) throw error
 
-      router.push(`${getBaseUrl()}/backoffice/clientes`)
+      toast({
+        title: "Cliente creado",
+        description: "El cliente ha sido registrado exitosamente."
+      });
+
+      // Redirigir a la página de clientes con el token y un parámetro de refresco
+      router.push(`${getBaseUrl()}/backoffice/clientes?token=${token}&refresh=true`)
     } catch (error) {
       console.error('Error al crear cliente:', error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo crear el cliente. Por favor, intente nuevamente."
+      });
     }
   }
 

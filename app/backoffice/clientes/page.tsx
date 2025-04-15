@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { verifyToken } from "../../jwt/token";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/ui/use-toast";
 
 interface Cliente {
   id: string;
@@ -68,12 +69,21 @@ const router = useRouter();
         // Si el token no es válido, redirigir al login
         if (verifiedDataToken === null) {
           router.push("/login");
+          return;
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
 
         // Si hay un dealership_id en el token, cargar los clientes de esa agencia
         if (verifiedDataToken?.dealership_id) {
           cargarClientes(verifiedDataToken.dealership_id);
+          
+          // Si viene de crear un cliente (refresh=true), mostrar mensaje
+          const refresh = searchParams.get("refresh");
+          if (refresh === "true") {
+            // Eliminar el parámetro refresh de la URL sin afectar el token
+            const newUrl = `${window.location.pathname}?token=${tokenValue}`;
+            window.history.replaceState({}, '', newUrl);
+          }
         }
       }
     }
@@ -96,13 +106,11 @@ const router = useRouter();
 
   // Efecto para recargar los clientes cuando cambien los filtros
   useEffect(() => {
-    // Si hay un dealership_id en el token, usarlo al recargar los clientes
+    // Solo recargar si ya tenemos el dealership_id
     if (dataToken && (dataToken as any).dealership_id) {
       cargarClientes((dataToken as any).dealership_id);
-    } else {
-      cargarClientes();
     }
-  }, [busqueda, filtroEstado, pagina, dataToken]);
+  }, [busqueda, filtroEstado, pagina]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -113,19 +121,19 @@ const router = useRouter();
   }, []);
 
   const cargarClientes = async (dealershipIdFromToken?: string) => {
+    if (!dealershipIdFromToken) {
+      console.error('No se proporcionó dealership_id');
+      return;
+    }
+
     setLoading(true);
     try {
       let query = supabase
         .from("client")
         .select("*", { count: "exact" })
+        .eq("dealership_id", dealershipIdFromToken)
         .order("names")
         .range((pagina - 1) * ITEMS_PER_PAGE, pagina * ITEMS_PER_PAGE - 1);
-
-      // Filtrar por dealership_id si está disponible en el token
-      if (dealershipIdFromToken) {
-        console.log("Filtrando clientes por dealership_id:", dealershipIdFromToken);
-        query = query.eq("dealership_id", dealershipIdFromToken);
-      }
 
       if (busqueda) {
         query = query.or(
@@ -153,6 +161,11 @@ const router = useRouter();
       setTotalClientes(count || 0);
     } catch (error) {
       console.error("Error cargando clientes:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar los clientes. Por favor, intente nuevamente."
+      });
     } finally {
       setLoading(false);
     }
@@ -185,10 +198,17 @@ const router = useRouter();
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      // Usar el dealership_id del token o el valor predeterminado
-      const dealershipId = dataToken && (dataToken as any).dealership_id 
-        ? (dataToken as any).dealership_id 
-        : '6b58f82d-baa6-44ce-9941-1a61975d20b5';
+      // Verificar si hay un dealership_id en el token
+      if (!dataToken || !(dataToken as any).dealership_id) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudo determinar la agencia. Por favor, inicie sesión nuevamente."
+        });
+        return;
+      }
+      
+      const dealershipId = (dataToken as any).dealership_id;
         
       const { data, error } = await supabase
         .from("client")
@@ -213,6 +233,11 @@ const router = useRouter();
       });
     } catch (error) {
       console.error("Error al crear cliente:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo crear el cliente. Intente nuevamente."
+      });
     }
   };
 
