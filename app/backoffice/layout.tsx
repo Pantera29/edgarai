@@ -2,7 +2,7 @@
 
 import { Sidebar } from "@/components/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { VoiceflowWidget } from "@/components/voiceflow-widget"
+// import { VoiceflowWidget } from "@/components/voiceflow-widget"
 
 export default function BackofficeLayout({
   children,
@@ -15,7 +15,7 @@ export default function BackofficeLayout({
       <main className="flex-1">
         {children}
       </main>
-      <VoiceflowWidget />
+      {/* <VoiceflowWidget /> */}
     </div>
   )
 } 

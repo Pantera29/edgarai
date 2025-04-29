@@ -1,3 +1,4 @@
+/*
 "use client"
 
 import { useEffect } from 'react'
@@ -39,4 +40,5 @@ export function VoiceflowWidget() {
   }, [])
 
   return null
-} 
+}
+*/ 
