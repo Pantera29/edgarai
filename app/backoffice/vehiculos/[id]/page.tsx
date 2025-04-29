@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getBaseUrl } from "@/lib/utils"
 import { verifyToken } from '../../../jwt/token'
 import { toast } from "@/components/ui/use-toast"
+import { carBrands } from "@/lib/car-brands"
 
 interface Cliente {
   id: string;
@@ -28,6 +29,7 @@ export default function EditarVehiculoPage({ params }: PageProps) {
   const [dataToken, setDataToken] = useState<{dealership_id?: string}>({});
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
+  const [marcasPermitidas, setMarcasPermitidas] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     client_id: "",
     make: "",
@@ -58,6 +60,37 @@ export default function EditarVehiculoPage({ params }: PageProps) {
       }
     }
   }, [router]);
+
+  // Nuevo efecto para cargar las marcas permitidas
+  useEffect(() => {
+    const cargarMarcasPermitidas = async () => {
+      if (!dataToken.dealership_id) return;
+
+      try {
+        const { data: marcas, error } = await supabase
+          .from('dealership_brands')
+          .select('brand')
+          .eq('dealership_id', dataToken.dealership_id);
+
+        if (error) {
+          console.error('Error cargando marcas permitidas:', error);
+          return;
+        }
+
+        // Si no hay marcas configuradas, permitir todas
+        if (!marcas || marcas.length === 0) {
+          setMarcasPermitidas(carBrands);
+        } else {
+          setMarcasPermitidas(marcas.map(m => m.brand));
+        }
+      } catch (error) {
+        console.error('Error al cargar marcas permitidas:', error);
+        setMarcasPermitidas(carBrands); // Por defecto, mostrar todas las marcas
+      }
+    };
+
+    cargarMarcasPermitidas();
+  }, [dataToken.dealership_id, supabase]);
 
   // Cargar datos del vehículo
   useEffect(() => {
@@ -151,13 +184,46 @@ export default function EditarVehiculoPage({ params }: PageProps) {
         return;
       }
 
-      if (formData.vin && (formData.vin.length < 17 || formData.vin.length > 17)) {
-        toast({
-          title: "Error",
-          description: "El VIN debe tener exactamente 17 caracteres",
-          variant: "destructive"
-        });
-        return;
+      // Validación mejorada para el VIN
+      if (formData.vin) {
+        if (formData.vin.length !== 17) {
+          toast({
+            title: "Error",
+            description: "El VIN debe tener exactamente 17 caracteres",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        // Verificar que no contenga I, O o Q
+        if (/[IOQ]/i.test(formData.vin)) {
+          toast({
+            title: "Error",
+            description: "El VIN no puede contener las letras I, O o Q",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        // Verificar que solo contenga letras y números permitidos
+        if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(formData.vin)) {
+          toast({
+            title: "Error",
+            description: "El VIN solo puede contener letras (A-Z, excepto I, O, Q) y números (0-9)",
+            variant: "destructive"
+          });
+          return;
+        }
+        
+        // Verificar que el primer carácter sea M para vehículos fabricados en México
+        if (formData.vin.charAt(0) !== 'M') {
+          toast({
+            title: "Advertencia",
+            description: "El primer carácter del VIN debería ser 'M' para vehículos fabricados en México",
+            variant: "default"
+          });
+          // No bloqueamos el envío, solo mostramos una advertencia
+        }
       }
 
       if (!formData.make.trim()) {
@@ -239,12 +305,22 @@ export default function EditarVehiculoPage({ params }: PageProps) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="make">Marca</Label>
-          <Input
-            id="make"
+          <Select
             value={formData.make}
-            onChange={(e) => setFormData({ ...formData, make: e.target.value })}
+            onValueChange={(value) => setFormData({ ...formData, make: value })}
             required
-          />
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccionar marca" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              {marcasPermitidas.map((marca) => (
+                <SelectItem key={marca} value={marca}>
+                  {marca}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="model">Modelo</Label>
@@ -279,8 +355,14 @@ export default function EditarVehiculoPage({ params }: PageProps) {
           <Input
             id="vin"
             value={formData.vin}
-            onChange={(e) => setFormData({ ...formData, vin: e.target.value })}
+            onChange={(e) => setFormData({ ...formData, vin: e.target.value.toUpperCase() })}
+            placeholder="17 caracteres alfanuméricos"
+            maxLength={17}
           />
+          <p className="text-xs text-muted-foreground">
+            El VIN debe tener 17 caracteres. No puede contener las letras I, O o Q. 
+            Para vehículos fabricados en México, debe comenzar con 'M'.
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="last_km">Kilometraje</Label>

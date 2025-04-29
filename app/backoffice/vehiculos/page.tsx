@@ -355,10 +355,10 @@ export default function VehiculosPage() {
             value={filtroMarca}
             onValueChange={(value) => setFiltroMarca(value)}
           >
-            <SelectTrigger className="w-[150px]">
+            <SelectTrigger className="w-[250px]">
               <SelectValue placeholder="Todas las marcas" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
               <SelectItem value="todas">Todas las marcas</SelectItem>
               {marcasDisponibles.map(marca => (
                 <SelectItem key={marca} value={marca}>{marca}</SelectItem>
