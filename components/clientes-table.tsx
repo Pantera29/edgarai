@@ -106,32 +106,15 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
               <TableCell>{cliente.email}</TableCell>
               <TableCell>{cliente.phone_number}</TableCell>
               <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
-                      <span className="sr-only">Abrir menú</span>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem asChild>
-                      <Link 
-                        href={`/backoffice/clientes/${cliente.id}/editar?token=${token}`}
-                        className="flex items-center"
-                      >
-                        <Edit className="mr-2 h-4 w-4" />
-                        Editar
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className="flex items-center text-destructive"
-                      onClick={() => setClienteAEliminar(cliente)}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" />
-                      Eliminar
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Link href={`/backoffice/clientes/${cliente.id}/editar?token=${token}`}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                  >
+                    Editar
+                  </Button>
+                </Link>
               </TableCell>
             </TableRow>
           ))}
