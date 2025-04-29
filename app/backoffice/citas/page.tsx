@@ -16,7 +16,7 @@ import { Toaster } from "@/components/ui/toaster"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
-import { CalendarClock, X } from "lucide-react"
+import { CalendarClock, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users, Clock, AlertTriangle, TrendingUp, CheckCircle, ArrowRightLeft } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -35,9 +35,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination"
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react"
 import { Card } from "@/components/ui/card"
-import { Users, Clock, AlertTriangle, TrendingUp, CheckCircle } from "lucide-react"
 
 // Mover esta definición al inicio, antes de las interfaces
 type EstadoCita = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled'
@@ -136,8 +134,11 @@ function CitasPageContent() {
   const [citas, setCitas] = useState<Cita[]>([])
   const [cancelDialog, setCancelDialog] = useState(false)
   const [rescheduleDialog, setRescheduleDialog] = useState(false)
+  const [statusDialog, setStatusDialog] = useState(false)
   const [selectedCita, setSelectedCita] = useState<Cita | null>(null)
   const [cancelReason, setCancelReason] = useState("")
+  const [selectedStatus, setSelectedStatus] = useState<string>("")
+  const [statusNote, setStatusNote] = useState("")
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null)
   const [operatingHours, setOperatingHours] = useState<any[]>([])
@@ -426,6 +427,53 @@ function CitasPageContent() {
     }
   }
 
+  // Función para cambiar el estado de una cita
+  const cambiarEstadoCita = async () => {
+    if (!selectedCita || !selectedStatus) return;
+    
+    try {
+      const { error } = await supabase
+        .from('appointment')
+        .update({ 
+          status: selectedStatus,
+          notes: statusNote || null
+        })
+        .eq('id', selectedCita.id)
+      
+      if (error) throw error;
+      
+      // Actualizar la lista de citas
+      setCitas(prev => prev.map(cita => {
+        if (cita.id === selectedCita.id) {
+          return {
+            ...cita,
+            status: selectedStatus,
+            notes: statusNote || null
+          } as Cita;
+        }
+        return cita;
+      }));
+      
+      toast({
+        title: "Estado actualizado",
+        description: `La cita ha sido actualizada a estado: ${traducirEstado(selectedStatus)}`,
+      });
+      
+      // Cerrar el diálogo y limpiar estados
+      setStatusDialog(false);
+      setSelectedStatus("");
+      setStatusNote("");
+      setSelectedCita(null);
+    } catch (error) {
+      console.error("Error actualizando estado de cita:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo actualizar el estado de la cita"
+      });
+    }
+  }
+
   // Efecto para cargar configuración
   useEffect(() => {
     cargarConfiguracion();
@@ -634,7 +682,7 @@ function CitasPageContent() {
                 <TableHead>Servicio</TableHead>
                 <TableHead>Vehículo</TableHead>
                 <TableHead>Fecha y Hora</TableHead>
-                <TableHead>Estado</TableHead>
+                <TableHead className="w-32">Estado</TableHead>
                 <TableHead>Historial</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
@@ -651,7 +699,7 @@ function CitasPageContent() {
                       'No especificada'}
                   </TableCell>
                   <TableCell>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    <span className={`inline-block min-w-[100px] text-center px-2 py-1 rounded-full text-xs font-medium ${
                       cita.status?.toLowerCase() === 'pending' ? 'bg-blue-100 text-blue-800' :
                       cita.status?.toLowerCase() === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
                       cita.status?.toLowerCase() === 'completed' ? 'bg-green-100 text-green-800' :
@@ -673,9 +721,7 @@ function CitasPageContent() {
                     )}
                     {cita.rescheduled_at && cita.rescheduling_history && (
                       <div>
-                        <p>Reagendada: {new Date(cita.rescheduled_at).toLocaleDateString('es-ES')}</p>
-                        <p>Fecha anterior: {formatearFecha(cita.rescheduling_history.fecha_original)}</p>
-                        <p>Hora anterior: {cita.rescheduling_history.hora_original.substring(0, 5)}</p>
+                        <p>Fecha Anterior: {formatearFecha(cita.rescheduling_history.fecha_original)} {cita.rescheduling_history.hora_original.substring(0, 5)}</p>
                       </div>
                     )}
                   </TableCell>
@@ -691,7 +737,6 @@ function CitasPageContent() {
                             size="sm"
                             className="flex items-center gap-1"
                             onClick={() => {
-                              console.log(`Reagendando cita ID ${cita.id}, Estado: "${cita.status}"`);
                               setSelectedCita(cita);
                               setRescheduleDialog(true);
                             }}
@@ -702,15 +747,15 @@ function CitasPageContent() {
                           <Button 
                             variant="outline" 
                             size="sm"
-                            className="flex items-center gap-1 text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 hover:bg-red-50"
+                            className="flex items-center gap-1"
                             onClick={() => {
-                              console.log(`Cancelando cita ID ${cita.id}, Estado: "${cita.status}"`);
                               setSelectedCita(cita);
-                              setCancelDialog(true);
+                              setSelectedStatus(cita.status || '');
+                              setStatusDialog(true);
                             }}
                           >
-                            <X className="h-3 w-3" />
-                            <span>Cancelar</span>
+                            <ArrowRightLeft className="h-3 w-3" />
+                            <span>Cambiar Estado</span>
                           </Button>
                         </>
                       )}
@@ -937,6 +982,110 @@ function CitasPageContent() {
                 disabled={!selectedDate || !selectedSlot}
               >
                 Confirmar Reagendamiento
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Diálogo de Cambio de Estado */}
+        <Dialog open={statusDialog} onOpenChange={setStatusDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Cambiar Estado de la Cita</DialogTitle>
+              <DialogDescription>
+                Seleccione el nuevo estado para esta cita
+              </DialogDescription>
+            </DialogHeader>
+            
+            {selectedCita && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div className="font-medium">Cliente:</div>
+                  <div>{selectedCita.client?.names}</div>
+                  
+                  <div className="font-medium">Servicio:</div>
+                  <div>{selectedCita.services?.service_name}</div>
+                  
+                  <div className="font-medium">Vehículo:</div>
+                  <div>{`${selectedCita.vehicles?.make} ${selectedCita.vehicles?.model}`}</div>
+                  
+                  <div className="font-medium">Fecha y Hora:</div>
+                  <div>
+                    {selectedCita.appointment_date && selectedCita.appointment_time ? 
+                      `${formatearFecha(selectedCita.appointment_date)} ${selectedCita.appointment_time.substring(0, 5)}` : 
+                      'No especificada'}
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">
+                    Nuevo Estado
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant={selectedStatus === 'pending' ? 'default' : 'outline'}
+                      onClick={() => setSelectedStatus('pending')}
+                      className="w-full"
+                    >
+                      Pendiente
+                    </Button>
+                    <Button
+                      variant={selectedStatus === 'in_progress' ? 'default' : 'outline'}
+                      onClick={() => setSelectedStatus('in_progress')}
+                      className="w-full"
+                    >
+                      En Proceso
+                    </Button>
+                    <Button
+                      variant={selectedStatus === 'completed' ? 'default' : 'outline'}
+                      onClick={() => setSelectedStatus('completed')}
+                      className="w-full"
+                    >
+                      Completada
+                    </Button>
+                    <Button
+                      variant={selectedStatus === 'cancelled' ? 'default' : 'outline'}
+                      onClick={() => setSelectedStatus('cancelled')}
+                      className="w-full text-red-600 hover:text-red-700 border-red-200 hover:border-red-300 hover:bg-red-50"
+                    >
+                      Cancelada
+                    </Button>
+                  </div>
+                </div>
+                
+                <div className="space-y-2">
+                  <label htmlFor="statusNote" className="text-sm font-medium">
+                    Nota (opcional)
+                  </label>
+                  <Textarea
+                    id="statusNote"
+                    value={statusNote}
+                    onChange={(e) => setStatusNote(e.target.value)}
+                    placeholder="Agregue una nota sobre el cambio de estado"
+                    rows={3}
+                  />
+                </div>
+              </div>
+            )}
+            
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setStatusDialog(false);
+                  setSelectedStatus("");
+                  setStatusNote("");
+                  setSelectedCita(null);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={cambiarEstadoCita}
+                disabled={!selectedStatus}
+                variant={selectedStatus === 'cancelled' ? 'destructive' : 'default'}
+              >
+                Confirmar Cambio
               </Button>
             </DialogFooter>
           </DialogContent>
