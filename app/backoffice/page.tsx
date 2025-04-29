@@ -88,7 +88,18 @@ export default function DashboardPage() {
   const [dataToken, setDataToken] = useState<{dealership_id?: string}>({})
   const [tabActivo, setTabActivo] = useState<string>("todas")
   const [isLoading, setIsLoading] = useState<boolean>(false)
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+
+  // Obtener la fecha actual en la zona horaria local
+  const hoy = new Date();
+  const fechaHoy = new Date(
+    hoy.getFullYear(),
+    hoy.getMonth(),
+    hoy.getDate()
+  ).toISOString().split('T')[0];
   
+  const [fechaSeleccionada, setFechaSeleccionada] = useState<string>(fechaHoy)
+
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -138,8 +149,7 @@ export default function DashboardPage() {
   const cargarDatos = async (dealershipId?: string) => {
     setIsLoading(true);
     try {
-      // Obtener la fecha actual en formato YYYY-MM-DD
-      const fechaActual = new Date().toISOString().split('T')[0];
+      console.log('Consultando citas para fecha:', fechaSeleccionada);
       
       // 1. Obtener estado de citas (pendientes, en curso, finalizadas)
       const { data: estadoCitasData, error: estadoCitasError } = await supabase
@@ -150,7 +160,7 @@ export default function DashboardPage() {
             dealership_id
           )
         `)
-        .eq('appointment_date', fechaActual)
+        .eq('appointment_date', fechaSeleccionada)
         .eq('dealership_id', dealershipId || '')
         .eq('client.dealership_id', dealershipId || '');
       
@@ -191,7 +201,7 @@ export default function DashboardPage() {
             license_plate
           )
         `)
-        .eq('appointment_date', fechaActual)
+        .eq('appointment_date', fechaSeleccionada)
         .eq('dealership_id', dealershipId || '')
         .eq('client.dealership_id', dealershipId || '')
         .order('appointment_time', { ascending: true });
@@ -262,6 +272,8 @@ export default function DashboardPage() {
         return citas.filter(cita => cita.status === "in_progress")
       case "finalizadas":
         return citas.filter(cita => cita.status === "completed")
+      case "canceladas":
+        return citas.filter(cita => cita.status === "cancelled")
       default:
         return citas
     }
@@ -283,34 +295,34 @@ export default function DashboardPage() {
   }
 
   const getActionButton = (cita: CitaSupabase) => {
-    switch (cita.status) {
-      case "pending":
-        return (
-          <Button variant="outline" size="sm" className="text-blue-600 border-blue-200 hover:bg-blue-50">
-            Iniciar
-          </Button>
-        )
-      case "in_progress":
-        return (
-          <Button variant="outline" size="sm" className="text-amber-600 border-amber-200 hover:bg-amber-50">
-            Finalizar
-          </Button>
-        )
-      case "completed":
-        return (
-          <Button variant="outline" size="sm" className="text-muted-foreground">
-            Ver detalles
-          </Button>
-        )
-      case "cancelled":
-        return (
-          <Button variant="outline" size="sm" className="text-red-600 border-red-200 hover:bg-red-50">
-            Ver detalles
-          </Button>
-        )
-      default:
-        return null
-    }
+    const handleClick = () => {
+      // Redirigir a la vista de citas con el filtro correspondiente
+      const filtro = cita.status === 'pending' ? 'pending' :
+                    cita.status === 'in_progress' ? 'in_progress' :
+                    cita.status === 'completed' ? 'completed' :
+                    cita.status === 'cancelled' ? 'cancelled' : null;
+      
+      router.push(`/backoffice/citas?token=${token}${filtro ? `&estado=${filtro}` : ''}`);
+    };
+
+    // Color y estilo según el estado
+    const buttonStyle = {
+      pending: "text-blue-600 border-blue-200 hover:bg-blue-50",
+      in_progress: "text-amber-600 border-amber-200 hover:bg-amber-50",
+      completed: "text-green-600 border-green-200 hover:bg-green-50",
+      cancelled: "text-red-600 border-red-200 hover:bg-red-50"
+    }[cita.status] || "text-muted-foreground";
+
+    return (
+      <Button 
+        variant="outline" 
+        size="sm" 
+        className={`${buttonStyle}`}
+        onClick={handleClick}
+      >
+        Ver detalles
+      </Button>
+    );
   }
 
   // Función para redirigir a la página de creación de citas
@@ -434,8 +446,75 @@ export default function DashboardPage() {
         <Card className="shadow-sm">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
-              <CardTitle>Citas del Día</CardTitle>
-              <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground font-normal">
+              <div className="flex items-center gap-4">
+                <CardTitle>
+                  {fechaSeleccionada === fechaHoy 
+                    ? "Citas del Día" 
+                    : "Citas"}
+                </CardTitle>
+                <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className={`gap-2 font-normal ${
+                        fechaSeleccionada === fechaHoy
+                          ? "text-muted-foreground"
+                          : "text-blue-600 border-blue-200 hover:bg-blue-50"
+                      }`}
+                    >
+                      <CalendarIcon className="h-4 w-4" />
+                      {fechaSeleccionada === fechaHoy
+                        ? "Hoy"
+                        : format(new Date(fechaSeleccionada), "PPP", { locale: es })}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={new Date(fechaSeleccionada)}
+                      onSelect={(date) => {
+                        if (date) {
+                          const newDate = new Date(
+                            date.getFullYear(),
+                            date.getMonth(),
+                            date.getDate()
+                          ).toISOString().split('T')[0];
+                          
+                          setFechaSeleccionada(newDate);
+                          setDatePickerOpen(false);
+                          if (dataToken?.dealership_id) {
+                            cargarDatos(dataToken.dealership_id);
+                          }
+                        }
+                      }}
+                      initialFocus
+                      footer={
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-center"
+                          onClick={() => {
+                            setFechaSeleccionada(fechaHoy);
+                            setDatePickerOpen(false);
+                            if (dataToken?.dealership_id) {
+                              cargarDatos(dataToken.dealership_id);
+                            }
+                          }}
+                        >
+                          Ir a hoy
+                        </Button>
+                      }
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="gap-1 text-muted-foreground font-normal"
+                onClick={() => router.push(`/backoffice/citas?token=${token}`)}
+              >
                 Ver todas <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
