@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Progress } from "@/components/ui/progress"
-import { format, subMonths } from 'date-fns'
+import { format, subMonths, parse } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Badge } from "@/components/ui/badge"
 import { TooltipProvider } from '@radix-ui/react-tooltip'
@@ -90,15 +90,17 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
 
-  // Obtener la fecha actual en la zona horaria local
-  const hoy = new Date();
-  const fechaHoy = new Date(
-    hoy.getFullYear(),
-    hoy.getMonth(),
-    hoy.getDate()
-  ).toISOString().split('T')[0];
-  
-  const [fechaSeleccionada, setFechaSeleccionada] = useState<string>(fechaHoy)
+  // Obtener la fecha actual
+  const fechaHoy = format(new Date(), 'yyyy-MM-dd');
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(fechaHoy);
+
+  // Efecto para cargar datos cuando cambia la fecha
+  useEffect(() => {
+    if (dataToken?.dealership_id) {
+      console.log('useEffect - Cargando datos para fecha:', fechaSeleccionada);
+      cargarDatos(dataToken.dealership_id);
+    }
+  }, [fechaSeleccionada, dataToken?.dealership_id]);
 
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -149,9 +151,9 @@ export default function DashboardPage() {
   const cargarDatos = async (dealershipId?: string) => {
     setIsLoading(true);
     try {
-      console.log('Consultando citas para fecha:', fechaSeleccionada);
+      console.log('cargarDatos - Consultando citas para fecha:', fechaSeleccionada);
       
-      // 1. Obtener estado de citas (pendientes, en curso, finalizadas)
+      // 1. Obtener estado de citas
       const { data: estadoCitasData, error: estadoCitasError } = await supabase
         .from('appointment')
         .select(`
@@ -466,26 +468,19 @@ export default function DashboardPage() {
                       <CalendarIcon className="h-4 w-4" />
                       {fechaSeleccionada === fechaHoy
                         ? "Hoy"
-                        : format(new Date(fechaSeleccionada), "PPP", { locale: es })}
+                        : format(new Date(`${fechaSeleccionada}T12:00:00`), "d 'de' MMMM 'de' yyyy", { locale: es })}
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
-                      selected={new Date(fechaSeleccionada)}
+                      selected={parse(fechaSeleccionada, 'yyyy-MM-dd', new Date())}
                       onSelect={(date) => {
                         if (date) {
-                          const newDate = new Date(
-                            date.getFullYear(),
-                            date.getMonth(),
-                            date.getDate()
-                          ).toISOString().split('T')[0];
-                          
+                          const newDate = format(date, 'yyyy-MM-dd');
+                          console.log('Seleccionando nueva fecha:', newDate);
                           setFechaSeleccionada(newDate);
                           setDatePickerOpen(false);
-                          if (dataToken?.dealership_id) {
-                            cargarDatos(dataToken.dealership_id);
-                          }
                         }
                       }}
                       initialFocus
@@ -495,11 +490,9 @@ export default function DashboardPage() {
                           size="sm"
                           className="w-full text-center"
                           onClick={() => {
+                            console.log('Volviendo a fecha de hoy:', fechaHoy);
                             setFechaSeleccionada(fechaHoy);
                             setDatePickerOpen(false);
-                            if (dataToken?.dealership_id) {
-                              cargarDatos(dataToken.dealership_id);
-                            }
                           }}
                         >
                           Ir a hoy
