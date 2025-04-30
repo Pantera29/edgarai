@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { format } from "date-fns"
+import { createBrowserClient } from "@supabase/ssr"
+import { format, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
 import { Badge } from "@/components/ui/badge"
 import {
@@ -23,9 +23,28 @@ import {
 } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CalendarIcon, Search, Eye } from "lucide-react"
+import { CalendarIcon, Search, Pencil, Plus } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { useToast } from "@/components/ui/use-toast"
+
 interface Recordatorio {
   reminder_id: string
   client_id_uuid: string
@@ -53,13 +72,21 @@ interface Recordatorio {
 }
 
 export default function RecordatoriosPage() {
-  
-
-  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
-    null
-  );
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
   const [token, setToken] = useState<string>("");
   const [dataToken, setDataToken] = useState<object>({});
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [vehiculos, setVehiculos] = useState<any[]>([]);
+  const [formData, setFormData] = useState({
+    client_id: '',
+    vehicle_id: '',
+    type: 'maintenance',
+    base_date: '',
+    reminder_date: '',
+    notes: ''
+  });
+  const { toast } = useToast();
 
   const router = useRouter();
 
@@ -93,9 +120,6 @@ export default function RecordatoriosPage() {
     }
   }, [searchParams, router]); 
 
-
-
-
   const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([])
   const [filteredRecordatorios, setFilteredRecordatorios] = useState<Recordatorio[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -107,7 +131,10 @@ export default function RecordatoriosPage() {
     conError: 0
   })
   
-  const supabase = createClientComponentClient()
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 
   useEffect(() => {
     // Este efecto se deja vacío porque ahora cargamos los recordatorios
@@ -205,20 +232,234 @@ export default function RecordatoriosPage() {
   }
 
   const getEstadoBadge = (estado: string) => {
-    const badges = {
-      pending: <Badge variant="outline">Pendiente</Badge>,
-      sent: <Badge className="bg-green-100 text-green-800">Enviado</Badge>,
-      completed: <Badge className="bg-blue-100 text-blue-800">Completado</Badge>,
-      cancelled: <Badge variant="secondary">Cancelado</Badge>,
-      error: <Badge variant="destructive">Error</Badge>
-    }
-    return badges[estado as keyof typeof badges]
+    const styles = {
+      pending: "bg-blue-100 text-blue-800",
+      sent: "bg-green-100 text-green-800",
+      completed: "bg-green-100 text-green-800",
+      cancelled: "bg-red-100 text-red-800",
+      error: "bg-red-100 text-red-800"
+    };
+
+    const labels = {
+      pending: "Pendiente",
+      sent: "Enviado",
+      completed: "Completado",
+      cancelled: "Cancelado",
+      error: "Error"
+    };
+
+    return (
+      <span className={`inline-block min-w-[100px] text-center px-2 py-1 rounded-full text-xs font-medium ${styles[estado as keyof typeof styles]}`}>
+        {labels[estado as keyof typeof labels]}
+      </span>
+    );
   }
+
+  const cargarClientes = async () => {
+    try {
+      console.log('Iniciando carga de clientes...');
+      
+      // Obtener el dealership_id del token si existe
+      const dealershipId = (dataToken as any)?.dealership_id;
+      console.log('Dealership ID:', dealershipId);
+
+      let query = supabase
+        .from('client')
+        .select('id, names')
+        .order('names');
+
+      // Si hay un dealership_id, filtrar por él
+      if (dealershipId) {
+        query = query.eq('dealership_id', dealershipId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error al cargar clientes:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los clientes",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Clientes cargados:', data);
+      setClientes(data || []);
+    } catch (error) {
+      console.error('Error en cargarClientes:', error);
+      toast({
+        title: "Error",
+        description: "Error al cargar los clientes",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const cargarVehiculos = async (clientId: string) => {
+    try {
+      console.log('Iniciando carga de vehículos para cliente:', clientId);
+      
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('id_uuid, make, model, year, license_plate')
+        .eq('client_id', clientId)
+        .order('make');
+
+      if (error) {
+        console.error('Error al cargar vehículos:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los vehículos",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Vehículos cargados:', data);
+      setVehiculos(data || []);
+    } catch (error) {
+      console.error('Error en cargarVehiculos:', error);
+      toast({
+        title: "Error",
+        description: "Error al cargar los vehículos",
+        variant: "destructive",
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (mostrarFormulario) {
+      cargarClientes();
+    }
+  }, [mostrarFormulario]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.client_id || !formData.vehicle_id || !formData.base_date || !formData.reminder_date) {
+      toast({
+        title: "Error",
+        description: "Por favor complete todos los campos requeridos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const recordatorioData = {
+        client_id_uuid: formData.client_id,
+        vehicle_id: formData.vehicle_id,
+        type: formData.type,
+        base_date: formData.base_date,
+        reminder_date: formData.reminder_date,
+        notes: formData.notes,
+        status: 'pending' as const
+      };
+
+      const { data, error } = await supabase
+        .from('reminders')
+        .insert([recordatorioData])
+        .select();
+
+      if (error) {
+        console.error('Error detallado:', error);
+        throw error;
+      }
+
+      toast({
+        title: "Éxito",
+        description: "Recordatorio creado correctamente",
+      });
+
+      setMostrarFormulario(false);
+      setFormData({
+        client_id: '',
+        vehicle_id: '',
+        type: 'maintenance',
+        base_date: '',
+        reminder_date: '',
+        notes: ''
+      });
+      
+      fetchRecordatorios();
+    } catch (error) {
+      console.error('Error al crear recordatorio:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo crear el recordatorio. Verifique los datos ingresados.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const [recordatorioEditar, setRecordatorioEditar] = useState<Recordatorio | null>(null);
+  const [mostrarFormularioEditar, setMostrarFormularioEditar] = useState(false);
+  const [formDataEditar, setFormDataEditar] = useState({
+    client_id: '',
+    vehicle_id: '',
+    type: 'maintenance',
+    base_date: '',
+    reminder_date: '',
+    notes: ''
+  });
+
+  const handleEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formDataEditar.client_id || !formDataEditar.vehicle_id || !formDataEditar.base_date || !formDataEditar.reminder_date) {
+      toast({
+        title: "Error",
+        description: "Por favor complete todos los campos requeridos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('reminders')
+        .update({
+          client_id_uuid: formDataEditar.client_id,
+          vehicle_id: formDataEditar.vehicle_id,
+          type: formDataEditar.type,
+          base_date: formDataEditar.base_date,
+          reminder_date: formDataEditar.reminder_date,
+          notes: formDataEditar.notes
+        })
+        .eq('reminder_id', recordatorioEditar?.reminder_id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Éxito",
+        description: "Recordatorio actualizado correctamente"
+      });
+
+      setMostrarFormularioEditar(false);
+      await fetchRecordatorios();
+    } catch (error) {
+      console.error('Error al actualizar recordatorio:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo actualizar el recordatorio",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="p-8 space-y-8">
-      <div>
+      <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold tracking-tight">Recordatorios</h1>
+        <Button 
+          onClick={() => setMostrarFormulario(true)}
+          className="bg-blue-600 hover:bg-blue-700"
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Nuevo Recordatorio
+        </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -324,15 +565,33 @@ export default function RecordatoriosPage() {
                       {recordatorio.type === 'initial_sale' ? 'Venta Inicial' : 'Servicio Regular'}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(recordatorio.base_date), 'dd/MM/yyyy')}
+                      {format(parseISO(recordatorio.base_date), 'dd/MM/yyyy', { locale: es })}
                     </TableCell>
                     <TableCell>
-                      {format(new Date(recordatorio.reminder_date), 'dd/MM/yyyy')}
+                      {format(parseISO(recordatorio.reminder_date), 'dd/MM/yyyy', { locale: es })}
                     </TableCell>
                     <TableCell>{getEstadoBadge(recordatorio.status)}</TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon">
-                        <Eye className="h-4 w-4" />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        onClick={() => {
+                          setRecordatorioEditar(recordatorio);
+                          setFormDataEditar({
+                            client_id: recordatorio.client_id_uuid,
+                            vehicle_id: recordatorio.vehicle_id,
+                            type: recordatorio.type,
+                            base_date: format(parseISO(recordatorio.base_date), 'yyyy-MM-dd'),
+                            reminder_date: format(parseISO(recordatorio.reminder_date), 'yyyy-MM-dd'),
+                            notes: recordatorio.notes || ''
+                          });
+                          setMostrarFormularioEditar(true);
+                          cargarClientes();
+                          cargarVehiculos(recordatorio.client_id_uuid);
+                        }}
+                      >
+                        Editar
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -342,6 +601,222 @@ export default function RecordatoriosPage() {
           </div>
         </Tabs>
       </div>
+
+      <Dialog open={mostrarFormulario} onOpenChange={setMostrarFormulario}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nuevo Recordatorio</DialogTitle>
+            <DialogDescription>
+              Complete los datos del nuevo recordatorio. Los campos marcados con * son obligatorios.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit}>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Cliente *</Label>
+                <Select
+                  value={formData.client_id}
+                  onValueChange={(value) => {
+                    setFormData({ ...formData, client_id: value, vehicle_id: '' });
+                    cargarVehiculos(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clientes.map((cliente) => (
+                      <SelectItem key={cliente.id} value={cliente.id}>
+                        {cliente.names}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Vehículo *</Label>
+                <Select
+                  value={formData.vehicle_id}
+                  onValueChange={(value) => setFormData({ ...formData, vehicle_id: value })}
+                  disabled={!formData.client_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un vehículo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vehiculos.map((vehiculo) => (
+                      <SelectItem key={vehiculo.id_uuid} value={vehiculo.id_uuid}>
+                        {vehiculo.make} {vehiculo.model} {vehiculo.year}
+                        {vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tipo de Recordatorio *</Label>
+                <Select
+                  value={formData.type}
+                  onValueChange={(value) => setFormData({ ...formData, type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione el tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="maintenance">Mantenimiento</SelectItem>
+                    <SelectItem value="insurance">Seguro</SelectItem>
+                    <SelectItem value="inspection">Inspección</SelectItem>
+                    <SelectItem value="license">Licencia</SelectItem>
+                    <SelectItem value="other">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Fecha de origen *</Label>
+                <Input
+                  type="date"
+                  value={formData.base_date}
+                  onChange={(e) => setFormData({ ...formData, base_date: e.target.value })}
+                  className="bg-white border-input"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Fecha de Recordatorio *</Label>
+                <Input
+                  type="date"
+                  value={formData.reminder_date}
+                  onChange={(e) => setFormData({ ...formData, reminder_date: e.target.value })}
+                  className="bg-white border-input"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                  placeholder="Agregue notas adicionales aquí..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Crear Recordatorio</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mostrarFormularioEditar} onOpenChange={setMostrarFormularioEditar}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Recordatorio</DialogTitle>
+            <DialogDescription>
+              Modifique los datos del recordatorio. Los campos marcados con * son obligatorios.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEdit}>
+            <div className="grid gap-4 py-4">
+              <div className="space-y-2">
+                <Label>Cliente *</Label>
+                <Select
+                  value={formDataEditar.client_id}
+                  onValueChange={(value) => {
+                    setFormDataEditar({ ...formDataEditar, client_id: value, vehicle_id: '' });
+                    cargarVehiculos(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un cliente" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clientes.map((cliente) => (
+                      <SelectItem key={cliente.id} value={cliente.id}>
+                        {cliente.names}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Vehículo *</Label>
+                <Select
+                  value={formDataEditar.vehicle_id}
+                  onValueChange={(value) => setFormDataEditar({ ...formDataEditar, vehicle_id: value })}
+                  disabled={!formDataEditar.client_id}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione un vehículo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {vehiculos.map((vehiculo) => (
+                      <SelectItem key={vehiculo.id_uuid} value={vehiculo.id_uuid}>
+                        {vehiculo.make} {vehiculo.model} {vehiculo.year}
+                        {vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tipo de Recordatorio *</Label>
+                <Select
+                  value={formDataEditar.type}
+                  onValueChange={(value) => setFormDataEditar({ ...formDataEditar, type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione el tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="maintenance">Mantenimiento</SelectItem>
+                    <SelectItem value="insurance">Seguro</SelectItem>
+                    <SelectItem value="inspection">Inspección</SelectItem>
+                    <SelectItem value="license">Licencia</SelectItem>
+                    <SelectItem value="other">Otro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Fecha de origen *</Label>
+                <Input
+                  type="date"
+                  value={formDataEditar.base_date}
+                  onChange={(e) => setFormDataEditar({ ...formDataEditar, base_date: e.target.value })}
+                  className="bg-white border-input"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Fecha de Recordatorio *</Label>
+                <Input
+                  type="date"
+                  value={formDataEditar.reminder_date}
+                  onChange={(e) => setFormDataEditar({ ...formDataEditar, reminder_date: e.target.value })}
+                  className="bg-white border-input"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Notas</Label>
+                <Textarea
+                  value={formDataEditar.notes}
+                  onChange={(e) => setFormDataEditar({ ...formDataEditar, notes: e.target.value })}
+                  placeholder="Agregue notas adicionales aquí..."
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Guardar Cambios</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 
