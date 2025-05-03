@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
+import { Checkbox } from "@/components/ui/checkbox"
 
 interface Recordatorio {
   reminder_id: string
@@ -78,6 +79,8 @@ export default function RecordatoriosPage() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [clientes, setClientes] = useState<any[]>([]);
   const [vehiculos, setVehiculos] = useState<any[]>([]);
+  const [seleccionados, setSeleccionados] = useState<string[]>([]);
+  const [isLlamando, setIsLlamando] = useState(false);
   const [formData, setFormData] = useState({
     client_id: '',
     vehicle_id: '',
@@ -455,6 +458,75 @@ export default function RecordatoriosPage() {
     }
   };
 
+  const handleSeleccionar = (reminderId: string) => {
+    setSeleccionados(prev => {
+      if (prev.includes(reminderId)) {
+        return prev.filter(id => id !== reminderId);
+      } else if (prev.length < 5) {
+        return [...prev, reminderId];
+      }
+      return prev;
+    });
+  };
+
+  const handleLlamarAI = async () => {
+    if (seleccionados.length === 0) return;
+
+    setIsLlamando(true);
+    try {
+      const recordatoriosSeleccionados = recordatorios.filter(r => seleccionados.includes(r.reminder_id));
+      
+      const response = await fetch('https://api.vapi.ai/call', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer 2151ebb1-d453-44a7-8f88-f856be7a28d0',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          assistantId: "f7be88f4-04c5-4bfc-9737-c200e46e7083",
+          assistantOverrides: {
+            firstMessageMode: "assistant-waits-for-user"
+          },
+          customers: recordatoriosSeleccionados.map(r => ({
+            number: r.client.phone_number.startsWith('+52') 
+              ? r.client.phone_number 
+              : `+52${r.client.phone_number}`,
+            name: r.client.names
+          })),
+          phoneNumberId: "2a5d74e9-f465-4b6b-bd7a-4c999f63cbbf"
+        })
+      });
+
+      if (!response.ok) throw new Error('Error al realizar la llamada');
+
+      // Actualizar estado de los recordatorios
+      const { error } = await supabase
+        .from('reminders')
+        .update({ status: 'sent' })
+        .in('reminder_id', seleccionados);
+
+      if (error) throw error;
+
+      toast({
+        title: "Éxito",
+        description: "Llamadas iniciadas correctamente"
+      });
+
+      // Refrescar los recordatorios
+      await fetchRecordatorios();
+      setSeleccionados([]);
+    } catch (error) {
+      console.error('Error:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron iniciar las llamadas",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLlamando(false);
+    }
+  };
+
   return (
     <div className="p-8 space-y-8">
       <div className="flex justify-between items-center">
@@ -547,13 +619,45 @@ export default function RecordatoriosPage() {
           </TabsList>
 
           <div className="mt-4">
+            <div className="flex justify-between items-center mb-4">
+              <Button
+                onClick={handleLlamarAI}
+                disabled={seleccionados.length === 0 || isLlamando}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {isLlamando ? (
+                  <>
+                    <span className="animate-spin mr-2">⏳</span>
+                    Llamando...
+                  </>
+                ) : (
+                  `Llamar con AI (${seleccionados.length}/5)`
+                )}
+              </Button>
+            </div>
             <Table>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-[50px]">
+                    <Checkbox
+                      checked={seleccionados.length === filteredRecordatorios.length && filteredRecordatorios.length > 0}
+                      onCheckedChange={() => {
+                        if (seleccionados.length === filteredRecordatorios.length) {
+                          setSeleccionados([]);
+                        } else {
+                          const nuevosSeleccionados = filteredRecordatorios
+                            .slice(0, 5)
+                            .map(r => r.reminder_id);
+                          setSeleccionados(nuevosSeleccionados);
+                        }
+                      }}
+                      disabled={filteredRecordatorios.length === 0}
+                    />
+                  </TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vehículo</TableHead>
                   <TableHead>Tipo</TableHead>
-                  <TableHead>Fecha Base</TableHead>
+                  <TableHead>Fecha Creación</TableHead>
                   <TableHead>Fecha Recordatorio</TableHead>
                   <TableHead>Estado</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
@@ -562,6 +666,16 @@ export default function RecordatoriosPage() {
               <TableBody>
                 {filteredRecordatorios.map((recordatorio) => (
                   <TableRow key={recordatorio.reminder_id}>
+                    <TableCell>
+                      <Checkbox
+                        checked={seleccionados.includes(recordatorio.reminder_id)}
+                        onCheckedChange={() => handleSeleccionar(recordatorio.reminder_id)}
+                        disabled={
+                          !seleccionados.includes(recordatorio.reminder_id) &&
+                          seleccionados.length >= 5
+                        }
+                      />
+                    </TableCell>
                     <TableCell>{recordatorio.client.names}</TableCell>
                     <TableCell>
                       {recordatorio.vehicles.make} {recordatorio.vehicles.model} {recordatorio.vehicles.year}
