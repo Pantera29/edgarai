@@ -476,10 +476,11 @@ export default function RecordatoriosPage() {
     try {
       const recordatoriosSeleccionados = recordatorios.filter(r => seleccionados.includes(r.reminder_id));
       
+      const bearer = process.env.NEXT_PUBLIC_VAPI_BEARER;
       const response = await fetch('https://api.vapi.ai/call', {
         method: 'POST',
         headers: {
-          'Authorization': 'Bearer 2151ebb1-d453-44a7-8f88-f856be7a28d0',
+          'Authorization': `Bearer ${bearer}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
