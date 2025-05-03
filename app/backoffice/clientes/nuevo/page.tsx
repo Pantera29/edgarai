@@ -121,8 +121,8 @@ export default function NuevoClientePage() {
         description: "El cliente ha sido registrado exitosamente."
       });
 
-      // Redirigir a la página de clientes con el token y un parámetro de refresco
-      router.push(`${getBaseUrl()}/backoffice/clientes?token=${token}&refresh=true`)
+      // Redirigir a la página de clientes con el token (sin refresh=true)
+      router.push(`/backoffice/clientes?token=${token}`)
     } catch (error) {
       console.error('Error al crear cliente:', error)
       toast({
