@@ -26,6 +26,7 @@ import { TooltipProvider } from '@radix-ui/react-tooltip'
 import Link from "next/link"
 import { MessageSquare, ArrowRight, Phone, Clock } from 'lucide-react'
 import Image from "next/image"
+import { useToast } from "@/components/ui/use-toast"
 
 interface Servicio {
   nombre: string;
@@ -152,6 +153,11 @@ export default function LandingPage() {
   const [casoActivo, setCasoActivo] = useState('agendamiento');
   const [visibleMessages, setVisibleMessages] = useState<number>(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { toast } = useToast();
+  const [telefono, setTelefono] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [error, setError] = useState("");
 
   // Efecto para animar los mensajes cuando cambia el caso activo
   useEffect(() => {
@@ -188,6 +194,49 @@ export default function LandingPage() {
         behavior: 'smooth',
         block: 'start'
       });
+    }
+  };
+
+  const handleLlamadaDemo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setMensaje("");
+    setError("");
+    // Validación simple: 10 dígitos
+    const tel = telefono.replace(/\D/g, "");
+    if (tel.length !== 10) {
+      setError("Por favor ingresa un número válido de 10 dígitos.");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      const bearer = process.env.NEXT_PUBLIC_VAPI_BEARER;
+      const response = await fetch("https://api.vapi.ai/call", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${bearer}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          assistantId: "f7be88f4-04c5-4bfc-9737-c200e46e7083",
+          assistantOverrides: {
+            firstMessageMode: "assistant-waits-for-user"
+          },
+          customers: [
+            {
+              number: `+52${tel}`,
+              name: "Demo Edgar"
+            }
+          ],
+          phoneNumberId: "2a5d74e9-f465-4b6b-bd7a-4c999f63cbbf"
+        })
+      });
+      if (!response.ok) throw new Error("No se pudo iniciar la llamada");
+      setMensaje("¡Listo! Edgar te llamará en unos segundos.");
+      setTelefono("");
+    } catch (err) {
+      setError("Ocurrió un error al intentar llamar. Intenta de nuevo más tarde.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -666,6 +715,35 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Sección de llamada demo Edgar */}
+      <section className="py-16 bg-blue-50">
+        <div className="max-w-xl mx-auto text-center">
+          <h2 className="text-3xl font-bold mb-4">¿Quieres ver a Edgar en acción?</h2>
+          <p className="mb-6 text-gray-600">Ingresa tu número de teléfono y recibe una llamada demo de Edgar.</p>
+          <form className="flex flex-col sm:flex-row gap-4 justify-center items-center" onSubmit={handleLlamadaDemo}>
+            <input
+              type="tel"
+              placeholder="Ej: 5512345678"
+              value={telefono}
+              onChange={e => setTelefono(e.target.value)}
+              className="rounded-md border px-4 py-2 flex-1 bg-white text-black"
+              required
+              maxLength={10}
+              pattern="[0-9]{10}"
+            />
+            <button
+              type="submit"
+              className="bg-primary text-white px-6 py-2 rounded-md font-semibold"
+              disabled={isLoading}
+            >
+              {isLoading ? 'Llamando...' : 'Recibir llamada'}
+            </button>
+          </form>
+          {mensaje && <div className="mt-4 text-green-600">{mensaje}</div>}
+          {error && <div className="mt-4 text-red-600">{error}</div>}
         </div>
       </section>
 
