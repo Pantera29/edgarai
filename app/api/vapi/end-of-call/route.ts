@@ -184,14 +184,25 @@ export async function POST(request: Request) {
       );
     }
 
-    // Buscar cliente por teléfono
+    // --- INICIO CAMBIO: Normalización del número de teléfono ---
+    // Si el número comienza con +52 y tiene al menos 12 caracteres, extrae los últimos 10 dígitos
+    let normalizedPhone = customerPhone;
+    if (typeof customerPhone === "string" && customerPhone.startsWith("+52") && customerPhone.length >= 12) {
+      // Extrae solo los últimos 10 dígitos
+      normalizedPhone = customerPhone.slice(-10);
+    }
+    // Elimina cualquier carácter no numérico (por si acaso)
+    normalizedPhone = normalizedPhone.replace(/[^0-9]/g, '');
+    // --- FIN CAMBIO ---
+
+    // Buscar cliente por teléfono usando el número normalizado
     let clientId = null;
     let dealershipId = null;
 
     const { data: clientData } = await supabase
       .from("client")
       .select("id, dealership_id")
-      .eq("phone_number", customerPhone)
+      .eq("phone_number", normalizedPhone)
       .maybeSingle();
 
     if (clientData) {
