@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/popover"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { CalendarIcon, Search, Pencil, Plus } from "lucide-react"
+import { CalendarIcon, Search, Pencil, Plus, History } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
 import {
@@ -475,7 +475,6 @@ export default function RecordatoriosPage() {
     setIsLlamando(true);
     try {
       const recordatoriosSeleccionados = recordatorios.filter(r => seleccionados.includes(r.reminder_id));
-      
       const bearer = process.env.NEXT_PUBLIC_VAPI_BEARER;
       const response = await fetch('https://api.vapi.ai/call', {
         method: 'POST',
@@ -499,6 +498,29 @@ export default function RecordatoriosPage() {
       });
 
       if (!response.ok) throw new Error('Error al realizar la llamada');
+      const vapiResponse = await response.json();
+
+      // Registrar cada llamada en outbound_calls
+      for (let i = 0; i < recordatoriosSeleccionados.length; i++) {
+        const recordatorio = recordatoriosSeleccionados[i];
+        const result = vapiResponse.results[i];
+        if (!result) continue;
+        const insertData = {
+          reminder_id: recordatorio.reminder_id,
+          client_id: recordatorio.client_id_uuid,
+          vehicle_id: recordatorio.vehicle_id,
+          vapi_call_id: result.id,
+          assistant_id: result.assistantId,
+          phone_number_id: result.phoneNumberId,
+          customer_name: result.customer?.name || null,
+          customer_phone: result.customer?.number || null,
+          status: result.status || "queued",
+          twilio_call_id: result.phoneCallProviderId || null,
+          start_date: result.createdAt ? new Date(result.createdAt).toISOString() : null,
+          call_data: vapiResponse,
+        };
+        await supabase.from('outbound_calls').insert([insertData]);
+      }
 
       // Actualizar estado de los recordatorios
       const { error } = await supabase
@@ -526,6 +548,24 @@ export default function RecordatoriosPage() {
     } finally {
       setIsLlamando(false);
     }
+  };
+
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
+  const [llamadasHistorial, setLlamadasHistorial] = useState<any[]>([]);
+  const [recordatorioHistorial, setRecordatorioHistorial] = useState<Recordatorio | null>(null);
+  const [cargandoHistorial, setCargandoHistorial] = useState(false);
+
+  const abrirHistorial = async (recordatorio: Recordatorio) => {
+    setRecordatorioHistorial(recordatorio);
+    setMostrarHistorial(true);
+    setCargandoHistorial(true);
+    const { data, error } = await supabase
+      .from('outbound_calls')
+      .select('*')
+      .eq('reminder_id', recordatorio.reminder_id)
+      .order('created_at', { ascending: false });
+    if (!error) setLlamadasHistorial(data || []);
+    setCargandoHistorial(false);
   };
 
   return (
@@ -701,27 +741,37 @@ export default function RecordatoriosPage() {
                     </TableCell>
                     <TableCell>{getEstadoBadge(recordatorio.status)}</TableCell>
                     <TableCell className="text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        type="button"
-                        onClick={() => {
-                          setRecordatorioEditar(recordatorio);
-                          setFormDataEditar({
-                            client_id: recordatorio.client_id_uuid,
-                            vehicle_id: recordatorio.vehicle_id,
-                            type: recordatorio.type,
-                            base_date: format(parseISO(recordatorio.base_date), 'yyyy-MM-dd'),
-                            reminder_date: format(parseISO(recordatorio.reminder_date), 'yyyy-MM-dd'),
-                            notes: recordatorio.notes || ''
-                          });
-                          setMostrarFormularioEditar(true);
-                          cargarClientes();
-                          cargarVehiculos(recordatorio.client_id_uuid);
-                        }}
-                      >
-                        Editar
-                      </Button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          onClick={() => {
+                            setRecordatorioEditar(recordatorio);
+                            setFormDataEditar({
+                              client_id: recordatorio.client_id_uuid,
+                              vehicle_id: recordatorio.vehicle_id,
+                              type: recordatorio.type,
+                              base_date: format(parseISO(recordatorio.base_date), 'yyyy-MM-dd'),
+                              reminder_date: format(parseISO(recordatorio.reminder_date), 'yyyy-MM-dd'),
+                              notes: recordatorio.notes || ''
+                            });
+                            setMostrarFormularioEditar(true);
+                            cargarClientes();
+                            cargarVehiculos(recordatorio.client_id_uuid);
+                          }}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          title="Ver historial de llamadas"
+                          onClick={() => abrirHistorial(recordatorio)}
+                        >
+                          <History className="w-4 h-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -944,6 +994,45 @@ export default function RecordatoriosPage() {
               <Button type="submit">Guardar Cambios</Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={mostrarHistorial} onOpenChange={setMostrarHistorial}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Historial de llamadas</DialogTitle>
+            <DialogDescription>
+              {recordatorioHistorial?.client.names} - {recordatorioHistorial?.vehicles.make} {recordatorioHistorial?.vehicles.model}
+            </DialogDescription>
+          </DialogHeader>
+          {cargandoHistorial ? (
+            <div className="py-8 text-center">Cargando historial...</div>
+          ) : llamadasHistorial.length === 0 ? (
+            <div className="py-8 text-center text-gray-500">Este recordatorio no tiene llamadas asociadas.</div>
+          ) : (
+            <div className="space-y-4 max-h-[400px] overflow-y-auto">
+              {llamadasHistorial.map((llamada) => (
+                <div key={llamada.call_id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                  <div>
+                    <div className="font-semibold">{llamada.start_date ? format(new Date(llamada.start_date), 'dd/MM/yyyy HH:mm') : 'Sin fecha'}</div>
+                    <div className="text-sm text-gray-600">Estado: <span className="font-medium">{llamada.status}</span></div>
+                    <div className="text-sm text-gray-600">Duración: {llamada.duration_seconds ? `${llamada.duration_seconds} seg` : 'N/A'}</div>
+                    {llamada.call_summary && <div className="text-sm text-gray-600 mt-1">Resumen: {llamada.call_summary}</div>}
+                  </div>
+                  {llamada.recording_url && (
+                    <a
+                      href={llamada.recording_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 underline text-sm mt-2 md:mt-0"
+                    >
+                      Ver grabación
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
