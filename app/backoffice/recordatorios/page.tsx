@@ -348,12 +348,15 @@ export default function RecordatoriosPage() {
     }
 
     try {
+      // Convertir fechas a medianoche UTC
+      const baseDateUTC = new Date(formData.base_date + "T00:00:00Z").toISOString();
+      const reminderDateUTC = new Date(formData.reminder_date + "T00:00:00Z").toISOString();
       const recordatorioData = {
         client_id_uuid: formData.client_id,
         vehicle_id: formData.vehicle_id,
         type: formData.type,
-        base_date: formData.base_date,
-        reminder_date: formData.reminder_date,
+        base_date: baseDateUTC,
+        reminder_date: reminderDateUTC,
         notes: formData.notes,
         status: 'pending' as const
       };
@@ -418,14 +421,17 @@ export default function RecordatoriosPage() {
     }
 
     try {
+      // Convertir fechas a medianoche UTC
+      const baseDateUTC = new Date(formDataEditar.base_date + "T00:00:00Z").toISOString();
+      const reminderDateUTC = new Date(formDataEditar.reminder_date + "T00:00:00Z").toISOString();
       const { error } = await supabase
         .from('reminders')
         .update({
           client_id_uuid: formDataEditar.client_id,
           vehicle_id: formDataEditar.vehicle_id,
           type: formDataEditar.type,
-          base_date: formDataEditar.base_date,
-          reminder_date: formDataEditar.reminder_date,
+          base_date: baseDateUTC,
+          reminder_date: reminderDateUTC,
           notes: formDataEditar.notes
         })
         .eq('reminder_id', recordatorioEditar?.reminder_id);
@@ -565,10 +571,18 @@ export default function RecordatoriosPage() {
                       {recordatorio.type === 'initial_sale' ? 'Venta Inicial' : 'Servicio Regular'}
                     </TableCell>
                     <TableCell>
-                      {format(parseISO(recordatorio.base_date), 'dd/MM/yyyy', { locale: es })}
+                      {(() => {
+                        const fecha = recordatorio.base_date.slice(0, 10);
+                        const [a, m, d] = fecha.split("-");
+                        return `${d}/${m}/${a}`;
+                      })()}
                     </TableCell>
                     <TableCell>
-                      {format(parseISO(recordatorio.reminder_date), 'dd/MM/yyyy', { locale: es })}
+                      {(() => {
+                        const fecha = recordatorio.reminder_date.slice(0, 10);
+                        const [a, m, d] = fecha.split("-");
+                        return `${d}/${m}/${a}`;
+                      })()}
                     </TableCell>
                     <TableCell>{getEstadoBadge(recordatorio.status)}</TableCell>
                     <TableCell className="text-right">
