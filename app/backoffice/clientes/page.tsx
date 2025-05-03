@@ -76,14 +76,6 @@ const router = useRouter();
         // Si hay un dealership_id en el token, cargar los clientes de esa agencia
         if (verifiedDataToken?.dealership_id) {
           cargarClientes(verifiedDataToken.dealership_id);
-          
-          // Si viene de crear un cliente (refresh=true), mostrar mensaje
-          const refresh = searchParams.get("refresh");
-          if (refresh === "true") {
-            // Eliminar el parámetro refresh de la URL sin afectar el token
-            const newUrl = `${window.location.pathname}?token=${tokenValue}`;
-            window.history.replaceState({}, '', newUrl);
-          }
         }
       }
     }

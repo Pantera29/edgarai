@@ -239,7 +239,13 @@ export default function NuevoVehiculoPage() {
 
       if (error) throw error
 
-      router.push(`${getBaseUrl()}/backoffice/vehiculos?token=${token}`)
+      toast({
+        title: "Vehículo creado",
+        description: "El vehículo ha sido registrado exitosamente."
+      });
+
+      // Redirigir a la página de vehículos con el token (sin refresh=true)
+      router.push(`/backoffice/vehiculos?token=${token}`)
     } catch (error) {
       console.error('Error al crear vehículo:', error)
     }
