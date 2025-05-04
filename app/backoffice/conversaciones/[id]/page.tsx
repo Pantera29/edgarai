@@ -351,9 +351,9 @@ export default function ConversacionDetallePage() {
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return "Desconocida";
-    
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
+    const totalSeconds = Math.round(seconds); // Redondear a entero
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
