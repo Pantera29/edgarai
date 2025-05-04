@@ -266,7 +266,7 @@ export default function EditarVehiculoPage({ params }: PageProps) {
         description: "Vehículo actualizado correctamente"
       });
 
-      router.push(`${getBaseUrl()}/backoffice/vehiculos?token=${token}`);
+      router.push(`/backoffice/vehiculos?token=${token}`);
     } catch (error) {
       console.error('Error al actualizar vehículo:', error);
       toast({
@@ -379,7 +379,7 @@ export default function EditarVehiculoPage({ params }: PageProps) {
           <Button 
             type="button" 
             variant="outline"
-            onClick={() => router.push(`${getBaseUrl()}/backoffice/vehiculos?token=${token}`)}
+            onClick={() => router.push(`/backoffice/vehiculos?token=${token}`)}
           >
             Cancelar
           </Button>
