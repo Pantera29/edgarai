@@ -31,6 +31,11 @@ function determineClientIntent(summary: string, transcript: string): string {
 
 // Función para determinar si la llamada fue exitosa
 function determineCallSuccess(message: any, summary: string): boolean {
+  // Verificar si hay un campo successEvaluation dentro de analysis
+  if (message.analysis?.successEvaluation !== undefined) {
+    return message.analysis.successEvaluation === true || message.analysis.successEvaluation === 'true';
+  }
+  
   // Verificar si hay un campo explícito de evaluación de éxito
   if (message.successEvaluation !== undefined) {
     return message.successEvaluation === true || message.successEvaluation === 'true';
