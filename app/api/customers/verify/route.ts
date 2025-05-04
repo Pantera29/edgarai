@@ -15,11 +15,16 @@ export async function GET(request: Request) {
       );
     }
 
+    // Normalizar el número de teléfono
+    const normalizedPhone = phone.replace(/[^0-9]/g, '');
+
     const { data, error } = await supabase
       .from('client')
-      .select('id, names, email')
-      .eq('phone_number', phone)
-      .maybeSingle();
+      .select('id, names, email, created_at')
+      .eq('phone_number', normalizedPhone)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
 
     if (error) {
       console.error('Error verifying client:', error.message);
