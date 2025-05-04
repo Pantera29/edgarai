@@ -96,6 +96,7 @@ export async function POST(request: Request) {
     const supabase = createServerComponentClient({ cookies });
 
     const requestBody = await request.json();
+    console.log("Payload recibido en end-of-call:", JSON.stringify(requestBody, null, 2));
     const message = requestBody.message || requestBody.Message;
 
     // Validar tipo de mensaje
