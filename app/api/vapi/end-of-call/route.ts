@@ -104,6 +104,10 @@ export async function POST(request: Request) {
     console.log("Payload recibido en end-of-call:", JSON.stringify(requestBody, null, 2));
     const message = requestBody.message || requestBody.Message;
 
+    // Extraer timestamps
+    const startedAt = message.startedAt || requestBody.startedAt;
+    const endedAt = message.endedAt || requestBody.endedAt;
+
     // Validar tipo de mensaje
     if (!message || ((message.type || message.Type) !== "end-of-call-report")) {
       return NextResponse.json(
@@ -264,7 +268,11 @@ export async function POST(request: Request) {
       recording_url: recordingUrl,
       summary: summary,
       transcript: transcript,
-      callObject: call || {},
+      callObject: {
+        ...(call || {}),
+        startedAt,
+        endedAt
+      },
       original_payload: message
     };
 
