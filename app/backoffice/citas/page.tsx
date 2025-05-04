@@ -16,7 +16,7 @@ import { Toaster } from "@/components/ui/toaster"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
-import { CalendarClock, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users, Clock, AlertTriangle, TrendingUp, CheckCircle, ArrowRightLeft } from "lucide-react"
+import { CalendarClock, X, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users, Clock, AlertTriangle, TrendingUp, CheckCircle, ArrowRightLeft, Search } from "lucide-react"
 import {
   Dialog,
   DialogContent,
@@ -75,6 +75,7 @@ interface Cita {
   cancelled_at?: string        // Añadido
   cancellation_reason?: string // Añadido
   rescheduled_at?: string      // Añadido
+  notes?: string | null        // Añadido
   rescheduling_history?: {     // Añadido
     fecha_original: string
     hora_original: string
@@ -158,6 +159,9 @@ function CitasPageContent() {
     canceladas: 0
   });
 
+  const [notaDialog, setNotaDialog] = useState(false)
+  const [notaSeleccionada, setNotaSeleccionada] = useState<string | null>(null)
+
   // Efecto principal para token y dealership_id
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -204,6 +208,7 @@ function CitasPageContent() {
           cancellation_reason,
           rescheduled_at,
           rescheduling_history,
+          notes,
           client!appointment_client_id_fkey (
             id,
             names
@@ -683,6 +688,7 @@ function CitasPageContent() {
                 <TableHead>Vehículo</TableHead>
                 <TableHead>Fecha y Hora</TableHead>
                 <TableHead className="w-32">Estado</TableHead>
+                <TableHead>Notas</TableHead>
                 <TableHead>Historial</TableHead>
                 <TableHead>Acciones</TableHead>
               </TableRow>
@@ -709,6 +715,23 @@ function CitasPageContent() {
                     }`}>
                       {traducirEstado(cita.status)}
                     </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {cita.notes ? (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => {
+                          setNotaSeleccionada(cita.notes || null)
+                          setNotaDialog(true)
+                        }}
+                        title="Ver nota completa"
+                      >
+                        <Search className="h-4 w-4" />
+                      </Button>
+                    ) : (
+                      <span>-</span>
+                    )}
                   </TableCell>
                   <TableCell className="text-xs text-gray-600">
                     {cita.status === 'cancelled' && cita.cancelled_at && (
@@ -1086,6 +1109,23 @@ function CitasPageContent() {
                 variant={selectedStatus === 'cancelled' ? 'destructive' : 'default'}
               >
                 Confirmar Cambio
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal para ver nota completa */}
+        <Dialog open={notaDialog} onOpenChange={setNotaDialog}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Nota de la Cita</DialogTitle>
+            </DialogHeader>
+            <div className="whitespace-pre-line break-words text-sm">
+              {notaSeleccionada}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setNotaDialog(false)}>
+                Cerrar
               </Button>
             </DialogFooter>
           </DialogContent>
