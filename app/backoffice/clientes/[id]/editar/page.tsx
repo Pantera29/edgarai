@@ -116,7 +116,7 @@ export default function EditarClientePage({ params }: PageProps) {
       });
 
       // Redirigir a la página de clientes con el token
-      router.push(`${getBaseUrl()}/backoffice/clientes?token=${token}&refresh=true`);
+      router.push(`/backoffice/clientes?token=${token}`);
     } catch (error) {
       console.error('Error al actualizar cliente:', error);
       toast({
@@ -168,7 +168,7 @@ export default function EditarClientePage({ params }: PageProps) {
           <Button 
             type="button" 
             variant="outline"
-            onClick={() => router.push(`${getBaseUrl()}/backoffice/clientes?token=${token}`)}
+            onClick={() => router.push(`/backoffice/clientes?token=${token}`)}
           >
             Cancelar
           </Button>
