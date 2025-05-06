@@ -24,7 +24,8 @@ export default function EditarClientePage({ params }: PageProps) {
   const [formData, setFormData] = useState({
     names: "",
     email: "",
-    phone_number: ""
+    phone_number: "",
+    external_id: ""
   });
   const [loading, setLoading] = useState(true);
 
@@ -69,7 +70,8 @@ export default function EditarClientePage({ params }: PageProps) {
         setFormData({
           names: cliente.names || '',
           email: cliente.email || '',
-          phone_number: cliente.phone_number || ''
+          phone_number: cliente.phone_number || '',
+          external_id: cliente.external_id || ''
         });
       }
     } catch (error) {
@@ -104,7 +106,8 @@ export default function EditarClientePage({ params }: PageProps) {
         .update({
           names: formData.names,
           email: formData.email,
-          phone_number: formData.phone_number
+          phone_number: formData.phone_number,
+          external_id: formData.external_id || null
         })
         .eq('id', params.id);
 
@@ -161,6 +164,15 @@ export default function EditarClientePage({ params }: PageProps) {
             value={formData.phone_number}
             onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
             required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="external_id">External ID (opcional)</Label>
+          <Input
+            id="external_id"
+            value={formData.external_id}
+            onChange={(e) => setFormData({ ...formData, external_id: e.target.value })}
+            placeholder="ID externo del cliente"
           />
         </div>
         <div className="flex gap-4">
