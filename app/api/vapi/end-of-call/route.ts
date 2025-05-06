@@ -6,7 +6,14 @@ import OpenAI from 'openai';
 // Función para traducir el resumen
 async function translateSummary(text: string): Promise<string> {
   try {
-    console.log('Iniciando traducción del resumen:', text);
+    // Verificación detallada de la variable de entorno
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OPENAI_API_KEY no está configurada. Verifica las variables de entorno en Vercel.');
+      console.error('Variables de entorno disponibles:', Object.keys(process.env));
+      return text;
+    }
+
+    console.log('OPENAI_API_KEY encontrada, iniciando traducción...');
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
