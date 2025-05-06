@@ -32,6 +32,7 @@ interface Cliente {
   names: string;
   email: string;
   phone_number: string;
+  external_id?: string | null;
   estado?: "activo" | "inactivo";
 }
 
@@ -146,6 +147,7 @@ const router = useRouter();
         names: cliente.names,
         email: cliente.email,
         phone_number: cliente.phone_number,
+        external_id: cliente.external_id,
         estado: cliente.estado,
       }));
 

@@ -45,7 +45,8 @@ export default function NuevoClientePage() {
   const [formData, setFormData] = useState({
     names: "",           // Cambiado de nombre
     email: "",
-    phone_number: ""     // Cambiado de telefono
+    phone_number: "",     // Cambiado de telefono
+    external_id: ""
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -110,7 +111,8 @@ export default function NuevoClientePage() {
         .from('client')
         .insert([{
           ...formData,
-          dealership_id: dealershipId
+          dealership_id: dealershipId,
+          external_id: formData.external_id || null
         }])
         .select()
 
@@ -163,6 +165,15 @@ export default function NuevoClientePage() {
             value={formData.phone_number}
             onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
             required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="external_id">External ID (opcional)</Label>
+          <Input
+            id="external_id"
+            value={formData.external_id}
+            onChange={(e) => setFormData({ ...formData, external_id: e.target.value })}
+            placeholder="ID externo del cliente"
           />
         </div>
         <Button type="submit">Guardar Cliente</Button>

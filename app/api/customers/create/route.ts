@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const payload = await request.json();
     console.log('Payload recibido:', JSON.stringify(payload, null, 2));
 
-    const { names, email, phone_number, dealership_id, dealership_phone } = payload;
+    const { names, email, phone_number, dealership_id, dealership_phone, external_id } = payload;
 
     // Validar campos requeridos
     if (!names || !email || !phone_number) {
@@ -81,7 +81,8 @@ export async function POST(request: Request) {
         names, 
         email, 
         phone_number: normalizedPhone, 
-        dealership_id: dealershipIdToUse 
+        dealership_id: dealershipIdToUse,
+        external_id: external_id || null
       }])
       .select()
       .single();
