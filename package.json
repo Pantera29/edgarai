@@ -46,6 +46,7 @@
     "lucide-react": "^0.294.0",
     "next": "^14.0.0",
     "next-themes": "^0.2.1",
+    "openai": "^4.97.0",
     "papaparse": "^5.5.1",
     "pino": "^9.6.0",
     "react": "^18.2.0",

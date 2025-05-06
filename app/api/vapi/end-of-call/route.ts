@@ -1,6 +1,49 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import OpenAI from 'openai';
+
+// Función para traducir el resumen
+async function translateSummary(text: string): Promise<string> {
+  try {
+    console.log('Iniciando traducción del resumen:', text);
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: `Eres un traductor profesional especializado en llamadas de servicio al cliente.
+          Tu tarea es traducir el siguiente resumen de llamada del inglés al español.
+          Mantén el tono profesional y formal.
+          Preserva todos los términos técnicos y nombres propios.
+          Asegúrate de que la traducción suene natural en español.
+          No agregues información que no esté en el texto original.
+          Si el texto ya está en español, devuélvelo sin cambios.`
+        },
+        {
+          role: "user",
+          content: text
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 1000,
+      top_p: 0.9,
+      frequency_penalty: 0.1,
+      presence_penalty: 0.1
+    });
+    
+    const translatedText = response.choices[0].message.content || text;
+    console.log('Traducción completada:', translatedText);
+    return translatedText;
+  } catch (error) {
+    console.error('Error detallado al traducir el resumen:', error);
+    return text;
+  }
+}
 
 // Definir la interfaz para los mensajes
 interface MessageItem {
@@ -122,6 +165,11 @@ export async function POST(request: Request) {
     const summary = message.summary || message.Summary;
     const transcript = message.transcript || message.Transcript;
     const messageMessages = message.messages || message.Messages;
+    
+    // Traducir el resumen al español
+    console.log('Resumen original recibido:', summary);
+    const translatedSummary = summary ? await translateSummary(summary) : null;
+    console.log('Resumen traducido:', translatedSummary);
     
     // Intentar encontrar información de llamada en diferentes ubicaciones posibles
     let call = message.call || message.Call;
@@ -276,6 +324,11 @@ export async function POST(request: Request) {
       original_payload: message
     };
 
+    console.log('Preparando inserción en la base de datos con los siguientes datos:', {
+      conversation_summary: summary,
+      conversation_summary_translated: translatedSummary
+    });
+
     const { data: conversationData, error } = await supabase
       .from("chat_conversations")
       .insert([
@@ -287,12 +340,12 @@ export async function POST(request: Request) {
           channel: 'phone',
           messages: formattedMessages,
           metadata,
-          // Nuevos campos
           duration_seconds: durationSeconds,
           call_id: callId,
           ended_reason: endedReason,
           recording_url: recordingUrl,
           conversation_summary: summary,
+          conversation_summary_translated: translatedSummary,
           was_successful: wasSuccessful,
           client_intent: clientIntent,
           agent_name: agentName,
@@ -303,12 +356,14 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
-      console.error('Error insertando conversación:', error.message);
+      console.error('Error detallado al insertar en la base de datos:', error);
       return NextResponse.json(
         { message: 'Failed to save conversation', error: error.message },
         { status: 500 }
       );
     }
+
+    console.log('Inserción exitosa en la base de datos:', conversationData);
 
     return NextResponse.json(
       {
