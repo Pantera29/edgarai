@@ -25,10 +25,10 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verificar que el cliente existe
+    // Verificar que el cliente existe y obtener su dealership_id
     const { data: client, error: clientError } = await supabase
       .from('client')
-      .select('id')
+      .select('id, dealership_id')
       .eq('id', client_id)
       .maybeSingle();
 
@@ -95,7 +95,8 @@ export async function POST(request: Request) {
         year, 
         license_plate, 
         vin: vin || null, 
-        last_km: last_km || 0 
+        last_km: last_km || 0,
+        dealership_id: client.dealership_id
       }])
       .select()
       .single();
