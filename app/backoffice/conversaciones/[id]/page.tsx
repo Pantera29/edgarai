@@ -67,6 +67,7 @@ interface Conversation {
   client_intent?: string;
   agent_name?: string;
   ai_model?: string;
+  conversation_summary_translated?: string;
 }
 
 interface Message {
@@ -692,12 +693,12 @@ export default function ConversacionDetallePage() {
                 </div>
                 
                 <p className={`text-sm text-gray-700 mb-4 ${!expandedSummary ? "line-clamp-4" : ""}`}>
-                  {conversacion.conversation_summary || conversacion.metadata?.summary}
+                  {conversacion.conversation_summary_translated || conversacion.conversation_summary || conversacion.metadata?.summary}
                 </p>
                 
                 {/* Información extraída */}
                 {(() => {
-                  const { appointment, cost, date } = extractInfoFromSummary(conversacion.conversation_summary || conversacion.metadata?.summary);
+                  const { appointment, cost, date } = extractInfoFromSummary(conversacion.conversation_summary_translated || conversacion.conversation_summary || conversacion.metadata?.summary);
                   if (appointment || cost || date) {
                     return (
                       <div className="mt-3 space-y-2">
