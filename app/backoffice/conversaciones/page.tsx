@@ -307,16 +307,19 @@ export default function ConversacionesPage() {
       // Mapa para contar por canal
       const canalCount: Record<string, number> = {};
       
-      // Mapa para contar por fecha
-      const fechaCount: Record<string, number> = {};
-      const hoy = new Date();
-      
       // Inicializar fechas de los últimos 30 días
+      const hoy = new Date();
+      const fechas = [];
       for (let i = 0; i < 30; i++) {
-        const fecha = subDays(hoy, i);
-        const fechaKey = format(fecha, 'dd/MM');
-        fechaCount[fechaKey] = 0;
+        const fecha = new Date(hoy);
+        fecha.setDate(hoy.getDate() - i);
+        const key = format(fecha, 'dd/MM');
+        fechas.push(key);
       }
+
+      // Inicializar el mapa de fechas y canales
+      const fechaCanalCount: Record<string, { WhatsApp: number, Teléfono: number }> = {};
+      fechas.forEach(f => fechaCanalCount[f] = { WhatsApp: 0, Teléfono: 0 });
       
       // Procesar cada conversación para obtener las métricas
       conversaciones?.forEach(conv => {
@@ -329,12 +332,13 @@ export default function ConversacionesPage() {
         const canal = conv.channel || 'desconocido';
         canalCount[canal] = (canalCount[canal] || 0) + 1;
         
-        // Contar por fecha (últimos 30 días)
+        // Contar por fecha y canal real
         if (conv.created_at) {
-          const fecha = new Date(conv.created_at);
-          const fechaKey = format(fecha, 'dd/MM');
-          if (fechaCount[fechaKey] !== undefined) {
-            fechaCount[fechaKey]++;
+          const fecha = format(new Date(conv.created_at), 'dd/MM');
+          const canalFormateado = formatearNombreCanal(conv.channel || 'otro');
+          if (fechaCanalCount[fecha]) {
+            if (canalFormateado === 'WhatsApp') fechaCanalCount[fecha].WhatsApp += 1;
+            else if (canalFormateado === 'Teléfono') fechaCanalCount[fecha].Teléfono += 1;
           }
         }
       });
@@ -349,15 +353,12 @@ export default function ConversacionesPage() {
       }));
       console.log("Distribución por canal:", porCanal);
       
-      // Convertir conteo por fecha a formato para gráfico
-      const porFecha = Object.entries(fechaCount)
-        .map(([fecha, count]) => ({ fecha, count }))
-        .sort((a, b) => {
-          const [dayA, monthA] = a.fecha.split('/').map(Number);
-          const [dayB, monthB] = b.fecha.split('/').map(Number);
-          if (monthA !== monthB) return monthA - monthB;
-          return dayA - dayB;
-        });
+      // Convertir conteo por fecha y canal a formato para gráfico
+      const porFechaCanal = fechas.reverse().map(f => ({
+        fecha: f,
+        WhatsApp: fechaCanalCount[f].WhatsApp,
+        Teléfono: fechaCanalCount[f].Teléfono
+      }));
       
       // Actualizar estado con métricas calculadas
       setMetricas({
@@ -366,7 +367,7 @@ export default function ConversacionesPage() {
         cerradas,
         pendientes,
         porCanal,
-        porFecha
+        porFecha: porFechaCanal
       });
       
       console.log("Métricas cargadas correctamente");
@@ -466,37 +467,39 @@ export default function ConversacionesPage() {
 
   // Calcular métricas de crecimiento (comparando con el mes anterior)
   const calcularCrecimiento = () => {
-    // Obtener fechas para mes actual y mes anterior
     const hoy = new Date();
     const inicioMesActual = startOfMonth(hoy);
     const inicioMesAnterior = startOfMonth(subDays(inicioMesActual, 1));
-    
-    // Definir interface para los items de metricas.porFecha
-    interface FechaItem {
-      fecha: string;
-      count: number;
-    }
-    
-    // Contar conversaciones de este mes
-    const conversacionesMesActual = metricas.porFecha.filter((item: FechaItem) => {
+
+    // Ahora cada item tiene { fecha, WhatsApp, Teléfono }
+    const conversacionesMesActual = metricas.porFecha.filter((item: any) => {
       const [day, month] = item.fecha.split('/').map(Number);
       const fechaItem = new Date(hoy.getFullYear(), month-1, day);
       return fechaItem >= inicioMesActual;
-    }).reduce((sum: number, item: FechaItem) => sum + item.count, 0);
-    
-    // Contar conversaciones del mes anterior
-    const conversacionesMesAnterior = metricas.porFecha.filter((item: FechaItem) => {
+    }).reduce((sum: number, item: any) => sum + (item.WhatsApp || 0) + (item.Teléfono || 0), 0);
+
+    const conversacionesMesAnterior = metricas.porFecha.filter((item: any) => {
       const [day, month] = item.fecha.split('/').map(Number);
       const fechaItem = new Date(hoy.getFullYear(), month-1, day);
       return fechaItem < inicioMesActual && fechaItem >= inicioMesAnterior;
-    }).reduce((sum: number, item: FechaItem) => sum + item.count, 0);
-    
-    // Calcular porcentaje de crecimiento
-    if (conversacionesMesAnterior === 0) return { porcentaje: 100, creciendo: true };
-    
+    }).reduce((sum: number, item: any) => sum + (item.WhatsApp || 0) + (item.Teléfono || 0), 0);
+
+    // LOG para depuración
+    console.log('Crecimiento - Mes actual:', conversacionesMesActual, 'Mes anterior:', conversacionesMesAnterior);
+
+    if (!conversacionesMesAnterior || isNaN(conversacionesMesAnterior)) {
+      if (conversacionesMesActual > 0) {
+        console.log('Crecimiento: 100% (no había conversaciones el mes anterior)');
+        return { porcentaje: 100, creciendo: true };
+      } else {
+        console.log('Crecimiento: 0% (no hay conversaciones en ninguno de los dos meses)');
+        return { porcentaje: 0, creciendo: false };
+      }
+    }
+
     const diferencia = conversacionesMesActual - conversacionesMesAnterior;
     const porcentaje = Math.round((diferencia / conversacionesMesAnterior) * 100);
-    
+
     return {
       porcentaje: Math.abs(porcentaje),
       creciendo: porcentaje >= 0
@@ -511,83 +514,11 @@ export default function ConversacionesPage() {
     }));
   };
 
-  // Preparar datos para gráfico por canal y fecha
-  const prepararDatosGraficoArea = () => {
-    // Definir interface para los items de metricas.porFecha
-    interface FechaItem {
-      fecha: string;
-      count: number;
-    }
-    
-    interface FechaCanalItem {
-      fecha: string;
-      WhatsApp: number;
-      Teléfono: number;
-      [key: string]: any;
-    }
-    
-    // Obtener solo los últimos 14 días para no saturar el gráfico
-    const ultimosDias = metricas.porFecha.slice(-14);
-    
-    // Crear mapa para contar por fecha y canal
-    const datosPorFechaCanal: Record<string, FechaCanalItem> = {};
-    
-    // Inicializar con 0 para cada fecha y canal
-    ultimosDias.forEach((item: FechaItem) => {
-      datosPorFechaCanal[item.fecha] = {
-        fecha: item.fecha,
-        'WhatsApp': 0,
-        'Teléfono': 0
-      };
-    });
-    
-    // Usando datos ficticios para demostración
-    // En producción, necesitaríamos obtener estos datos de la API
-    ultimosDias.forEach((item: FechaItem) => {
-      const fecha = item.fecha;
-      if (datosPorFechaCanal[fecha]) {
-        // Distribución aleatoria entre canales (70% WhatsApp, 30% Teléfono)
-        const total = item.count;
-        const whatsapp = Math.round(total * 0.7);
-        const telefono = total - whatsapp;
-        
-        datosPorFechaCanal[fecha]['WhatsApp'] = whatsapp;
-        datosPorFechaCanal[fecha]['Teléfono'] = telefono;
-      }
-    });
-    
-    return Object.values(datosPorFechaCanal);
-  };
-
-  // Filtrar datos según canales visibles
-  const filtrarDatosGrafico = () => {
-    interface FechaCanalItem {
-      fecha: string;
-      WhatsApp?: number;
-      Teléfono?: number;
-      [key: string]: any;
-    }
-    
-    const datos = prepararDatosGraficoArea();
-    return datos.map((item: FechaCanalItem) => {
-      const resultado: Record<string, any> = { fecha: item.fecha };
-      
-      // Solo incluir canales visibles
-      Object.keys(item).forEach((key: string) => {
-        if (key === 'fecha' || canalesVisibles[key]) {
-          resultado[key] = item[key];
-        }
-      });
-      
-      return resultado;
-    });
-  };
-
   // Obtener datos de crecimiento
   const crecimiento = calcularCrecimiento();
   
-  // Preparar datos para gráfico de área
-  const datosGraficoAreaFiltrados = filtrarDatosGrafico();
+  // Usar directamente los datos de métricas para el gráfico
+  const datosGraficoArea = metricas.porFecha;
 
   return (
     <div className="px-4 py-6 space-y-6">
@@ -718,7 +649,7 @@ export default function ConversacionesPage() {
         <div className="p-6 h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart
-              data={datosGraficoAreaFiltrados}
+              data={datosGraficoArea}
               margin={{
                 top: 10,
                 right: 30,
