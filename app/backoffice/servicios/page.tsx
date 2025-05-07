@@ -106,24 +106,21 @@ export default function ServiciosPage() {
   async function cargarServicios(dealershipIdFromToken?: string) {
     setLoading(true)
     try {
+      // Si no hay dealership_id, no cargar nada
+      if (!dealershipIdFromToken) {
+        setServicios([]);
+        return;
+      }
+
       const { data, error } = await supabase
         .from('services')
         .select('*')
+        .eq('dealership_id', dealershipIdFromToken)
         .order('service_name')
 
       if (error) throw error
       
-      let filteredServices = data || [];
-      
-      // Filtrar por dealership_id si existe en el token JWT
-      if (dealershipIdFromToken) {
-        console.log("Filtrando servicios por dealership_id:", dealershipIdFromToken);
-        filteredServices = filteredServices.filter(
-          service => !service.dealership_id || service.dealership_id === dealershipIdFromToken
-        );
-      }
-      
-      setServicios(filteredServices)
+      setServicios(data || [])
     } catch (error) {
       console.error('Error al cargar servicios:', error)
       toast({
@@ -184,7 +181,7 @@ export default function ServiciosPage() {
         title: "Éxito",
         description: "Servicio agregado correctamente",
       })
-      cargarServicios()
+      cargarServicios(dealershipId) // Pasar el dealership_id al recargar
     } catch (error) {
       console.error('Error al crear servicio:', error)
       toast({
@@ -230,7 +227,9 @@ export default function ServiciosPage() {
         title: "Éxito",
         description: "Servicio actualizado correctamente",
       })
-      cargarServicios()
+      // Obtener el dealership_id del token JWT
+      const dealershipId = (dataToken as any)?.dealership_id;
+      cargarServicios(dealershipId) // Pasar el dealership_id al recargar
     } catch (error) {
       console.error('Error al actualizar servicio:', error)
       toast({
