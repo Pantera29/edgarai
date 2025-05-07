@@ -1,6 +1,6 @@
 "use client"; // Asegura que el componente se renderice en el cliente
 
-import React, { useState, useEffect, ChangeEvent } from 'react';
+import React, { useState, useEffect, ChangeEvent, useRef } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { AppointmentCalendar } from "@/components/workshop/appointment-calendar";
 import moment from 'moment-timezone';
 import { verifyToken } from "@/app/jwt/token"
+import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from '@/components/ui/command';
 
 // Extender la interfaz Vehicle para incluir las propiedades adicionales
 interface ExtendedVehicle extends Vehicle {
@@ -68,11 +69,50 @@ const traducirEstado = (estado: string | null): string => {
   return traducciones[estado] || estado;
 };
 
+// Componente aislado para el combobox de clientes
+function ClienteComboBox({ clientes, onSelect, value }: { clientes: ExtendedClient[], onSelect: (id: string) => void, value: string }) {
+  const [search, setSearch] = React.useState('');
+  const filtered = !search
+    ? clientes
+    : clientes.filter(cliente =>
+        cliente.names.toLowerCase().includes(search.toLowerCase()) ||
+        cliente.phone_number.toLowerCase().includes(search.toLowerCase())
+      );
+
+  return (
+    <Command className="w-full rounded-md border shadow-md bg-white">
+      <CommandInput
+        placeholder="Buscar cliente..."
+        onValueChange={setSearch}
+      />
+      <CommandList className="max-h-[300px] overflow-y-auto">
+        {filtered.length > 0 ? (
+          filtered.map((cliente) => (
+            <CommandItem
+              key={cliente.id}
+              value={cliente.id}
+              onSelect={() => onSelect(cliente.id)}
+              className={value === cliente.id ? 'bg-accent text-accent-foreground' : ''}
+            >
+              {cliente.names} ( {cliente.phone_number} )
+            </CommandItem>
+          ))
+        ) : (
+          <CommandEmpty>
+            No se encontraron clientes
+          </CommandEmpty>
+        )}
+      </CommandList>
+    </Command>
+  );
+}
+
 export default function NuevaReservaPage() {
 
   const [token, setToken] = useState<string>("");
   const [verifiedDataToken, setVerifiedDataToken] = useState<any>(null);
   const [tallerConfig, setTallerConfig] = useState<TallerConfig | null>(null);
+  const [dealershipName, setDealershipName] = useState<string>("");
   const router = useRouter();
 
   useEffect(() => {
@@ -86,12 +126,16 @@ export default function NuevaReservaPage() {
       
       if (!verifiedData) {
         router.push("/login"); // Redirigir si el token es inválido
+      } else if (verifiedData.dealership_id) {
+        // Cargar el nombre del concesionario
+        loadDealershipInfo(verifiedData.dealership_id);
       }
     }
   }, [router]);
 
   const { toast } = useToast();
   const [clientes, setClientes] = useState<ExtendedClient[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [vehiculos, setVehiculos] = useState<ExtendedVehicle[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
@@ -108,6 +152,35 @@ export default function NuevaReservaPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [open, setOpen] = useState(true); // Mantener el estado del diálogo abierto
   const supabase = createClientComponentClient();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const loadDealershipInfo = async (dealershipId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('dealerships')
+        .select('name')
+        .eq('id', dealershipId)
+        .single();
+
+      if (error) throw error;
+      if (data) {
+        setDealershipName(data.name);
+      }
+    } catch (error) {
+      console.error('Error al cargar información del concesionario:', error);
+    }
+  };
+
+  // Filtrar clientes basado en la búsqueda
+  const filteredClientes = React.useMemo(() => {
+    if (!searchQuery) return clientes;
+    
+    const query = searchQuery.toLowerCase();
+    return clientes.filter(cliente => 
+      cliente.names.toLowerCase().includes(query) ||
+      cliente.phone_number.toLowerCase().includes(query)
+    );
+  }, [clientes, searchQuery]);
 
   // Obtener el texto del vehículo seleccionado
   const selectedVehicleText = React.useMemo(() => {
@@ -642,6 +715,13 @@ export default function NuevaReservaPage() {
     return undefined;
   };
 
+  // Hacer foco solo cuando el dropdown se abre
+  useEffect(() => {
+    if (open && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [open]);
+
   return (
     <div className="container mx-auto py-6 px-2 max-w-7xl">
       <div className="bg-white rounded-lg shadow-md p-6">
@@ -651,18 +731,11 @@ export default function NuevaReservaPage() {
           <div className="grid grid-cols-12 items-center gap-4">
             <Label htmlFor="cliente" className="text-right col-span-1">Cliente</Label>
             <div className="col-span-11">
-              <Select value={selectedClient} onValueChange={handleClientSelection}>
-                <SelectTrigger>
-                  <SelectValue placeholder={selectedClientText || "Seleccione un cliente"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {clientes.map((cliente) => (
-                    <SelectItem key={cliente.id} value={cliente.id}>
-                      {cliente.names} ( {cliente.phone_number} ) 
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ClienteComboBox
+                clientes={clientes}
+                onSelect={handleClientSelection}
+                value={selectedClient}
+              />
             </div>
           </div>
 
