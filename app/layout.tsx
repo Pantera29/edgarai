@@ -2,6 +2,7 @@ import "@/app/globals.css"
 import { Inter, Outfit } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { Analytics } from "@vercel/analytics/react"
 
 const inter = Inter({ subsets: ["latin"] })
 const outfit = Outfit({ 
@@ -25,6 +26,7 @@ export default function RootLayout({
         <ThemeProvider>
           <TooltipProvider>
             {children}
+            <Analytics />
           </TooltipProvider>
         </ThemeProvider>
       </body>
