@@ -37,7 +37,7 @@ import { verifyToken } from "@/app/jwt/token"
 import { Textarea } from "@/components/ui/textarea"
 
 interface Servicio {
-  id: string
+  id_uuid: string
   service_name: string
   description: string
   duration_minutes: number
@@ -89,7 +89,7 @@ export default function ServiciosPage() {
   const [servicios, setServicios] = useState<Servicio[]>([])
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState<Omit<Servicio, 'id'>>({
+  const [formData, setFormData] = useState<Omit<Servicio, 'id_uuid'>>({
     service_name: "",
     description: "",
     duration_minutes: 0,
@@ -217,7 +217,7 @@ export default function ServiciosPage() {
           duration_minutes: servicioSeleccionado.duration_minutes,
           price: servicioSeleccionado.price
         })
-        .eq('id', servicioSeleccionado.id)
+        .eq('id_uuid', servicioSeleccionado.id_uuid)
 
       if (error) throw error
 
@@ -239,6 +239,33 @@ export default function ServiciosPage() {
       })
     } finally {
       setIsSubmitting(false)
+    }
+  }
+
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('services')
+        .delete()
+        .eq('id_uuid', id)
+
+      if (error) throw error
+
+      toast({
+        title: "Éxito",
+        description: "Servicio eliminado correctamente",
+      })
+      
+      // Obtener el dealership_id del token JWT
+      const dealershipId = (dataToken as any)?.dealership_id;
+      cargarServicios(dealershipId)
+    } catch (error) {
+      console.error('Error al eliminar servicio:', error)
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el servicio",
+        variant: "destructive",
+      })
     }
   }
 
@@ -265,7 +292,7 @@ export default function ServiciosPage() {
         </TableHeader>
         <TableBody>
           {servicios.map((servicio) => (
-            <TableRow key={servicio.id}>
+            <TableRow key={servicio.id_uuid}>
               <TableCell className="font-medium">{servicio.service_name}</TableCell>
               <TableCell>{servicio.description || '-'}</TableCell>
               <TableCell>{servicio.duration_minutes}</TableCell>
@@ -285,6 +312,13 @@ export default function ServiciosPage() {
                       setEditando(true)
                     }}>
                       Editar servicio
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => handleDelete(servicio.id_uuid)}
+                      className="text-red-600"
+                    >
+                      Eliminar servicio
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
