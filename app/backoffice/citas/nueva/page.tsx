@@ -69,41 +69,157 @@ const traducirEstado = (estado: string | null): string => {
   return traducciones[estado] || estado;
 };
 
-// Componente aislado para el combobox de clientes
+// Componente mejorado y simplificado para el combobox de clientes
 function ClienteComboBox({ clientes, onSelect, value }: { clientes: ExtendedClient[], onSelect: (id: string) => void, value: string }) {
+  const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
-  const filtered = !search
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+
+  // Buscar el cliente seleccionado
+  const selectedClient = clientes.find(c => c.id === value);
+
+  // Filtrar clientes por búsqueda de nombre
+  const filtered = search.trim() === ''
     ? clientes
     : clientes.filter(cliente =>
-        cliente.names.toLowerCase().includes(search.toLowerCase()) ||
-        cliente.phone_number.toLowerCase().includes(search.toLowerCase())
+        cliente.names.toLowerCase().includes(search.toLowerCase())
       );
 
+  // Cerrar el dropdown si se hace clic fuera
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
   return (
-    <Command className="w-full rounded-md border shadow-md bg-white">
-      <CommandInput
-        placeholder="Buscar cliente..."
-        onValueChange={setSearch}
-      />
-      <CommandList className="max-h-[300px] overflow-y-auto">
-        {filtered.length > 0 ? (
-          filtered.map((cliente) => (
-            <CommandItem
-              key={cliente.id}
-              value={cliente.id}
-              onSelect={() => onSelect(cliente.id)}
-              className={value === cliente.id ? 'bg-accent text-accent-foreground' : ''}
-            >
-              {cliente.names} ( {cliente.phone_number} )
-            </CommandItem>
-          ))
-        ) : (
-          <CommandEmpty>
-            No se encontraron clientes
-          </CommandEmpty>
-        )}
-      </CommandList>
-    </Command>
+    <div className="relative w-full" ref={triggerRef}>
+      <button
+        type="button"
+        className="w-full border rounded-md px-3 py-2 text-left bg-white"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {selectedClient
+          ? `${selectedClient.names} (${selectedClient.phone_number})`
+          : "Selecciona un cliente..."}
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
+          <input
+            type="text"
+            className="w-full px-3 py-2 border-b outline-none"
+            placeholder="Buscar cliente por nombre..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            autoFocus
+          />
+          <ul className="max-h-60 overflow-y-auto">
+            {filtered.length > 0 ? (
+              filtered.map((cliente) => (
+                <li
+                  key={cliente.id}
+                  className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${value === cliente.id ? 'bg-blue-50 font-semibold' : ''}`}
+                  onClick={() => {
+                    onSelect(cliente.id);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                >
+                  {cliente.names} ({cliente.phone_number})
+                </li>
+              ))
+            ) : (
+              <li className="px-3 py-2 text-gray-400">No se encontraron clientes</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Componente para seleccionar servicios de forma similar al ClienteComboBox
+function ServiceComboBox({ servicios, onSelect, value }: { servicios: ExtendedService[], onSelect: (id: string) => void, value: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+
+  // Buscar el servicio seleccionado
+  const selectedService = servicios.find(s => s.id === value || s.id_uuid === value);
+
+  // Filtrar servicios por búsqueda de nombre
+  const filtered = search.trim() === ''
+    ? servicios
+    : servicios.filter(servicio =>
+        servicio.service_name.toLowerCase().includes(search.toLowerCase())
+      );
+
+  // Cerrar el dropdown si se hace clic fuera
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative w-full" ref={triggerRef}>
+      <button
+        type="button"
+        className="w-full border rounded-md px-3 py-2 text-left bg-white"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {selectedService
+          ? `${selectedService.service_name} (${selectedService.duration_minutes} min)`
+          : "Selecciona un servicio..."}
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
+          <input
+            type="text"
+            className="w-full px-3 py-2 border-b outline-none"
+            placeholder="Buscar servicio por nombre..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            autoFocus
+          />
+          <ul className="max-h-60 overflow-y-auto">
+            {filtered.length > 0 ? (
+              filtered.map((servicio) => (
+                <li
+                  key={servicio.id_uuid || servicio.id}
+                  className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${value === servicio.id || value === servicio.id_uuid ? 'bg-blue-50 font-semibold' : ''}`}
+                  onClick={() => {
+                    onSelect(servicio.id_uuid || servicio.id);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                >
+                  {servicio.service_name} ({servicio.duration_minutes} min)
+                </li>
+              ))
+            ) : (
+              <li className="px-3 py-2 text-gray-400">No se encontraron servicios</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -282,7 +398,7 @@ export default function NuevaReservaPage() {
           .eq('dealership_id', verifiedDataToken.dealership_id)
           .order('names'),
         supabase.from('vehicles').select('*').order('make, model'),
-        supabase.from('services').select('*').order('service_name')
+        supabase.from('services').select('*').eq('dealership_id', verifiedDataToken.dealership_id).order('service_name')
       ]);
 
       if (clientesError){
@@ -780,24 +896,11 @@ export default function NuevaReservaPage() {
           <div className="grid grid-cols-12 items-center gap-4">
             <Label htmlFor="servicio" className="text-right col-span-1">Servicio</Label>
             <div className="col-span-11">
-              <Select 
-                value={selectedService} 
-                onValueChange={(value) => {
-                  console.log('Servicio seleccionado:', value);
-                  setSelectedService(value);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={selectedServiceText || "Seleccione un servicio"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {servicios.map((servicio) => (
-                    <SelectItem key={servicio.id_uuid || servicio.id} value={servicio.id_uuid || servicio.id}>
-                      {servicio.service_name} ({servicio.duration_minutes} min)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <ServiceComboBox
+                servicios={servicios}
+                onSelect={setSelectedService}
+                value={selectedService}
+              />
             </div>
           </div>
 
