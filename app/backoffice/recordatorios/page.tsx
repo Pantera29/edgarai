@@ -45,12 +45,13 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
+import React from "react"
 
 interface Recordatorio {
   reminder_id: string
   client_id_uuid: string
   vehicle_id: string
-  type: 'initial_sale' | 'regular_service'
+  service_id: string | null
   base_date: string
   reminder_date: string
   sent_date: string | null
@@ -70,6 +71,88 @@ interface Recordatorio {
     year: number
     license_plate: string
   }
+  services?: {
+    service_name: string
+    description: string
+    dealership_id: string
+  }
+}
+
+// Componente mejorado para el combobox de clientes
+function ClienteComboBox({ clientes, onSelect, value }: { clientes: any[], onSelect: (id: string) => void, value: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+
+  // Buscar el cliente seleccionado
+  const selectedClient = clientes.find(c => c.id === value);
+
+  // Filtrar clientes por búsqueda de nombre
+  const filtered = search.trim() === ''
+    ? clientes
+    : clientes.filter(cliente =>
+        cliente.names.toLowerCase().includes(search.toLowerCase())
+      );
+
+  // Cerrar el dropdown si se hace clic fuera
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative w-full" ref={triggerRef}>
+      <button
+        type="button"
+        className="w-full border rounded-md px-3 py-2 text-left bg-white"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {selectedClient
+          ? `${selectedClient.names} (${selectedClient.phone_number})`
+          : "Selecciona un cliente..."}
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
+          <input
+            type="text"
+            className="w-full px-3 py-2 border-b outline-none"
+            placeholder="Buscar cliente por nombre..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            autoFocus
+          />
+          <ul className="max-h-60 overflow-y-auto">
+            {filtered.length > 0 ? (
+              filtered.map((cliente) => (
+                <li
+                  key={cliente.id}
+                  className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${value === cliente.id ? 'bg-blue-50 font-semibold' : ''}`}
+                  onClick={() => {
+                    onSelect(cliente.id);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                >
+                  {cliente.names} ({cliente.phone_number})
+                </li>
+              ))
+            ) : (
+              <li className="px-3 py-2 text-gray-400">No se encontraron clientes</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function RecordatoriosPage() {
@@ -84,11 +167,12 @@ export default function RecordatoriosPage() {
   const [formData, setFormData] = useState({
     client_id: '',
     vehicle_id: '',
-    type: 'maintenance',
+    service_id: '',
     base_date: '',
     reminder_date: '',
     notes: ''
   });
+  const [servicios, setServicios] = useState<any[]>([]);
   const { toast } = useToast();
 
   const router = useRouter();
@@ -160,6 +244,11 @@ export default function RecordatoriosPage() {
           model,
           year,
           license_plate
+        ),
+        services (
+          service_name,
+          description,
+          dealership_id
         )
       `)
       .order('reminder_date', { ascending: true })
@@ -268,7 +357,7 @@ export default function RecordatoriosPage() {
 
       let query = supabase
         .from('client')
-        .select('id, names')
+        .select('id, names, phone_number')
         .order('names');
 
       // Si hay un dealership_id, filtrar por él
@@ -332,16 +421,59 @@ export default function RecordatoriosPage() {
     }
   };
 
+  const cargarServicios = async () => {
+    try {
+      console.log('Iniciando carga de servicios...');
+      
+      // Obtener el dealership_id del token si existe
+      const dealershipId = (dataToken as any)?.dealership_id;
+      console.log('Dealership ID:', dealershipId);
+
+      let query = supabase
+        .from('services')
+        .select('id_uuid, service_name, description')
+        .order('service_name');
+
+      // Si hay un dealership_id, filtrar por él
+      if (dealershipId) {
+        query = query.eq('dealership_id', dealershipId);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error('Error al cargar servicios:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los servicios",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('Servicios cargados:', data);
+      setServicios(data || []);
+    } catch (error) {
+      console.error('Error en cargarServicios:', error);
+      toast({
+        title: "Error",
+        description: "Error al cargar los servicios",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
     if (mostrarFormulario) {
       cargarClientes();
+      cargarServicios();
     }
   }, [mostrarFormulario]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.client_id || !formData.vehicle_id || !formData.base_date || !formData.reminder_date) {
+    if (!formData.client_id || !formData.vehicle_id || !formData.service_id || !formData.base_date || !formData.reminder_date) {
       toast({
         title: "Error",
         description: "Por favor complete todos los campos requeridos",
@@ -357,7 +489,7 @@ export default function RecordatoriosPage() {
       const recordatorioData = {
         client_id_uuid: formData.client_id,
         vehicle_id: formData.vehicle_id,
-        type: formData.type,
+        service_id: formData.service_id,
         base_date: baseDateUTC,
         reminder_date: reminderDateUTC,
         notes: formData.notes,
@@ -383,7 +515,7 @@ export default function RecordatoriosPage() {
       setFormData({
         client_id: '',
         vehicle_id: '',
-        type: 'maintenance',
+        service_id: '',
         base_date: '',
         reminder_date: '',
         notes: ''
@@ -405,7 +537,7 @@ export default function RecordatoriosPage() {
   const [formDataEditar, setFormDataEditar] = useState({
     client_id: '',
     vehicle_id: '',
-    type: 'maintenance',
+    service_id: '',
     base_date: '',
     reminder_date: '',
     notes: ''
@@ -414,7 +546,7 @@ export default function RecordatoriosPage() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formDataEditar.client_id || !formDataEditar.vehicle_id || !formDataEditar.base_date || !formDataEditar.reminder_date) {
+    if (!formDataEditar.client_id || !formDataEditar.vehicle_id || !formDataEditar.service_id || !formDataEditar.base_date || !formDataEditar.reminder_date) {
       toast({
         title: "Error",
         description: "Por favor complete todos los campos requeridos",
@@ -432,7 +564,7 @@ export default function RecordatoriosPage() {
         .update({
           client_id_uuid: formDataEditar.client_id,
           vehicle_id: formDataEditar.vehicle_id,
-          type: formDataEditar.type,
+          service_id: formDataEditar.service_id,
           base_date: baseDateUTC,
           reminder_date: reminderDateUTC,
           notes: formDataEditar.notes
@@ -697,7 +829,7 @@ export default function RecordatoriosPage() {
                   </TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vehículo</TableHead>
-                  <TableHead>Tipo</TableHead>
+                  <TableHead>Servicio</TableHead>
                   <TableHead>Fecha Creación</TableHead>
                   <TableHead>Fecha Recordatorio</TableHead>
                   <TableHead>Estado</TableHead>
@@ -723,7 +855,7 @@ export default function RecordatoriosPage() {
                       {recordatorio.vehicles.license_plate && ` (${recordatorio.vehicles.license_plate})`}
                     </TableCell>
                     <TableCell>
-                      {recordatorio.type === 'initial_sale' ? 'Venta Inicial' : 'Servicio Regular'}
+                      {recordatorio.services?.service_name || 'Sin servicio'}
                     </TableCell>
                     <TableCell>
                       {(() => {
@@ -751,7 +883,7 @@ export default function RecordatoriosPage() {
                             setFormDataEditar({
                               client_id: recordatorio.client_id_uuid,
                               vehicle_id: recordatorio.vehicle_id,
-                              type: recordatorio.type,
+                              service_id: recordatorio.service_id ?? '',
                               base_date: format(parseISO(recordatorio.base_date), 'yyyy-MM-dd'),
                               reminder_date: format(parseISO(recordatorio.reminder_date), 'yyyy-MM-dd'),
                               notes: recordatorio.notes || ''
@@ -793,24 +925,14 @@ export default function RecordatoriosPage() {
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label>Cliente *</Label>
-                <Select
-                  value={formData.client_id}
-                  onValueChange={(value) => {
+                <ClienteComboBox
+                  clientes={clientes}
+                  onSelect={(value) => {
                     setFormData({ ...formData, client_id: value, vehicle_id: '' });
                     cargarVehiculos(value);
                   }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione un cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientes.map((cliente) => (
-                      <SelectItem key={cliente.id} value={cliente.id}>
-                        {cliente.names}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  value={formData.client_id}
+                />
               </div>
 
               <div className="space-y-2">
@@ -835,20 +957,20 @@ export default function RecordatoriosPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Tipo de Recordatorio *</Label>
+                <Label>Servicio *</Label>
                 <Select
-                  value={formData.type}
-                  onValueChange={(value) => setFormData({ ...formData, type: value })}
+                  value={formData.service_id}
+                  onValueChange={(value) => setFormData({ ...formData, service_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccione el tipo" />
+                    <SelectValue placeholder="Seleccione un servicio" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="maintenance">Mantenimiento</SelectItem>
-                    <SelectItem value="insurance">Seguro</SelectItem>
-                    <SelectItem value="inspection">Inspección</SelectItem>
-                    <SelectItem value="license">Licencia</SelectItem>
-                    <SelectItem value="other">Otro</SelectItem>
+                    {servicios.map((servicio) => (
+                      <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
+                        {servicio.service_name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -901,24 +1023,14 @@ export default function RecordatoriosPage() {
             <div className="grid gap-4 py-4">
               <div className="space-y-2">
                 <Label>Cliente *</Label>
-                <Select
-                  value={formDataEditar.client_id}
-                  onValueChange={(value) => {
+                <ClienteComboBox
+                  clientes={clientes}
+                  onSelect={(value) => {
                     setFormDataEditar({ ...formDataEditar, client_id: value, vehicle_id: '' });
                     cargarVehiculos(value);
                   }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Seleccione un cliente" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientes.map((cliente) => (
-                      <SelectItem key={cliente.id} value={cliente.id}>
-                        {cliente.names}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  value={formDataEditar.client_id}
+                />
               </div>
 
               <div className="space-y-2">
@@ -943,20 +1055,20 @@ export default function RecordatoriosPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Tipo de Recordatorio *</Label>
+                <Label>Servicio *</Label>
                 <Select
-                  value={formDataEditar.type}
-                  onValueChange={(value) => setFormDataEditar({ ...formDataEditar, type: value })}
+                  value={formDataEditar.service_id}
+                  onValueChange={(value) => setFormDataEditar({ ...formDataEditar, service_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Seleccione el tipo" />
+                    <SelectValue placeholder="Seleccione un servicio" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="maintenance">Mantenimiento</SelectItem>
-                    <SelectItem value="insurance">Seguro</SelectItem>
-                    <SelectItem value="inspection">Inspección</SelectItem>
-                    <SelectItem value="license">Licencia</SelectItem>
-                    <SelectItem value="other">Otro</SelectItem>
+                    {servicios.map((servicio) => (
+                      <SelectItem key={servicio.id_uuid} value={servicio.id_uuid}>
+                        {servicio.service_name}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
