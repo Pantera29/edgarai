@@ -3,6 +3,7 @@ import { Inter, Outfit } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Analytics } from "@vercel/analytics/react"
+import { SpeedInsights } from "@vercel/speed-insights/next"
 
 const inter = Inter({ subsets: ["latin"] })
 const outfit = Outfit({ 
@@ -27,6 +28,7 @@ export default function RootLayout({
           <TooltipProvider>
             {children}
             <Analytics />
+            <SpeedInsights />
           </TooltipProvider>
         </ThemeProvider>
       </body>
