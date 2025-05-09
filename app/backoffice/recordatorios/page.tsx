@@ -124,13 +124,13 @@ function ClienteComboBox({ clientes, onSelect, value }: { clientes: any[], onSel
         <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
           <input
             type="text"
-            className="w-full px-3 py-2 border-b outline-none"
+            className="w-full px-3 py-2 border-b outline-none bg-white text-black"
             placeholder="Buscar cliente por nombre..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             autoFocus
           />
-          <ul className="max-h-60 overflow-y-auto">
+          <ul className="max-h-60 overflow-y-auto bg-white text-black">
             {filtered.length > 0 ? (
               filtered.map((cliente) => (
                 <li
@@ -211,6 +211,7 @@ export default function RecordatoriosPage() {
   const [filteredRecordatorios, setFilteredRecordatorios] = useState<Recordatorio[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDate, setSelectedDate] = useState<Date>()
+  const [currentTab, setCurrentTab] = useState<string>("todos")
   const [stats, setStats] = useState({
     pendientes: 0,
     enviados: 0,
@@ -288,28 +289,31 @@ export default function RecordatoriosPage() {
     })
   }
 
-  const filterRecordatorios = (estado: string) => {
-    let filtered = recordatorios
-    
+  const filterRecordatorios = (estado: string, date?: Date, search?: string) => {
+    let filtered = recordatorios;
     if (estado !== 'todos') {
-      filtered = filtered.filter(r => r.status === mapEstado(estado))
+      filtered = filtered.filter(r => r.status === mapEstado(estado));
     }
-    
-    if (searchTerm) {
-      filtered = filtered.filter(r => 
-        r.client.names.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        `${r.vehicles.make} ${r.vehicles.model}`.toLowerCase().includes(searchTerm.toLowerCase())
-      )
+    if (search || searchTerm) {
+      const term = (search ?? searchTerm).toLowerCase();
+      if (term) {
+        filtered = filtered.filter(r =>
+          r.client.names.toLowerCase().includes(term) ||
+          `${r.vehicles.make} ${r.vehicles.model}`.toLowerCase().includes(term)
+        );
+      }
     }
-    
-    if (selectedDate) {
-      filtered = filtered.filter(r => 
-        r.reminder_date.startsWith(format(selectedDate, 'yyyy-MM-dd'))
-      )
+    if (date || selectedDate) {
+      const fechaFiltro = format(date ?? selectedDate!, 'yyyy-MM-dd');
+      filtered = filtered.filter(r => r.reminder_date.startsWith(fechaFiltro));
     }
-    
-    setFilteredRecordatorios(filtered)
-  }
+    setFilteredRecordatorios(filtered);
+  };
+
+  // Efecto reactivo para filtrar automáticamente
+  useEffect(() => {
+    filterRecordatorios(currentTab);
+  }, [selectedDate, searchTerm, recordatorios, currentTab]);
 
   const mapEstado = (estado: string): string => {
     const mapeo = {
@@ -806,10 +810,7 @@ export default function RecordatoriosPage() {
             <Input
               placeholder="Buscar por cliente o vehículo..."
               value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value)
-                filterRecordatorios('todos')
-              }}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="max-w-sm"
             />
           </div>
@@ -824,17 +825,21 @@ export default function RecordatoriosPage() {
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={(date) => {
-                  setSelectedDate(date)
-                  filterRecordatorios('todos')
-                }}
+                onSelect={(date) => setSelectedDate(date)}
                 initialFocus
               />
+              {selectedDate && (
+                <div className="p-2 text-center">
+                  <Button size="sm" variant="ghost" onClick={() => setSelectedDate(undefined)}>
+                    Limpiar fecha
+                  </Button>
+                </div>
+              )}
             </PopoverContent>
           </Popover>
         </div>
 
-        <Tabs defaultValue="todos" className="w-full" onValueChange={filterRecordatorios}>
+        <Tabs defaultValue="todos" className="w-full" onValueChange={(tab) => setCurrentTab(tab)}>
           <TabsList>
             <TabsTrigger value="todos">Todos</TabsTrigger>
             <TabsTrigger value="pendiente">Pendientes</TabsTrigger>
