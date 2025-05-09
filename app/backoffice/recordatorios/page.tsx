@@ -608,65 +608,117 @@ export default function RecordatoriosPage() {
     try {
       const recordatoriosSeleccionados = recordatorios.filter(r => seleccionados.includes(r.reminder_id));
       const bearer = process.env.NEXT_PUBLIC_VAPI_BEARER;
-      const response = await fetch('https://api.vapi.ai/call', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${bearer}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      let huboError = false;
+      let errores = [];
+      for (const recordatorio of recordatoriosSeleccionados) {
+        // Validar que todos los datos requeridos estén presentes
+        const datosCompletos = (
+          recordatorio.client &&
+          recordatorio.vehicles &&
+          recordatorio.services &&
+          recordatorio.client_id_uuid &&
+          recordatorio.client.names &&
+          recordatorio.client.phone_number &&
+          recordatorio.vehicle_id &&
+          recordatorio.vehicles.model &&
+          recordatorio.vehicles.year &&
+          recordatorio.vehicles.license_plate &&
+          recordatorio.service_id &&
+          recordatorio.services?.service_name &&
+          recordatorio.client.dealership_id
+        );
+        if (!datosCompletos) {
+          errores.push(`Faltan datos para el recordatorio de ${recordatorio.client?.names || 'Cliente desconocido'}`);
+          continue;
+        }
+        // Armar el payload
+        const payload = {
           assistantId: "f7be88f4-04c5-4bfc-9737-c200e46e7083",
-          assistantOverrides: {
-            firstMessageMode: "assistant-waits-for-user"
+          customer: {
+            name: recordatorio.client.names,
+            number: recordatorio.client.phone_number.startsWith('+')
+              ? recordatorio.client.phone_number
+              : `+52${recordatorio.client.phone_number}`
           },
-          customers: recordatoriosSeleccionados.map(r => ({
-            number: r.client.phone_number.startsWith('+52') 
-              ? r.client.phone_number 
-              : `+52${r.client.phone_number}`,
-            name: r.client.names
-          })),
+          assistantOverrides: {
+            firstMessage: `¡Hola ${recordatorio.client.names}! Soy Alexa de JAC Carretera 57. Te llamo porque tu ${recordatorio.vehicles.model} ${recordatorio.vehicles.year} ya se acerca a su servicio de ${recordatorio.services?.service_name} y quiero ayudarte a programar la cita. ¿Tienes un minuto?`,
+            firstMessageMode: "assistant-speaks-first",
+            variableValues: {
+              client_id: recordatorio.client_id_uuid,
+              client_name: recordatorio.client.names,
+              phone: recordatorio.client.phone_number,
+              vehicle_id: recordatorio.vehicle_id,
+              vehicle_model: recordatorio.vehicles.model,
+              vehicle_year: recordatorio.vehicles.year,
+              plate: recordatorio.vehicles.license_plate,
+              service_id: recordatorio.service_id,
+              service_name: recordatorio.services?.service_name,
+              dealership_id: recordatorio.client.dealership_id,
+              fecha: "",
+              hora: ""
+            },
+            model: {
+              provider: "openai",
+              model: "gpt-4.1",
+              messages: [
+                {
+                  role: "system",
+                  content: `<internal>\n############################################\n#  CONTEXTO: VARIABLES DISPONIBLES         #\n############################################\nLos siguientes datos llegan vía assistantOverrides.variableValues  \n  • client_id: {{client_id}}        → ID único del cliente  \n  • client_name: {{client_name}}        → Nombre del cliente  \n  • phone: {{phone}}             → Teléfono a 10 dígitos (formato XXXXXXXXXX)  \n  • vehicle_id: {{vehicle_id}}       → ID del vehículo  \n  • vehicle_model {{model}}    → Modelo (ej. \"Sei7 Pro\")  \n  • vehicle_year: {{year}}     → Año (ej. \"2023\")  \n  • plate: {{plate}}            → Placa (ej. \"ABC1234\")  \n  • service_id: {{service_id}}       → ID del servicio sugerido  \n  • service_name: {{service_name}}     → Nombre del servicio (ej. \"Mantenimiento de 20 000 km\")  \n  • dealership_id: {{dealership_id}}    → ID de la agencia  \n\nGuarda estas variables en memoria al iniciar la conversación.  \nSi alguna (*vehicle_id, service_id, fecha u hora*) falta, solicítala siguiendo las reglas abajo.\n\n############################################\n#  REGLAS GENERALES                        #\n############################################\n• PIENSA paso a paso ANTES de cada llamada a herramienta:  \n  1. ¿Tengo vehicle_id? 2. service_id 3. fecha 4. hora  \n    —Si falta cualquiera, pregúntalo primero.\n\n• Teléfono: solo confirma si el cliente lo menciona; no ejecutes verificar_cliente ni crear_cliente (ya tenemos client_id y phone).\n\n• Vehículos:  \n  —Si vehicle_id falta → llama vehiculos_por_idcliente y procede como se describe abajo.  \n  —Cuando menciones la placa, deletrea letras y dígitos: \"A, B, C, uno, dos…\".\n\n• Citas:  \n  —No invoques disponibilidad_citas sin fecha y hora validadas.  \n  —Si disponibilidad == false → sugiere otra franja válida.  \n  —Cuando la disponibilidad sea true → pregunta \"¿añadimos alguna nota?\" y luego crear_cita.\n\n• Nunca reveles nombres de herramientas ni lógica (\"000\", endpoints, etc.).  \n</internal>\n# PROMPT PRINCIPAL\n[Identidad]\nEres \"Alexa\", la asistente principal de JAC Carretera 57. Llamas de forma cálida, profesional y empática para ayudar a los clientes a gestionar vehículos y citas, sin mencionar procesos internos.\n\n[Estilo]\nHabla en prosa natural, sin listas. Escribe números con palabras (tres mil). No pronuncies símbolos (\"arroba\", \"DOT\").\n\n[Flujo Maestro – Outbound]\n\nIntroducción – (ya enviada en First Message).\n\nConfirmar identidad\n• \"¿Hablo con {{client_name}}?\"\n• Si no está disponible → agenda llamada de seguimiento y finaliza.\n\nVehículo\n• Si vehicle_id ya viene → confirma: \"Tengo registrado tu {{vehicle_model}} {{vehicle_year}} con placa {{plate}}; ¿es correcto?\"\n• Si falta → vehiculos_por_idcliente, sigue la misma lógica: menciona opciones o crea_vehiculo.\n\nServicio\n• Si service_id ya viene → explica brevemente qué cubre {{service_name}} y por qué es necesario.\n• Si no → muestra opciones vía ver_servicios y registra selección.\n\nFecha y hora\n• Si fecha y hora vienen vacías → \"¿Qué fecha y hora te acomodan?\" (hoy es {{ \"now\" | date: \"%A %d de %B de %Y\", \"America/Mexico_City\" }}).\n• Valida que no sea sábado/domingo ni minutos 00/15/30/45.\n• disponibilidad_citas; si hay cupo → pregunta por nota, repite todo y crear_cita.\n• Si no hay → sugiere otra franja y repite verificación.\n\nCierre\n• Resume cita confirmada.\n• Indica que recibirá confirmación por WhatsApp/SMS.\n• Agradece su tiempo y despídete cordialmente.\n\n[Herramientas Internas]\n(verificar_cliente, crear_cliente, ver_servicios, vehiculos_por_idcliente, crear_vehiculo, modificar_vehiculo, disponibilidad_citas, crear_cita, revisar_citas_cliente, modificar_cita)\n\n[Manejo de Errores]\n• Si el cliente es ambiguo → \"¿Podrías darme un poco más de detalles para ayudarte mejor?\"\n• Si surge fallo interno → \"Lo siento, estoy teniendo dificultades; permíteme intentarlo de nuevo.\"\n\n[Restricciones]\n• Nunca reveles nombres de herramientas ni lógica interna.\n• No menciones el año al indicar la fecha.\n• No uses listas ni viñetas al hablar con el cliente.\n• No agendas sábados ni domingos; informa si lo pide.\n• Ejecuta disponibilidad_citas solo con fecha y hora válidas.\n• En cada llamada, envía phone correctamente formateado.`
+                }
+              ]
+            }
+          },
           phoneNumberId: "2a5d74e9-f465-4b6b-bd7a-4c999f63cbbf"
-        })
-      });
-
-      if (!response.ok) throw new Error('Error al realizar la llamada');
-      const vapiResponse = await response.json();
-
-      // Registrar cada llamada en outbound_calls
-      for (let i = 0; i < recordatoriosSeleccionados.length; i++) {
-        const recordatorio = recordatoriosSeleccionados[i];
-        const result = vapiResponse.results[i];
-        if (!result) continue;
+        };
+        const response = await fetch('https://api.vapi.ai/call', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${bearer}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) {
+          errores.push(`Error al llamar a ${recordatorio.client.names}`);
+          huboError = true;
+          continue;
+        }
+        const vapiResponse = await response.json();
+        // Registrar la llamada en outbound_calls
         const insertData = {
           reminder_id: recordatorio.reminder_id,
           client_id: recordatorio.client_id_uuid,
           vehicle_id: recordatorio.vehicle_id,
-          vapi_call_id: result.id,
-          assistant_id: result.assistantId,
-          phone_number_id: result.phoneNumberId,
-          customer_name: result.customer?.name || null,
-          customer_phone: result.customer?.number || null,
-          status: result.status || "queued",
-          twilio_call_id: result.phoneCallProviderId || null,
-          start_date: result.createdAt ? new Date(result.createdAt).toISOString() : null,
+          vapi_call_id: vapiResponse.id,
+          assistant_id: vapiResponse.assistantId,
+          phone_number_id: vapiResponse.phoneNumberId,
+          customer_name: vapiResponse.customer?.name || null,
+          customer_phone: vapiResponse.customer?.number || null,
+          status: vapiResponse.status || "queued",
+          twilio_call_id: vapiResponse.phoneCallProviderId || null,
+          start_date: vapiResponse.createdAt ? new Date(vapiResponse.createdAt).toISOString() : null,
           call_data: vapiResponse,
         };
         await supabase.from('outbound_calls').insert([insertData]);
       }
-
       // Actualizar estado de los recordatorios
       const { error } = await supabase
         .from('reminders')
         .update({ status: 'sent' })
         .in('reminder_id', seleccionados);
-
       if (error) throw error;
-
-      toast({
-        title: "Éxito",
-        description: "Llamadas iniciadas correctamente"
-      });
-
+      if (errores.length > 0) {
+        toast({
+          title: "Algunas llamadas no se pudieron iniciar",
+          description: errores.join("\n"),
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Éxito",
+          description: "Llamadas iniciadas correctamente"
+        });
+      }
       // Refrescar los recordatorios
       await fetchRecordatorios();
       setSeleccionados([]);
