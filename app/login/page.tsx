@@ -35,7 +35,8 @@ export default function LoginPage() {
     const { data: workers, error } = await supabase
       .from("worker_agency")
       .select("*")
-      .match({ email: email, password: password })
+      .ilike('email', email)
+      .eq('password', password)
       .eq('active', true);
 
     if (error) {
