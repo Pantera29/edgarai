@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { getDealershipId } from "@/lib/config";
 
 // Definimos los canales permitidos
-type AppointmentChannel = 'whatsapp' | 'twilio' | 'manual' | 'web' | 'voiceflow';
+type AppointmentChannel = 'whatsapp' | 'twilio' | 'manual' | 'web' | 'agenteai';
 
 export async function POST(request: Request) {
   try {
@@ -46,10 +46,10 @@ export async function POST(request: Request) {
     }
 
     // Validar canal
-    const validChannels: AppointmentChannel[] = ['whatsapp', 'twilio', 'manual', 'web', 'voiceflow'];
+    const validChannels: AppointmentChannel[] = ['whatsapp', 'twilio', 'manual', 'web', 'agenteai'];
     if (!validChannels.includes(channel as AppointmentChannel)) {
       return NextResponse.json(
-        { message: 'Invalid channel value. Allowed values: whatsapp, twilio, manual, web, voiceflow' },
+        { message: 'Invalid channel value. Allowed values: whatsapp, twilio, manual, web, agenteai' },
         { status: 400 }
       );
     }
