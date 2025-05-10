@@ -23,6 +23,7 @@ import {
   HoverCardTrigger,
 } from "@/components/ui/hover-card";
 import { CalendarIcon } from "lucide-react";
+import axios from 'axios';
 
 export interface TimeSlot {
   time: string;
@@ -76,6 +77,7 @@ interface AppointmentCalendarProps {
     duration: number;
   };
   className?: string;
+  dealershipId?: string;
 }
 
 // Agregar este helper para agrupar slots por hora
@@ -305,13 +307,15 @@ export function AppointmentCalendar({
   appointments,
   onTimeSlotSelect,
   selectedService,
-  className
+  className,
+  dealershipId
 }: AppointmentCalendarProps) {
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [monthYear, setMonthYear] = useState<Date>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const slotsRef = useRef<HTMLDivElement>(null);
+  const [backendSlots, setBackendSlots] = useState<TimeSlot[] | null>(null);
 
   const calculateDayAvailability = (date: Date): DayAvailability => {
     const dayOfWeek = date.getDay() === 0 ? 1 : date.getDay() + 1;
@@ -351,6 +355,7 @@ export function AppointmentCalendar({
     const existingAppointments = appointments.filter(app => 
       app.appointment_date && format(new Date(app.appointment_date), 'yyyy-MM-dd') === dateStr
     );
+    console.log('existingAppointments para el día:', dateStr, existingAppointments);
     
     const isPartiallyBlocked = !!block && !block.full_day;
         
@@ -382,6 +387,7 @@ export function AppointmentCalendar({
     const dayOfWeek = date.getDay() === 0 ? 1 : date.getDay() + 1;
     const schedule = operatingHours.find(h => h.day_of_week === dayOfWeek);
     
+    console.log('generateTimeSlots para fecha:', date, 'dayOfWeek:', dayOfWeek, 'schedule:', schedule);
     if (!schedule || !schedule.is_working_day) {
       return [];
     }
@@ -397,32 +403,41 @@ export function AppointmentCalendar({
     );
     
     // Generar slots con intervalos según la duración del turno
-    for (let time = startTime; isBefore(time, endTime); time = addMinutes(time, turnDuration)) {
-      const timeString = format(time, 'HH:mm:ss');
+    let currentTime = startTime;
+    while (currentTime < endTime) {
+      const timeString = format(currentTime, 'HH:mm:ss');
+      
+      // Verificar si el slot está bloqueado
+      const isBlocked = isTimeBlocked(date, timeString);
+      
+      // Verificar si el servicio cabe completo antes del cierre
+      const serviceEndTime = addMinutes(currentTime, selectedService ? selectedService.duration : turnDuration);
+      if (serviceEndTime > endTime) {
+        break;
+      }
+      
+      // Contar citas existentes en este slot
       const slotAppointments = existingAppointments.filter(app => {
         if (!app.appointment_date || !app.appointment_time || !app.services?.duration_minutes) {
           return false;
         }
-        
-        const appTime = format(new Date(`${app.appointment_date}T${app.appointment_time}`), 'HH:mm');
-        const appEndTime = format(
-          addMinutes(new Date(`${app.appointment_date}T${app.appointment_time}`), app.services.duration_minutes),
-          'HH:mm'
-        );
-        
-        const slotTime = format(time, 'HH:mm');
-        const slotEndTime = format(addMinutes(time, turnDuration), 'HH:mm');
-        
-        return (
-          (appTime <= slotTime && appEndTime > slotTime) ||
-          (appTime >= slotTime && appTime < slotEndTime)
-        );
+        // Calcular minutos desde medianoche para el slot y la cita
+        const slotMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+        const appTime = parse(app.appointment_time, 'HH:mm:ss', new Date());
+        const appMinutes = appTime.getHours() * 60 + appTime.getMinutes();
+        const appEndMinutes = appMinutes + app.services.duration_minutes;
+        const slotEndMinutes = slotMinutes + turnDuration;
+        const overlaps = (appMinutes < slotEndMinutes && appEndMinutes > slotMinutes);
+        if (overlaps) {
+          console.log('Cita solapada con slot', timeString, ':', app);
+        }
+        return overlaps;
       });
       
       const occupiedSpaces = slotAppointments.length;
-      const isBlocked = isTimeBlocked(date, timeString);
-      const available = isBlocked ? 0 : 
-        Math.max(0, schedule.max_simultaneous_services - occupiedSpaces);
+      // Usar la capacidad máxima del taller para este día
+      const maxSimultaneous = schedule.max_simultaneous_services ?? 1;
+      const available = isBlocked ? 0 : Math.max(0, maxSimultaneous - occupiedSpaces);
       
       const mappedAppointments = slotAppointments.map(app => ({
         id: app.id.toString(),
@@ -438,6 +453,8 @@ export function AppointmentCalendar({
         blockReason: isBlocked ? getBlockReason(date, timeString) : undefined,
         existingAppointments: mappedAppointments.length > 0 ? mappedAppointments : undefined
       });
+      
+      currentTime = addMinutes(currentTime, turnDuration);
     }
     
     return slots;
@@ -469,13 +486,35 @@ export function AppointmentCalendar({
     const requiredSlots = Math.ceil(selectedService.duration / turnDuration);
     const currentIndex = timeSlots.findIndex(s => s.time === slot.time);
     
+    // Verificar si tenemos suficientes slots consecutivos disponibles
+    let hasEnoughConsecutiveSlots = true;
+    let hasEnoughCapacity = true;
+    
     for (let i = 0; i < requiredSlots; i++) {
-      const nextSlot = timeSlots[currentIndex + i];
-      if (!nextSlot || nextSlot.isBlocked || nextSlot.available === 0) {
-        return false;
+      const checkIndex = currentIndex + i;
+      
+      // Verificar si nos pasamos del horario de cierre
+      if (checkIndex >= timeSlots.length) {
+        hasEnoughConsecutiveSlots = false;
+        break;
+      }
+      
+      const checkSlot = timeSlots[checkIndex];
+      
+      // Verificar si el slot está bloqueado o no tiene capacidad
+      if (checkSlot.isBlocked || checkSlot.available === 0) {
+        hasEnoughConsecutiveSlots = false;
+        break;
+      }
+      
+      // Verificar si hay suficiente capacidad en este slot
+      if (checkSlot.available < 1) {
+        hasEnoughCapacity = false;
+        break;
       }
     }
-    return true;
+    
+    return hasEnoughConsecutiveSlots && hasEnoughCapacity;
   };
 
   const getSlotStyle = (slot: TimeSlot) => {
@@ -498,8 +537,75 @@ export function AppointmentCalendar({
     }
   }, [selectedDate, operatingHours, blockedDates, turnDuration]);
 
+  useEffect(() => {
+    const fetchBackendSlots = async () => {
+      if (!selectedDate || !selectedService || !dealershipId) {
+        setBackendSlots(null);
+        return;
+      }
+      try {
+        const dateStr = format(selectedDate, 'yyyy-MM-dd');
+        // Ajusta la URL y los parámetros según tu endpoint real
+        const response = await axios.get(`/api/appointments/availability`, {
+          params: {
+            date: dateStr,
+            service_id: selectedService.id,
+            dealership_id: dealershipId,
+          },
+        });
+        console.log('Respuesta del endpoint de disponibilidad:', response.data);
+        // Adaptar la respuesta si es un array de strings
+        const slots = Array.isArray(response.data.availableSlots)
+          ? response.data.availableSlots.map((time: string) => ({ time, available: true }))
+          : [];
+        setBackendSlots(slots);
+      } catch (error) {
+        console.error('Error consultando disponibilidad al backend:', error);
+        setBackendSlots(null);
+      }
+    };
+    fetchBackendSlots();
+  }, [selectedDate, selectedService, dealershipId]);
+
   const renderTimeSlots = () => {
+    if (!selectedDate) return null;
+    if (backendSlots) {
+      console.log('Slots recibidos del backend para mostrar:', backendSlots);
+      return (
+        <div className="p-6">
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {backendSlots.length === 0 ? (
+              <div className="col-span-full text-center text-muted-foreground">No hay horarios disponibles</div>
+            ) : (
+              backendSlots.map((slot, index) => (
+                <Button
+                  key={index}
+                  variant="outline"
+                  className={cn(
+                    "h-auto py-4 relative group transition-all",
+                    slot.available ? 'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-400' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50'
+                  )}
+                  disabled={!slot.available}
+                  onClick={() => {
+                    if (slot.available) {
+                      setSelectedSlot(slot.time);
+                      onTimeSlotSelect?.(slot);
+                    }
+                  }}
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <span className="text-base font-semibold">{slot.time}</span>
+                  </div>
+                </Button>
+              ))
+            )}
+          </div>
+        </div>
+      );
+    }
     if (!selectedDate || !timeSlots.length) return null;
+
+    console.log('Slots generados para mostrar:', timeSlots);
 
     return (
       <div className="p-6">

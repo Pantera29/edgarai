@@ -115,7 +115,7 @@ function ClienteComboBox({ clientes, onSelect, value }: { clientes: ExtendedClie
         <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
           <input
             type="text"
-            className="w-full px-3 py-2 border-b outline-none"
+            className="w-full px-3 py-2 border-b outline-none bg-white text-black"
             placeholder="Buscar cliente por nombre..."
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -192,7 +192,7 @@ function ServiceComboBox({ servicios, onSelect, value }: { servicios: ExtendedSe
         <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
           <input
             type="text"
-            className="w-full px-3 py-2 border-b outline-none"
+            className="w-full px-3 py-2 border-b outline-none bg-white text-black"
             placeholder="Buscar servicio por nombre..."
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -497,23 +497,22 @@ export default function NuevaReservaPage() {
       
       // Formatear los datos para que sean compatibles con el componente AppointmentCalendar
       const formattedAppointments = data?.map(app => {
-        console.log('App individual:', app);
+        // Asegurar que client y services sean objetos, no arrays
+        const clientObj = Array.isArray(app.client) ? app.client[0] : app.client;
+        const serviceObj = Array.isArray(app.services) ? app.services[0] : app.services;
         return {
-          id_uuid: app.id,
-          fecha_hora: `${app.appointment_date}T${app.appointment_time}`,
-          clientes: { 
-            nombre: app.client && typeof app.client === 'object' && 'names' in app.client 
-              ? app.client.names 
-              : 'Cliente desconocido' 
-          },
-          services: {
-            service_name: app.services && typeof app.services === 'object' && 'service_name' in app.services 
-              ? app.services.service_name 
-              : 'Servicio desconocido',
-            duration_minutes: app.services && typeof app.services === 'object' && 'duration_minutes' in app.services 
-              ? app.services.duration_minutes 
-              : 30
-          }
+          id: app.id,
+          appointment_date: app.appointment_date,
+          appointment_time: app.appointment_time,
+          client_id: app.client_id,
+          service_id: app.service_id,
+          status: 'pending', // o el valor real si lo tienes
+          client: clientObj ? { id: app.client_id, names: clientObj.names } : undefined,
+          services: serviceObj ? {
+            id_uuid: app.service_id,
+            service_name: serviceObj.service_name,
+            duration_minutes: serviceObj.duration_minutes
+          } : undefined
         };
       }) || [];
       
@@ -926,6 +925,7 @@ export default function NuevaReservaPage() {
                       s.id_uuid === selectedService
                     )?.duration_minutes || tallerConfig?.shift_duration || 30
                   } : undefined}
+                  dealershipId={verifiedDataToken?.dealership_id}
                 />
                 {selectedSlot && (
                   <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-md text-center">
