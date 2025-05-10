@@ -29,50 +29,35 @@ export default function WorkshopConfiguration() {
   const loadAll = async () => {
     setIsLoading(true);
     try {
-      let dealershipId;
-     
-      // Obtener del token JWT (si está disponible)
-      if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        const token = params.get('token');
-        
-        if (token) {
-          try {
-            const verifiedDataToken = verifyToken(token);
-            if (verifiedDataToken?.dealership_id) {
-              dealershipId = verifiedDataToken.dealership_id;
-              console.log('Dealership ID obtenido del token:', dealershipId);
-            }
-          } catch (error) {
-            console.error('Error al decodificar el token:', error);
-            toast.error('Error al validar el token de acceso');
-            return;
-          }
-        }
-      }
-     
-      // Si no hay dealership_id en el token, no continuar
-      if (!dealershipId) {
-        console.error('No se pudo obtener un dealership_id válido');
-        toast.error('No se pudo identificar el concesionario');
+      // Obtener el dealership_id del token
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      if (!token) {
+        toast.error('No se encontró el token de autenticación');
         return;
       }
+
+      const verifiedData = verifyToken(token);
+      if (!verifiedData?.dealership_id) {
+        toast.error('No se pudo verificar el concesionario');
+        return;
+      }
+
+      const dealershipId = verifiedData.dealership_id;
+      console.log('Cargando datos para dealership_id:', dealershipId);
 
       // Cargar configuración
       const { data: configData, error: configError } = await supabase
         .from('dealership_configuration')
         .select('*')
         .eq('dealership_id', dealershipId)
-        .limit(1)
         .single();
 
-      if (configError) {
+      if (configError && configError.code !== 'PGRST116') {
         console.error('Error al cargar configuración:', configError);
         toast.error('Error al cargar la configuración');
         return;
       }
-
-      console.log('Configuración cargada:', configData);
 
       if (configData) {
         setConfig(configData);
@@ -101,7 +86,10 @@ export default function WorkshopConfiguration() {
         return;
       }
 
-      console.log('Horarios cargados:', schedulesData);
+      console.log('Horarios cargados:', {
+        schedules: schedulesData,
+        dealershipId
+      });
 
       if (schedulesData && schedulesData.length > 0) {
         setSchedules(schedulesData);
@@ -129,56 +117,45 @@ export default function WorkshopConfiguration() {
 
   const handleSave = async () => {
     try {
-      // Obtener dealership_id del token
-      let dealershipId;
-      
-      if (typeof window !== 'undefined') {
-        const params = new URLSearchParams(window.location.search);
-        const token = params.get('token');
-        
-        if (token) {
-          try {
-            const verifiedDataToken = verifyToken(token);
-            if (verifiedDataToken?.dealership_id) {
-              dealershipId = verifiedDataToken.dealership_id;
-              console.log('Dealership ID obtenido del token para guardar:', dealershipId);
-            }
-          } catch (error) {
-            console.error('Error al decodificar el token para guardar:', error);
-            toast.error('Error al validar el token de acceso');
-            return;
-          }
-        }
-      }
-
-      // Verificar que tenemos un dealership_id válido
-      if (!dealershipId) {
-        console.error('No se pudo obtener un dealership_id válido para guardar');
-        toast.error('No se pudo identificar el concesionario');
+      // Obtener el dealership_id del token
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token");
+      if (!token) {
+        toast.error('No se encontró el token de autenticación');
         return;
       }
 
-      // Verificar que el dealership_id coincide con el de la configuración actual
-      if (config?.dealership_id !== dealershipId) {
-        console.error('El dealership_id no coincide con la configuración actual');
-        toast.error('Error de validación: el concesionario no coincide');
+      const verifiedData = verifyToken(token);
+      if (!verifiedData?.dealership_id) {
+        toast.error('No se pudo verificar el concesionario');
         return;
       }
 
-      // Asegurarse de que config tenga el dealership_id correcto
-      const updatedConfig = {
-        ...config,
-        dealership_id: dealershipId,
-        updated_at: new Date().toISOString()
+      const dealershipId = verifiedData.dealership_id;
+
+      // Validar que todos los horarios tengan el dealership_id correcto
+      const validateSchedules = (schedules: any[], dealershipId: string) => {
+        return schedules.every(schedule => 
+          schedule.dealership_id === dealershipId &&
+          schedule.day_of_week >= 1 &&
+          schedule.day_of_week <= 7
+        );
       };
 
-      console.log('Guardando configuración:', updatedConfig);
+      if (!validateSchedules(schedules, dealershipId)) {
+        console.error('Horarios inválidos:', schedules);
+        toast.error('Error en la validación de horarios');
+        return;
+      }
 
-      // Guardar configuración con condición específica
+      // Guardar configuración
       const { error: configError } = await supabase
         .from('dealership_configuration')
-        .upsert(updatedConfig, {
-          onConflict: 'dealership_id'
+        .upsert({
+          dealership_id: dealershipId,
+          shift_duration: config?.shift_duration || 30,
+          created_at: config?.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
         });
 
       if (configError) {
@@ -192,13 +169,17 @@ export default function WorkshopConfiguration() {
         dealership_id: dealershipId
       }));
 
-      console.log('Guardando horarios:', updatedSchedules);
+      console.log('Guardando horarios:', {
+        schedules: updatedSchedules,
+        dealershipId,
+        conflictKey: 'dealership_id,day_of_week'
+      });
 
       // Guardar horarios con condición específica
       const { error: scheduleError } = await supabase
         .from('operating_hours')
         .upsert(updatedSchedules, {
-          onConflict: 'schedule_id'
+          onConflict: 'dealership_id,day_of_week'
         });
 
       if (scheduleError) {
