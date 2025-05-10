@@ -8,7 +8,14 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const phone = searchParams.get('phone');
 
+    console.log('🔍 Verificando cliente:', {
+      phone,
+      url: request.url,
+      searchParams: Object.fromEntries(searchParams.entries())
+    });
+
     if (!phone) {
+      console.log('❌ Error: Teléfono no proporcionado');
       return NextResponse.json(
         { message: 'Phone parameter is required' },
         { status: 400 }
@@ -17,6 +24,7 @@ export async function GET(request: Request) {
 
     // Normalizar el número de teléfono
     const normalizedPhone = phone.replace(/[^0-9]/g, '');
+    console.log('📱 Teléfono normalizado:', normalizedPhone);
 
     const { data, error } = await supabase
       .from('client')
@@ -27,7 +35,10 @@ export async function GET(request: Request) {
       .single();
 
     if (error) {
-      console.error('Error verifying client:', error.message);
+      console.error('❌ Error verificando cliente:', {
+        error: error.message,
+        phone: normalizedPhone
+      });
       return NextResponse.json(
         { message: 'Error verifying client' },
         { status: 500 }
@@ -35,11 +46,18 @@ export async function GET(request: Request) {
     }
 
     if (!data) {
+      console.log('ℹ️ Cliente no encontrado:', normalizedPhone);
       return NextResponse.json(
         { exists: false },
         { status: 404 }
       );
     }
+
+    console.log('✅ Cliente encontrado:', {
+      id: data.id,
+      name: data.names,
+      email: data.email
+    });
 
     return NextResponse.json({
       exists: true,
@@ -50,7 +68,13 @@ export async function GET(request: Request) {
       }
     });
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('💥 Error inesperado:', {
+      error: error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : error
+    });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
