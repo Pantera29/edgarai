@@ -18,7 +18,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // 1. Obtener la duración del servicio
+    // 1. Obtener la duración del servicio y la configuración del taller
     const { data: service, error: serviceError } = await supabase
       .from('services')
       .select('duration_minutes')
@@ -35,9 +35,37 @@ export async function GET(request: Request) {
 
     const serviceDuration = service.duration_minutes;
 
+    // Obtener la configuración del taller
+    const { data: dealershipConfig, error: configError } = await supabase
+      .from('dealership_configuration')
+      .select('shift_duration')
+      .eq('dealership_id', dealershipId)
+      .single();
+
+    if (configError) {
+      console.error('Error fetching dealership configuration:', configError.message);
+      return NextResponse.json(
+        { message: 'Error fetching dealership configuration' },
+        { status: 500 }
+      );
+    }
+
+    // Usar shift_duration de la configuración o 30 minutos por defecto
+    const slotDuration = dealershipConfig?.shift_duration || 30;
+
     // 2. Obtener el día de la semana (1-7, donde 1 es Domingo)
-    const jsDate = new Date(date);
-    const dayOfWeek = jsDate.getDay() === 0 ? 1 : jsDate.getDay() + 1;
+    const jsDate = new Date(date + 'T00:00:00'); // Forzar hora local
+    const jsDay = jsDate.getDay(); // 0-6 (Domingo-Sábado)
+    const dayOfWeek = jsDay === 0 ? 1 : jsDay + 1; // Convertir a 1-7 (Domingo-Sábado)
+
+    console.log('Verificando disponibilidad:', {
+      date,
+      jsDay,
+      dayOfWeek,
+      dealershipId,
+      jsDate: jsDate.toISOString(),
+      localDate: jsDate.toLocaleString()
+    });
 
     // 3. Obtener el horario de operación para ese día
     let scheduleQuery = supabase
@@ -50,6 +78,15 @@ export async function GET(request: Request) {
       scheduleQuery = scheduleQuery.eq('dealership_id', dealershipId);
     }
 
+    console.log('Consultando horario:', {
+      dayOfWeek,
+      dealershipId,
+      query: {
+        day_of_week: dayOfWeek,
+        dealership_id: dealershipId
+      }
+    });
+
     const { data: schedule, error: scheduleError } = await scheduleQuery.maybeSingle();
 
     if (scheduleError) {
@@ -60,8 +97,20 @@ export async function GET(request: Request) {
       );
     }
 
+    console.log('Resultado horario:', {
+      schedule,
+      error: scheduleError
+    });
+
     // Si no hay horario o el día no es laborable
     if (!schedule || !schedule.is_working_day) {
+      console.log('Día no laborable:', {
+        date,
+        dayOfWeek,
+        schedule,
+        hasSchedule: !!schedule,
+        isWorkingDay: schedule?.is_working_day
+      });
       return NextResponse.json({
         availableSlots: [],
         message: 'Non-working day'
@@ -91,6 +140,11 @@ export async function GET(request: Request) {
 
     // Si el día está completamente bloqueado
     if (blockedDate?.full_day) {
+      console.log('Día bloqueado encontrado:', {
+        date,
+        dealershipId,
+        blockedDate
+      });
       return NextResponse.json({
         availableSlots: [],
         message: `Day blocked: ${blockedDate.reason}`
@@ -142,7 +196,8 @@ export async function GET(request: Request) {
       blockedDate,
       appointments,
       serviceDuration,
-      schedule.max_simultaneous_services
+      schedule.max_simultaneous_services,
+      slotDuration
     );
 
     return NextResponse.json({ 
@@ -165,44 +220,79 @@ function generateTimeSlots(
   blockedDate: any,
   appointments: any[],
   serviceDuration: number,
-  maxSimultaneous: number
+  maxSimultaneous: number,
+  slotDuration: number
 ) {
   const slots: { time: string; available: number }[] = [];
   const availableSlots: string[] = [];
   const startTime = parse(schedule.opening_time, 'HH:mm:ss', new Date());
   const endTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
   
-  // Duración de cada slot en minutos (típicamente 15 o 30)
-  const slotDuration = 15;
-  
   // Generamos slots desde la apertura hasta el cierre
-  for (let time = startTime; isBefore(time, endTime); time = addMinutes(time, slotDuration)) {
-    const timeStr = format(time, 'HH:mm:ss');
+  let currentTime = startTime;
+  while (currentTime < endTime) {
+    const timeStr = format(currentTime, 'HH:mm:ss');
     
-    // Verificar si este horario está en un rango bloqueado
-    const isBlocked = isTimeBlocked(timeStr, blockedDate);
-    if (isBlocked) {
-      slots.push({ time: timeStr, available: 0 });
-      continue;
-    }
+    // Verificar si el slot está bloqueado
+    const isBlocked = blockedDate?.blocked_slots?.includes(timeStr);
     
-    // Contar cuántas citas ocupan este slot
-    const occupiedSpaces = countOccupiedSpaces(timeStr, appointments, slotDuration);
-    
-    // Calcular espacios disponibles
-    const available = Math.max(0, maxSimultaneous - occupiedSpaces);
+    // Contar citas existentes en este slot
+    const existingAppointments = appointments.filter(appointment => {
+      const appointmentTime = parse(appointment.time, 'HH:mm:ss', new Date());
+      return appointmentTime.getTime() === currentTime.getTime();
+    }).length;
+
+    // Calcular disponibilidad considerando maxSimultaneous
+    const available = isBlocked ? 0 : Math.max(0, maxSimultaneous - existingAppointments);
     
     slots.push({ time: timeStr, available });
     
-    // Agregar al array de slots disponibles si hay disponibilidad
-    if (available > 0) {
-      // Verificar si hay suficiente tiempo para el servicio completo
-      if (canFitService(time, endTime, serviceDuration)) {
-        availableSlots.push(timeStr);
+    // Avanzar al siguiente slot
+    currentTime = addMinutes(currentTime, slotDuration);
+  }
+
+  // Verificar disponibilidad para cada slot
+  for (let i = 0; i < slots.length; i++) {
+    const slot = slots[i];
+    if (slot.available === 0) continue;
+
+    // Calcular cuántos slots consecutivos necesitamos
+    const requiredSlots = Math.ceil(serviceDuration / slotDuration);
+    
+    // Verificar si tenemos suficientes slots consecutivos disponibles
+    let hasEnoughConsecutiveSlots = true;
+    let hasEnoughCapacity = true;
+    
+    for (let j = 0; j < requiredSlots; j++) {
+      const checkIndex = i + j;
+      
+      // Verificar si nos pasamos del horario de cierre
+      if (checkIndex >= slots.length) {
+        hasEnoughConsecutiveSlots = false;
+        break;
+      }
+      
+      const checkSlot = slots[checkIndex];
+      
+      // Verificar si el slot está bloqueado o no tiene capacidad
+      if (checkSlot.available === 0) {
+        hasEnoughConsecutiveSlots = false;
+        break;
+      }
+      
+      // Verificar si hay suficiente capacidad en este slot
+      if (checkSlot.available < 1) {
+        hasEnoughCapacity = false;
+        break;
       }
     }
+    
+    // Si tenemos suficientes slots consecutivos y capacidad, agregar a disponibles
+    if (hasEnoughConsecutiveSlots && hasEnoughCapacity) {
+      availableSlots.push(slot.time);
+    }
   }
-  
+
   return availableSlots;
 }
 
