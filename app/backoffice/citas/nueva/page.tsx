@@ -715,7 +715,8 @@ export default function NuevaReservaPage() {
         dealership_id: verifiedDataToken?.dealership_id || '6b58f82d-baa6-44ce-9941-1a61975d20b5',
         appointment_time: selectedSlot,
         status: estado,
-        notes: notas
+        notes: notas,
+        channel: 'manual' // Siempre enviar manual desde el backoffice
       };
       
       console.log("Datos finales a insertar:", appointmentData);
