@@ -236,14 +236,18 @@ function generateTimeSlots(
     // Verificar si el slot está bloqueado
     const isBlocked = blockedDate?.blocked_slots?.includes(timeStr);
     
-    // Contar citas existentes en este slot
-    const existingAppointments = appointments.filter(appointment => {
-      const appointmentTime = parse(appointment.time, 'HH:mm:ss', new Date());
-      return appointmentTime.getTime() === currentTime.getTime();
+    // Contar citas existentes en este slot usando solapamiento real
+    const slotMinutes = timeToMinutes(timeStr);
+    const slotEndMinutes = slotMinutes + slotDuration;
+    const occupiedSpaces = appointments.filter(app => {
+      const appStart = timeToMinutes(app.appointment_time);
+      const appEnd = appStart + (app.services?.duration_minutes || 60);
+      // Solapamiento real
+      return appStart < slotEndMinutes && appEnd > slotMinutes;
     }).length;
 
     // Calcular disponibilidad considerando maxSimultaneous
-    const available = isBlocked ? 0 : Math.max(0, maxSimultaneous - existingAppointments);
+    const available = isBlocked ? 0 : Math.max(0, maxSimultaneous - occupiedSpaces);
     
     slots.push({ time: timeStr, available });
     
