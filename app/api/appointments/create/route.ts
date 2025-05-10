@@ -18,11 +18,24 @@ export async function POST(request: Request) {
       appointment_date, 
       appointment_time,
       notes,
-      channel = 'manual', // Valor por defecto si no se proporciona
+      channel = 'agenteai', // Valor por defecto si no se proporciona
       dealership_id = null, // Permitir que se envíe un dealership_id explícito
       dealership_phone = null, // Número de teléfono para buscar el dealership
       phone_number = null // Mantener para compatibilidad
     } = await request.json();
+
+    // Log de los parámetros principales del request
+    console.log('Nueva cita - Request recibido:', {
+      client_id,
+      vehicle_id,
+      service_id,
+      appointment_date,
+      appointment_time,
+      channel,
+      dealership_id,
+      dealership_phone,
+      phone_number
+    });
 
     // Validar campos requeridos
     if (!client_id || !vehicle_id || !service_id || !appointment_date || !appointment_time) {
@@ -135,6 +148,12 @@ export async function POST(request: Request) {
     
   } catch (error) {
     console.error('Unexpected error:', error);
+    try {
+      const body = await request.json();
+      console.error('Body del request fallido:', body);
+    } catch (e) {
+      console.error('No se pudo leer el body del request en el catch.');
+    }
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
