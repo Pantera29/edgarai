@@ -10,67 +10,80 @@ export async function GET(
     const supabase = createServerComponentClient({ cookies });
     const vehicleId = params.id;
 
+    console.log('🚗 Obteniendo vehículo:', {
+      id: vehicleId,
+      url: request.url
+    });
+
     if (!vehicleId) {
+      console.log('❌ Error: ID de vehículo no proporcionado');
       return NextResponse.json(
         { message: 'Vehicle ID is required' },
         { status: 400 }
       );
     }
 
-    console.log(`Fetching vehicle with ID: ${vehicleId}`);
-
-    // Simplificamos al máximo: obtener solo datos del vehículo sin relaciones
-    const { data: vehicle, error } = await supabase
+    console.log('🔍 Consultando vehículo en la base de datos:', vehicleId);
+    const { data, error } = await supabase
       .from('vehicles')
-      .select('*')
+      .select(`
+        id_uuid,
+        client_id,
+        make,
+        model,
+        year,
+        license_plate,
+        vin,
+        last_km,
+        created_at,
+        updated_at,
+        client:client_id (
+          id,
+          names,
+          email,
+          phone_number
+        )
+      `)
       .eq('id_uuid', vehicleId)
-      .maybeSingle();
+      .single();
 
     if (error) {
-      console.error('Error fetching vehicle:', error.message);
+      console.error('❌ Error al obtener vehículo:', {
+        error: error.message,
+        vehicleId
+      });
       return NextResponse.json(
-        { message: 'Error fetching vehicle details', details: error.message },
+        { message: 'Error fetching vehicle' },
         { status: 500 }
       );
     }
 
-    if (!vehicle) {
+    if (!data) {
+      console.log('ℹ️ Vehículo no encontrado:', vehicleId);
       return NextResponse.json(
         { message: 'Vehicle not found' },
         { status: 404 }
       );
     }
 
-    // Una vez confirmado que podemos obtener el vehículo, intentamos obtener datos del cliente
-    let clientData = null;
-    if (vehicle.client_id) {
-      const { data: client, error: clientError } = await supabase
-        .from('client')
-        .select('id, names, email, phone_number')
-        .eq('id', vehicle.client_id)
-        .maybeSingle();
-        
-      if (!clientError && client) {
-        clientData = client;
-      } else if (clientError) {
-        console.error('Error fetching client data:', clientError.message);
-      }
-    }
-
-    // Respuesta completa
-    return NextResponse.json({ 
-      vehicle: {
-        ...vehicle,
-        client: clientData
-      }
+    console.log('✅ Vehículo encontrado:', {
+      id: data.id_uuid,
+      license_plate: data.license_plate,
+      make: data.make,
+      model: data.model
     });
+
+    return NextResponse.json(data);
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('💥 Error inesperado:', {
+      error: error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : error
+    });
     return NextResponse.json(
-      { 
-        message: 'Internal server error', 
-        details: error instanceof Error ? error.message : String(error)
-      },
+      { message: 'Internal server error' },
       { status: 500 }
     );
   }

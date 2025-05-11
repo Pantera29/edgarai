@@ -9,14 +9,23 @@ export async function GET(request: Request) {
     const category = searchParams.get('category');
     const dealership_id = searchParams.get('dealership_id');
 
+    console.log('🔧 Obteniendo lista de servicios:', {
+      category,
+      dealership_id,
+      url: request.url,
+      searchParams: Object.fromEntries(searchParams.entries())
+    });
+
     // Verificar si se proporcionó el dealership_id
     if (!dealership_id) {
+      console.log('❌ Error: dealership_id no proporcionado');
       return NextResponse.json(
         { message: 'El parámetro dealership_id es obligatorio' },
         { status: 400 }
       );
     }
 
+    console.log('🔍 Construyendo consulta para dealership:', dealership_id);
     let query = supabase
       .from('services')
       .select('*')
@@ -25,22 +34,40 @@ export async function GET(request: Request) {
 
     // Si se proporciona una categoría, filtrar por ella
     if (category) {
+      console.log('🔍 Aplicando filtro por categoría:', category);
       query = query.eq('category', category);
     }
 
+    console.log('⏳ Ejecutando consulta...');
     const { data, error } = await query;
 
     if (error) {
-      console.error('Error fetching services:', error.message);
+      console.error('❌ Error al obtener servicios:', {
+        error: error.message,
+        dealership_id,
+        category
+      });
       return NextResponse.json(
         { message: 'Error fetching services' },
         { status: 500 }
       );
     }
 
+    console.log('✅ Servicios obtenidos exitosamente:', {
+      count: data?.length || 0,
+      dealership_id,
+      category
+    });
+
     return NextResponse.json({ services: data });
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('💥 Error inesperado:', {
+      error: error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : error
+    });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
