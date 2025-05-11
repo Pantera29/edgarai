@@ -747,13 +747,58 @@ export default function RecordatoriosPage() {
     setRecordatorioHistorial(recordatorio);
     setMostrarHistorial(true);
     setCargandoHistorial(true);
-    const { data, error } = await supabase
-      .from('outbound_calls')
-      .select('*')
-      .eq('reminder_id', recordatorio.reminder_id)
-      .order('created_at', { ascending: false });
-    if (!error) setLlamadasHistorial(data || []);
-    setCargandoHistorial(false);
+    try {
+      // 1. Obtener llamadas de outbound_calls
+      const { data: outboundCalls, error: outboundError } = await supabase
+        .from('outbound_calls')
+        .select('*')
+        .eq('reminder_id', recordatorio.reminder_id)
+        .order('created_at', { ascending: false });
+
+      if (outboundError) throw outboundError;
+
+      // 2. Obtener los vapi_call_id
+      const vapiCallIds = outboundCalls?.map(call => call.vapi_call_id) || [];
+
+      // 3. Consultar chat_conversations correspondientes
+      let conversations = [];
+      if (vapiCallIds.length > 0) {
+        const { data: conversationsData, error: conversationsError } = await supabase
+          .from('chat_conversations')
+          .select('*')
+          .in('call_id', vapiCallIds)
+          .order('created_at', { ascending: false });
+        if (conversationsError) throw conversationsError;
+        conversations = conversationsData || [];
+      }
+
+      // 4. Combinar la información
+      const llamadasCombinadas = outboundCalls?.map(outboundCall => {
+        const conversacion = conversations?.find(
+          conv => conv.call_id === outboundCall.vapi_call_id
+        );
+        return {
+          ...outboundCall,
+          duration_seconds: conversacion?.duration_seconds || outboundCall.duration_seconds,
+          recording_url: conversacion?.recording_url || outboundCall.recording_url,
+          conversation_summary: conversacion?.conversation_summary,
+          conversation_summary_translated: conversacion?.conversation_summary_translated,
+          was_successful: conversacion?.was_successful,
+          status: conversacion?.status || outboundCall.status,
+        };
+      }) || [];
+
+      setLlamadasHistorial(llamadasCombinadas);
+    } catch (error) {
+      console.error('Error al cargar el historial:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo cargar el historial de llamadas",
+        variant: "destructive",
+      });
+    } finally {
+      setCargandoHistorial(false);
+    }
   };
 
   return (
@@ -1181,12 +1226,23 @@ export default function RecordatoriosPage() {
           ) : (
             <div className="space-y-4 max-h-[400px] overflow-y-auto">
               {llamadasHistorial.map((llamada) => (
-                <div key={llamada.call_id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+                <div key={llamada.call_id || llamada.vapi_call_id} className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-2">
                   <div>
                     <div className="font-semibold">{llamada.start_date ? format(new Date(llamada.start_date), 'dd/MM/yyyy HH:mm') : 'Sin fecha'}</div>
-                    <div className="text-sm text-gray-600">Estado: <span className="font-medium">{llamada.status}</span></div>
+                    <div className="text-sm text-gray-600 flex items-center gap-2">
+                      Estado: 
+                      <span className={`font-medium px-2 py-1 rounded-full text-xs 
+                        ${llamada.was_successful === true ? 'bg-green-100 text-green-800' : ''}
+                        ${llamada.was_successful === false ? 'bg-red-100 text-red-800' : ''}
+                        ${llamada.was_successful === undefined ? 'bg-gray-100 text-gray-800' : ''}
+                      `}>
+                        {llamada.was_successful !== undefined ? (llamada.was_successful ? 'Exitosa' : 'No exitosa') : (llamada.status || 'N/A')}
+                      </span>
+                    </div>
                     <div className="text-sm text-gray-600">Duración: {llamada.duration_seconds ? `${llamada.duration_seconds} seg` : 'N/A'}</div>
-                    {llamada.call_summary && <div className="text-sm text-gray-600 mt-1">Resumen: {llamada.call_summary}</div>}
+                    {llamada.conversation_summary_translated && (
+                      <div className="text-sm text-gray-600 mt-1">Resumen: {llamada.conversation_summary_translated}</div>
+                    )}
                   </div>
                   {llamada.recording_url && (
                     <a
