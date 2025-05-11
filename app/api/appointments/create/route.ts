@@ -2,6 +2,56 @@ import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getDealershipId } from "@/lib/config";
+import twilio from 'twilio';
+import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
+
+// Cliente de Twilio
+const twilioClient = twilio(
+  process.env.TWILIO_ACCOUNT_SID,
+  process.env.TWILIO_AUTH_TOKEN
+);
+
+/**
+ * Formatea un número de teléfono al formato E.164 para México
+ */
+function formatPhoneNumber(phone: string): string {
+  // Eliminar caracteres no numéricos
+  const cleaned = phone.replace(/\D/g, '');
+  
+  // Si el número ya tiene el código de país, retornarlo
+  if (cleaned.startsWith('52')) {
+    return `+${cleaned}`;
+  }
+  
+  // Si el número tiene 10 dígitos (formato mexicano), agregar el código de país
+  if (cleaned.length === 10) {
+    return `+52${cleaned}`;
+  }
+  
+  // Si el número tiene 10 dígitos y comienza con 1, agregar el código de país
+  if (cleaned.length === 11 && cleaned.startsWith('1')) {
+    return `+52${cleaned.slice(1)}`;
+  }
+  
+  // Si no cumple con ningún formato, retornar el número original
+  return phone;
+}
+
+/**
+ * Formatea la fecha y hora para el mensaje
+ */
+function formatDateTime(date: string, time: string): string {
+  try {
+    const dateObj = new Date(`${date}T${time}`);
+    const formattedDate = format(dateObj, "dd 'de' MMMM 'de' yyyy", { locale: es });
+    const formattedTime = format(dateObj, 'HH:mm');
+    return `${formattedDate} a las ${formattedTime}`;
+  } catch (error) {
+    console.error('Error formateando fecha y hora:', error);
+    return `${date} ${time}`;
+  }
+}
 
 // Definimos los canales permitidos
 type AppointmentChannel = 'whatsapp' | 'twilio' | 'manual' | 'web' | 'agenteai';
@@ -128,9 +178,14 @@ export async function POST(request: Request) {
           supabase 
         }),
         notes: notes || null,
-        channel: channel // Añadimos el canal de origen
+        channel: channel
       }])
-      .select()
+      .select(`
+        *,
+        client:client_id(phone_number),
+        vehicle:vehicle_id(make, model, license_plate),
+        service:service_id(service_name)
+      `)
       .single();
 
     if (insertError) {
@@ -139,6 +194,37 @@ export async function POST(request: Request) {
         { message: 'Failed to create appointment', error: insertError.message },
         { status: 500 }
       );
+    }
+
+    // 6. Enviar SMS de confirmación
+    try {
+      // Validar número de teléfono
+      const formattedPhone = formatPhoneNumber(newAppointment.client.phone_number);
+      if (!formattedPhone.startsWith('+52')) {
+        throw new Error('Número de teléfono inválido para México');
+      }
+
+      // Formatear fecha y hora
+      const formattedDateTime = formatDateTime(appointment_date, appointment_time);
+
+      // Construir mensaje
+      const message = `¡Cita confirmada! Su vehículo ${newAppointment.vehicle.make} ${newAppointment.vehicle.model} (Placa: ${newAppointment.vehicle.license_plate || 'Sin placa'}) está agendado para ${newAppointment.service.service_name} el ${formattedDateTime}. Gracias por confiar en nosotros.`;
+
+      // Enviar SMS
+      const result = await twilioClient.messages.create({
+        body: message,
+        to: formattedPhone,
+        from: process.env.TWILIO_PHONE_NUMBER
+      });
+
+      console.log('SMS enviado exitosamente:', {
+        messageSid: result.sid,
+        to: formattedPhone,
+        status: result.status
+      });
+    } catch (smsError) {
+      console.error('Error al enviar SMS de confirmación:', smsError);
+      // No fallamos la creación de la cita si falla el SMS
     }
 
     return NextResponse.json(

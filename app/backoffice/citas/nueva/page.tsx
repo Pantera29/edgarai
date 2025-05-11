@@ -16,6 +16,7 @@ import moment from 'moment-timezone';
 import { verifyToken } from "@/app/jwt/token"
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from '@/components/ui/command';
 import { stringToSafeDate } from '@/lib/utils/date';
+import { sendAppointmentConfirmationSMS } from "@/lib/sms";
 
 // Extender la interfaz Vehicle para incluir las propiedades adicionales
 interface ExtendedVehicle extends Vehicle {
@@ -694,23 +695,28 @@ export default function NuevaReservaPage() {
       // Usamos el ID verificado del vehículo
       const appointmentData = {
         client_id: selectedClient,
-        vehicle_id: selectedVehicle, // ID que ya verificamos
+        vehicle_id: selectedVehicle,
         service_id: selectedService,
         appointment_date: selectedDate,
         dealership_id: verifiedDataToken?.dealership_id || '6b58f82d-baa6-44ce-9941-1a61975d20b5',
         appointment_time: selectedSlot,
         status: estado,
         notes: notas,
-        channel: 'manual' // Siempre enviar manual desde el backoffice
+        channel: 'manual'
       };
       
       console.log("Datos finales a insertar:", appointmentData);
-      console.log("Fecha formateada que se envía a la BD:", appointmentData.appointment_date);
       
       const { data, error } = await supabase
         .from('appointment')
         .insert([appointmentData])
-        .select();
+        .select(`
+          *,
+          client:client_id(phone_number),
+          vehicle:vehicle_id(make, model, license_plate),
+          service:service_id(service_name)
+        `)
+        .single();
 
       if (error) {
         console.error("Error detallado de Supabase:", {
@@ -723,11 +729,53 @@ export default function NuevaReservaPage() {
       }
       
       console.log("Cita creada con éxito:", data);
+
+      // Enviar SMS de confirmación
+      try {
+        if (!selectedDate || !selectedSlot) {
+          throw new Error('Fecha u hora no seleccionadas');
+        }
+
+        const smsResult = await fetch('/api/sms/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            client_phone: data.client.phone_number,
+            vehicle_make: data.vehicle.make,
+            vehicle_model: data.vehicle.model,
+            vehicle_plate: data.vehicle.license_plate || 'Sin placa',
+            service_name: data.service.service_name,
+            appointment_date: selectedDate,
+            appointment_time: selectedSlot
+          }),
+        });
+
+        const smsResponse = await smsResult.json();
+
+        if (!smsResult.ok) {
+          console.warn('No se pudo enviar el SMS de confirmación:', smsResponse.error);
+          toast({
+            variant: "destructive",
+            title: "Advertencia",
+            description: "La cita se creó pero no se pudo enviar el SMS de confirmación"
+          });
+        } else {
+          toast({
+            title: "Cita agendada",
+            description: "La cita se ha creado exitosamente y se envió el SMS de confirmación"
+          });
+        }
+      } catch (smsError) {
+        console.error('Error al enviar SMS de confirmación:', smsError);
+        toast({
+          variant: "destructive",
+          title: "Advertencia",
+          description: "La cita se creó pero no se pudo enviar el SMS de confirmación"
+        });
+      }
       
-      toast({
-        title: "Cita agendada",
-        description: "La cita se ha creado exitosamente"
-      });
       router.replace('/backoffice/citas?token=' + token);
       
     } catch (error) {
