@@ -36,6 +36,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Card } from "@/components/ui/card"
+import { stringToSafeDate } from './nueva/page'
 
 // Mover esta definición al inicio, antes de las interfaces
 type EstadoCita = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled'
@@ -161,6 +162,9 @@ function CitasPageContent() {
 
   const [notaDialog, setNotaDialog] = useState(false)
   const [notaSeleccionada, setNotaSeleccionada] = useState<string | null>(null)
+
+  const [tallerConfig, setTallerConfig] = useState<any>(null);
+  const [dealershipId, setDealershipId] = useState<string | null>(null);
 
   // Efecto principal para token y dealership_id
   useEffect(() => {
@@ -544,6 +548,28 @@ function CitasPageContent() {
     }
     return range;
   };
+
+  // Copiar lógica de handleSelectDate de nueva cita
+  const handleSelectDate = (date: Date | undefined) => {
+    if (date) {
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      const fixedDate = new Date(year, month, day, 12, 0, 0);
+      setSelectedDate(fixedDate);
+      // Aquí podrías cargar citas si es necesario
+    } else {
+      setSelectedDate(null);
+    }
+  };
+
+  // Obtener dealershipId y tallerConfig del token o de la configuración
+  useEffect(() => {
+    if (dataToken?.dealership_id) {
+      setDealershipId(dataToken.dealership_id);
+      // Aquí podrías cargar la configuración del taller
+    }
+  }, [dataToken]);
 
   return (
     <div className="min-h-screen">
@@ -957,18 +983,25 @@ function CitasPageContent() {
                 
                 <div className="flex-grow overflow-auto">
                   <AppointmentCalendar
-                    selectedDate={selectedDate}
-                    onSelect={(date) => setSelectedDate(date ?? null)}
+                    selectedDate={selectedDate ? stringToSafeDate(typeof selectedDate === 'string' ? selectedDate : selectedDate.toISOString().split('T')[0]) : new Date()}
+                    onSelect={(date) => {
+                      console.log('Fecha seleccionada en reagendamiento:', date);
+                      handleSelectDate(date);
+                    }}
                     blockedDates={blockedDates}
                     operatingHours={operatingHours}
-                    turnDuration={30} // 30 minutos por turno
+                    turnDuration={tallerConfig?.shift_duration || 30}
                     appointments={citasFiltradas as any}
-                    onTimeSlotSelect={(slot) => setSelectedSlot(slot)}
+                    onTimeSlotSelect={(slot) => {
+                      console.log('Slot seleccionado en reagendamiento:', slot);
+                      setSelectedSlot(slot);
+                    }}
                     selectedService={selectedCita.services ? {
                       id: selectedCita.services.id_uuid,
-                      duration: 60 // Duración por defecto, ajustar según necesidad
+                      service_name: selectedCita.services.service_name,
+                      duration_minutes: (selectedCita.services as any).duration_minutes || tallerConfig?.shift_duration || 30
                     } : undefined}
-                    className="flex-grow"
+                    dealershipId={dealershipId || undefined}
                   />
                 </div>
                 

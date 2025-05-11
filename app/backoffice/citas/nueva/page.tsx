@@ -39,9 +39,8 @@ interface ExtendedService extends Service {
 }
 
 // Implementar una función más segura para convertir string a fecha
-const stringToSafeDate = (dateString: string | null): Date => {
+export const stringToSafeDate = (dateString: string | null): Date => {
   if (!dateString) return new Date();
-  
   try {
     // Parseamos la fecha directamente en formato YYYY-MM-DD
     const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
