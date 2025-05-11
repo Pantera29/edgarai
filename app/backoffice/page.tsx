@@ -24,7 +24,12 @@ import {
   ArrowDownIcon,
   TrendingUp,
   TrendingDown,
-  Users
+  Users,
+  MessageSquare,
+  Phone,
+  User,
+  Globe,
+  Bot
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { 
@@ -42,6 +47,7 @@ import {
 } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
 import { toast } from "@/components/ui/use-toast"
+import { DonutChart } from "@/components/ui/donut-chart"
 
 interface Servicio {
   nombre: string;
@@ -79,7 +85,53 @@ interface DashboardData {
     tendencia: number;
   };
   citasDelDia: CitaSupabase[];
+  citasPorOrigen: {
+    whatsapp: number;
+    twilio: number;
+    manual: number;
+    web: number;
+    agenteai: number;
+  };
 }
+
+const getOrigenIcon = (origen: string) => {
+  switch (origen) {
+    case 'whatsapp':
+      return <MessageSquare className="h-4 w-4" />;
+    case 'twilio':
+      return <Phone className="h-4 w-4" />;
+    case 'manual':
+      return <User className="h-4 w-4" />;
+    case 'web':
+      return <Globe className="h-4 w-4" />;
+    case 'agenteai':
+      return <Bot className="h-4 w-4" />;
+    default:
+      return null;
+  }
+};
+
+const getOrigenColor = (origen: string) => {
+  switch (origen) {
+    case 'manual':
+      return 'bg-gray-200'; // gris claro
+    case 'agenteai':
+      return 'bg-blue-500'; // azul
+    default:
+      return 'bg-gray-200';
+  }
+};
+
+const getOrigenLabel = (origen: string) => {
+  switch (origen) {
+    case 'manual':
+      return 'Manual';
+    case 'agenteai':
+      return 'Agente AI';
+    default:
+      return origen;
+  }
+};
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
@@ -174,6 +226,28 @@ export default function DashboardPage() {
         enCurso: estadoCitasData?.filter(cita => cita.status === 'in_progress').length || 0,
         finalizadas: estadoCitasData?.filter(cita => cita.status === 'completed').length || 0
       };
+
+      // Obtener citas del mes actual para el gráfico de origen
+      const primerDiaMes = format(new Date(new Date().getFullYear(), new Date().getMonth(), 1), 'yyyy-MM-dd');
+      const ultimoDiaMes = format(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0), 'yyyy-MM-dd');
+
+      const { data: citasMesData, error: citasMesError } = await supabase
+        .from('appointment')
+        .select('channel')
+        .gte('appointment_date', primerDiaMes)
+        .lte('appointment_date', ultimoDiaMes)
+        .eq('dealership_id', dealershipId || '');
+
+      if (citasMesError) throw citasMesError;
+
+      // Contar citas por origen
+      const citasPorOrigen = {
+        whatsapp: citasMesData?.filter(cita => cita.channel === 'whatsapp').length || 0,
+        twilio: citasMesData?.filter(cita => cita.channel === 'twilio').length || 0,
+        manual: citasMesData?.filter(cita => cita.channel === 'manual').length || 0,
+        web: citasMesData?.filter(cita => cita.channel === 'web').length || 0,
+        agenteai: citasMesData?.filter(cita => cita.channel === 'agenteai').length || 0
+      };
       
       // 2. Obtener citas del día
       const { data: citasDelDiaData, error: citasDelDiaError } = await supabase
@@ -248,7 +322,8 @@ export default function DashboardPage() {
       const datosDashboard: DashboardData = {
         estadoCitas,
         satisfaccionCliente,
-        citasDelDia
+        citasDelDia,
+        citasPorOrigen
       };
 
       setData(datosDashboard);
@@ -442,6 +517,46 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* Gráfico de Origen de Citas */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Citas por Origen - {format(new Date(), 'MMMM yyyy', { locale: es })}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex items-center justify-center">
+              <DonutChart
+                data={Object.entries(data.citasPorOrigen).map(([origen, cantidad]) => ({
+                  id: origen,
+                  label: getOrigenLabel(origen),
+                  value: cantidad,
+                  color: ''
+                }))}
+                total={Object.entries(data.citasPorOrigen)
+                  .filter(([origen]) => origen === 'manual' || origen === 'agenteai')
+                  .reduce((a, [_, b]) => a + b, 0)}
+                centerLabel="Total Citas"
+              />
+            </div>
+            <div className="space-y-4">
+              {Object.entries(data.citasPorOrigen)
+                .filter(([origen]) => origen === 'manual' || origen === 'agenteai')
+                .map(([origen, cantidad]) => (
+                  <div key={origen} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`p-2 rounded-full ${getOrigenColor(origen)}`}>
+                        {getOrigenIcon(origen)}
+                      </div>
+                      <span className="text-sm font-medium">{getOrigenLabel(origen)}</span>
+                    </div>
+                    <div className="text-sm font-medium">{cantidad}</div>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Citas del Día */}
       <div>
