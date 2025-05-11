@@ -108,7 +108,7 @@ export async function PATCH(
       // Obtener la cita actual para tener todos los datos necesarios
       const { data: currentAppointment, error: fetchError } = await supabase
         .from('appointment')
-        .select('appointment_date, appointment_time, service_id')
+        .select('appointment_date, appointment_time, service_id, client_id')
         .eq('id', appointmentId)
         .single();
 
@@ -133,19 +133,38 @@ export async function PATCH(
         appointmentId
       });
 
-      // Verificar disponibilidad
-      const { data: existingAppointments, error: availabilityError } = await supabase
-        .from('appointment')
-        .select('id')
-        .eq('appointment_date', newDate)
-        .eq('appointment_time', newTime)
-        .neq('id', appointmentId);
+      // Obtener el dealership_id del cliente
+      const { data: client, error: clientError } = await supabase
+        .from('client')
+        .select('dealership_id')
+        .eq('id', currentAppointment.client_id)
+        .single();
 
-      if (availabilityError) {
-        console.error('❌ Error al verificar disponibilidad:', {
-          error: availabilityError.message,
+      if (clientError || !client) {
+        console.error('❌ Error al obtener información del cliente:', {
+          error: clientError?.message,
+          clientId: currentAppointment.client_id
+        });
+        return NextResponse.json(
+          { message: 'Error fetching client information' },
+          { status: 500 }
+        );
+      }
+
+      // Verificar disponibilidad usando el endpoint de disponibilidad
+      const availabilityResponse = await fetch(
+        `${process.env.NEXT_PUBLIC_APP_URL}/api/appointments/availability?` + 
+        new URLSearchParams({
           date: newDate,
-          time: newTime
+          service_id: currentAppointment.service_id,
+          dealership_id: client.dealership_id
+        })
+      );
+
+      if (!availabilityResponse.ok) {
+        console.error('❌ Error al verificar disponibilidad:', {
+          status: availabilityResponse.status,
+          statusText: availabilityResponse.statusText
         });
         return NextResponse.json(
           { message: 'Error checking availability' },
@@ -153,11 +172,16 @@ export async function PATCH(
         );
       }
 
-      if (existingAppointments && existingAppointments.length > 0) {
+      const availabilityData = await availabilityResponse.json();
+      
+      // Verificar si el horario solicitado está disponible
+      const isTimeAvailable = availabilityData.availableSlots.includes(newTime);
+      
+      if (!isTimeAvailable) {
         console.log('❌ Horario no disponible:', {
           date: newDate,
           time: newTime,
-          existingAppointments: existingAppointments.length
+          availableSlots: availabilityData.availableSlots
         });
         return NextResponse.json(
           { message: 'Time slot is not available' },

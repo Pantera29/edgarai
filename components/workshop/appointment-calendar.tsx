@@ -28,17 +28,23 @@ import axios from 'axios';
 export interface TimeSlot {
   time: string;
   available: number;
-  isBlocked: boolean;
+  isBlocked?: boolean;
   blockReason?: string;
-  existingAppointments?: {
+  existingAppointments?: Array<{
     id: string;
     clientName: string;
     serviceName: string;
     duration: number;
-  }[];
+  }>;
+  serviceDuration?: number;
 }
 
-// Añadir esta interfaz antes de las demás
+interface Service {
+  id: string;
+  duration_minutes: number;
+  service_name: string;
+}
+
 interface Appointment {
   id: bigint;
   client_id: string | null;
@@ -66,16 +72,33 @@ interface Appointment {
 
 interface AppointmentCalendarProps {
   selectedDate: Date | null;
-  onSelect: (date: Date | undefined) => void;
-  blockedDates: BlockedDate[];
-  operatingHours: HorarioOperacion[];
+  onSelect: (date: Date) => void;
+  blockedDates: Array<{
+    date: string;
+    full_day: boolean;
+    start_time?: string;
+    end_time?: string;
+    reason?: string;
+  }>;
+  operatingHours: Array<{
+    day_of_week: number;
+    opening_time: string;
+    closing_time: string;
+    is_working_day: boolean;
+    max_simultaneous_services: number;
+  }>;
   turnDuration: number;
-  appointments: Appointment[];
-  onTimeSlotSelect?: (slot: TimeSlot) => void;
-  selectedService?: {
+  appointments: Array<{
     id: string;
-    duration: number;
-  };
+    appointment_date: string;
+    appointment_time: string;
+    services?: Service;
+    client?: {
+      names: string;
+    };
+  }>;
+  onTimeSlotSelect?: (slot: TimeSlot) => void;
+  selectedService?: Service;
   className?: string;
   dealershipId?: string;
 }
@@ -317,6 +340,9 @@ export function AppointmentCalendar({
   const slotsRef = useRef<HTMLDivElement>(null);
   const [backendSlots, setBackendSlots] = useState<TimeSlot[] | null>(null);
 
+  // Log de los props recibidos para depuración
+  console.log('AppointmentCalendar props:', { selectedDate, selectedService, dealershipId });
+
   const calculateDayAvailability = (date: Date): DayAvailability => {
     const dayOfWeek = date.getDay() === 0 ? 1 : date.getDay() + 1;
     const schedule = operatingHours.find(h => h.day_of_week === dayOfWeek);
@@ -411,7 +437,7 @@ export function AppointmentCalendar({
       const isBlocked = isTimeBlocked(date, timeString);
       
       // Verificar si el servicio cabe completo antes del cierre
-      const serviceEndTime = addMinutes(currentTime, selectedService ? selectedService.duration : turnDuration);
+      const serviceEndTime = addMinutes(currentTime, selectedService ? selectedService.duration_minutes : turnDuration);
       if (serviceEndTime > endTime) {
         break;
       }
@@ -483,7 +509,7 @@ export function AppointmentCalendar({
   const validateServiceDuration = (slot: TimeSlot) => {
     if (!selectedService) return true;
     
-    const requiredSlots = Math.ceil(selectedService.duration / turnDuration);
+    const requiredSlots = Math.ceil(selectedService.duration_minutes / turnDuration);
     const currentIndex = timeSlots.findIndex(s => s.time === slot.time);
     
     // Verificar si tenemos suficientes slots consecutivos disponibles
@@ -538,6 +564,7 @@ export function AppointmentCalendar({
   }, [selectedDate, operatingHours, blockedDates, turnDuration]);
 
   useEffect(() => {
+    console.log('useEffect backendSlots: selectedDate, selectedService, dealershipId', { selectedDate, selectedService, dealershipId });
     const fetchBackendSlots = async () => {
       if (!selectedDate || !selectedService || !dealershipId) {
         setBackendSlots(null);
@@ -545,7 +572,6 @@ export function AppointmentCalendar({
       }
       try {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
-        // Ajusta la URL y los parámetros según tu endpoint real
         const response = await axios.get(`/api/appointments/availability`, {
           params: {
             date: dateStr,
@@ -553,10 +579,14 @@ export function AppointmentCalendar({
             dealership_id: dealershipId,
           },
         });
-        console.log('Respuesta del endpoint de disponibilidad:', response.data);
-        // Adaptar la respuesta si es un array de strings
+        // Log completo de la respuesta del endpoint
+        console.log('Respuesta completa del endpoint de disponibilidad:', response.data);
+        // El endpoint devuelve un array de strings (horarios disponibles)
         const slots = Array.isArray(response.data.availableSlots)
-          ? response.data.availableSlots.map((time: string) => ({ time, available: true }))
+          ? response.data.availableSlots.map((time: string) => ({
+              time,
+              available: true
+            }))
           : [];
         setBackendSlots(slots);
       } catch (error) {
@@ -589,7 +619,7 @@ export function AppointmentCalendar({
                   onClick={() => {
                     if (slot.available) {
                       setSelectedSlot(slot.time);
-                      onTimeSlotSelect?.(slot);
+                      onTimeSlotSelect?.({ ...slot });
                     }
                   }}
                 >
@@ -604,17 +634,12 @@ export function AppointmentCalendar({
       );
     }
     if (!selectedDate || !timeSlots.length) return null;
-
-    console.log('Slots generados para mostrar:', timeSlots);
-
     return (
       <div className="p-6">
         <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {timeSlots.map((slot, index) => {
             const isBlocked = slot.isBlocked;
             const isSelected = slot.time === selectedSlot;
-            const hasAppointments = slot.existingAppointments && slot.existingAppointments.length > 0;
-            
             return (
               <Button
                 key={index}
@@ -629,54 +654,16 @@ export function AppointmentCalendar({
                 disabled={isBlocked || slot.available === 0}
                 onClick={() => {
                   if (!isBlocked && slot.available > 0) {
-                    console.log('Slot seleccionado:', slot);
                     setSelectedSlot(slot.time);
                     if (slot && slot.time) {
-                      console.log('Enviando slot al componente padre:', slot);
                       onTimeSlotSelect?.(slot);
-                    } else {
-                      console.error('Error: slot no tiene la propiedad time', slot);
                     }
                   }
                 }}
               >
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-base font-semibold">{slot.time}</span>
-                  <span className="text-xs font-medium">
-                    {slot.available} {slot.available === 1 ? 'espacio' : 'espacios'}
-                  </span>
                 </div>
-                
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div className="absolute inset-0" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="w-64">
-                      <div className="space-y-2">
-                        {isBlocked ? (
-                          <p className="text-red-600">{slot.blockReason}</p>
-                        ) : (
-                          <>
-                            <p className="font-medium">
-                              {slot.available} {slot.available === 1 ? 'espacio disponible' : 'espacios disponibles'}
-                            </p>
-                            {hasAppointments && (
-                              <div className="text-sm space-y-1">
-                                <p className="text-muted-foreground">Citas agendadas:</p>
-                                {slot.existingAppointments?.map((app, idx) => (
-                                  <div key={idx} className="flex items-center gap-1">
-                                    <span>{app.serviceName}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
               </Button>
             );
           })}
