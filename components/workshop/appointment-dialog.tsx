@@ -325,14 +325,18 @@ export default function AppointmentDialog({
                       <AppointmentCalendar
                         selectedDate={selectedDate ? new Date(selectedDate) : null}
                         onSelect={(date) => onDateChange(format(date!, 'yyyy-MM-dd'))}
-                        blockedDates={blockedDates}
+                        blockedDates={blockedDates.map(date => ({
+                            ...date,
+                            start_time: date.start_time || undefined,
+                            end_time: date.end_time || undefined
+                        }))}
                         operatingHours={operatingHours}
                         turnDuration={15}
                         appointments={appointments}
-                        onTimeSlotSelect={(slot) => onSlotChange(slot.time)}
                         selectedService={selectedService ? {
-                          id: selectedService,
-                          duration: servicios.find(s => s.id_uuid === selectedService)?.duration_minutes || 0
+                            id: selectedService,
+                            service_name: servicios.find(s => s.id_uuid === selectedService)?.service_name || '',
+                            duration_minutes: servicios.find(s => s.id_uuid === selectedService)?.duration_minutes || 15
                         } : undefined}
                       />
                     </div>
