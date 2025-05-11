@@ -10,37 +10,23 @@ export async function PATCH(
     const supabase = createServerComponentClient({ cookies });
     const vehicleId = params.id;
     
+    console.log('🚗 Actualizando vehículo:', {
+      id: vehicleId,
+      url: request.url
+    });
+
     if (!vehicleId) {
+      console.log('❌ Error: ID de vehículo no proporcionado');
       return NextResponse.json(
         { message: 'Vehicle ID is required' },
         { status: 400 }
       );
     }
 
-    // Verificar si el vehículo existe
-    const { data: vehicleExists, error: checkError } = await supabase
-      .from('vehicles')
-      .select('id_uuid')
-      .eq('id_uuid', vehicleId)
-      .maybeSingle();
-
-    if (checkError) {
-      console.error('Error checking vehicle:', checkError.message);
-      return NextResponse.json(
-        { message: 'Error checking vehicle' },
-        { status: 500 }
-      );
-    }
-
-    if (!vehicleExists) {
-      return NextResponse.json(
-        { message: 'Vehicle not found' },
-        { status: 404 }
-      );
-    }
-
     // Obtener datos del cuerpo de la solicitud
     const updates = await request.json();
+    console.log('📝 Payload de actualización recibido:', updates);
+
     const allowedFields = [
       'client_id',
       'make',
@@ -59,16 +45,47 @@ export async function PATCH(
       }
     }
 
+    console.log('🔍 Campos a actualizar:', filteredUpdates);
+
     // Si no hay campos válidos para actualizar
     if (Object.keys(filteredUpdates).length === 0) {
+      console.log('❌ Error: No hay campos válidos para actualizar');
       return NextResponse.json(
         { message: 'No valid fields to update' },
         { status: 400 }
       );
     }
 
+    // Verificar si el vehículo existe
+    console.log('🔍 Verificando existencia del vehículo:', vehicleId);
+    const { data: vehicleExists, error: checkError } = await supabase
+      .from('vehicles')
+      .select('id_uuid')
+      .eq('id_uuid', vehicleId)
+      .maybeSingle();
+
+    if (checkError) {
+      console.error('❌ Error al verificar vehículo:', {
+        error: checkError.message,
+        vehicleId
+      });
+      return NextResponse.json(
+        { message: 'Error checking vehicle' },
+        { status: 500 }
+      );
+    }
+
+    if (!vehicleExists) {
+      console.log('❌ Vehículo no encontrado:', vehicleId);
+      return NextResponse.json(
+        { message: 'Vehicle not found' },
+        { status: 404 }
+      );
+    }
+
     // Si se va a actualizar client_id, verificar que el cliente existe
     if (filteredUpdates.client_id) {
+      console.log('🔍 Verificando existencia del cliente:', filteredUpdates.client_id);
       const { data: clientExists, error: clientCheckError } = await supabase
         .from('client')
         .select('id')
@@ -76,7 +93,10 @@ export async function PATCH(
         .maybeSingle();
 
       if (clientCheckError) {
-        console.error('Error checking client:', clientCheckError.message);
+        console.error('❌ Error al verificar cliente:', {
+          error: clientCheckError.message,
+          clientId: filteredUpdates.client_id
+        });
         return NextResponse.json(
           { message: 'Error checking client' },
           { status: 500 }
@@ -84,6 +104,7 @@ export async function PATCH(
       }
 
       if (!clientExists) {
+        console.log('❌ Cliente no encontrado:', filteredUpdates.client_id);
         return NextResponse.json(
           { message: 'Client not found' },
           { status: 404 }
@@ -91,8 +112,9 @@ export async function PATCH(
       }
     }
 
-    // Si se va a actualizar license_plate, verificar que no exista ya (excepto para este vehículo)
+    // Si se va a actualizar license_plate, verificar que no exista ya
     if (filteredUpdates.license_plate) {
+      console.log('🔍 Verificando placa duplicada:', filteredUpdates.license_plate);
       const { data: plateExists, error: plateCheckError } = await supabase
         .from('vehicles')
         .select('id_uuid')
@@ -101,7 +123,10 @@ export async function PATCH(
         .maybeSingle();
 
       if (plateCheckError) {
-        console.error('Error checking license plate:', plateCheckError.message);
+        console.error('❌ Error al verificar placa:', {
+          error: plateCheckError.message,
+          license_plate: filteredUpdates.license_plate
+        });
         return NextResponse.json(
           { message: 'Error checking license plate' },
           { status: 500 }
@@ -109,6 +134,10 @@ export async function PATCH(
       }
 
       if (plateExists) {
+        console.log('❌ Placa duplicada encontrada:', {
+          license_plate: filteredUpdates.license_plate,
+          existing_id: plateExists.id_uuid
+        });
         return NextResponse.json(
           { message: 'License plate already exists on another vehicle' },
           { status: 409 }
@@ -116,8 +145,9 @@ export async function PATCH(
       }
     }
 
-    // Si se va a actualizar VIN, verificar que no exista ya (excepto para este vehículo)
+    // Si se va a actualizar VIN, verificar que no exista ya
     if (filteredUpdates.vin) {
+      console.log('🔍 Verificando VIN duplicado:', filteredUpdates.vin);
       const { data: vinExists, error: vinCheckError } = await supabase
         .from('vehicles')
         .select('id_uuid')
@@ -126,7 +156,10 @@ export async function PATCH(
         .maybeSingle();
 
       if (vinCheckError) {
-        console.error('Error checking VIN:', vinCheckError.message);
+        console.error('❌ Error al verificar VIN:', {
+          error: vinCheckError.message,
+          vin: filteredUpdates.vin
+        });
         return NextResponse.json(
           { message: 'Error checking VIN' },
           { status: 500 }
@@ -134,6 +167,10 @@ export async function PATCH(
       }
 
       if (vinExists) {
+        console.log('❌ VIN duplicado encontrado:', {
+          vin: filteredUpdates.vin,
+          existing_id: vinExists.id_uuid
+        });
         return NextResponse.json(
           { message: 'VIN already exists on another vehicle' },
           { status: 409 }
@@ -142,6 +179,11 @@ export async function PATCH(
     }
 
     // Actualizar el vehículo
+    console.log('📝 Actualizando vehículo:', {
+      id: vehicleId,
+      updates: filteredUpdates
+    });
+
     const { data, error } = await supabase
       .from('vehicles')
       .update(filteredUpdates)
@@ -150,12 +192,21 @@ export async function PATCH(
       .single();
 
     if (error) {
-      console.error('Error updating vehicle:', error.message);
+      console.error('❌ Error al actualizar vehículo:', {
+        error: error.message,
+        vehicleId,
+        updates: filteredUpdates
+      });
       return NextResponse.json(
         { message: 'Failed to update vehicle', error: error.message },
         { status: 500 }
       );
     }
+
+    console.log('✅ Vehículo actualizado exitosamente:', {
+      id: data.id_uuid,
+      license_plate: data.license_plate
+    });
 
     return NextResponse.json({ 
       message: 'Vehicle updated successfully',
@@ -163,9 +214,15 @@ export async function PATCH(
     });
     
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('💥 Error inesperado:', {
+      error: error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : error
+    });
     return NextResponse.json(
-      { message: 'Internal server error', error: error instanceof Error ? error.message : String(error) },
+      { message: 'Internal server error' },
       { status: 500 }
     );
   }

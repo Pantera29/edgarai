@@ -16,14 +16,34 @@ export async function GET(request: Request) {
     const dealershipPhone = searchParams.get('dealership_phone');
     const phoneNumber = searchParams.get('phone_number'); // Mantener por compatibilidad
     
+    console.log('🏢 Obteniendo información de agencia:', {
+      explicitDealershipId,
+      dealershipPhone,
+      phoneNumber,
+      url: request.url,
+      searchParams: Object.fromEntries(searchParams.entries())
+    });
+    
     // Determinar el dealership_id a usar
+    console.log('🔍 Determinando ID de agencia...');
     const dealershipId = await getDealershipId({
       dealershipId: explicitDealershipId,
       dealershipPhone: dealershipPhone || phoneNumber,
       supabase
     });
+
+    if (!dealershipId) {
+      console.log('❌ Error: No se pudo determinar el ID de la agencia');
+      return NextResponse.json(
+        { message: 'Could not determine dealership ID' },
+        { status: 400 }
+      );
+    }
+
+    console.log('✅ ID de agencia determinado:', dealershipId);
     
     // Consultas en paralelo para mayor eficiencia
+    console.log('📊 Iniciando consultas en paralelo...');
     const [
       dealershipResponse,
       operatingHoursResponse,
@@ -60,22 +80,66 @@ export async function GET(request: Request) {
         .order('date')
     ]);
 
-    // Verificar si hubo errores en alguna consulta
+    // Verificar errores en las consultas
     if (dealershipResponse.error) {
-      console.error('Error fetching dealership:', dealershipResponse.error.message);
+      console.error('❌ Error al obtener información de la agencia:', {
+        error: dealershipResponse.error.message,
+        dealershipId
+      });
       return NextResponse.json(
         { message: 'Error fetching dealership information' },
         { status: 500 }
       );
     }
 
-    // Si no se encontró la agencia
+    if (operatingHoursResponse.error) {
+      console.error('❌ Error al obtener horarios:', {
+        error: operatingHoursResponse.error.message,
+        dealershipId
+      });
+      return NextResponse.json(
+        { message: 'Error fetching operating hours' },
+        { status: 500 }
+      );
+    }
+
+    if (configResponse.error) {
+      console.error('❌ Error al obtener configuración:', {
+        error: configResponse.error.message,
+        dealershipId
+      });
+      return NextResponse.json(
+        { message: 'Error fetching dealership configuration' },
+        { status: 500 }
+      );
+    }
+
+    if (blockedDatesResponse.error) {
+      console.error('❌ Error al obtener fechas bloqueadas:', {
+        error: blockedDatesResponse.error.message,
+        dealershipId
+      });
+      return NextResponse.json(
+        { message: 'Error fetching blocked dates' },
+        { status: 500 }
+      );
+    }
+
+    // Verificar si la agencia existe
     if (!dealershipResponse.data) {
+      console.log('❌ Agencia no encontrada:', dealershipId);
       return NextResponse.json(
         { message: 'Dealership not found' },
         { status: 404 }
       );
     }
+
+    console.log('✅ Información obtenida exitosamente:', {
+      dealershipId,
+      hasOperatingHours: operatingHoursResponse.data?.length > 0,
+      hasConfiguration: !!configResponse.data,
+      blockedDatesCount: blockedDatesResponse.data?.length || 0
+    });
 
     // Mapa para convertir day_of_week numérico a nombre del día
     const dayNames = [
@@ -99,7 +163,13 @@ export async function GET(request: Request) {
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('💥 Error inesperado:', {
+      error: error instanceof Error ? {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      } : error
+    });
     return NextResponse.json(
       { message: 'Internal server error' },
       { status: 500 }
