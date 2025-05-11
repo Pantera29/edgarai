@@ -15,6 +15,7 @@ import { AppointmentCalendar } from "@/components/workshop/appointment-calendar"
 import moment from 'moment-timezone';
 import { verifyToken } from "@/app/jwt/token"
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from '@/components/ui/command';
+import { stringToSafeDate } from '@/lib/utils/date';
 
 // Extender la interfaz Vehicle para incluir las propiedades adicionales
 interface ExtendedVehicle extends Vehicle {
@@ -37,21 +38,6 @@ interface ExtendedService extends Service {
   service_name: string;
   duration_minutes: number;
 }
-
-// Implementar una función más segura para convertir string a fecha
-export const stringToSafeDate = (dateString: string | null): Date => {
-  if (!dateString) return new Date();
-  try {
-    // Parseamos la fecha directamente en formato YYYY-MM-DD
-    const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
-    // Creamos una fecha a las 12 del mediodía para evitar problemas de zona horaria
-    // Nota: month-1 porque en JavaScript los meses van de 0-11
-    return new Date(year, month-1, day, 12, 0, 0);
-  } catch (error) {
-    console.error('Error al convertir fecha:', error);
-    return new Date();
-  }
-};
 
 // Función para traducir estados de inglés a español
 const traducirEstado = (estado: string | null): string => {
@@ -910,7 +896,11 @@ export default function NuevaReservaPage() {
                 <AppointmentCalendar
                   selectedDate={selectedDate ? stringToSafeDate(selectedDate) : new Date()}
                   onSelect={(date) => handleSelectDate(date)}
-                  blockedDates={blockedDates}
+                  blockedDates={blockedDates.map(date => ({
+                    ...date,
+                    start_time: date.start_time || undefined,
+                    end_time: date.end_time || undefined
+                  }))}
                   operatingHours={operatingHours}
                   turnDuration={tallerConfig?.shift_duration || 30}
                   appointments={appointments}
@@ -920,7 +910,11 @@ export default function NuevaReservaPage() {
                   }}
                   selectedService={selectedService ? {
                     id: selectedService,
-                    duration: servicios.find(s => 
+                    service_name: servicios.find(s => 
+                      s.id === selectedService || 
+                      s.id_uuid === selectedService
+                    )?.service_name || '',
+                    duration_minutes: servicios.find(s => 
                       s.id === selectedService || 
                       s.id_uuid === selectedService
                     )?.duration_minutes || tallerConfig?.shift_duration || 30

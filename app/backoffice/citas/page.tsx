@@ -36,7 +36,7 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Card } from "@/components/ui/card"
-import { stringToSafeDate } from './nueva/page'
+import { stringToSafeDate } from '@/lib/utils/date'
 
 // Mover esta definición al inicio, antes de las interfaces
 type EstadoCita = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled'
