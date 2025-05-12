@@ -36,18 +36,42 @@ export async function GET(request: Request) {
     const serviceDuration = service.duration_minutes;
 
     // Obtener la configuración del taller
+    console.log('🔍 Consultando configuración del concesionario:', {
+      dealershipId,
+      query: {
+        dealership_id: dealershipId
+      }
+    });
+
     const { data: dealershipConfig, error: configError } = await supabase
       .from('dealership_configuration')
       .select('shift_duration')
       .eq('dealership_id', dealershipId)
-      .single();
+      .maybeSingle();
+
+    console.log('📊 Resultado de configuración:', {
+      config: dealershipConfig,
+      error: configError,
+      dealershipId
+    });
 
     if (configError) {
-      console.error('Error fetching dealership configuration:', configError.message);
+      console.error('❌ Error al obtener configuración del concesionario:', {
+        error: configError.message,
+        dealershipId
+      });
       return NextResponse.json(
         { message: 'Error fetching dealership configuration' },
         { status: 500 }
       );
+    }
+
+    // Si no hay configuración, usar valores por defecto
+    if (!dealershipConfig) {
+      console.log('⚠️ No se encontró configuración para el concesionario, usando valores por defecto:', {
+        dealershipId,
+        defaultShiftDuration: 30
+      });
     }
 
     // Usar shift_duration de la configuración o 30 minutos por defecto
@@ -68,39 +92,69 @@ export async function GET(request: Request) {
     });
 
     // 3. Obtener el horario de operación para ese día
+    console.log('🔍 Consultando horarios para el concesionario:', {
+      dealershipId,
+      dayOfWeek,
+      dealershipIdLength: dealershipId?.length,
+      dealershipIdLastChars: dealershipId?.slice(-4)
+    });
+
+    // Primero, veamos todos los horarios del concesionario
+    const { data: allSchedules, error: allSchedulesError } = await supabase
+      .from('operating_hours')
+      .select('*')
+      .eq('dealership_id', dealershipId);
+
+    console.log('📊 Todos los horarios del concesionario:', {
+      schedules: allSchedules,
+      error: allSchedulesError,
+      query: {
+        dealership_id: dealershipId,
+        dealership_id_length: dealershipId?.length,
+        dealership_id_last_chars: dealershipId?.slice(-4)
+      }
+    });
+
+    // Ahora consultamos el horario específico
     let scheduleQuery = supabase
       .from('operating_hours')
       .select('*')
-      .eq('day_of_week', dayOfWeek);
-    
-    // Filtrar por dealership_id si está disponible
-    if (dealershipId) {
-      scheduleQuery = scheduleQuery.eq('dealership_id', dealershipId);
-    }
+      .eq('day_of_week', dayOfWeek)
+      .eq('dealership_id', dealershipId);
 
-    console.log('Consultando horario:', {
+    console.log('🔍 Consultando horario específico:', {
       dayOfWeek,
       dealershipId,
+      query: {
+        day_of_week: dayOfWeek,
+        dealership_id: dealershipId,
+        dealership_id_length: dealershipId?.length,
+        dealership_id_last_chars: dealershipId?.slice(-4)
+      }
+    });
+
+    const { data: schedule, error: scheduleError } = await scheduleQuery.maybeSingle();
+
+    console.log('📊 Resultado horario específico:', {
+      schedule,
+      error: scheduleError,
       query: {
         day_of_week: dayOfWeek,
         dealership_id: dealershipId
       }
     });
 
-    const { data: schedule, error: scheduleError } = await scheduleQuery.maybeSingle();
-
     if (scheduleError) {
-      console.error('Error fetching operating hours:', scheduleError.message);
+      console.error('❌ Error al obtener horario:', {
+        error: scheduleError.message,
+        dayOfWeek,
+        dealershipId
+      });
       return NextResponse.json(
         { message: 'Error fetching operating hours' },
         { status: 500 }
       );
     }
-
-    console.log('Resultado horario:', {
-      schedule,
-      error: scheduleError
-    });
 
     // Si no hay horario o el día no es laborable
     if (!schedule || !schedule.is_working_day) {
@@ -109,11 +163,20 @@ export async function GET(request: Request) {
         dayOfWeek,
         schedule,
         hasSchedule: !!schedule,
-        isWorkingDay: schedule?.is_working_day
+        isWorkingDay: schedule?.is_working_day,
+        allSchedules: allSchedules
       });
+
+      if (!allSchedules || allSchedules.length === 0) {
+        return NextResponse.json({
+          availableSlots: [],
+          message: 'No hay horarios configurados para este concesionario. Por favor, configure los horarios de operación.'
+        });
+      }
+
       return NextResponse.json({
         availableSlots: [],
-        message: 'Non-working day'
+        message: `El día ${format(new Date(date), 'dd/MM/yyyy')} no es un día laborable para este concesionario`
       });
     }
 
