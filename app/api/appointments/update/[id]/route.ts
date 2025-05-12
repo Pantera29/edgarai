@@ -134,6 +134,21 @@ export async function PATCH(
       });
 
       // Obtener el dealership_id del cliente
+      console.log('🔍 Consultando información del cliente:', {
+        client_id: currentAppointment.client_id
+      });
+
+      const { data: clientDetails, error: clientDetailsError } = await supabase
+        .from('client')
+        .select('*')
+        .eq('id', currentAppointment.client_id)
+        .single();
+
+      console.log('📊 Detalles del cliente:', {
+        client: clientDetails,
+        error: clientDetailsError
+      });
+
       const { data: client, error: clientError } = await supabase
         .from('client')
         .select('dealership_id')
@@ -151,28 +166,64 @@ export async function PATCH(
         );
       }
 
+      console.log('📊 Información del cliente obtenida:', {
+        client_id: currentAppointment.client_id,
+        dealership_id: client.dealership_id,
+        dealership_id_length: client.dealership_id?.length,
+        dealership_id_last_chars: client.dealership_id?.slice(-4)
+      });
+
       // Verificar disponibilidad usando el endpoint de disponibilidad
-      const availabilityResponse = await fetch(
-        `${process.env.NEXT_PUBLIC_APP_URL}/api/appointments/availability?` + 
+      const baseUrl = new URL(request.url).origin;
+      const availabilityUrl = `${baseUrl}/api/appointments/availability?` + 
         new URLSearchParams({
           date: newDate,
           service_id: currentAppointment.service_id,
           dealership_id: client.dealership_id
-        })
+        });
+
+      console.log('🔍 URL de disponibilidad:', {
+        url: availabilityUrl,
+        dealership_id: client.dealership_id,
+        dealership_id_length: client.dealership_id?.length,
+        dealership_id_last_chars: client.dealership_id?.slice(-4)
+      });
+
+      const availabilityResponse = await fetch(
+        availabilityUrl,
+        {
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
 
+      console.log('📊 Respuesta de disponibilidad:', {
+        status: availabilityResponse.status,
+        statusText: availabilityResponse.statusText,
+        url: availabilityResponse.url,
+        params: {
+          date: newDate,
+          service_id: currentAppointment.service_id,
+          dealership_id: client.dealership_id
+        }
+      });
+
       if (!availabilityResponse.ok) {
+        const errorData = await availabilityResponse.text();
         console.error('❌ Error al verificar disponibilidad:', {
           status: availabilityResponse.status,
-          statusText: availabilityResponse.statusText
+          statusText: availabilityResponse.statusText,
+          errorData
         });
         return NextResponse.json(
-          { message: 'Error checking availability' },
+          { message: 'Error checking availability', details: errorData },
           { status: 500 }
         );
       }
 
       const availabilityData = await availabilityResponse.json();
+      console.log('📊 Datos de disponibilidad recibidos:', availabilityData);
       
       // Verificar si el horario solicitado está disponible
       const isTimeAvailable = availabilityData.availableSlots.includes(newTime);
