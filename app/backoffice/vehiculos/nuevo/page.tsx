@@ -80,7 +80,8 @@ export default function NuevoVehiculoPage() {
         const { data, error } = await supabase
           .from('client')
           .select('id, names')
-          .eq('dealership_id', dataToken.dealership_id);
+          .eq('dealership_id', dataToken.dealership_id)
+          .order('names', { ascending: true });
         
         if (error) throw error;
         
@@ -264,7 +265,7 @@ export default function NuevoVehiculoPage() {
             <SelectTrigger>
               <SelectValue placeholder={loading ? "Cargando..." : "Seleccionar cliente"} />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
               {error ? (
                 <SelectItem value="error">Error al cargar clientes</SelectItem>
               ) : clientes.length === 0 ? (

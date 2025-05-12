@@ -45,7 +45,7 @@ export async function GET(request: Request) {
 
     const { data: dealershipConfig, error: configError } = await supabase
       .from('dealership_configuration')
-      .select('shift_duration')
+      .select('shift_duration, reception_end_time')
       .eq('dealership_id', dealershipId)
       .maybeSingle();
 
@@ -260,7 +260,8 @@ export async function GET(request: Request) {
       appointments,
       serviceDuration,
       schedule.max_simultaneous_services,
-      slotDuration
+      slotDuration,
+      dealershipConfig?.reception_end_time
     );
 
     return NextResponse.json({ 
@@ -284,8 +285,31 @@ function generateTimeSlots(
   appointments: any[],
   serviceDuration: number,
   maxSimultaneous: number,
-  slotDuration: number
+  slotDuration: number,
+  receptionEndTime: string | null
 ) {
+  // 1. Calcular tiempo total disponible en minutos
+  const openingMinutes = timeToMinutes(schedule.opening_time);
+  const closingMinutes = timeToMinutes(schedule.closing_time);
+  const totalMinutesAvailable = (closingMinutes - openingMinutes) * maxSimultaneous;
+
+  // 2. Calcular tiempo total ya ocupado por citas existentes
+  const totalMinutesBooked = appointments.reduce((total, app) => {
+    return total + (app.services?.duration_minutes || 60);
+  }, 0);
+
+  // 3. Calcular tiempo restante disponible
+  const remainingMinutesAvailable = totalMinutesAvailable - totalMinutesBooked;
+
+  // 4. Log para debugging
+  console.log('Análisis de capacidad total:', {
+    totalMinutesAvailable,
+    totalMinutesBooked,
+    remainingMinutesAvailable,
+    serviceDuration,
+    canFitAdditionalService: remainingMinutesAvailable >= serviceDuration
+  });
+
   const slots: { time: string; available: number }[] = [];
   const availableSlots: string[] = [];
   const startTime = parse(schedule.opening_time, 'HH:mm:ss', new Date());
@@ -323,40 +347,77 @@ function generateTimeSlots(
     const slot = slots[i];
     if (slot.available === 0) continue;
 
-    // Calcular cuántos slots consecutivos necesitamos
-    const requiredSlots = Math.ceil(serviceDuration / slotDuration);
+    // Si hay un horario de recepción configurado, verificar que el slot no esté después
+    if (receptionEndTime) {
+      const slotTime = timeToMinutes(slot.time);
+      const receptionEndMinutes = timeToMinutes(receptionEndTime);
+      
+      // Si el slot está después del horario de recepción, saltarlo
+      if (slotTime > receptionEndMinutes) continue;
+    }
+
+    // Verificar si el servicio cabe en el horario de cierre
+    const slotStartTime = parse(slot.time, 'HH:mm:ss', new Date());
+    const slotEndTime = addMinutes(slotStartTime, serviceDuration);
+    const closingTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
     
-    // Verificar si tenemos suficientes slots consecutivos disponibles
-    let hasEnoughConsecutiveSlots = true;
+    if (!isBefore(slotEndTime, closingTime)) {
+      continue; // No cabe en el horario de operación
+    }
+    
+    // Verificar solapamiento con citas existentes
+    const slotStartMinutes = timeToMinutes(slot.time);
+    const slotEndMinutes = slotStartMinutes + serviceDuration;
+    
+    const overlappingAppointments = appointments.filter(app => {
+      const appStart = timeToMinutes(app.appointment_time);
+      const appEnd = appStart + (app.services?.duration_minutes || 60);
+      return appStart < slotEndMinutes && appEnd > slotStartMinutes;
+    });
+
+    // LÓGICA MODIFICADA: Verificación de capacidad considerando tiempo total
     let hasEnoughCapacity = true;
     
-    for (let j = 0; j < requiredSlots; j++) {
-      const checkIndex = i + j;
-      
-      // Verificar si nos pasamos del horario de cierre
-      if (checkIndex >= slots.length) {
-        hasEnoughConsecutiveSlots = false;
-        break;
-      }
-      
-      const checkSlot = slots[checkIndex];
-      
-      // Verificar si el slot está bloqueado o no tiene capacidad
-      if (checkSlot.available === 0) {
-        hasEnoughConsecutiveSlots = false;
-        break;
-      }
-      
-      // Verificar si hay suficiente capacidad en este slot
-      if (checkSlot.available < 1) {
+    if (overlappingAppointments.length >= maxSimultaneous) {
+      // Si hay suficiente tiempo total disponible en el día, permitir el slot
+      // aunque parezca haber conflicto de simultaneidad
+      if (remainingMinutesAvailable >= serviceDuration) {
+        console.log('Permitiendo slot con solapamiento debido a capacidad total disponible:', {
+          slot: slot.time,
+          overlappingAppointments: overlappingAppointments.length,
+          remainingMinutesAvailable,
+          serviceDuration
+        });
+        // Se permite el slot dentro del horario de recepción
+        hasEnoughCapacity = true;
+      } else {
+        // No hay suficiente tiempo total disponible
         hasEnoughCapacity = false;
-        break;
       }
     }
     
-    // Si tenemos suficientes slots consecutivos y capacidad, agregar a disponibles
-    if (hasEnoughConsecutiveSlots && hasEnoughCapacity) {
+    // Si hay capacidad disponible, agregar a los slots disponibles
+    if (hasEnoughCapacity) {
       availableSlots.push(slot.time);
+    }
+  }
+
+  // NUEVO: Si después de verificar todos los slots, no hay ninguno disponible pero hay capacidad total
+  if (availableSlots.length === 0 && remainingMinutesAvailable >= serviceDuration && receptionEndTime) {
+    // Calcular el horario máximo de recepción como un slot disponible
+    const receptionEndMinutes = timeToMinutes(receptionEndTime);
+    
+    // Determinar si el servicio cabe si comienza en el horario máximo de recepción
+    const serviceEndMinutes = receptionEndMinutes + serviceDuration;
+    if (serviceEndMinutes <= closingMinutes) {
+      console.log('Forzando disponibilidad del último slot de recepción debido a capacidad total disponible:', {
+        slot: receptionEndTime,
+        remainingMinutesAvailable,
+        serviceDuration
+      });
+      
+      // Añadir el horario máximo de recepción como disponible
+      availableSlots.push(receptionEndTime);
     }
   }
 
