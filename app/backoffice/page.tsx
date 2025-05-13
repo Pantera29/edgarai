@@ -77,6 +77,7 @@ interface CitaSupabase {
 interface DashboardData {
   estadoCitas: {
     pendientes: number;
+    confirmadas: number;
     enCurso: number;
     finalizadas: number;
   };
@@ -223,6 +224,7 @@ export default function DashboardPage() {
       // Contar citas por estado
       const estadoCitas = {
         pendientes: estadoCitasData?.filter(cita => cita.status === 'pending').length || 0,
+        confirmadas: estadoCitasData?.filter(cita => cita.status === 'confirmed').length || 0,
         enCurso: estadoCitasData?.filter(cita => cita.status === 'in_progress').length || 0,
         finalizadas: estadoCitasData?.filter(cita => cita.status === 'completed').length || 0
       };
@@ -434,21 +436,25 @@ export default function DashboardPage() {
               </div>
             </div>
             
-            <div className="grid grid-cols-3 gap-2 mt-2">
+            <div className="grid grid-cols-4 gap-2 mt-2">
               <div className="flex flex-col items-center">
-                <div className="bg-blue-100 rounded-full h-10 w-10 flex items-center justify-center mb-2">
-                  <span className="text-sm font-bold text-blue-600">{data.estadoCitas.pendientes}</span>
+                <div className="bg-gray-200 rounded-full h-10 w-10 flex items-center justify-center mb-2">
+                  <span className="text-sm font-bold text-gray-700">{data.estadoCitas.pendientes}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">Pendientes</p>
               </div>
-              
+              <div className="flex flex-col items-center">
+                <div className="bg-blue-100 rounded-full h-10 w-10 flex items-center justify-center mb-2">
+                  <span className="text-sm font-bold text-blue-600">{data.estadoCitas.confirmadas}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">Confirmadas</p>
+              </div>
               <div className="flex flex-col items-center">
                 <div className="bg-amber-100 rounded-full h-10 w-10 flex items-center justify-center mb-2">
                   <span className="text-sm font-bold text-amber-600">{data.estadoCitas.enCurso}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">En Curso</p>
               </div>
-              
               <div className="flex flex-col items-center">
                 <div className="bg-green-100 rounded-full h-10 w-10 flex items-center justify-center mb-2">
                   <span className="text-sm font-bold text-green-600">{data.estadoCitas.finalizadas}</span>

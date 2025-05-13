@@ -39,7 +39,7 @@ import { Card } from "@/components/ui/card"
 import { stringToSafeDate } from '@/lib/utils/date'
 
 // Mover esta definición al inicio, antes de las interfaces
-type EstadoCita = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled'
+type EstadoCita = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'rescheduled'
 
 interface Cliente {
   id: string            // Cambiado de id_uuid
@@ -121,6 +121,7 @@ const traducirEstado = (estado: string | null): string => {
   
   const traducciones: Record<string, string> = {
     'pending': 'Pendiente',
+    'confirmed': 'Confirmada',
     'in_progress': 'En proceso',
     'completed': 'Completada',
     'cancelled': 'Cancelada',
@@ -155,6 +156,7 @@ function CitasPageContent() {
   const [metricas, setMetricas] = useState({
     total: 0,
     pendientes: 0,
+    confirmadas: 0,
     enProceso: 0,
     completadas: 0,
     canceladas: 0
@@ -493,6 +495,7 @@ function CitasPageContent() {
     const calcularMetricas = () => {
       const total = citas.length;
       const pendientes = citas.filter(cita => cita.status === 'pending').length;
+      const confirmadas = citas.filter(cita => cita.status === 'confirmed').length;
       const enProceso = citas.filter(cita => cita.status === 'in_progress').length;
       const completadas = citas.filter(cita => cita.status === 'completed').length;
       const canceladas = citas.filter(cita => cita.status === 'cancelled').length;
@@ -500,6 +503,7 @@ function CitasPageContent() {
       setMetricas({
         total,
         pendientes,
+        confirmadas,
         enProceso,
         completadas,
         canceladas
@@ -585,7 +589,7 @@ function CitasPageContent() {
         </div>
 
         {/* Cards de Métricas */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Total de Citas */}
           <Card className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -620,6 +624,25 @@ function CitasPageContent() {
               <p className="text-xs text-muted-foreground">
                 <AlertTriangle className="inline h-3 w-3 mr-1" />
                 Requieren atención
+              </p>
+            </div>
+          </Card>
+
+          {/* Citas Confirmadas */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Citas Confirmadas</h3>
+              <div className="rounded-md bg-green-100 p-1">
+                <CheckCircle className="h-4 w-4 text-green-600" />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold">{metricas.confirmadas}</div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <CheckCircle className="inline h-3 w-3 mr-1" />
+                Clientes confirmados
               </p>
             </div>
           </Card>
@@ -683,6 +706,13 @@ function CitasPageContent() {
                 Pendientes
               </Button>
               <Button 
+                variant={filtroEstado === "confirmed" ? "default" : "outline"}
+                size="sm"
+                onClick={() => setFiltroEstado("confirmed")}
+              >
+                Confirmadas
+              </Button>
+              <Button 
                 variant={filtroEstado === "in_progress" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setFiltroEstado("in_progress")}
@@ -733,9 +763,10 @@ function CitasPageContent() {
                   <TableCell>
                     <span className={`inline-block min-w-[100px] text-center px-2 py-1 rounded-full text-xs font-medium ${
                       cita.status?.toLowerCase() === 'pending' ? 'bg-blue-100 text-blue-800' :
+                      cita.status?.toLowerCase() === 'confirmed' ? 'bg-green-100 text-green-800' :
                       cita.status?.toLowerCase() === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
                       cita.status?.toLowerCase() === 'completed' ? 'bg-green-100 text-green-800' :
-                      cita.status?.toLowerCase() === 'cancelled' || cita.status?.toLowerCase() === 'cancelada' ? 'bg-red-100 text-red-800' :
+                      cita.status?.toLowerCase() === 'cancelled' ? 'bg-red-100 text-red-800' :
                       cita.status?.toLowerCase() === 'rescheduled' ? 'bg-purple-100 text-purple-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
@@ -1084,6 +1115,13 @@ function CitasPageContent() {
                       className="w-full"
                     >
                       Pendiente
+                    </Button>
+                    <Button
+                      variant={selectedStatus === 'confirmed' ? 'default' : 'outline'}
+                      onClick={() => setSelectedStatus('confirmed')}
+                      className="w-full"
+                    >
+                      Confirmada
                     </Button>
                     <Button
                       variant={selectedStatus === 'in_progress' ? 'default' : 'outline'}

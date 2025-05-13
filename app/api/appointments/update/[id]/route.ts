@@ -3,7 +3,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 
 // Definimos los estados permitidos en inglés
-type AppointmentStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
 
 export async function PATCH(
   request: Request,
@@ -85,11 +85,11 @@ export async function PATCH(
 
     // Validar el estado si se está actualizando
     if (filteredUpdates.status) {
-      const validStatus: AppointmentStatus[] = ['pending', 'in_progress', 'completed', 'cancelled'];
+      const validStatus: AppointmentStatus[] = ['pending', 'confirmed', 'in_progress', 'completed', 'cancelled'];
       if (!validStatus.includes(filteredUpdates.status as AppointmentStatus)) {
         console.log('❌ Error: Estado inválido:', filteredUpdates.status);
         return NextResponse.json(
-          { message: 'Invalid status. Allowed values: pending, in_progress, completed, cancelled' },
+          { message: 'Invalid status. Allowed values: pending, confirmed, in_progress, completed, cancelled' },
           { status: 400 }
         );
       }

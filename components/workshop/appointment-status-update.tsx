@@ -56,6 +56,7 @@ export function AppointmentStatusUpdate({
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="pendiente">Pendiente</SelectItem>
+        <SelectItem value="confirmada">Confirmada</SelectItem>
         <SelectItem value="en_proceso">En Proceso</SelectItem>
         <SelectItem value="completada">Completada</SelectItem>
         <SelectItem value="cancelada">Cancelada</SelectItem>
