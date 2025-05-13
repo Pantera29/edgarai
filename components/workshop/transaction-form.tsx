@@ -14,115 +14,126 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { TransactionStatus } from "@/types/transaction"
 import { supabase } from "@/lib/supabase"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
+
 const formSchema = z.object({
-  id_cita: z.string().uuid(),
-  estado_pago: z.enum(['pendiente', 'pagado', 'anulado']),
-  notas: z.string().optional(),
+  appointment_id: z.string(),
+  notes: z.string().optional(),
 })
 
 interface TransactionFormProps {
   appointmentId?: string
   onSuccess?: () => void
-  token : string
+  token: string
 }
 
 export function TransactionForm({ appointmentId, onSuccess, token }: TransactionFormProps) {
-
-     
-  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
-    null
-  );
-  const [dataToken, setDataToken] = useState<object>({});
-
-  const router = useRouter();
-
-  useEffect(() => {
-        const verifiedDataToken = verifyToken(token); // Verifica el token
-        
-        // Si el token no es válido, redirigir al login
-        if (verifiedDataToken === null) {
-          router.push("/login");
-        }
-        setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
-
-      }
-
-, [searchParams, router]); 
-
-
-
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null)
+  const [dataToken, setDataToken] = useState<object>({})
+  const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [completedAppointments, setCompletedAppointments] = useState<any[]>([])
   const [selectedAppointment, setSelectedAppointment] = useState(appointmentId || '')
 
   const form = useForm<{
-    id_cita: string;
-    estado_pago: TransactionStatus;
-    notas: string;
+    appointment_id: string
+    notes: string
   }>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      id_cita: appointmentId,
-      estado_pago: 'pendiente',
-      notas: '',
+      appointment_id: appointmentId || '',
+      notes: '',
     }
   })
 
   useEffect(() => {
+    const verifiedDataToken = verifyToken(token)
+    if (verifiedDataToken === null) {
+      router.push("/login")
+    }
+    setDataToken(verifiedDataToken || {})
+  }, [searchParams, router, token])
+
+  useEffect(() => {
     const loadCompletedAppointments = async () => {
-      const { data, error } = await supabase
-        .from('citas')
+      // Log del token y dealership_id
+      console.log('Token decodificado:', dataToken);
+      const dealershipId = (dataToken as any)?.dealership_id;
+      console.log('Usando dealership_id para filtrar:', dealershipId);
+
+      let query = supabase
+        .from('appointment')
         .select(`
           *,
-          clientes (
-            id_uuid,
-            nombre
+          client:client_id (
+            id,
+            names
           ),
-          vehiculos (
+          vehicles:vehicle_id (
             id_uuid,
-            marca,
-            modelo,
-            placa
+            make,
+            model,
+            license_plate
           ),
-          servicios (
+          services:service_id (
             id_uuid,
-            nombre,
-            duracion_estimada
+            service_name
           )
         `)
-        .eq('estado', 'completada')
-        .order('fecha_hora', { ascending: false });
+        .eq('status', 'completed')
+        .order('appointment_date', { ascending: false })
 
-      if (error) {
-        console.error('Error al cargar citas:', error);
-        return;
+      if (dealershipId) {
+        query = query.eq('dealership_id', dealershipId);
       }
 
-      setCompletedAppointments(data || []);
-    };
+      const { data, error } = await query;
+      console.log('Citas completadas cargadas:', data, 'Error:', error);
+
+      if (error) {
+        console.error('Error al cargar citas:', error)
+        return
+      }
+
+      setCompletedAppointments(data || [])
+    }
 
     if (!appointmentId) {
-      loadCompletedAppointments();
+      loadCompletedAppointments()
     }
-  }, [appointmentId]);
+  }, [appointmentId, dataToken])
+
+  // Log para depuración del valor seleccionado y los ids de las citas
+  useEffect(() => {
+    console.log('selectedAppointment:', selectedAppointment)
+    console.log('completedAppointments ids:', completedAppointments.map(a => String(a.id)))
+  }, [selectedAppointment, completedAppointments])
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     setLoading(true)
     try {
-      const { error: transaccionError } = await supabase
-        .from('transacciones_servicio')
+      const dealershipId = (dataToken as any)?.dealership_id;
+      console.log('Intentando crear transacción con:', {
+        appointment_id: values.appointment_id,
+        type: typeof values.appointment_id,
+        transaction_date: new Date().toISOString(),
+        notes: values.notes,
+        dealership_id: dealershipId
+      });
+      const { error: transaccionError, data: transaccionData } = await supabase
+        .from('service_transactions')
         .insert({
-          id_cita: values.id_cita,
-          estado: values.estado_pago,
-          fecha_transaccion: new Date().toISOString(),
-          notas: values.notas
+          appointment_id: values.appointment_id,
+          transaction_date: new Date().toISOString(),
+          notes: values.notes,
+          dealership_id: dealershipId
         })
+        .select();
+      console.log('Resultado de la inserción:', { transaccionError, transaccionData });
 
       if (transaccionError) throw transaccionError
 
@@ -147,18 +158,26 @@ export function TransactionForm({ appointmentId, onSuccess, token }: Transaction
             value={selectedAppointment}
             onValueChange={(value: string) => {
               setSelectedAppointment(value)
-              form.setValue('id_cita', value)
+              form.setValue('appointment_id', value)
             }}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Seleccione una cita completada" />
+              <SelectValue placeholder="Seleccione una cita completada">
+                {(() => {
+                  const selected = completedAppointments.find(a => String(a.id) === String(selectedAppointment));
+                  if (selected) {
+                    return `${format(new Date(selected.appointment_date), "dd/MM/yyyy HH:mm")} - ${selected.client?.names || 'Cliente no disponible'} (${selected.vehicles?.make} ${selected.vehicles?.model}${selected.vehicles?.license_plate ? ` (${selected.vehicles.license_plate})` : ''})`;
+                  }
+                  return null;
+                })()}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {completedAppointments.map((appointment) => (
-                <SelectItem key={appointment.id_uuid} value={appointment.id_uuid}>
-                  {format(new Date(appointment.fecha_hora), "dd/MM/yyyy HH:mm")} - {appointment.clientes?.nombre || 'Cliente no disponible'} 
-                  ({appointment.vehiculos?.marca} {appointment.vehiculos?.modelo} 
-                  {appointment.vehiculos?.placa ? ` (${appointment.vehiculos.placa})` : ''})
+                <SelectItem key={String(appointment.id)} value={String(appointment.id)}>
+                  {format(new Date(appointment.appointment_date), "dd/MM/yyyy HH:mm")} - {appointment.client?.names || 'Cliente no disponible'} 
+                  ({appointment.vehicles?.make} {appointment.vehicles?.model} 
+                  {appointment.vehicles?.license_plate ? ` (${appointment.vehicles.license_plate})` : ''})
                 </SelectItem>
               ))}
             </SelectContent>
@@ -166,31 +185,11 @@ export function TransactionForm({ appointmentId, onSuccess, token }: Transaction
         </div>
       )}
 
-      {/* Estado de Pago */}
-      <div className="space-y-2">
-        <Label>Estado de Pago</Label>
-        <Select
-          value={form.watch('estado_pago')}
-          onValueChange={(value: string) => 
-            form.setValue('estado_pago', value as TransactionStatus)
-          }
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="Seleccione estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="pendiente">Pendiente</SelectItem>
-            <SelectItem value="pagado">Pagado</SelectItem>
-            <SelectItem value="anulado">Anulado</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
       {/* Notas */}
       <div className="space-y-2">
         <Label>Notas</Label>
         <Textarea
-          {...form.register('notas')}
+          {...form.register('notes')}
           placeholder="Agregue notas adicionales aquí..."
         />
       </div>
