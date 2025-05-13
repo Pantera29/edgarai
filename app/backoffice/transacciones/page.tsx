@@ -19,19 +19,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDebouncedCallback } from 'use-debounce'
 import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
+
 interface Filters {
-  startDate: Date | null
-  endDate: Date | null
-  status: string
   cliente: string
 }
 
-const estadosTabs = [
-  { value: "todos", label: "Todas" },
-  { value: "pending", label: "Pendientes" },
-  { value: "paid", label: "Pagadas" },
-  { value: "cancelled", label: "Anuladas" },
-]
+const initialFilters: Filters = {
+  cliente: ''
+}
 
 function TransaccionesContent() {
   
@@ -85,21 +80,9 @@ function TransaccionesContent() {
   const { toast } = useToast()
   const [data, setData] = useState<any[]>([])
   const [pageCount, setPageCount] = useState(0)
-  const [filters, setFilters] = useState<Filters>({
-    startDate: null,
-    endDate: null,
-    status: '',
-    cliente: ''
-  })
+  const [filters, setFilters] = useState<Filters>(initialFilters)
   const [showDetails, setShowDetails] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
-
-  const initialFilters: Filters = {
-    startDate: null,
-    endDate: null,
-    status: 'todos',
-    cliente: ''
-  }
 
   // Mostrar automáticamente el formulario si viene un id_cita
   useEffect(() => {
@@ -123,10 +106,7 @@ function TransaccionesContent() {
     
     // Si se está limpiando un filtro (cambiando a su valor inicial), ejecutar inmediatamente
     if (
-      newFilters.cliente === '' || 
-      newFilters.status === 'todos' || 
-      newFilters.startDate === null || 
-      newFilters.endDate === null
+      newFilters.cliente === ''
     ) {
       // Obtener dealership_id del token JWT para mantener el filtrado por agencia
       const dealershipId = (dataToken as any)?.dealership_id;
@@ -141,13 +121,14 @@ function TransaccionesContent() {
   const fetchTransactions = async (pageIndex: number, dealershipIdFromToken?: string) => {
     setLoading(true)
     try {
-      const { data: transacciones, error } = await supabase
+      let query = supabase
         .from('service_transactions')
         .select(`
           *,
           appointment (
             id,
             appointment_date,
+            service_id,
             client (
               names,
               dealership_id
@@ -156,23 +137,26 @@ function TransaccionesContent() {
               make,
               model,
               license_plate
+            ),
+            services:service_id (
+              service_name
             )
           )
         `)
         .order('transaction_date', { ascending: false })
 
+      // Filtrar por dealership_id directamente en service_transactions
+      if (dealershipIdFromToken) {
+        query = query.eq('dealership_id', dealershipIdFromToken);
+        console.log('Filtrando transacciones por dealership_id en service_transactions:', dealershipIdFromToken);
+      }
+
+      const { data: transacciones, error } = await query;
+      console.log('Transacciones crudas recibidas:', transacciones, 'Error:', error);
+
       if (error) throw error
       
       let filteredTransactions = transacciones || [];
-      
-      // Filtrar por dealership_id si existe en el token JWT
-      if (dealershipIdFromToken) {
-        console.log("Filtrando transacciones por dealership_id:", dealershipIdFromToken);
-        filteredTransactions = filteredTransactions.filter(
-          transaction => transaction.appointment?.client?.dealership_id === dealershipIdFromToken
-        );
-      }
-      
       setData(filteredTransactions)
       setPageCount(Math.ceil((filteredTransactions.length || 0) / 10))
     } catch (error) {
@@ -212,49 +196,6 @@ function TransaccionesContent() {
         </Button>
       </div>
 
-      {/* Filtros */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Fecha Inicio</label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {filters.startDate ? format(filters.startDate, "PPP", { locale: es }) : "Seleccionar"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={filters.startDate || undefined}
-                onSelect={(date) => handleFilterChange({ startDate: date })}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-
-        <div className="space-y-2">
-          <label className="text-sm font-medium">Fecha Fin</label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start">
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {filters.endDate ? format(filters.endDate, "PPP", { locale: es }) : "Seleccionar"}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={filters.endDate || undefined}
-                onSelect={(date) => handleFilterChange({ endDate: date })}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-
       <div className="flex items-center space-x-4 mb-6">
         <div className="flex-1">
           <Input
@@ -263,21 +204,7 @@ function TransaccionesContent() {
             onChange={(e) => handleFilterChange({ cliente: e.target.value })}
           />
         </div>
-        <Tabs
-          value={filters.status}
-          onValueChange={(value) => handleFilterChange({ status: value })}>
-          <TabsList>
-            {estadosTabs.map(tab => (
-              <TabsTrigger key={tab.value} value={tab.value}>
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
-        {(filters.cliente !== '' || 
-          filters.status !== 'todos' || 
-          filters.startDate !== null || 
-          filters.endDate !== null) && (
+        {(filters.cliente !== '' ) && (
           <Button
             variant="ghost"
             size="sm"

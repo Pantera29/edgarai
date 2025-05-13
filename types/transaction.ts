@@ -12,10 +12,7 @@ export interface Transaction {
   id_transaccion: string
   id_cita: string
   fecha_transaccion: string
-  estado_pago: TransactionStatus
   notas: string | null
-  total: number
-  productos: TransactionProduct[]
-  creado_el: string
-  actualizado_el: string
+  created_at: string
+  updated_at: string
 } 
