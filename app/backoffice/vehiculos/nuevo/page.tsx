@@ -22,6 +22,16 @@ interface TokenData {
   [key: string]: any;
 }
 
+interface VehicleMake {
+  id: string;
+  name: string;
+}
+
+interface DealershipBrand {
+  make_id: string;
+  vehicle_makes: VehicleMake;
+}
+
 export default function NuevoVehiculoPage() {
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
   const [token, setToken] = useState<string>("");
@@ -108,7 +118,13 @@ export default function NuevoVehiculoPage() {
         const supabase = createClientComponentClient();
         const { data: marcas, error } = await supabase
           .from('dealership_brands')
-          .select('brand')
+          .select(`
+            make_id,
+            vehicle_makes!inner (
+              id,
+              name
+            )
+          `)
           .eq('dealership_id', dataToken.dealership_id);
 
         if (error) {
@@ -120,7 +136,8 @@ export default function NuevoVehiculoPage() {
         if (!marcas || marcas.length === 0) {
           setMarcasPermitidas(carBrands);
         } else {
-          setMarcasPermitidas(marcas.map(m => m.brand));
+          const marcasArray = marcas as unknown as DealershipBrand[];
+          setMarcasPermitidas(marcasArray.map(m => m.vehicle_makes.name));
         }
       } catch (error) {
         console.error('Error al cargar marcas permitidas:', error);
