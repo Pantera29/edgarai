@@ -5,7 +5,7 @@ import { z } from 'zod'
 
 // Esquema de validación
 const createTransactionSchema = z.object({
-  appointment_id: z.string().uuid(),
+  appointment_id: z.number(),
   transaction_date: z.string().datetime().optional(),
   notes: z.string().optional(),
   dealership_id: z.string().uuid(),
