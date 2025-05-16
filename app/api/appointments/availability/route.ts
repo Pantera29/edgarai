@@ -215,6 +215,12 @@ export async function GET(request: Request) {
     }
 
     // 5. Obtener citas existentes para ese día
+    console.log('🔍 Consultando citas existentes:', {
+      date,
+      dealershipId
+    });
+
+    // Primero obtenemos las citas sin filtrar por clientes
     let appointmentQuery = supabase
       .from('appointment')
       .select(`
@@ -222,42 +228,104 @@ export async function GET(request: Request) {
         appointment_date,
         appointment_time,
         service_id,
-        services:service_id (duration_minutes),
+        services (
+          duration_minutes
+        ),
         client_id
       `)
       .eq('appointment_date', date);
     
-    // Filtrar por dealership_id si está disponible 
-    // (asumiendo que hay una relación entre cliente y concesionario)
+    // Si tenemos dealership_id, primero obtenemos los clientes
     if (dealershipId) {
-      // Obtenemos los clients_id que pertenecen a este dealership
-      const { data: clients } = await supabase
+      const { data: clients, error: clientsError } = await supabase
         .from('client')
         .select('id')
         .eq('dealership_id', dealershipId);
       
+      if (clientsError) {
+        console.error('Error fetching clients:', clientsError.message);
+        return NextResponse.json(
+          { message: 'Error fetching clients' },
+          { status: 500 }
+        );
+      }
+      
       if (clients && clients.length > 0) {
-        const clientIds = clients.map(c => c.id);
-        appointmentQuery = appointmentQuery.in('client_id', clientIds);
+        console.log('Filtrando citas por clientes:', {
+          clientCount: clients.length
+        });
+
+        // En lugar de usar .in(), vamos a filtrar los resultados después
+        const { data: allAppointments, error: appointmentsError } = await appointmentQuery;
+        
+        if (appointmentsError) {
+          console.error('Error fetching appointments:', {
+            error: appointmentsError.message,
+            details: appointmentsError.details,
+            hint: appointmentsError.hint
+          });
+          return NextResponse.json(
+            { message: 'Error fetching appointments' },
+            { status: 500 }
+          );
+        }
+
+        // Filtrar las citas por clientes después de obtenerlas
+        const appointments = allAppointments?.filter(app => 
+          clients.some(client => client.id === app.client_id)
+        ) || [];
+
+        console.log('📊 Citas encontradas después de filtrar:', {
+          totalAppointments: allAppointments?.length || 0,
+          filteredAppointments: appointments.length
+        });
+
+        // 6. Generar slots de tiempo disponibles
+        const availableSlots = generateTimeSlots(
+          date,
+          schedule,
+          blockedDate,
+          appointments,
+          serviceDuration,
+          schedule.max_simultaneous_services,
+          slotDuration,
+          dealershipConfig?.reception_end_time
+        );
+
+        return NextResponse.json({ 
+          availableSlots,
+          totalSlots: availableSlots.length
+        });
+      } else {
+        console.log('No se encontraron clientes para el concesionario');
       }
     }
 
+    // Si no hay dealership_id o no hay clientes, obtener todas las citas
     const { data: appointments, error: appointmentsError } = await appointmentQuery;
 
     if (appointmentsError) {
-      console.error('Error fetching appointments:', appointmentsError.message);
+      console.error('Error fetching appointments:', {
+        error: appointmentsError.message,
+        details: appointmentsError.details,
+        hint: appointmentsError.hint
+      });
       return NextResponse.json(
         { message: 'Error fetching appointments' },
         { status: 500 }
       );
     }
 
+    console.log('📊 Citas encontradas:', {
+      count: appointments?.length || 0
+    });
+
     // 6. Generar slots de tiempo disponibles
     const availableSlots = generateTimeSlots(
       date,
       schedule,
       blockedDate,
-      appointments,
+      appointments || [],
       serviceDuration,
       schedule.max_simultaneous_services,
       slotDuration,
