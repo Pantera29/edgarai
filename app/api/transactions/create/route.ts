@@ -178,7 +178,7 @@ export async function POST(request: Request) {
       })
       .select(`
         *,
-        specific_service (
+        specific_services (
           service_name,
           kilometers,
           months,
