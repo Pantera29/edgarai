@@ -18,15 +18,15 @@ export async function POST(request: Request) {
   try {
     const supabase = createServerComponentClient({ cookies })
     
-    // Verificar autenticación
-    const { data: { session }, error: authError } = await supabase.auth.getSession()
-    if (authError || !session) {
-      console.error('Error de autenticación:', authError)
-      return NextResponse.json(
-        { message: 'No autorizado' },
-        { status: 401 }
-      )
-    }
+    // Eliminada la validación de autenticación para permitir peticiones sin sesión
+    // const { data: { session }, error: authError } = await supabase.auth.getSession()
+    // if (authError || !session) {
+    //   console.error('Error de autenticación:', authError)
+    //   return NextResponse.json(
+    //     { message: 'No autorizado' },
+    //     { status: 401 }
+    //   )
+    // }
 
     // Obtener y validar el cuerpo de la petición
     const body = await request.json()
@@ -47,20 +47,21 @@ export async function POST(request: Request) {
     const { appointment_id, transaction_date, notes, dealership_id, specific_service_id } = validationResult.data
 
     // Verificar que el usuario tiene acceso al dealership
-    const { data: userDealership, error: dealershipError } = await supabase
-      .from('dealership_users')
-      .select('dealership_id')
-      .eq('user_id', session.user.id)
-      .eq('dealership_id', dealership_id)
-      .single()
+    // Esta validación dependía de session.user.id, así que la eliminamos para que funcione sin autenticación
+    // const { data: userDealership, error: dealershipError } = await supabase
+    //   .from('dealership_users')
+    //   .select('dealership_id')
+    //   .eq('user_id', session.user.id)
+    //   .eq('dealership_id', dealership_id)
+    //   .single()
 
-    if (dealershipError || !userDealership) {
-      console.error('Error de acceso al dealership:', dealershipError)
-      return NextResponse.json(
-        { message: 'No tienes acceso a este concesionario' },
-        { status: 403 }
-      )
-    }
+    // if (dealershipError || !userDealership) {
+    //   console.error('Error de acceso al dealership:', dealershipError)
+    //   return NextResponse.json(
+    //     { message: 'No tienes acceso a este concesionario' },
+    //     { status: 403 }
+    //   )
+    // }
 
     // Verificar que la cita existe y está completada
     const { data: appointment, error: appointmentError } = await supabase
