@@ -20,7 +20,8 @@ export async function POST(request: Request) {
       year, 
       license_plate, 
       vin, 
-      last_km 
+      last_km,
+      model_id
     } = payload;
 
     // Validar campos requeridos
@@ -140,7 +141,8 @@ export async function POST(request: Request) {
         license_plate,
         vin: vin || null,
         last_km: last_km || null,
-        dealership_id: client.dealership_id
+        dealership_id: client.dealership_id,
+        model_id: model_id || null
       }])
       .select()
       .single();
