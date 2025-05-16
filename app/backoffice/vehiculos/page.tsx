@@ -35,6 +35,15 @@ import Link from "next/link"
 import { Label } from "@/components/ui/label"
 import { verifyToken } from '../../jwt/token'
 import { useRouter } from "next/navigation";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { ChevronsLeft, ChevronsRight } from "lucide-react"
 
 interface Vehiculo {
   id_uuid: string
@@ -333,6 +342,30 @@ export default function VehiculosPage() {
     }
   };
 
+  const VEHICULOS_POR_PAGINA = 50;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  // Lógica de paginación
+  const totalPages = Math.ceil(vehiculosFiltrados.length / VEHICULOS_POR_PAGINA);
+  const vehiculosPaginados = vehiculosFiltrados.slice(
+    (currentPage - 1) * VEHICULOS_POR_PAGINA,
+    currentPage * VEHICULOS_POR_PAGINA
+  );
+
+  const getPageRange = () => {
+    const range = [];
+    const maxPagesToShow = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let end = Math.min(totalPages, start + maxPagesToShow - 1);
+    if (end - start + 1 < maxPagesToShow) {
+      start = Math.max(1, end - maxPagesToShow + 1);
+    }
+    for (let i = start; i <= end; i++) {
+      range.push(i);
+    }
+    return range;
+  };
+
   return (
     <div className="flex-1 space-y-4 p-8 pt-6">
       <div className="flex items-center justify-between space-y-2">
@@ -381,7 +414,7 @@ export default function VehiculosPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {vehiculosFiltrados.map((vehiculo) => (
+            {vehiculosPaginados.map((vehiculo) => (
               <TableRow key={vehiculo.id_uuid}>
                 <TableCell>
                   <div>
@@ -431,6 +464,62 @@ export default function VehiculosPage() {
           </TableBody>
         </Table>
       </div>
+      {/* Paginación visual */}
+      {totalPages > 1 && (
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center border-t pt-4">
+          <div className="text-sm text-muted-foreground order-2 sm:order-1">
+            Mostrando página {currentPage} de {totalPages}
+          </div>
+          <div className="order-1 sm:order-2">
+            <Pagination>
+              <PaginationContent>
+                {totalPages > 1 && (
+                  <>
+                    <PaginationItem>
+                      <PaginationLink
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                      >
+                        <ChevronsLeft className="h-4 w-4" />
+                      </PaginationLink>
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                      />
+                    </PaginationItem>
+                    {getPageRange().map((page) => (
+                      <PaginationItem key={page}>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(page)}
+                          isActive={currentPage === page}
+                        >
+                          {page}
+                        </PaginationLink>
+                      </PaginationItem>
+                    ))}
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
+                        disabled={currentPage === totalPages}
+                      />
+                    </PaginationItem>
+                    <PaginationItem>
+                      <PaginationLink
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                      >
+                        <ChevronsRight className="h-4 w-4" />
+                      </PaginationLink>
+                    </PaginationItem>
+                  </>
+                )}
+              </PaginationContent>
+            </Pagination>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
