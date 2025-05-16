@@ -19,6 +19,15 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useDebouncedCallback } from 'use-debounce'
 import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { ChevronsLeft, ChevronsRight } from "lucide-react"
 
 interface Filters {
   cliente: string
@@ -83,6 +92,8 @@ function TransaccionesContent() {
   const [filters, setFilters] = useState<Filters>(initialFilters)
   const [showDetails, setShowDetails] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null)
+  const PAGE_SIZE = 50;
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Mostrar automáticamente el formulario si viene un id_cita
   useEffect(() => {
@@ -121,6 +132,15 @@ function TransaccionesContent() {
   const fetchTransactions = async (pageIndex: number, dealershipIdFromToken?: string) => {
     setLoading(true)
     try {
+      // Obtener el total de transacciones para la paginación
+      let countQuery = supabase
+        .from('service_transactions')
+        .select('*', { count: 'exact', head: true })
+      if (dealershipIdFromToken) {
+        countQuery = countQuery.eq('dealership_id', dealershipIdFromToken);
+      }
+      const { count: totalCount } = await countQuery;
+
       let query = supabase
         .from('service_transactions')
         .select(`
@@ -144,6 +164,7 @@ function TransaccionesContent() {
           )
         `)
         .order('transaction_date', { ascending: false })
+        .range((pageIndex) * PAGE_SIZE, (pageIndex + 1) * PAGE_SIZE - 1);
 
       // Filtrar por dealership_id directamente en service_transactions
       if (dealershipIdFromToken) {
@@ -155,10 +176,9 @@ function TransaccionesContent() {
       console.log('Transacciones crudas recibidas:', transacciones, 'Error:', error);
 
       if (error) throw error
-      
       let filteredTransactions = transacciones || [];
       setData(filteredTransactions)
-      setPageCount(Math.ceil((filteredTransactions.length || 0) / 10))
+      setPageCount(Math.ceil((totalCount || 0) / PAGE_SIZE))
     } catch (error) {
       console.error('Error:', error)
       toast({
@@ -184,6 +204,21 @@ function TransaccionesContent() {
     const dealershipId = (dataToken as any)?.dealership_id;
     fetchTransactions(0, dealershipId)
   }
+
+  // Lógica para paginación visual
+  const getPageRange = () => {
+    const range = [];
+    const maxPagesToShow = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let end = Math.min(pageCount, start + maxPagesToShow - 1);
+    if (end - start + 1 < maxPagesToShow) {
+      start = Math.max(1, end - maxPagesToShow + 1);
+    }
+    for (let i = start; i <= end; i++) {
+      range.push(i);
+    }
+    return range;
+  };
 
   return (
     <div className="container mx-auto py-10">
@@ -229,12 +264,92 @@ function TransaccionesContent() {
           ))}
         </div>
       ) : (
-        <DataTable 
-          columns={columns}
-          data={data}
-          pageCount={pageCount}
-          onPaginationChange={(pageIndex) => fetchTransactions(pageIndex)}
-        />
+        <>
+          <DataTable 
+            columns={columns}
+            data={data}
+          />
+          {/* Paginación visual */}
+          {pageCount > 1 && (
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center border-t pt-4">
+              <div className="text-sm text-muted-foreground order-2 sm:order-1">
+                Mostrando página {currentPage} de {pageCount}
+              </div>
+              <div className="order-1 sm:order-2">
+                <Pagination>
+                  <PaginationContent>
+                    {pageCount > 1 && (
+                      <>
+                        <PaginationItem>
+                          <PaginationLink
+                            onClick={() => {
+                              setCurrentPage(1);
+                              const dealershipId = (dataToken as any)?.dealership_id;
+                              fetchTransactions(0, dealershipId);
+                            }}
+                            disabled={currentPage === 1}
+                          >
+                            <ChevronsLeft className="h-4 w-4" />
+                          </PaginationLink>
+                        </PaginationItem>
+                        <PaginationItem>
+                          <PaginationPrevious
+                            onClick={() => {
+                              if (currentPage > 1) {
+                                setCurrentPage(currentPage - 1);
+                                const dealershipId = (dataToken as any)?.dealership_id;
+                                fetchTransactions(currentPage - 2, dealershipId);
+                              }
+                            }}
+                            disabled={currentPage === 1}
+                          />
+                        </PaginationItem>
+                        {getPageRange().map((page) => (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              onClick={() => {
+                                setCurrentPage(page);
+                                const dealershipId = (dataToken as any)?.dealership_id;
+                                fetchTransactions(page - 1, dealershipId);
+                              }}
+                              isActive={currentPage === page}
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext
+                            onClick={() => {
+                              if (currentPage < pageCount) {
+                                setCurrentPage(currentPage + 1);
+                                const dealershipId = (dataToken as any)?.dealership_id;
+                                fetchTransactions(currentPage, dealershipId);
+                              }
+                            }}
+                            disabled={currentPage === pageCount}
+                          />
+                        </PaginationItem>
+                        <PaginationItem>
+                          <PaginationLink
+                            onClick={() => {
+                              setCurrentPage(pageCount);
+                              const dealershipId = (dataToken as any)?.dealership_id;
+                              fetchTransactions(pageCount - 1, dealershipId);
+                            }}
+                            disabled={currentPage === pageCount}
+                          >
+                            <ChevronsRight className="h-4 w-4" />
+                          </PaginationLink>
+                        </PaginationItem>
+                      </>
+                    )}
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       <Dialog open={showNewTransaction} onOpenChange={setShowNewTransaction}>
