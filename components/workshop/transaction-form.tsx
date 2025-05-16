@@ -23,12 +23,21 @@ import { verifyToken } from "@/app/jwt/token"
 const formSchema = z.object({
   appointment_id: z.string(),
   notes: z.string().optional(),
+  specific_service_id: z.string().uuid().optional()
 })
 
 interface TransactionFormProps {
   appointmentId?: string
   onSuccess?: () => void
   token: string
+}
+
+interface SpecificService {
+  id: string
+  service_name: string
+  kilometers: number
+  months: number
+  price: number
 }
 
 export function TransactionForm({ appointmentId, onSuccess, token }: TransactionFormProps) {
@@ -38,15 +47,19 @@ export function TransactionForm({ appointmentId, onSuccess, token }: Transaction
   const [loading, setLoading] = useState(false)
   const [completedAppointments, setCompletedAppointments] = useState<any[]>([])
   const [selectedAppointment, setSelectedAppointment] = useState(appointmentId || '')
+  const [specificServices, setSpecificServices] = useState<SpecificService[]>([])
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
 
   const form = useForm<{
     appointment_id: string
     notes: string
+    specific_service_id: string
   }>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       appointment_id: appointmentId || '',
       notes: '',
+      specific_service_id: ''
     }
   })
 
@@ -77,7 +90,8 @@ export function TransactionForm({ appointmentId, onSuccess, token }: Transaction
             id_uuid,
             make,
             model,
-            license_plate
+            license_plate,
+            model_id
           ),
           services:service_id (
             id_uuid,
@@ -107,10 +121,43 @@ export function TransactionForm({ appointmentId, onSuccess, token }: Transaction
     }
   }, [appointmentId, dataToken])
 
-  // Log para depuración del valor seleccionado y los ids de las citas
+  // Cargar servicios específicos cuando cambia el modelo
   useEffect(() => {
-    console.log('selectedAppointment:', selectedAppointment)
-    console.log('completedAppointments ids:', completedAppointments.map(a => String(a.id)))
+    const loadSpecificServices = async () => {
+      if (!selectedModelId) {
+        setSpecificServices([])
+        return
+      }
+
+      const dealershipId = (dataToken as any)?.dealership_id;
+      const { data, error } = await supabase
+        .from('specific_services')
+        .select('*')
+        .eq('model_id', selectedModelId)
+        .eq('dealership_id', dealershipId)
+        .eq('is_active', true)
+
+      if (error) {
+        console.error('Error al cargar servicios específicos:', error)
+        return
+      }
+
+      setSpecificServices(data || [])
+    }
+
+    loadSpecificServices()
+  }, [selectedModelId, dataToken])
+
+  // Actualizar el modelo seleccionado cuando cambia la cita
+  useEffect(() => {
+    if (selectedAppointment) {
+      const appointment = completedAppointments.find(a => String(a.id) === String(selectedAppointment))
+      if (appointment?.vehicles?.model_id) {
+        setSelectedModelId(appointment.vehicles.model_id)
+      } else {
+        setSelectedModelId(null)
+      }
+    }
   }, [selectedAppointment, completedAppointments])
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
@@ -119,10 +166,10 @@ export function TransactionForm({ appointmentId, onSuccess, token }: Transaction
       const dealershipId = (dataToken as any)?.dealership_id;
       console.log('Intentando crear transacción con:', {
         appointment_id: values.appointment_id,
-        type: typeof values.appointment_id,
         transaction_date: new Date().toISOString(),
         notes: values.notes,
-        dealership_id: dealershipId
+        dealership_id: dealershipId,
+        specific_service_id: values.specific_service_id
       });
       const { error: transaccionError, data: transaccionData } = await supabase
         .from('service_transactions')
@@ -130,7 +177,8 @@ export function TransactionForm({ appointmentId, onSuccess, token }: Transaction
           appointment_id: values.appointment_id,
           transaction_date: new Date().toISOString(),
           notes: values.notes,
-          dealership_id: dealershipId
+          dealership_id: dealershipId,
+          specific_service_id: values.specific_service_id
         })
         .select();
       console.log('Resultado de la inserción:', { transaccionError, transaccionData });
@@ -178,6 +226,38 @@ export function TransactionForm({ appointmentId, onSuccess, token }: Transaction
                   {format(new Date(appointment.appointment_date), "dd/MM/yyyy HH:mm")} - {appointment.client?.names || 'Cliente no disponible'} 
                   ({appointment.vehicles?.make} {appointment.vehicles?.model} 
                   {appointment.vehicles?.license_plate ? ` (${appointment.vehicles.license_plate})` : ''})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Selector de Servicio Específico */}
+      {selectedModelId && (
+        <div className="space-y-2">
+          <Label>Servicio Específico (Opcional)</Label>
+          <Select
+            value={form.watch('specific_service_id')}
+            onValueChange={(value: string) => {
+              form.setValue('specific_service_id', value)
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Seleccione un servicio específico">
+                {(() => {
+                  const selected = specificServices.find(s => s.id === form.watch('specific_service_id'));
+                  if (selected) {
+                    return `${selected.service_name} - ${selected.kilometers}km/${selected.months}meses - $${selected.price}`;
+                  }
+                  return null;
+                })()}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              {specificServices.map((service) => (
+                <SelectItem key={service.id} value={service.id}>
+                  {service.service_name} - {service.kilometers}km/{service.months}meses - ${service.price}
                 </SelectItem>
               ))}
             </SelectContent>
