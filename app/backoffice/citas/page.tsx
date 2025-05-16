@@ -232,8 +232,8 @@ function CitasPageContent() {
           )
         `)
         .eq('dealership_id', dealershipIdFromToken)
-        .order('appointment_date', { ascending: true })
-        .order('appointment_time', { ascending: true });
+        .order('appointment_date', { ascending: false })
+        .order('appointment_time', { ascending: false });
 
       const { data: citasData, error } = await query;
 
@@ -243,27 +243,18 @@ function CitasPageContent() {
       // Obtener la fecha actual en formato YYYY-MM-DD
       const fechaActual = new Date().toISOString().split('T')[0];
       
-      // Ordenar las citas: primero las futuras, luego las pasadas
+      // Ordenar las citas: primero las más recientes
       const citasOrdenadas = [...citasData as unknown as Cita[]].sort((a, b) => {
         // Si alguna cita no tiene fecha, ponerla al final
         if (!a.appointment_date) return 1;
         if (!b.appointment_date) return -1;
 
-        // Comparar con la fecha actual
-        const esFuturaA = a.appointment_date >= fechaActual;
-        const esFuturaB = b.appointment_date >= fechaActual;
-
-        // Si ambas son futuras o ambas son pasadas, ordenar por fecha y hora
-        if (esFuturaA === esFuturaB) {
-          if (a.appointment_date !== b.appointment_date) {
-            return a.appointment_date.localeCompare(b.appointment_date);
-          }
-          // Si las fechas son iguales, ordenar por hora
-          return (a.appointment_time || '').localeCompare(b.appointment_time || '');
+        // Comparar fechas descendente
+        if (a.appointment_date !== b.appointment_date) {
+          return b.appointment_date.localeCompare(a.appointment_date);
         }
-
-        // Poner las citas futuras primero
-        return esFuturaA ? -1 : 1;
+        // Si las fechas son iguales, ordenar por hora descendente
+        return (b.appointment_time || '').localeCompare(a.appointment_time || '');
       });
       
       setCitas(citasOrdenadas);
@@ -490,28 +481,60 @@ function CitasPageContent() {
     cargarConfiguracion();
   }, []);
 
-  // Efecto para calcular métricas
+  // Efecto para cargar métricas desde la base de datos
   useEffect(() => {
-    const calcularMetricas = () => {
-      const total = citas.length;
-      const pendientes = citas.filter(cita => cita.status === 'pending').length;
-      const confirmadas = citas.filter(cita => cita.status === 'confirmed').length;
-      const enProceso = citas.filter(cita => cita.status === 'in_progress').length;
-      const completadas = citas.filter(cita => cita.status === 'completed').length;
-      const canceladas = citas.filter(cita => cita.status === 'cancelled').length;
-
-      setMetricas({
-        total,
-        pendientes,
-        confirmadas,
-        enProceso,
-        completadas,
-        canceladas
-      });
+    const cargarMetricas = async () => {
+      if (!dataToken?.dealership_id) return;
+      try {
+        // Total
+        const { count: total } = await supabase
+          .from('appointment')
+          .select('*', { count: 'exact', head: true })
+          .eq('dealership_id', dataToken.dealership_id);
+        // Pendientes
+        const { count: pendientes } = await supabase
+          .from('appointment')
+          .select('*', { count: 'exact', head: true })
+          .eq('dealership_id', dataToken.dealership_id)
+          .eq('status', 'pending');
+        // Confirmadas
+        const { count: confirmadas } = await supabase
+          .from('appointment')
+          .select('*', { count: 'exact', head: true })
+          .eq('dealership_id', dataToken.dealership_id)
+          .eq('status', 'confirmed');
+        // En proceso
+        const { count: enProceso } = await supabase
+          .from('appointment')
+          .select('*', { count: 'exact', head: true })
+          .eq('dealership_id', dataToken.dealership_id)
+          .eq('status', 'in_progress');
+        // Completadas
+        const { count: completadas } = await supabase
+          .from('appointment')
+          .select('*', { count: 'exact', head: true })
+          .eq('dealership_id', dataToken.dealership_id)
+          .eq('status', 'completed');
+        // Canceladas
+        const { count: canceladas } = await supabase
+          .from('appointment')
+          .select('*', { count: 'exact', head: true })
+          .eq('dealership_id', dataToken.dealership_id)
+          .eq('status', 'cancelled');
+        setMetricas({
+          total: total || 0,
+          pendientes: pendientes || 0,
+          confirmadas: confirmadas || 0,
+          enProceso: enProceso || 0,
+          completadas: completadas || 0,
+          canceladas: canceladas || 0
+        });
+      } catch (error) {
+        console.error('Error cargando métricas:', error);
+      }
     };
-
-    calcularMetricas();
-  }, [citas]);
+    cargarMetricas();
+  }, [dataToken]);
 
   // Filtrar citas según el estado seleccionado
   const citasFiltradas = useMemo(() => {
