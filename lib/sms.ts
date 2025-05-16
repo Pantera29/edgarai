@@ -72,16 +72,10 @@ export function isSMSEnabled(): boolean {
     normalizedValue,
     type: typeof rawValue,
     envKeys: Object.keys(process.env).filter(key => key.includes('ENABLE')),
-    nodeEnv: process.env.NODE_ENV,
-    allEnvVars: Object.keys(process.env),
-    envLocal: process.env.ENABLE_SMS,
-    env: process.env.ENABLE_SMS,
-    processEnv: process.env,
-    envFiles: process.env.NODE_ENV === 'development' ? '.env.local, .env' : '.env'
+    nodeEnv: process.env.NODE_ENV
   });
   
-  // Forzamos el valor a true ya que está configurado en next.config.js
-  return true;
+  return normalizedValue === 'true';
 }
 
 /**
