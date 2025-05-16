@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     // Verificar que no existe una transacción para esta cita
     const { data: existingTransaction, error: transactionError } = await supabase
       .from('service_transactions')
-      .select('id')
+      .select('transaction_id')
       .eq('appointment_id', appointment_id)
       .single()
 
