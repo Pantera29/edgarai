@@ -65,7 +65,7 @@ export async function POST(request: Request) {
 
     // Verificar que la cita existe y está completada
     const { data: appointment, error: appointmentError } = await supabase
-      .from('appointments')
+      .from('appointment')
       .select(`
         *,
         vehicles (
