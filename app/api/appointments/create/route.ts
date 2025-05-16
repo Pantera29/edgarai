@@ -198,6 +198,21 @@ export async function POST(request: Request) {
 
     // 6. Enviar SMS de confirmación
     try {
+      // Verificar si los SMS están habilitados
+      const smsEnabled = process.env.ENABLE_SMS === 'true';
+      console.log('Estado de SMS en API de citas:', { 
+        enabled: smsEnabled, 
+        envValue: process.env.ENABLE_SMS 
+      });
+
+      if (!smsEnabled) {
+        console.log('SMS deshabilitados - no se enviará el mensaje');
+        return NextResponse.json(
+          { message: 'Appointment created successfully', appointment: newAppointment },
+          { status: 201 }
+        );
+      }
+
       // Validar número de teléfono
       const formattedPhone = formatPhoneNumber(newAppointment.client.phone_number);
       if (!formattedPhone.startsWith('+52')) {
