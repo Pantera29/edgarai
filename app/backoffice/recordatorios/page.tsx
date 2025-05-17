@@ -315,10 +315,8 @@ export default function RecordatoriosPage() {
       const fechaFiltro = format(date ?? selectedDate!, 'yyyy-MM-dd');
       filtered = filtered.filter(r => r.reminder_date.startsWith(fechaFiltro));
     }
-    
-    // Ordenar por fecha de recordatorio (más reciente primero)
-    filtered.sort((a, b) => new Date(b.reminder_date).getTime() - new Date(a.reminder_date).getTime());
-    
+    // Ordenar por fecha de recordatorio de más próxima a más lejana (ascendente)
+    filtered.sort((a, b) => new Date(a.reminder_date).getTime() - new Date(b.reminder_date).getTime());
     setFilteredRecordatorios(filtered);
     setCurrentPage(1); // Resetear a la primera página cuando se aplica un filtro
   };
