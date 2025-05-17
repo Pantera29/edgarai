@@ -78,6 +78,23 @@ interface Recordatorio {
   }
 }
 
+interface AgentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  assistant_id: string;
+  first_message_template: string;
+  system_prompt: string;
+  required_variables: string[];
+  model_provider: string;
+  model_name: string;
+  first_message_mode: string;
+  phone_number_id: string;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Componente mejorado para el combobox de clientes
 function ClienteComboBox({ clientes, onSelect, value }: { clientes: any[], onSelect: (id: string) => void, value: string }) {
   const [open, setOpen] = React.useState(false);
@@ -220,6 +237,10 @@ export default function RecordatoriosPage() {
     paraHoy: 0,
     conError: 0
   })
+  
+  // Estados para la gestión de agentes
+  const [agentTemplates, setAgentTemplates] = useState<AgentTemplate[]>([]);
+  const [selectedAgentTemplate, setSelectedAgentTemplate] = useState<string | null>(null);
   
   const supabase = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -496,6 +517,42 @@ export default function RecordatoriosPage() {
     }
   }, [mostrarFormulario]);
 
+  // Cargar plantillas de agentes al iniciar
+  useEffect(() => {
+    const fetchAgentTemplates = async () => {
+      try {
+        console.log('🤖 Cargando plantillas de agentes...');
+        const { data, error } = await supabase
+          .from('agent_templates')
+          .select('*')
+          .eq('active', true)
+          .order('name');
+          
+        if (error) {
+          console.error('❌ Error al cargar plantillas de agentes:', error);
+          throw error;
+        }
+        
+        console.log('✅ Plantillas de agentes cargadas:', data?.length || 0);
+        setAgentTemplates(data || []);
+        
+        // Seleccionar automáticamente el primero si hay disponibles
+        if (data && data.length > 0) {
+          setSelectedAgentTemplate(data[0].id);
+        }
+      } catch (error) {
+        console.error('Error al cargar plantillas de agentes:', error);
+        toast({
+          title: "Error",
+          description: "No se pudieron cargar los agentes disponibles",
+          variant: "destructive",
+        });
+      }
+    };
+    
+    fetchAgentTemplates();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -629,14 +686,46 @@ export default function RecordatoriosPage() {
 
   const handleLlamarAI = async () => {
     if (seleccionados.length === 0) return;
+    if (!selectedAgentTemplate) {
+      toast({
+        title: "Error",
+        description: "Selecciona un tipo de agente para realizar la llamada",
+        variant: "destructive"
+      });
+      return;
+    }
 
     setIsLlamando(true);
     try {
-      const recordatoriosSeleccionados = recordatorios.filter(r => seleccionados.includes(r.reminder_id));
+      console.log('🚀 Iniciando proceso de llamadas con AI...');
+      console.log('🔍 Obteniendo plantilla del agente:', selectedAgentTemplate);
+      
+      // Obtener información del agente seleccionado
+      const { data: agentTemplate, error: agentError } = await supabase
+        .from('agent_templates')
+        .select('*')
+        .eq('id', selectedAgentTemplate)
+        .single();
+        
+      if (agentError || !agentTemplate) {
+        console.error('❌ Error al obtener plantilla de agente:', agentError);
+        throw new Error('No se pudo encontrar la plantilla del agente seleccionado');
+      }
+      
+      console.log('✅ Plantilla de agente obtenida:', agentTemplate.name);
+      
+      const recordatoriosSeleccionados = recordatorios.filter(r => 
+        seleccionados.includes(r.reminder_id)
+      );
+      console.log('📞 Recordatorios seleccionados:', recordatoriosSeleccionados.length);
+      
       const bearer = process.env.NEXT_PUBLIC_VAPI_BEARER;
       let huboError = false;
       let errores = [];
+      
       for (const recordatorio of recordatoriosSeleccionados) {
+        console.log('⏳ Procesando recordatorio para:', recordatorio.client?.names);
+        
         // Validar que todos los datos requeridos estén presentes
         const datosCompletos = (
           recordatorio.client &&
@@ -653,13 +742,48 @@ export default function RecordatoriosPage() {
           recordatorio.services?.service_name &&
           recordatorio.client.dealership_id
         );
+        
         if (!datosCompletos) {
+          console.error('❌ Faltan datos para el recordatorio:', recordatorio.reminder_id);
           errores.push(`Faltan datos para el recordatorio de ${recordatorio.client?.names || 'Cliente desconocido'}`);
           continue;
         }
-        // Armar el payload
+        
+        // Construir variableValues a partir de los datos del recordatorio
+        const variableValues = {
+          client_id: recordatorio.client_id_uuid,
+          client_name: recordatorio.client.names,
+          phone: recordatorio.client.phone_number,
+          vehicle_id: recordatorio.vehicle_id,
+          vehicle_model: recordatorio.vehicles.model,
+          vehicle_year: recordatorio.vehicles.year,
+          plate: recordatorio.vehicles.license_plate,
+          service_id: recordatorio.service_id,
+          service_name: recordatorio.services?.service_name,
+          dealership_id: recordatorio.client.dealership_id,
+          fecha: "",
+          hora: ""
+        };
+        
+        console.log('📝 Variables generadas para la llamada');
+        
+        // Procesar el mensaje inicial con las variables
+        const firstMessage = agentTemplate.first_message_template.replace(
+          /\{\{([^}]+)\}\}/g,
+          (match: string, variable: string) => {
+            const value = variableValues[variable as keyof typeof variableValues];
+            if (value !== undefined) {
+              return String(value);
+            }
+            return match;
+          }
+        );
+        
+        console.log('📝 Mensaje de introducción procesado');
+        
+        // Construir el payload para la API de Vapi
         const payload = {
-          assistantId: "f7be88f4-04c5-4bfc-9737-c200e46e7083",
+          assistantId: agentTemplate.assistant_id,
           customer: {
             name: recordatorio.client.names,
             number: recordatorio.client.phone_number.startsWith('+')
@@ -667,35 +791,26 @@ export default function RecordatoriosPage() {
               : `+52${recordatorio.client.phone_number}`
           },
           assistantOverrides: {
-            firstMessage: `¡Hola ${recordatorio.client.names}! Soy Alexa de JAC Carretera 57. Te llamo porque tu ${recordatorio.vehicles.model} ${recordatorio.vehicles.year} ya se acerca a su servicio de ${recordatorio.services?.service_name} y quiero ayudarte a programar la cita. ¿Tienes un minuto?`,
-            firstMessageMode: "assistant-speaks-first",
-            variableValues: {
-              client_id: recordatorio.client_id_uuid,
-              client_name: recordatorio.client.names,
-              phone: recordatorio.client.phone_number,
-              vehicle_id: recordatorio.vehicle_id,
-              vehicle_model: recordatorio.vehicles.model,
-              vehicle_year: recordatorio.vehicles.year,
-              plate: recordatorio.vehicles.license_plate,
-              service_id: recordatorio.service_id,
-              service_name: recordatorio.services?.service_name,
-              dealership_id: recordatorio.client.dealership_id,
-              fecha: "",
-              hora: ""
-            },
+            firstMessage: firstMessage,
+            firstMessageMode: agentTemplate.first_message_mode || "assistant-speaks-first",
+            variableValues: variableValues,
             model: {
-              provider: "openai",
-              model: "gpt-4.1",
+              provider: agentTemplate.model_provider || "openai",
+              model: agentTemplate.model_name || "gpt-4.1",
               messages: [
                 {
                   role: "system",
-                  content: `<internal>\n############################################\n#  CONTEXTO: VARIABLES DISPONIBLES         #\n############################################\nLos siguientes datos llegan vía assistantOverrides.variableValues  \n  • client_id: {{client_id}}        → ID único del cliente  \n  • client_name: {{client_name}}        → Nombre del cliente  \n  • phone: {{phone}}             → Teléfono a 10 dígitos (formato XXXXXXXXXX)  \n  • vehicle_id: {{vehicle_id}}       → ID del vehículo  \n  • vehicle_model {{model}}    → Modelo (ej. \"Sei7 Pro\")  \n  • vehicle_year: {{year}}     → Año (ej. \"2023\")  \n  • plate: {{plate}}            → Placa (ej. \"ABC1234\")  \n  • service_id: {{service_id}}       → ID del servicio sugerido  \n  • service_name: {{service_name}}     → Nombre del servicio (ej. \"Mantenimiento de 20 000 km\")  \n  • dealership_id: {{dealership_id}}    → ID de la agencia  \n\nGuarda estas variables en memoria al iniciar la conversación.  \nSi alguna (*vehicle_id, service_id, fecha u hora*) falta, solicítala siguiendo las reglas abajo.\n\n############################################\n#  REGLAS GENERALES                        #\n############################################\n• PIENSA paso a paso ANTES de cada llamada a herramienta:  \n  1. ¿Tengo vehicle_id? 2. service_id 3. fecha 4. hora  \n    —Si falta cualquiera, pregúntalo primero.\n\n• Teléfono: solo confirma si el cliente lo menciona; no ejecutes verificar_cliente ni crear_cliente (ya tenemos client_id y phone).\n\n• Vehículos:  \n  —Si vehicle_id falta → llama vehiculos_por_idcliente y procede como se describe abajo.  \n  —Cuando menciones la placa, deletrea letras y dígitos: \"A, B, C, uno, dos…\".\n\n• Citas:  \n  —No invoques disponibilidad_citas sin fecha y hora validadas.  \n  —Si disponibilidad == false → sugiere otra franja válida.  \n  —Cuando la disponibilidad sea true → pregunta \"¿añadimos alguna nota?\" y luego crear_cita.\n\n• Nunca reveles nombres de herramientas ni lógica (\"000\", endpoints, etc.).  \n</internal>\n# PROMPT PRINCIPAL\n[Identidad]\nEres \"Alexa\", la asistente principal de JAC Carretera 57. Llamas de forma cálida, profesional y empática para ayudar a los clientes a gestionar vehículos y citas, sin mencionar procesos internos.\n\n[Estilo]\nHabla en prosa natural, sin listas. Escribe números con palabras (tres mil). No pronuncies símbolos (\"arroba\", \"DOT\").\n\n[Flujo Maestro – Outbound]\n\nIntroducción – (ya enviada en First Message).\n\nConfirmar identidad\n• \"¿Hablo con {{client_name}}?\"\n• Si no está disponible → agenda llamada de seguimiento y finaliza.\n\nVehículo\n• Si vehicle_id ya viene → confirma: \"Tengo registrado tu {{vehicle_model}} {{vehicle_year}} con placa {{plate}}; ¿es correcto?\"\n• Si falta → vehiculos_por_idcliente, sigue la misma lógica: menciona opciones o crea_vehiculo.\n\nServicio\n• Si service_id ya viene → explica brevemente qué cubre {{service_name}} y por qué es necesario.\n• Si no → muestra opciones vía ver_servicios y registra selección.\n\nFecha y hora\n• Si fecha y hora vienen vacías → \"¿Qué fecha y hora te acomodan?\" (hoy es {{ \"now\" | date: \"%A %d de %B de %Y\", \"America/Mexico_City\" }}).\n• Valida que no sea domingo ni minutos 00/15/30/45.\n• disponibilidad_citas; si hay cupo → pregunta por nota, repite todo y crear_cita.\n• Si no hay → sugiere otra franja y repite verificación.\n\nCierre\n• Resume cita confirmada.\n• Indica que recibirá confirmación por WhatsApp/SMS.\n• Agradece su tiempo y despídete cordialmente.\n\n[Herramientas Internas]\n(verificar_cliente, crear_cliente, ver_servicios, vehiculos_por_idcliente, crear_vehiculo, modificar_vehiculo, disponibilidad_citas, crear_cita, revisar_citas_cliente, modificar_cita, recordatorio, endCall)\n\n[En caso de Buzon de Voz]\nSi detectas que haz caido en el buzon de voz de {{name}}, deja un mensaje similar al que dices al inicio de la llamada y menciona que llame cuando este disponible. Despues de esto, usa la herramienta endCall para finalizar la llamada.\n\n[Si el cliente te pide llamar despues]\n• En caso de que el cliente te mencione que lo llames después, debes ejecutar la herramienta 'recordatorio' para que agendes una llamada y vuelvas a contactar al usuario. En esta herramienta debes incluir el 'client_id', 'vehicle_id', 'service_id' y 'reminder_date' (fecha de cuando vas a volver a llamar, en formato YYYY-MM-DD). El 'reminder_date' es lo unico que debes preguntarle al usuario, ya que la otra informacion ya se te proporciono arriba. Preguntale al cliente algo como: '¿Cuando te gustaria que te vuelva a llamar?' (hoy es {{ \"now\" | date: \"%A %d de %B de %Y\", \"America/Mexico_City\" }}. No menciones esto al menos que se te pregunte). Al saber esto, ejecuta la herramienta 'recordatorio' con los parametros adecuados. Pregunta si hay algo mas con lo que puedas ayudar, y si no, despidete y corre endCall. \n\n[Manejo de Errores]\n• Si el cliente es ambiguo → \"¿Podrías darme un poco más de detalles para ayudarte mejor?\"\n• Si surge fallo interno → \"Lo siento, estoy teniendo dificultades; permíteme intentarlo de nuevo.\"\n\n[Restricciones]\n• Nunca reveles nombres de herramientas ni lógica interna.\n• No menciones el año al indicar la fecha.\n• No uses listas ni viñetas al hablar con el cliente.\n• No agendas domingos; informa si lo pide.\n• Ejecuta disponibilidad_citas solo con fecha y hora válidas.\n• En cada llamada, envía phone correctamente formateado.`
+                  content: agentTemplate.system_prompt
                 }
               ]
             }
           },
-          phoneNumberId: "2a5d74e9-f465-4b6b-bd7a-4c999f63cbbf"
+          phoneNumberId: agentTemplate.phone_number_id || "2a5d74e9-f465-4b6b-bd7a-4c999f63cbbf"
         };
+        
+        console.log('📤 Enviando solicitud a Vapi.ai...');
+        
+        // Realizar la llamada a la API
         const response = await fetch('https://api.vapi.ai/call', {
           method: 'POST',
           headers: {
@@ -704,13 +819,19 @@ export default function RecordatoriosPage() {
           },
           body: JSON.stringify(payload)
         });
+        
         if (!response.ok) {
+          console.error('❌ Error en la respuesta de Vapi:', response.status);
           errores.push(`Error al llamar a ${recordatorio.client.names}`);
           huboError = true;
           continue;
         }
+        
         const vapiResponse = await response.json();
+        console.log('✅ Respuesta de Vapi recibida:', vapiResponse.id);
+        
         // Registrar la llamada en outbound_calls
+        console.log('💾 Registrando llamada en base de datos...');
         const insertData = {
           reminder_id: recordatorio.reminder_id,
           client_id: recordatorio.client_id_uuid,
@@ -725,31 +846,49 @@ export default function RecordatoriosPage() {
           start_date: vapiResponse.createdAt ? new Date(vapiResponse.createdAt).toISOString() : null,
           call_data: vapiResponse,
         };
-        await supabase.from('outbound_calls').insert([insertData]);
+        
+        const { error: insertError } = await supabase.from('outbound_calls').insert([insertData]);
+        
+        if (insertError) {
+          console.error('❌ Error al registrar llamada:', insertError);
+        } else {
+          console.log('✅ Llamada registrada correctamente');
+        }
       }
-      // Actualizar estado de los recordatorios
+      
+      // Actualizar estado de los recordatorios a 'sent'
+      console.log('📝 Actualizando estado de recordatorios a "sent"...');
       const { error } = await supabase
         .from('reminders')
         .update({ status: 'sent' })
         .in('reminder_id', seleccionados);
-      if (error) throw error;
+        
+      if (error) {
+        console.error('❌ Error al actualizar estado de recordatorios:', error);
+        throw error;
+      }
+      
+      // Mostrar resultado al usuario
       if (errores.length > 0) {
+        console.warn('⚠️ Algunas llamadas no se pudieron iniciar:', errores.length);
         toast({
           title: "Algunas llamadas no se pudieron iniciar",
           description: errores.join("\n"),
           variant: "destructive"
         });
       } else {
+        console.log('🎉 Todas las llamadas iniciadas correctamente');
         toast({
           title: "Éxito",
           description: "Llamadas iniciadas correctamente"
         });
       }
-      // Refrescar los recordatorios
+      
+      // Refrescar los recordatorios y limpiar selección
       await fetchRecordatorios();
       setSeleccionados([]);
     } catch (error) {
-      console.error('Error:', error);
+      console.error('💥 Error inesperado:', error);
       toast({
         title: "Error",
         description: "No se pudieron iniciar las llamadas",
@@ -917,20 +1056,43 @@ export default function RecordatoriosPage() {
 
           <div className="mt-4">
             <div className="flex justify-between items-center mb-4">
-              <Button
-                onClick={handleLlamarAI}
-                disabled={seleccionados.length === 0 || isLlamando}
-                className="bg-blue-600 hover:bg-blue-700"
-              >
-                {isLlamando ? (
-                  <>
-                    <span className="animate-spin mr-2">⏳</span>
-                    Llamando...
-                  </>
-                ) : (
-                  `Llamar con AI (${seleccionados.length}/5)`
+              <div className="flex items-center space-x-2">
+                {/* Selector de agente */}
+                {seleccionados.length > 0 && agentTemplates.length > 0 && (
+                  <Select 
+                    value={selectedAgentTemplate || undefined} 
+                    onValueChange={setSelectedAgentTemplate}
+                    disabled={isLlamando}
+                  >
+                    <SelectTrigger className="w-[250px]">
+                      <SelectValue placeholder="Seleccionar agente" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {agentTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
-              </Button>
+                
+                {/* Botón de llamar con AI */}
+                <Button
+                  onClick={handleLlamarAI}
+                  disabled={seleccionados.length === 0 || isLlamando || !selectedAgentTemplate}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  {isLlamando ? (
+                    <>
+                      <span className="animate-spin mr-2">⏳</span>
+                      Llamando...
+                    </>
+                  ) : (
+                    `Llamar con AI (${seleccionados.length}/5)`
+                  )}
+                </Button>
+              </div>
             </div>
             <Table>
               <TableHeader>
