@@ -212,6 +212,8 @@ export default function RecordatoriosPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [currentTab, setCurrentTab] = useState<string>("todos")
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(50)
   const [stats, setStats] = useState({
     pendientes: 0,
     enviados: 0,
@@ -279,14 +281,20 @@ export default function RecordatoriosPage() {
   }
 
   const updateStats = (data: Recordatorio[]) => {
-    const today = new Date().toISOString().split('T')[0]
-    
+    const today = new Date();
+    const todayString = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+
+    const recordatoriosParaHoy = data.filter(r => {
+      if (!r.reminder_date) return false;
+      return r.reminder_date.slice(0, 10) === todayString;
+    });
+
     setStats({
       pendientes: data.filter(r => r.status === 'pending').length,
       enviados: data.filter(r => r.status === 'sent').length,
-      paraHoy: data.filter(r => r.reminder_date.startsWith(today)).length,
+      paraHoy: recordatoriosParaHoy.length,
       conError: data.filter(r => r.status === 'error').length
-    })
+    });
   }
 
   const filterRecordatorios = (estado: string, date?: Date, search?: string) => {
@@ -307,7 +315,23 @@ export default function RecordatoriosPage() {
       const fechaFiltro = format(date ?? selectedDate!, 'yyyy-MM-dd');
       filtered = filtered.filter(r => r.reminder_date.startsWith(fechaFiltro));
     }
+    
+    // Ordenar por fecha de recordatorio (más reciente primero)
+    filtered.sort((a, b) => new Date(b.reminder_date).getTime() - new Date(a.reminder_date).getTime());
+    
     setFilteredRecordatorios(filtered);
+    setCurrentPage(1); // Resetear a la primera página cuando se aplica un filtro
+  };
+
+  // Calcular los índices para la paginación
+  const indexOfLastItem = currentPage * itemsPerPage;
+  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+  const currentItems = filteredRecordatorios.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(filteredRecordatorios.length / itemsPerPage);
+
+  // Función para cambiar de página
+  const handlePageChange = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
   };
 
   // Efecto reactivo para filtrar automáticamente
@@ -915,18 +939,18 @@ export default function RecordatoriosPage() {
                 <TableRow>
                   <TableHead className="w-[50px]">
                     <Checkbox
-                      checked={seleccionados.length === filteredRecordatorios.length && filteredRecordatorios.length > 0}
+                      checked={seleccionados.length === currentItems.length && currentItems.length > 0}
                       onCheckedChange={() => {
-                        if (seleccionados.length === filteredRecordatorios.length) {
+                        if (seleccionados.length === currentItems.length) {
                           setSeleccionados([]);
                         } else {
-                          const nuevosSeleccionados = filteredRecordatorios
+                          const nuevosSeleccionados = currentItems
                             .slice(0, 5)
                             .map(r => r.reminder_id);
                           setSeleccionados(nuevosSeleccionados);
                         }
                       }}
-                      disabled={filteredRecordatorios.length === 0}
+                      disabled={currentItems.length === 0}
                     />
                   </TableHead>
                   <TableHead>Cliente</TableHead>
@@ -939,7 +963,7 @@ export default function RecordatoriosPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredRecordatorios.map((recordatorio) => (
+                {currentItems.map((recordatorio) => (
                   <TableRow key={recordatorio.reminder_id}>
                     <TableCell>
                       <Checkbox
@@ -1011,6 +1035,58 @@ export default function RecordatoriosPage() {
                 ))}
               </TableBody>
             </Table>
+
+            {/* Paginación */}
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm text-gray-500">
+                Mostrando {indexOfFirstItem + 1} a {Math.min(indexOfLastItem, filteredRecordatorios.length)} de {filteredRecordatorios.length} recordatorios
+              </div>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                >
+                  Anterior
+                </Button>
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    const pageNumber = i + 1;
+                    return (
+                      <Button
+                        key={pageNumber}
+                        variant={currentPage === pageNumber ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => handlePageChange(pageNumber)}
+                      >
+                        {pageNumber}
+                      </Button>
+                    );
+                  })}
+                  {totalPages > 5 && (
+                    <>
+                      <span className="px-2">...</span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePageChange(totalPages)}
+                      >
+                        {totalPages}
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
           </div>
         </Tabs>
       </div>
