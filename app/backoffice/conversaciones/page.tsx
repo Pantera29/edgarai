@@ -270,7 +270,7 @@ export default function ConversacionesPage() {
     switch (channel) {
       case 'phone':
         return <Phone className="h-4 w-4 mr-1 text-blue-500" />;
-      case 'chat':
+      case 'whatsapp':
       default:
         return <MessageSquare className="h-4 w-4 mr-1 text-green-500" />;
     }
