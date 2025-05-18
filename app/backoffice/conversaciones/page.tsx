@@ -427,7 +427,7 @@ export default function ConversacionesPage() {
 
   const formatearNombreCanal = (canal: string) => {
     switch (canal) {
-      case 'chat': return 'WhatsApp';
+      case 'whatsapp': return 'WhatsApp';
       case 'phone': return 'Teléfono';
       default: return 'Otro';
     }
