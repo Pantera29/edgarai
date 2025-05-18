@@ -59,6 +59,13 @@ interface Recordatorio {
   notes: string
   created_at: string
   updated_at: string
+  appointment_date?: string
+  appointment_time?: string
+  agent_parameters?: {
+    fecha?: string
+    hora?: string
+    data_missing?: string
+  }
   client: {
     names: string
     email: string
@@ -70,6 +77,8 @@ interface Recordatorio {
     model: string
     year: number
     license_plate: string
+    vin?: string
+    last_km?: number
   }
   services?: {
     service_name: string
@@ -748,6 +757,36 @@ export default function RecordatoriosPage() {
           errores.push(`Faltan datos para el recordatorio de ${recordatorio.client?.names || 'Cliente desconocido'}`);
           continue;
         }
+
+        // NUEVO: Verificar qué campos están vacíos y generar data_missing
+        const camposFaltantes = [];
+        
+        // Verifica si falta VIN
+        if (!recordatorio.vehicles.vin || recordatorio.vehicles.vin.trim() === '') {
+          camposFaltantes.push('vin');
+        }
+        
+        // Verifica si falta kilometraje
+        if (!recordatorio.vehicles.last_km && recordatorio.vehicles.last_km !== 0) {
+          camposFaltantes.push('vehicle_km');
+        }
+        
+        // Verifica si falta placa
+        if (!recordatorio.vehicles.license_plate || recordatorio.vehicles.license_plate.trim() === '') {
+          camposFaltantes.push('plate');
+        }
+        
+        // Solo para el Agente de Recopilación: verificar si hay campos que recopilar
+        if (agentTemplate.name === 'Agente de Recopilación de Información' && 
+            camposFaltantes.length === 0) {
+          console.log('⚠️ No hay información faltante para este vehículo, saltando...');
+          errores.push(`No hay información faltante para el vehículo de ${recordatorio.client.names}`);
+          continue;  // Saltar este recordatorio
+        }
+        
+        // Generar el string data_missing
+        const dataMissing = camposFaltantes.join(',');
+        console.log('📋 Campos faltantes detectados:', dataMissing);
         
         // Construir variableValues a partir de los datos del recordatorio
         const variableValues = {
@@ -755,17 +794,31 @@ export default function RecordatoriosPage() {
           client_name: recordatorio.client.names,
           phone: recordatorio.client.phone_number,
           vehicle_id: recordatorio.vehicle_id,
+          vehicle_make: recordatorio.vehicles.make || "Vehículo",
           vehicle_model: recordatorio.vehicles.model,
           vehicle_year: recordatorio.vehicles.year,
-          plate: recordatorio.vehicles.license_plate,
+          vehicle_km: recordatorio.vehicles.last_km?.toString() || "",
+          plate: recordatorio.vehicles.license_plate || "",
+          vin: recordatorio.vehicles.vin || "",
           service_id: recordatorio.service_id,
           service_name: recordatorio.services?.service_name,
           dealership_id: recordatorio.client.dealership_id,
-          fecha: "",
-          hora: ""
+          data_missing: dataMissing,
+          appointment_date: recordatorio.appointment_date || recordatorio.agent_parameters?.fecha || "",
+          appointment_time: recordatorio.appointment_time || recordatorio.agent_parameters?.hora || ""
         };
+
+        // Si hay agent_parameters con data_missing, usar ese valor
+        if (recordatorio.agent_parameters?.data_missing) {
+          variableValues.data_missing = recordatorio.agent_parameters.data_missing;
+        }
         
-        console.log('📝 Variables generadas para la llamada');
+        console.log('💡 Variables para el agente:', {
+          clientName: recordatorio.client.names,
+          vehicleModel: recordatorio.vehicles.model,
+          camposFaltantes,
+          dataMissing
+        });
         
         // Procesar el mensaje inicial con las variables
         const firstMessage = agentTemplate.first_message_template.replace(
