@@ -43,6 +43,7 @@ import {
   AreaChart,
   Area
 } from 'recharts';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface ConversacionItem {
   id: string;
@@ -51,6 +52,7 @@ interface ConversacionItem {
     names: string;
     phone_number: string;
     email: string;
+    agent_active: boolean;
   } | null;
   updated_at: string;
   status: 'active' | 'closed' | 'pending';
@@ -106,6 +108,8 @@ export default function ConversacionesPage() {
     'Teléfono': true
   });
 
+  const [tabActiva, setTabActiva] = useState<'agente' | 'humano'>('agente');
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -140,23 +144,34 @@ export default function ConversacionesPage() {
       cargarConversaciones();
       cargarMetricas();
     }
-  }, [dataToken, busqueda, filtroEstado, filtroFecha, filtroCanal, pagina]);
+  }, [dataToken, busqueda, filtroEstado, filtroFecha, filtroCanal, pagina, tabActiva]);
 
   const cargarConversaciones = async () => {
     setLoading(true);
     try {
+      console.log(`Cargando conversaciones para pestaña: ${tabActiva}`);
+      
       let query = supabase
         .from("chat_conversations")
         .select(`
           *,
-          client(names, email, phone_number, dealership_id)
+          client(names, email, phone_number, dealership_id, agent_active)
         `, { count: "exact" })
-        .order("updated_at", { ascending: false })
-        .range((pagina - 1) * ITEMS_PER_PAGE, pagina * ITEMS_PER_PAGE - 1);
+        .order("updated_at", { ascending: false });
 
       // Filtrar por dealership_id si está disponible en el token
       if (dataToken?.dealership_id) {
         query = query.eq("dealership_id", dataToken.dealership_id);
+        console.log(`Filtrando por dealership_id: ${dataToken.dealership_id}`);
+      }
+
+      // Filtrar por estado del agente según la pestaña activa
+      if (tabActiva === 'agente') {
+        query = query.eq('client.agent_active', true);
+        console.log('Filtrando conversaciones con agent_active = true');
+      } else {
+        query = query.eq('client.agent_active', false);
+        console.log('Filtrando conversaciones con agent_active = false');
       }
 
       // Aplicar filtros
@@ -164,15 +179,18 @@ export default function ConversacionesPage() {
         query = query.or(
           `user_identifier.ilike.%${busqueda}%,client.names.ilike.%${busqueda}%,client.phone_number.ilike.%${busqueda}%`
         );
+        console.log(`Aplicando búsqueda: ${busqueda}`);
       }
 
       if (filtroEstado !== "todos") {
         query = query.eq("status", filtroEstado);
+        console.log(`Filtrando por estado: ${filtroEstado}`);
       }
       
       // Filtro por canal
       if (filtroCanal !== "todos") {
         query = query.eq("channel", filtroCanal);
+        console.log(`Filtrando por canal: ${filtroCanal}`);
       }
 
       // Filtrar por fecha
@@ -200,14 +218,24 @@ export default function ConversacionesPage() {
 
       if (fechaDesde) {
         query = query.gte("updated_at", fechaDesde.toISOString());
+        console.log(`Filtrando por fecha desde: ${fechaDesde.toISOString()}`);
       }
+
+      // Aplicar la paginación
+      query = query.range((pagina - 1) * ITEMS_PER_PAGE, pagina * ITEMS_PER_PAGE - 1);
 
       const { data, count, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error en la consulta:", error);
+        throw error;
+      }
+
+      console.log(`Total de conversaciones encontradas: ${count}`);
+      console.log("Datos de las conversaciones:", data);
 
       // Obtener conteo de mensajes para cada conversación
-      const conversacionesConConteo = await Promise.all(
+      let conversacionesConConteo = await Promise.all(
         (data || []).map(async (conv) => {
           try {
             // Extraer mensajes del campo JSONB de la conversación
@@ -215,6 +243,18 @@ export default function ConversacionesPage() {
             
             const userCount = mensajes.filter((m: any) => m.role === "user").length;
             const assistantCount = mensajes.filter((m: any) => m.role === "assistant").length;
+
+            // Log para cada conversación
+            console.log(`Conversación ${conv.id}:`, {
+              user_identifier: conv.user_identifier,
+              client: conv.client ? {
+                names: conv.client.names,
+                agent_active: conv.client.agent_active,
+                dealership_id: conv.client.dealership_id
+              } : 'Sin cliente asociado',
+              status: conv.status,
+              channel: conv.channel
+            });
 
             return {
               ...conv,
@@ -231,6 +271,13 @@ export default function ConversacionesPage() {
           }
         })
       );
+
+      // FILTRO EXTRA: Solo mostrar conversaciones con cliente asociado y agent_active = false en la pestaña de humano
+      if (tabActiva === 'humano') {
+        conversacionesConConteo = conversacionesConConteo.filter(
+          (conv) => conv.client && conv.client.agent_active === false && conv.client.dealership_id === dataToken.dealership_id
+        );
+      }
 
       setConversaciones(conversacionesConConteo);
       setTotalConversaciones(count || 0);
@@ -773,73 +820,150 @@ export default function ConversacionesPage() {
         </div>
       </Card>
 
-      <div className="border rounded-md overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Canal</TableHead>
-              <TableHead>Identificador</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Última actividad</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead>Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-10">
-                  Cargando conversaciones...
-                </TableCell>
-              </TableRow>
-            ) : conversaciones.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-10">
-                  No se encontraron conversaciones
-                </TableCell>
-              </TableRow>
-            ) : (
-              conversaciones.map((conversacion) => (
-                <TableRow key={conversacion.id}>
-                  <TableCell className="w-10">
-                    {getCanalIcon(conversacion.channel)}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {conversacion.user_identifier}
-                  </TableCell>
-                  <TableCell>
-                    {conversacion.client ? (
-                      <div>
-                        <div className="font-semibold">{conversacion.client.names}</div>
-                        <div className="text-sm text-muted-foreground">{conversacion.client.phone_number}</div>
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">Sin cliente asociado</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {formatDate(conversacion.updated_at)}
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(conversacion.status)}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => verDetalle(conversacion.id)}
-                      className="flex items-center gap-1"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Ver detalles
-                    </Button>
-                  </TableCell>
+      <Tabs defaultValue="agente" value={tabActiva} onValueChange={(v) => setTabActiva(v as 'agente' | 'humano')}>
+        <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsTrigger value="agente">Conversaciones con Agente</TabsTrigger>
+          <TabsTrigger value="humano">Conversaciones con Humano</TabsTrigger>
+        </TabsList>
+        <TabsContent value="agente">
+          <div className="border rounded-md overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Canal</TableHead>
+                  <TableHead>Identificador</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Última actividad</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Acciones</TableHead>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10">
+                      Cargando conversaciones...
+                    </TableCell>
+                  </TableRow>
+                ) : conversaciones.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10">
+                      No se encontraron conversaciones
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  conversaciones.map((conversacion) => (
+                    <TableRow key={conversacion.id}>
+                      <TableCell className="w-10">
+                        {getCanalIcon(conversacion.channel)}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {conversacion.user_identifier}
+                      </TableCell>
+                      <TableCell>
+                        {conversacion.client ? (
+                          <div>
+                            <div className="font-semibold">{conversacion.client.names}</div>
+                            <div className="text-sm text-muted-foreground">{conversacion.client.phone_number}</div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Sin cliente asociado</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {formatDate(conversacion.updated_at)}
+                      </TableCell>
+                      <TableCell>
+                        {getStatusBadge(conversacion.status)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => verDetalle(conversacion.id)}
+                          className="flex items-center gap-1"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Ver detalles
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+        <TabsContent value="humano">
+          <div className="border rounded-md overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Canal</TableHead>
+                  <TableHead>Identificador</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Última actividad</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead>Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10">
+                      Cargando conversaciones...
+                    </TableCell>
+                  </TableRow>
+                ) : conversaciones.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-10">
+                      No se encontraron conversaciones
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  conversaciones.map((conversacion) => (
+                    <TableRow key={conversacion.id}>
+                      <TableCell className="w-10">
+                        {getCanalIcon(conversacion.channel)}
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {conversacion.user_identifier}
+                      </TableCell>
+                      <TableCell>
+                        {conversacion.client ? (
+                          <div>
+                            <div className="font-semibold">{conversacion.client.names}</div>
+                            <div className="text-sm text-muted-foreground">{conversacion.client.phone_number}</div>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">Sin cliente asociado</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {formatDate(conversacion.updated_at)}
+                      </TableCell>
+                      <TableCell>
+                        {getStatusBadge(conversacion.status)}
+                      </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => verDetalle(conversacion.id)}
+                          className="flex items-center gap-1"
+                        >
+                          <Eye className="h-4 w-4" />
+                          Ver detalles
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {totalPaginas > 1 && (
         <div className="flex justify-between items-center">

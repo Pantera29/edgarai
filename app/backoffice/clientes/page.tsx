@@ -34,6 +34,7 @@ interface Cliente {
   phone_number: string;
   external_id?: string | null;
   estado?: "activo" | "inactivo";
+  agent_active: boolean;
 }
 
 interface NuevoCliente {
@@ -150,6 +151,7 @@ const router = useRouter();
         phone_number: cliente.phone_number,
         external_id: cliente.external_id,
         estado: cliente.estado,
+        agent_active: cliente.agent_active ?? true // valor por defecto true
       }));
 
       setClientes(clientesMapeados);
