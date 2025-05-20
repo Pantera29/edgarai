@@ -686,7 +686,7 @@ export default function RecordatoriosPage() {
     setSeleccionados(prev => {
       if (prev.includes(reminderId)) {
         return prev.filter(id => id !== reminderId);
-      } else if (prev.length < 5) {
+      } else if (prev.length < 10) {
         return [...prev, reminderId];
       }
       return prev;
@@ -1142,7 +1142,7 @@ export default function RecordatoriosPage() {
                       Llamando...
                     </>
                   ) : (
-                    `Llamar con AI (${seleccionados.length}/5)`
+                    `Llamar con AI (${seleccionados.length}/10)`
                   )}
                 </Button>
               </div>
@@ -1158,7 +1158,7 @@ export default function RecordatoriosPage() {
                           setSeleccionados([]);
                         } else {
                           const nuevosSeleccionados = currentItems
-                            .slice(0, 5)
+                            .slice(0, 10)
                             .map(r => r.reminder_id);
                           setSeleccionados(nuevosSeleccionados);
                         }
@@ -1184,7 +1184,7 @@ export default function RecordatoriosPage() {
                         onCheckedChange={() => handleSeleccionar(recordatorio.reminder_id)}
                         disabled={
                           !seleccionados.includes(recordatorio.reminder_id) &&
-                          seleccionados.length >= 5
+                          seleccionados.length >= 10
                         }
                       />
                     </TableCell>
