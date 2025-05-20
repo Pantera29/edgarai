@@ -171,12 +171,17 @@ export default function DashboardPage() {
       if (tokenValue) {
         setToken(tokenValue)
         const verifiedDataToken = verifyToken(tokenValue)
-        
-        if (verifiedDataToken === null) {
+        // Mejor validación: redirigir si el token es null, vacío, no es objeto o no tiene dealership_id
+        if (
+          !verifiedDataToken ||
+          typeof verifiedDataToken !== "object" ||
+          Object.keys(verifiedDataToken).length === 0 ||
+          !(verifiedDataToken as any).dealership_id
+        ) {
           router.push("/login")
+          return
         }
-        setDataToken(verifiedDataToken || {})
-
+        setDataToken(verifiedDataToken)
         if (verifiedDataToken?.dealership_id) {
           cargarDatos(verifiedDataToken.dealership_id)
         } else {

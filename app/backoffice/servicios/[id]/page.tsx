@@ -3,6 +3,7 @@
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { useEffect, useState } from "react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { useRouter } from "next/navigation"
 
 interface PageProps {
   params: {
@@ -13,6 +14,7 @@ interface PageProps {
 export default function ServicioPage({ params }: PageProps) {
   const [servicio, setServicio] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const router = useRouter()
   
   useEffect(() => {
     async function loadServicio() {
