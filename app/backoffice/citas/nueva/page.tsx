@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from "@/hooks/use-toast"
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { Client, Vehicle, Service, AppointmentStatus, BlockedDate, HorarioOperacion, TallerConfig } from '@/types/workshop';
 import { format } from "date-fns";
@@ -216,6 +216,15 @@ export default function NuevaReservaPage() {
   const [tallerConfig, setTallerConfig] = useState<TallerConfig | null>(null);
   const [dealershipName, setDealershipName] = useState<string>("");
   const router = useRouter();
+  const { toast } = useToast();
+
+  // Agregar toast de prueba al cargar
+  useEffect(() => {
+    toast({
+      title: "Prueba de toast",
+      description: "Este toast debería aparecer al cargar la página"
+    });
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -235,7 +244,6 @@ export default function NuevaReservaPage() {
     }
   }, [router]);
 
-  const { toast } = useToast();
   const [clientes, setClientes] = useState<ExtendedClient[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [vehiculos, setVehiculos] = useState<ExtendedVehicle[]>([]);
@@ -625,6 +633,12 @@ export default function NuevaReservaPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Toast de prueba inmediato
+    toast({
+      title: "Prueba de toast",
+      description: "Este toast debería aparecer al hacer clic en el botón"
+    });
+    
     console.log("Valores al enviar:", {
       cliente: selectedClient,
       vehiculo: selectedVehicle,
@@ -719,13 +733,25 @@ export default function NuevaReservaPage() {
         .single();
 
       if (error) {
-        console.error("Error detallado de Supabase:", {
-          mensaje: error.message,
-          detalles: error.details,
-          codigo: error.code,
-          hint: error.hint
+        console.error("Error de Supabase:", error);
+        
+        // Mensaje de error por defecto
+        let errorMessage = "Error al agendar la cita";
+        
+        // Si es un error de duplicación
+        if (error.code === "23505") {
+          errorMessage = "Ya existe una cita para este vehículo en el horario seleccionado";
+        }
+        
+        // Mostrar el error en el frontend
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: errorMessage
         });
-        throw error;
+        
+        setIsSubmitting(false);
+        return;
       }
       
       console.log("Cita creada con éxito:", data);
@@ -779,7 +805,7 @@ export default function NuevaReservaPage() {
       router.replace('/backoffice/citas?token=' + token);
       
     } catch (error) {
-      console.error("Error completo al agendar cita:", error);
+      console.error("Error general:", error);
       toast({
         variant: "destructive",
         title: "Error",
