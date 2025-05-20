@@ -39,6 +39,7 @@ interface Cliente {
   email: string
   phone_number: string
   external_id?: string | null
+  agent_active: boolean
 }
 
 interface Props {
@@ -98,6 +99,7 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
             <TableHead>Email</TableHead>
             <TableHead>Teléfono</TableHead>
             <TableHead>External ID</TableHead>
+            <TableHead>Estado Agente</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -108,6 +110,38 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
               <TableCell>{cliente.email}</TableCell>
               <TableCell>{cliente.phone_number}</TableCell>
               <TableCell>{cliente.external_id || '-'}</TableCell>
+              <TableCell>
+                <Button
+                  variant={cliente.agent_active ? "default" : "destructive"}
+                  size="sm"
+                  onClick={async () => {
+                    try {
+                      const { error } = await supabase
+                        .from('client')
+                        .update({ agent_active: !cliente.agent_active })
+                        .eq('id', cliente.id);
+                      
+                      if (error) throw error;
+                      
+                      toast({
+                        title: "Estado actualizado",
+                        description: `El agente está ahora ${!cliente.agent_active ? 'activo' : 'inactivo'} para este cliente.`
+                      });
+                      
+                      if (onClienteDeleted) onClienteDeleted();
+                    } catch (error) {
+                      console.error("Error actualizando estado del agente:", error);
+                      toast({
+                        variant: "destructive",
+                        title: "Error",
+                        description: "No se pudo actualizar el estado del agente."
+                      });
+                    }
+                  }}
+                >
+                  {cliente.agent_active ? 'Activo' : 'Inactivo'}
+                </Button>
+              </TableCell>
               <TableCell className="text-right">
                 <Link href={`/backoffice/clientes/${cliente.id}/editar?token=${token}`}>
                   <Button
