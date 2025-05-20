@@ -233,11 +233,18 @@ export default function NuevaReservaPage() {
       setToken(tokenValue); // Actualiza el estado con el token
       const verifiedData = verifyToken(tokenValue);
       
+      if (
+        !verifiedData ||
+        typeof verifiedData !== "object" ||
+        Object.keys(verifiedData).length === 0 ||
+        !(verifiedData as any).dealership_id
+      ) {
+        router.push("/login");
+        return;
+      }
       setVerifiedDataToken(verifiedData);
       
-      if (!verifiedData) {
-        router.push("/login"); // Redirigir si el token es inválido
-      } else if (verifiedData.dealership_id) {
+      if (verifiedData.dealership_id) {
         // Cargar el nombre del concesionario
         loadDealershipInfo(verifiedData.dealership_id);
       }

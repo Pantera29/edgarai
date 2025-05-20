@@ -69,17 +69,22 @@ function ServiciosRecomendadosContent() {
       setToken(tokenValue);
       const verifiedDataToken = verifyToken(tokenValue);
       
-      if (!verifiedDataToken) {
+      if (
+        !verifiedDataToken ||
+        typeof verifiedDataToken !== "object" ||
+        Object.keys(verifiedDataToken).length === 0 ||
+        !(verifiedDataToken as any).dealership_id
+      ) {
         router.push("/login");
+        return;
+      }
+      setDataToken(verifiedDataToken);
+      
+      // Si hay un dealership_id en el token, cargar los servicios recomendados de esa agencia
+      if (verifiedDataToken?.dealership_id) {
+        loadRecommendedServices(verifiedDataToken.dealership_id);
       } else {
-        setDataToken(verifiedDataToken);
-        
-        // Si hay un dealership_id en el token, cargar los servicios recomendados de esa agencia
-        if (verifiedDataToken?.dealership_id) {
-          loadRecommendedServices(verifiedDataToken.dealership_id);
-        } else {
-          loadRecommendedServices();
-        }
+        loadRecommendedServices();
       }
     }
   }, [router]);

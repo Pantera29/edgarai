@@ -32,10 +32,15 @@ export default function NuevoClientePage() {
       if (tokenValue) {
         setToken(tokenValue); // Usa setToken para actualizar el estado
         const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
-        
-        // Si el token no es válido, redirigir al login
-        if (verifiedDataToken === null) {
+        // Mejor validación: redirigir si el token es null, vacío, no es objeto o no tiene dealership_id
+        if (
+          !verifiedDataToken ||
+          typeof verifiedDataToken !== "object" ||
+          Object.keys(verifiedDataToken).length === 0 ||
+          !(verifiedDataToken as any).dealership_id
+        ) {
           router.push("/login");
+          return;
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
       }

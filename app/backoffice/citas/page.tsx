@@ -176,11 +176,16 @@ function CitasPageContent() {
       setToken(tokenValue);
       const verifiedDataToken = verifyToken(tokenValue);
       
-      if (!verifiedDataToken) {
+      if (
+        !verifiedDataToken ||
+        typeof verifiedDataToken !== "object" ||
+        Object.keys(verifiedDataToken).length === 0 ||
+        !(verifiedDataToken as any).dealership_id
+      ) {
         router.push("/login");
-      } else {
-        setDataToken(verifiedDataToken);
+        return;
       }
+      setDataToken(verifiedDataToken);
     }
   }, [router]);
 

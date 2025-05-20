@@ -54,7 +54,12 @@ export default function NuevoVehiculoPage() {
         setToken(tokenValue);
         const verifiedDataToken = verifyToken(tokenValue);
         
-        if (verifiedDataToken === null) {
+        if (
+          !verifiedDataToken ||
+          typeof verifiedDataToken !== "object" ||
+          Object.keys(verifiedDataToken).length === 0 ||
+          !(verifiedDataToken as any).dealership_id
+        ) {
           router.push("/login");
           return;
         }

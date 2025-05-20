@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { EnhancedCalendar } from '@/components/workshop/enhanced-calendar';
 import { verifyToken } from "@/app/jwt/token";
+import { useRouter } from 'next/navigation';
 
 export default function BlockedDates() {
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
@@ -34,6 +35,7 @@ export default function BlockedDates() {
   const [blockToDelete, setBlockToDelete] = useState<BlockedDate | null>(null);
   const [operatingHours, setOperatingHours] = useState<HorarioOperacion[]>([]);
   const supabase = createClientComponentClient();
+  const router = useRouter();
 
   useEffect(() => {
     loadData();
@@ -51,8 +53,13 @@ export default function BlockedDates() {
       }
 
       const verifiedData = verifyToken(token);
-      if (!verifiedData?.dealership_id) {
-        toast.error('No se pudo verificar el concesionario');
+      if (
+        !verifiedData ||
+        typeof verifiedData !== "object" ||
+        Object.keys(verifiedData).length === 0 ||
+        !(verifiedData as any).dealership_id
+      ) {
+        router.push("/login");
         return;
       }
 

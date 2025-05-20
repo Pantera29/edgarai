@@ -12,6 +12,7 @@ import { Clock } from 'lucide-react';
 import { toast } from "sonner";
 import { cn } from '@/lib/utils';
 import { verifyToken } from "@/app/jwt/token";
+import { useRouter } from 'next/navigation';
 
 const DAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -21,6 +22,7 @@ export default function WorkshopConfiguration() {
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const supabase = createClientComponentClient();
+  const router = useRouter();
 
   useEffect(() => {
     loadAll();
@@ -38,8 +40,14 @@ export default function WorkshopConfiguration() {
       }
 
       const verifiedData = verifyToken(token);
-      if (!verifiedData?.dealership_id) {
-        toast.error('No se pudo verificar el concesionario');
+      // Mejor validación: redirigir si el token es null, vacío, no es objeto o no tiene dealership_id
+      if (
+        !verifiedData ||
+        typeof verifiedData !== "object" ||
+        Object.keys(verifiedData).length === 0 ||
+        !(verifiedData as any).dealership_id
+      ) {
+        router.push("/login");
         return;
       }
 

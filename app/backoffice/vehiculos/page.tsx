@@ -109,18 +109,19 @@ export default function VehiculosPage() {
       if (tokenValue) {
         setToken(tokenValue); // Usa setToken para actualizar el estado
         const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
-        
-        // Si el token no es válido, redirigir al login
-        if (verifiedDataToken === null) {
+        // Mejor validación: redirigir si el token es null, vacío, no es objeto o no tiene dealership_id
+        if (
+          !verifiedDataToken ||
+          typeof verifiedDataToken !== "object" ||
+          Object.keys(verifiedDataToken).length === 0 ||
+          !(verifiedDataToken as any).dealership_id
+        ) {
           router.push("/login");
+          return;
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
-
-        // Si hay un dealership_id en el token, cargar los vehículos de esa agencia
-        if (verifiedDataToken?.dealership_id) {
-          cargarVehiculos(verifiedDataToken.dealership_id);
-          cargarClientes(verifiedDataToken.dealership_id);
-        }
+        cargarVehiculos(verifiedDataToken.dealership_id);
+        cargarClientes(verifiedDataToken.dealership_id);
       }
     }
   }, [searchParams, router]); 
