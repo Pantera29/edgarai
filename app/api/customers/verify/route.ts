@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase
       .from('client')
-      .select('id, names, email, created_at')
+      .select('id, names, email, created_at, agent_active')
       .eq('phone_number', normalizedPhone)
       .order('created_at', { ascending: false })
       .limit(1)
@@ -56,7 +56,8 @@ export async function GET(request: Request) {
     console.log('✅ Cliente encontrado:', {
       id: data.id,
       name: data.names,
-      email: data.email
+      email: data.email,
+      agent_active: data.agent_active
     });
 
     return NextResponse.json({
@@ -64,7 +65,8 @@ export async function GET(request: Request) {
       client: {
         id: data.id,
         name: data.names,
-        email: data.email
+        email: data.email,
+        agent_active: data.agent_active
       }
     });
   } catch (error) {
