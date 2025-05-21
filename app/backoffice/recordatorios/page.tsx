@@ -799,6 +799,34 @@ export default function RecordatoriosPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!recordatorioEditar?.reminder_id) return;
+
+    try {
+      const { error } = await supabase
+        .from('reminders')
+        .delete()
+        .eq('reminder_id', recordatorioEditar.reminder_id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Éxito",
+        description: "Recordatorio eliminado correctamente"
+      });
+
+      setMostrarFormularioEditar(false);
+      await fetchRecordatorios();
+    } catch (error) {
+      console.error('Error al eliminar recordatorio:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo eliminar el recordatorio",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSeleccionar = (reminderId: string) => {
     setSeleccionados(prev => {
       if (prev.includes(reminderId)) {
@@ -1736,7 +1764,14 @@ export default function RecordatoriosPage() {
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className="flex justify-between">
+              <Button 
+                type="button" 
+                variant="destructive" 
+                onClick={handleDelete}
+              >
+                Eliminar Recordatorio
+              </Button>
               <Button type="submit">Guardar Cambios</Button>
             </DialogFooter>
           </form>
