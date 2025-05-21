@@ -59,6 +59,8 @@ interface ConversacionItem {
   user_messages_count: number;
   assistant_messages_count: number;
   channel?: string;
+  ended_reason?: string;
+  was_successful?: boolean;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -90,8 +92,8 @@ export default function ConversacionesPage() {
   // Filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroEstado, setFiltroEstado] = useState("todos");
-  const [filtroFecha, setFiltroFecha] = useState("todas");
   const [filtroCanal, setFiltroCanal] = useState("todos");
+  const [filtroRazonFinalizacion, setFiltroRazonFinalizacion] = useState("todas");
 
   // Nuevos estados para métricas
   const [metricas, setMetricas] = useState<any>({
@@ -144,7 +146,7 @@ export default function ConversacionesPage() {
       cargarConversaciones();
       cargarMetricas();
     }
-  }, [dataToken, busqueda, filtroEstado, filtroFecha, filtroCanal, pagina, tabActiva]);
+  }, [dataToken, busqueda, filtroEstado, filtroCanal, pagina, tabActiva]);
 
   const cargarConversaciones = async () => {
     setLoading(true);
@@ -177,7 +179,7 @@ export default function ConversacionesPage() {
       // Aplicar filtros
       if (busqueda) {
         query = query.or(
-          `user_identifier.ilike.%${busqueda}%,client.names.ilike.%${busqueda}%,client.phone_number.ilike.%${busqueda}%`
+          `user_identifier.ilike.%${busqueda}%,client.names.ilike.%${busqueda}%,client.phone_number.ilike.%${busqueda}%,client.email.ilike.%${busqueda}%`
         );
         console.log(`Aplicando búsqueda: ${busqueda}`);
       }
@@ -193,32 +195,10 @@ export default function ConversacionesPage() {
         console.log(`Filtrando por canal: ${filtroCanal}`);
       }
 
-      // Filtrar por fecha
-      const ahora = new Date();
-      let fechaDesde: Date | null = null;
-      
-      switch (filtroFecha) {
-        case "hoy":
-          fechaDesde = new Date(ahora.setHours(0, 0, 0, 0));
-          break;
-        case "ayer":
-          fechaDesde = new Date(ahora);
-          fechaDesde.setDate(fechaDesde.getDate() - 1);
-          fechaDesde.setHours(0, 0, 0, 0);
-          break;
-        case "semana":
-          fechaDesde = new Date(ahora);
-          fechaDesde.setDate(fechaDesde.getDate() - 7);
-          break;
-        case "mes":
-          fechaDesde = new Date(ahora);
-          fechaDesde.setMonth(fechaDesde.getMonth() - 1);
-          break;
-      }
-
-      if (fechaDesde) {
-        query = query.gte("updated_at", fechaDesde.toISOString());
-        console.log(`Filtrando por fecha desde: ${fechaDesde.toISOString()}`);
+      // Filtro por razón de finalización
+      if (filtroRazonFinalizacion !== "todas") {
+        query = query.eq("ended_reason", filtroRazonFinalizacion);
+        console.log(`Filtrando por razón de finalización: ${filtroRazonFinalizacion}`);
       }
 
       // Aplicar la paginación
@@ -281,6 +261,20 @@ export default function ConversacionesPage() {
 
       setConversaciones(conversacionesConConteo);
       setTotalConversaciones(count || 0);
+
+      // Filtrado adicional en frontend para búsqueda por nombre de cliente
+      const conversacionesFiltradas = conversacionesConConteo.filter((conv: ConversacionItem) => {
+        if (!busqueda) return true;
+        const busq = busqueda.toLowerCase();
+        return (
+          conv.user_identifier?.toLowerCase().includes(busq) ||
+          conv.client?.names?.toLowerCase().includes(busq) ||
+          conv.client?.phone_number?.toLowerCase().includes(busq) ||
+          conv.client?.email?.toLowerCase().includes(busq)
+        );
+      });
+
+      setConversaciones(conversacionesFiltradas);
     } catch (error) {
       console.error("Error cargando conversaciones:", error);
     } finally {
@@ -486,6 +480,19 @@ export default function ConversacionesPage() {
     }
   };
 
+  const traducirRazonFinalizacion = (razon?: string) => {
+    if (!razon) return '-';
+    
+    switch (razon) {
+      case 'customer-ended-call': return 'Cliente finalizó la llamada';
+      case 'assistant-ended-call': return 'Asistente finalizó la llamada';
+      case 'silence-timed-out': return 'Tiempo de silencio agotado';
+      case 'voicemail': return 'Buzón de voz';
+      case 'assistant-forwarded-call': return 'Llamada transferida por asistente';
+      default: return razon;
+    }
+  };
+
   // Colores para el gráfico de canales
   const CANAL_COLORS = {
     'WhatsApp': '#10B981',
@@ -572,6 +579,17 @@ export default function ConversacionesPage() {
   
   // Usar directamente los datos de métricas para el gráfico
   const datosGraficoArea = metricas.porFecha;
+
+  const conversacionesFiltradas = conversaciones.filter((conv: ConversacionItem) => {
+    if (!busqueda) return true;
+    const busq = busqueda.toLowerCase();
+    return (
+      conv.user_identifier?.toLowerCase().includes(busq) ||
+      conv.client?.names?.toLowerCase().includes(busq) ||
+      conv.client?.phone_number?.toLowerCase().includes(busq) ||
+      conv.client?.email?.toLowerCase().includes(busq)
+    );
+  });
 
   return (
     <div className="px-4 py-6 space-y-6">
@@ -762,11 +780,11 @@ export default function ConversacionesPage() {
       </Card>
 
       <Card className="p-4 mt-8 shadow-sm border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Buscar por usuario o cliente..."
+              placeholder="Buscar por usuario, cliente, teléfono o email..."
               className="pl-8"
               value={busqueda}
               onChange={(e) => setBusqueda(e.target.value)}
@@ -797,24 +815,25 @@ export default function ConversacionesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos los canales</SelectItem>
-              <SelectItem value="chat">WhatsApp</SelectItem>
+              <SelectItem value="whatsapp">WhatsApp</SelectItem>
               <SelectItem value="phone">Llamadas</SelectItem>
             </SelectContent>
           </Select>
-          
+
           <Select
-            value={filtroFecha}
-            onValueChange={setFiltroFecha}
+            value={filtroRazonFinalizacion}
+            onValueChange={setFiltroRazonFinalizacion}
           >
             <SelectTrigger>
-              <SelectValue placeholder="Fecha" />
+              <SelectValue placeholder="Razón de finalización" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todas">Todas las fechas</SelectItem>
-              <SelectItem value="hoy">Hoy</SelectItem>
-              <SelectItem value="ayer">Ayer</SelectItem>
-              <SelectItem value="semana">Esta semana</SelectItem>
-              <SelectItem value="mes">Este mes</SelectItem>
+              <SelectItem value="todas">Todas las razones</SelectItem>
+              <SelectItem value="customer-ended-call">Cliente finalizó la llamada</SelectItem>
+              <SelectItem value="assistant-ended-call">Asistente finalizó la llamada</SelectItem>
+              <SelectItem value="silence-timed-out">Tiempo de silencio agotado</SelectItem>
+              <SelectItem value="voicemail">Buzón de voz</SelectItem>
+              <SelectItem value="assistant-forwarded-call">Llamada transferida por asistente</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -835,24 +854,26 @@ export default function ConversacionesPage() {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Última actividad</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Razón de finalización</TableHead>
+                  <TableHead className="min-w-[120px]">Resultado</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10">
+                    <TableCell colSpan={8} className="text-center py-10">
                       Cargando conversaciones...
                     </TableCell>
                   </TableRow>
-                ) : conversaciones.length === 0 ? (
+                ) : conversacionesFiltradas.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10">
+                    <TableCell colSpan={8} className="text-center py-10">
                       No se encontraron conversaciones
                     </TableCell>
                   </TableRow>
                 ) : (
-                  conversaciones.map((conversacion) => (
+                  conversacionesFiltradas.map((conversacion: ConversacionItem) => (
                     <TableRow key={conversacion.id}>
                       <TableCell className="w-10">
                         {getCanalIcon(conversacion.channel)}
@@ -875,6 +896,22 @@ export default function ConversacionesPage() {
                       </TableCell>
                       <TableCell>
                         {getStatusBadge(conversacion.status)}
+                      </TableCell>
+                      <TableCell>
+                        {conversacion.ended_reason ? (
+                          <span className="text-sm text-muted-foreground">{traducirRazonFinalizacion(conversacion.ended_reason)}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {conversacion.was_successful !== undefined ? (
+                          <Badge className={conversacion.was_successful ? "bg-green-500" : "bg-red-500"}>
+                            {conversacion.was_successful ? "Exitosa" : "No exitosa"}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button
@@ -904,24 +941,26 @@ export default function ConversacionesPage() {
                   <TableHead>Cliente</TableHead>
                   <TableHead>Última actividad</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead>Razón de finalización</TableHead>
+                  <TableHead className="min-w-[120px]">Resultado</TableHead>
                   <TableHead>Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10">
+                    <TableCell colSpan={8} className="text-center py-10">
                       Cargando conversaciones...
                     </TableCell>
                   </TableRow>
-                ) : conversaciones.length === 0 ? (
+                ) : conversacionesFiltradas.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-10">
+                    <TableCell colSpan={8} className="text-center py-10">
                       No se encontraron conversaciones
                     </TableCell>
                   </TableRow>
                 ) : (
-                  conversaciones.map((conversacion) => (
+                  conversacionesFiltradas.map((conversacion: ConversacionItem) => (
                     <TableRow key={conversacion.id}>
                       <TableCell className="w-10">
                         {getCanalIcon(conversacion.channel)}
@@ -944,6 +983,22 @@ export default function ConversacionesPage() {
                       </TableCell>
                       <TableCell>
                         {getStatusBadge(conversacion.status)}
+                      </TableCell>
+                      <TableCell>
+                        {conversacion.ended_reason ? (
+                          <span className="text-sm text-muted-foreground">{traducirRazonFinalizacion(conversacion.ended_reason)}</span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {conversacion.was_successful !== undefined ? (
+                          <Badge className={conversacion.was_successful ? "bg-green-500" : "bg-red-500"}>
+                            {conversacion.was_successful ? "Exitosa" : "No exitosa"}
+                          </Badge>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Button
