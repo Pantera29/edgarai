@@ -146,6 +146,97 @@ function extractAgentAndModel(message: any): { agentName: string | null, aiModel
   return { agentName, aiModel };
 }
 
+// Interfaz para el resultado del análisis
+interface ConversationAnalysis {
+  outcome_type: "appointment_scheduled" | "appointment_rescheduled" | "follow_up_scheduled" | "customer_unavailable" | "no_action_needed" | "unknown";
+  follow_up_notes: string | null;
+  customer_satisfaction: "satisfied" | "neutral" | "dissatisfied" | "unknown";
+  agent_performance: "excellent" | "good" | "needs_improvement" | "unknown";
+}
+
+// Función para analizar el resultado de la conversación
+async function analyzeConversationOutcome(summary: string): Promise<ConversationAnalysis> {
+  try {
+    // Verificación de la variable de entorno
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('OPENAI_API_KEY no está configurada. Verifica las variables de entorno en Vercel.');
+      return {
+        outcome_type: "unknown",
+        follow_up_notes: null,
+        customer_satisfaction: "unknown",
+        agent_performance: "unknown"
+      };
+    }
+
+    console.log('Iniciando análisis del resumen de la llamada...');
+    const openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    
+    const response = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: `Eres un asistente especializado en analizar resúmenes de llamadas de recordatorios de mantenimiento vehicular.
+
+Analiza el resumen y extrae ÚNICAMENTE:
+
+1. RESULTADO PRINCIPAL (outcome_type):
+   - "appointment_scheduled": Se agendó una nueva cita
+   - "appointment_rescheduled": Se cambió una cita existente
+   - "follow_up_scheduled": Se acordó un seguimiento futuro
+   - "customer_unavailable": No se logró contacto efectivo
+   - "no_action_needed": Cliente no necesita el servicio por ahora
+   - "unknown": No se puede determinar el resultado
+
+2. NOTAS DE SEGUIMIENTO (follow_up_notes):
+   - Si hay algo pendiente por hacer, escríbelo brevemente
+   - Si no hay nada pendiente, usa null
+
+3. SATISFACCIÓN DEL CLIENTE (customer_satisfaction):
+   - "satisfied": Cliente contento con la atención
+   - "neutral": Cliente indiferente o sin expresar sentimientos
+   - "dissatisfied": Cliente molesto o insatisfecho
+   - "unknown": No se puede determinar
+
+4. DESEMPEÑO DEL AGENTE (agent_performance):
+   - "excellent": Agente muy profesional y efectivo
+   - "good": Agente cumplió bien su función
+   - "needs_improvement": Agente tuvo dificultades o errores
+   - "unknown": No se puede evaluar
+
+Responde SOLO en formato JSON válido.`
+        },
+        {
+          role: "user",
+          content: summary
+        }
+      ],
+      temperature: 0.1,
+      max_tokens: 200,
+      response_format: { type: "json_object" }
+    });
+    
+    const analysisText = response.choices[0].message.content;
+    if (!analysisText) {
+      throw new Error('No se recibió respuesta del análisis');
+    }
+
+    const analysis = JSON.parse(analysisText) as ConversationAnalysis;
+    console.log('Análisis completado:', analysis);
+    return analysis;
+  } catch (error) {
+    console.error('Error al analizar el resumen:', error);
+    return {
+      outcome_type: "unknown",
+      follow_up_notes: null,
+      customer_satisfaction: "unknown",
+      agent_performance: "unknown"
+    };
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const supabase = createServerComponentClient({ cookies });
@@ -336,6 +427,16 @@ export async function POST(request: Request) {
       conversation_summary_translated: translatedSummary
     });
 
+    // Analizar el resultado de la conversación
+    console.log('Iniciando análisis del resultado de la conversación...');
+    const conversationAnalysis = summary ? await analyzeConversationOutcome(summary) : {
+      outcome_type: "unknown",
+      follow_up_notes: null,
+      customer_satisfaction: "unknown",
+      agent_performance: "unknown"
+    };
+    console.log('Análisis de conversación completado:', conversationAnalysis);
+
     const { data: conversationData, error } = await supabase
       .from("chat_conversations")
       .insert([
@@ -356,7 +457,12 @@ export async function POST(request: Request) {
           was_successful: wasSuccessful,
           client_intent: clientIntent,
           agent_name: agentName,
-          ai_model: aiModel
+          ai_model: aiModel,
+          // Nuevos campos de análisis
+          outcome_type: conversationAnalysis.outcome_type,
+          follow_up_notes: conversationAnalysis.follow_up_notes,
+          customer_satisfaction: conversationAnalysis.customer_satisfaction,
+          agent_performance: conversationAnalysis.agent_performance
         }
       ])
       .select()
