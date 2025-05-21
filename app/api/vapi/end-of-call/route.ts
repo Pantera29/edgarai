@@ -180,9 +180,18 @@ async function analyzeConversationOutcome(summary: string): Promise<Conversation
           role: "system",
           content: `Eres un asistente especializado en analizar resúmenes de llamadas de recordatorios de mantenimiento vehicular.
 
-Analiza el resumen y extrae ÚNICAMENTE:
+Analiza el resumen y devuelve un objeto JSON con EXACTAMENTE estos campos:
 
-1. RESULTADO PRINCIPAL (outcome_type):
+{
+  "outcome_type": string, // Uno de: "appointment_scheduled", "appointment_rescheduled", "follow_up_scheduled", "customer_unavailable", "no_action_needed", "unknown"
+  "follow_up_notes": string | null, // Notas de seguimiento o null si no hay nada pendiente
+  "customer_satisfaction": string, // Uno de: "satisfied", "neutral", "dissatisfied", "unknown"
+  "agent_performance": string // Uno de: "excellent", "good", "needs_improvement", "unknown"
+}
+
+Criterios para cada campo:
+
+1. outcome_type:
    - "appointment_scheduled": Se agendó una nueva cita
    - "appointment_rescheduled": Se cambió una cita existente
    - "follow_up_scheduled": Se acordó un seguimiento futuro
@@ -190,23 +199,23 @@ Analiza el resumen y extrae ÚNICAMENTE:
    - "no_action_needed": Cliente no necesita el servicio por ahora
    - "unknown": No se puede determinar el resultado
 
-2. NOTAS DE SEGUIMIENTO (follow_up_notes):
+2. follow_up_notes:
    - Si hay algo pendiente por hacer, escríbelo brevemente
    - Si no hay nada pendiente, usa null
 
-3. SATISFACCIÓN DEL CLIENTE (customer_satisfaction):
+3. customer_satisfaction:
    - "satisfied": Cliente contento con la atención
    - "neutral": Cliente indiferente o sin expresar sentimientos
    - "dissatisfied": Cliente molesto o insatisfecho
    - "unknown": No se puede determinar
 
-4. DESEMPEÑO DEL AGENTE (agent_performance):
+4. agent_performance:
    - "excellent": Agente muy profesional y efectivo
    - "good": Agente cumplió bien su función
    - "needs_improvement": Agente tuvo dificultades o errores
    - "unknown": No se puede evaluar
 
-Responde SOLO en formato JSON válido.`
+IMPORTANTE: Responde ÚNICAMENTE con el objeto JSON, sin texto adicional.`
         },
         {
           role: "user",
@@ -214,8 +223,7 @@ Responde SOLO en formato JSON válido.`
         }
       ],
       temperature: 0.1,
-      max_tokens: 200,
-      response_format: { type: "json_object" }
+      max_tokens: 200
     });
     
     const analysisText = response.choices[0].message.content;
@@ -223,9 +231,17 @@ Responde SOLO en formato JSON válido.`
       throw new Error('No se recibió respuesta del análisis');
     }
 
-    const analysis = JSON.parse(analysisText) as ConversationAnalysis;
-    console.log('Análisis completado:', analysis);
-    return analysis;
+    // Limpiar el texto de respuesta para asegurar que sea JSON válido
+    const cleanJsonText = analysisText.trim().replace(/^```json\n?/, '').replace(/\n?```$/, '');
+    
+    try {
+      const analysis = JSON.parse(cleanJsonText) as ConversationAnalysis;
+      console.log('Análisis completado:', analysis);
+      return analysis;
+    } catch (parseError) {
+      console.error('Error al parsear la respuesta JSON:', parseError);
+      throw new Error('La respuesta no es un JSON válido');
+    }
   } catch (error) {
     console.error('Error al analizar el resumen:', error);
     return {
