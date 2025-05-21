@@ -46,6 +46,15 @@ import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/components/ui/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import React from "react"
+import {
+  AreaChart,
+  Area,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts"
 
 interface Recordatorio {
   reminder_id: string
@@ -181,6 +190,32 @@ function ClienteComboBox({ clientes, onSelect, value }: { clientes: any[], onSel
   );
 }
 
+// Definir tipos para los estados
+type EstadoType = 'Pendiente' | 'Enviado' | 'Completado' | 'Cancelado' | 'Error';
+
+// Definir el tipo para el estado de métricas
+interface MetricasState {
+  total: number;
+  activas: number;
+  pendientes: number;
+  cerradas: number;
+  porFecha: Array<{
+    fecha: string;
+    Pendiente: number;
+    Enviado: number;
+    Completado: number;
+    Cancelado: number;
+    Error: number;
+  }>;
+  porEstado: Array<{
+    name: string;
+    value: number;
+  }>;
+}
+
+// Definir el tipo para el estado de colores
+type EstadoColors = Record<EstadoType, string>;
+
 export default function RecordatoriosPage() {
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
   const [token, setToken] = useState<string>("");
@@ -266,6 +301,32 @@ export default function RecordatoriosPage() {
     // después de verificar el token
   }, [])
 
+  const [metricas, setMetricas] = useState<MetricasState>({
+    total: 0,
+    activas: 0,
+    pendientes: 0,
+    cerradas: 0,
+    porFecha: [],
+    porEstado: []
+  });
+
+  // Colores para el gráfico de estados
+  const ESTADO_COLORS: EstadoColors = {
+    'Pendiente': '#3B82F6', // Azul
+    'Enviado': '#10B981',   // Verde
+    'Completado': '#059669', // Verde oscuro
+    'Cancelado': '#EF4444',  // Rojo
+    'Error': '#DC2626'      // Rojo oscuro
+  };
+
+  const [estadosVisibles, setEstadosVisibles] = useState<{[key: string]: boolean}>({
+    'Pendiente': true,
+    'Enviado': true,
+    'Completado': true,
+    'Cancelado': true,
+    'Error': true
+  });
+
   const fetchRecordatorios = async (dealershipIdFromToken?: string) => {
     const { data, error } = await supabase
       .from('reminders')
@@ -312,6 +373,57 @@ export default function RecordatoriosPage() {
       setRecordatorios(filteredData)
       setFilteredRecordatorios(filteredData)
       updateStats(filteredData)
+
+      // Preparar datos para el gráfico
+      const hoy = new Date();
+      const fechas = [];
+      
+      // Generar fechas para los últimos 30 días
+      for (let i = 30; i > 0; i--) {
+        const fecha = new Date(hoy);
+        fecha.setDate(hoy.getDate() - i);
+        const key = format(fecha, 'dd/MM');
+        fechas.push(key);
+      }
+      
+      // Agregar la fecha actual
+      fechas.push(format(hoy, 'dd/MM'));
+      
+      // Generar fechas para los próximos 30 días
+      for (let i = 1; i <= 30; i++) {
+        const fecha = new Date(hoy);
+        fecha.setDate(hoy.getDate() + i);
+        const key = format(fecha, 'dd/MM');
+        fechas.push(key);
+      }
+
+      // Inicializar el mapa de fechas y estados
+      const fechaEstadoCount: Record<string, { Pendiente: number, Enviado: number, Completado: number, Cancelado: number, Error: number }> = {};
+      fechas.forEach(f => fechaEstadoCount[f] = { Pendiente: 0, Enviado: 0, Completado: 0, Cancelado: 0, Error: 0 });
+
+      // Procesar cada recordatorio para obtener las métricas
+      filteredData.forEach(recordatorio => {
+        if (recordatorio.reminder_date) {
+          // Tomar solo la parte de la fecha (YYYY-MM-DD) del reminder_date
+          const fecha = recordatorio.reminder_date.split('T')[0].split('-').reverse().slice(0, 2).join('/');
+          const estado = traducirEstado(recordatorio.status);
+          if (fechaEstadoCount[fecha]) {
+            fechaEstadoCount[fecha][estado] += 1;
+          }
+        }
+      });
+
+      // Convertir conteo por fecha y estado a formato para gráfico
+      const porFechaEstado = fechas.map(f => ({
+        fecha: f,
+        ...fechaEstadoCount[f]
+      }));
+
+      // Actualizar estado con métricas calculadas
+      setMetricas(prev => ({
+        ...prev,
+        porFecha: porFechaEstado
+      }));
     }
   }
 
@@ -1020,6 +1132,53 @@ export default function RecordatoriosPage() {
     }
   };
 
+  const traducirEstado = (estado: string): EstadoType => {
+    switch (estado) {
+      case 'pending': return 'Pendiente';
+      case 'sent': return 'Enviado';
+      case 'completed': return 'Completado';
+      case 'cancelled': return 'Cancelado';
+      case 'error': return 'Error';
+      default: return 'Pendiente'; // valor por defecto
+    }
+  };
+
+  // Componente CustomTooltip con tipos
+  interface TooltipProps {
+    active?: boolean;
+    payload?: Array<{
+      name: string;
+      value: number;
+      color: string;
+    }>;
+    label?: string;
+  }
+
+  const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-white p-4 shadow-lg rounded-lg border border-gray-100">
+          <p className="text-sm font-medium mb-2">{label}</p>
+          {payload.map((entry, index) => (
+            <div key={`item-${index}`} className="flex items-center mb-1">
+              <div 
+                className="w-3 h-3 rounded-full mr-2" 
+                style={{ backgroundColor: entry.color }}
+              />
+              <span className="text-sm font-medium" style={{ color: entry.color }}>
+                {entry.name}
+              </span>
+              <span className="text-sm font-medium ml-2">
+                : {entry.value} recordatorios
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="p-8 space-y-8">
       <div className="flex justify-between items-center">
@@ -1067,6 +1226,85 @@ export default function RecordatoriosPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Gráfico de estados */}
+      <Card className="p-0 overflow-hidden">
+        <div className="bg-white p-6 flex justify-between items-center border-b">
+          <div>
+            <h3 className="font-medium">Tendencia de Estados</h3>
+            <p className="text-sm text-muted-foreground">Distribución por estado y fecha</p>
+          </div>
+          <div className="flex gap-2">
+            {(Object.keys(ESTADO_COLORS) as EstadoType[]).map((estado) => (
+              <Button 
+                key={estado}
+                variant={estadosVisibles[estado] ? "default" : "outline"} 
+                size="sm" 
+                className={`h-8 gap-1 ${estadosVisibles[estado] ? `bg-[${ESTADO_COLORS[estado]}] hover:bg-[${ESTADO_COLORS[estado]}]` : ''}`}
+                onClick={() => setEstadosVisibles(prev => ({
+                  ...prev,
+                  [estado]: !prev[estado]
+                }))}
+              >
+                <span className="h-2 w-2 rounded-full bg-white"></span>
+                {estado}
+              </Button>
+            ))}
+          </div>
+        </div>
+        <div className="p-6 h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart
+              data={metricas.porFecha}
+              margin={{
+                top: 10,
+                right: 30,
+                left: 0,
+                bottom: 0,
+              }}
+            >
+              <defs>
+                {(Object.keys(ESTADO_COLORS) as EstadoType[]).map((estado) => (
+                  <linearGradient key={estado} id={`color${estado}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={ESTADO_COLORS[estado]} stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor={ESTADO_COLORS[estado]} stopOpacity={0.2}/>
+                  </linearGradient>
+                ))}
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f5f5f5" />
+              <XAxis 
+                dataKey="fecha" 
+                tick={{fontSize: 12}}
+                tickLine={false}
+                axisLine={false}
+                dy={10}
+              />
+              <YAxis 
+                tick={{fontSize: 12}}
+                tickLine={false}
+                axisLine={false}
+                width={40}
+                dx={-10}
+                domain={['auto', 'auto']}
+              />
+              <Tooltip content={<CustomTooltip />} />
+              {(Object.keys(ESTADO_COLORS) as EstadoType[]).map((estado) => (
+                estadosVisibles[estado] && (
+                  <Area 
+                    key={estado}
+                    type="monotone" 
+                    dataKey={estado} 
+                    stackId="1" 
+                    stroke={ESTADO_COLORS[estado]} 
+                    fill={`url(#color${estado})`}
+                    activeDot={{ r: 6, strokeWidth: 1, stroke: '#fff' }}
+                  />
+                )
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </Card>
 
       <div className="space-y-4">
         <div className="flex items-center gap-4">
