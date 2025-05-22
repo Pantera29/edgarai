@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { createAutomaticReminder } from '@/lib/simple-reminder-creator';
 
 // Definimos los estados permitidos en inglés
 type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
@@ -30,7 +31,7 @@ export async function PATCH(
     console.log('🔍 Verificando existencia de la cita:', appointmentId);
     const { data: appointmentExists, error: checkError } = await supabase
       .from('appointment')
-      .select('id')
+      .select('id, status')
       .eq('id', appointmentId)
       .maybeSingle();
 
@@ -251,7 +252,19 @@ export async function PATCH(
       .from('appointment')
       .update(filteredUpdates)
       .eq('id', appointmentId)
-      .select()
+      .select(`
+        *,
+        client:client_id (
+          id,
+          dealership_id
+        ),
+        vehicle:vehicle_id (
+          id_uuid
+        ),
+        service:service_id (
+          id_uuid
+        )
+      `)
       .single();
 
     if (error) {
@@ -272,6 +285,31 @@ export async function PATCH(
       time: data.appointment_time,
       status: data.status
     });
+
+    // Si la cita se marcó como completada, crear recordatorio automático
+    if (filteredUpdates.status === 'completed' && appointmentExists.status !== 'completed') {
+      console.log('🔔 Cita completada, creando recordatorio automático...');
+      
+      try {
+        const reminderResult = await createAutomaticReminder({
+          appointment_id: data.id,
+          client_id: data.client.id,
+          vehicle_id: data.vehicle.id_uuid,
+          service_id: data.service.id_uuid,
+          appointment_date: data.appointment_date,
+          dealership_id: data.client.dealership_id
+        }, request);
+
+        if (reminderResult.success) {
+          console.log('✅ Recordatorio automático creado exitosamente:', reminderResult.reminder);
+        } else {
+          console.log('⚠️ No se pudo crear recordatorio:', reminderResult.error);
+        }
+      } catch (reminderError) {
+        // IMPORTANTE: No fallar la actualización de la cita si falla el recordatorio
+        console.error('❌ Error en recordatorio automático:', reminderError);
+      }
+    }
 
     return NextResponse.json({ 
       message: 'Appointment updated successfully',
