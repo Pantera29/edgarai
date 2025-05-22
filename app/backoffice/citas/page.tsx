@@ -439,15 +439,26 @@ function CitasPageContent() {
     if (!selectedCita || !selectedStatus) return;
     
     try {
-      const { error } = await supabase
-        .from('appointment')
-        .update({ 
+      // USAR ENDPOINT en lugar de Supabase directo
+      const response = await fetch(`/api/appointments/update/${selectedCita.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           status: selectedStatus,
           notes: statusNote || null
         })
-        .eq('id', selectedCita.id)
-      
-      if (error) throw error;
+      });
+
+      if (!response.ok) {
+        const errorData = await response.text();
+        console.error('Error del endpoint:', errorData);
+        throw new Error(`Error ${response.status}: ${errorData}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Cita actualizada vía endpoint:', result);
       
       // Actualizar la lista de citas
       setCitas(prev => prev.map(cita => {
@@ -465,6 +476,15 @@ function CitasPageContent() {
         title: "Estado actualizado",
         description: `La cita ha sido actualizada a estado: ${traducirEstado(selectedStatus)}`,
       });
+      
+      // Notificar cuando se crea recordatorio automático
+      if (selectedStatus === 'completed') {
+        toast({
+          title: "¡Recordatorio automático creado!",
+          description: "Se ha programado un recordatorio de mantenimiento para esta cita",
+          duration: 5000
+        });
+      }
       
       // Cerrar el diálogo y limpiar estados
       setStatusDialog(false);
@@ -837,8 +857,10 @@ function CitasPageContent() {
                     <div className="flex gap-1">
                       {(cita.status?.toLowerCase() === 'pending' || 
                         cita.status?.toLowerCase() === 'in_progress' || 
+                        cita.status?.toLowerCase() === 'confirmed' || 
                         cita.status?.toLowerCase() === 'pendiente' || 
-                        cita.status?.toLowerCase() === 'en proceso') && (
+                        cita.status?.toLowerCase() === 'en proceso' || 
+                        cita.status?.toLowerCase() === 'confirmada') && (
                         <>
                           <Button 
                             variant="outline" 
