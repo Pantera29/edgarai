@@ -137,7 +137,7 @@ export default function CalendarPage() {
         }
       }).filter(Boolean)
 
-      const validEvents = formattedEvents.filter(Boolean)
+      const validEvents = formattedEvents.filter((e): e is CalendarEvent => !!e)
       setEvents(validEvents)
       console.log('📅 formattedEvents:', validEvents)
     } catch (error) {
