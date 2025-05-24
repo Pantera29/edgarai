@@ -386,7 +386,7 @@ export default function DashboardPage() {
                     cita.status === 'completed' ? 'completed' :
                     cita.status === 'cancelled' ? 'cancelled' : null;
       
-      router.push(`/backoffice/citas?token=${token}${filtro ? `&estado=${filtro}` : ''}`);
+      router.push(`/backoffice/citas/calendario?token=${token}${filtro ? `&estado=${filtro}` : ''}`);
     };
 
     // Color y estilo según el estado
@@ -632,7 +632,7 @@ export default function DashboardPage() {
                 variant="ghost" 
                 size="sm" 
                 className="gap-1 text-muted-foreground font-normal"
-                onClick={() => router.push(`/backoffice/citas?token=${token}`)}
+                onClick={() => router.push(`/backoffice/citas/calendario?token=${token}`)}
               >
                 Ver todas <ChevronRight className="h-4 w-4" />
               </Button>

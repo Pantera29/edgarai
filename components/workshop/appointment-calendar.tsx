@@ -333,7 +333,6 @@ export function AppointmentCalendar({
   className,
   dealershipId
 }: AppointmentCalendarProps) {
-  const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [showDetails, setShowDetails] = useState(false);
   const [monthYear, setMonthYear] = useState<Date>(new Date());
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -506,65 +505,12 @@ export function AppointmentCalendar({
     return block?.reason || 'Horario no disponible';
   };
 
-  const validateServiceDuration = (slot: TimeSlot) => {
-    if (!selectedService) return true;
-    
-    const requiredSlots = Math.ceil(selectedService.duration_minutes / turnDuration);
-    const currentIndex = timeSlots.findIndex(s => s.time === slot.time);
-    
-    // Verificar si tenemos suficientes slots consecutivos disponibles
-    let hasEnoughConsecutiveSlots = true;
-    let hasEnoughCapacity = true;
-    
-    for (let i = 0; i < requiredSlots; i++) {
-      const checkIndex = currentIndex + i;
-      
-      // Verificar si nos pasamos del horario de cierre
-      if (checkIndex >= timeSlots.length) {
-        hasEnoughConsecutiveSlots = false;
-        break;
-      }
-      
-      const checkSlot = timeSlots[checkIndex];
-      
-      // Verificar si el slot está bloqueado o no tiene capacidad
-      if (checkSlot.isBlocked || checkSlot.available === 0) {
-        hasEnoughConsecutiveSlots = false;
-        break;
-      }
-      
-      // Verificar si hay suficiente capacidad en este slot
-      if (checkSlot.available < 1) {
-        hasEnoughCapacity = false;
-        break;
-      }
-    }
-    
-    return hasEnoughConsecutiveSlots && hasEnoughCapacity;
-  };
-
-  const getSlotStyle = (slot: TimeSlot) => {
-    if (slot.isBlocked || slot.available === 0) {
-      return "bg-red-100 text-red-800 cursor-not-allowed";
-    }
-    if (selectedService) {
-      const isValid = validateServiceDuration(slot);
-      if (!isValid) {
-        return "bg-red-100 text-red-800 cursor-not-allowed";
-      }
-    }
-    return "bg-green-100 text-green-800 hover:bg-green-200";
-  };
-
   useEffect(() => {
-    if (selectedDate) {
-      const slots = generateTimeSlots(selectedDate);
-      setTimeSlots(slots);
-    }
-  }, [selectedDate, operatingHours, blockedDates, turnDuration]);
-
-  useEffect(() => {
-    console.log('useEffect backendSlots: selectedDate, selectedService, dealershipId', { selectedDate, selectedService, dealershipId });
+    console.log('DEBUG backendSlots: selectedDate, selectedService, dealershipId', {
+      selectedDate,
+      selectedService,
+      dealershipId
+    });
     const fetchBackendSlots = async () => {
       if (!selectedDate || !selectedService || !dealershipId) {
         setBackendSlots(null);
@@ -585,7 +531,8 @@ export function AppointmentCalendar({
         const slots = Array.isArray(response.data.availableSlots)
           ? response.data.availableSlots.map((time: string) => ({
               time,
-              available: true
+              available: 1,
+              existingAppointments: []
             }))
           : [];
         setBackendSlots(slots);
@@ -599,15 +546,33 @@ export function AppointmentCalendar({
 
   const renderTimeSlots = () => {
     if (!selectedDate) return null;
-    if (backendSlots) {
-      console.log('Slots recibidos del backend para mostrar:', backendSlots);
+
+    // Siempre usar los slots del backend
+    if (selectedService && dealershipId) {
+      if (backendSlots === null) {
+        return (
+          <div className="p-6">
+            <div className="text-center text-muted-foreground">
+              Cargando horarios disponibles...
+            </div>
+          </div>
+        );
+      }
+
+      // Procesar los slots del backend para asegurar el formato correcto
+      const processedSlots = backendSlots.map(slot => ({
+        time: slot.time,
+        available: 1,
+        existingAppointments: []
+      }));
+
       return (
         <div className="p-6">
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {backendSlots.length === 0 ? (
+            {processedSlots.length === 0 ? (
               <div className="col-span-full text-center text-muted-foreground">No hay horarios disponibles</div>
             ) : (
-              backendSlots.map((slot, index) => (
+              processedSlots.map((slot, index) => (
                 <Button
                   key={index}
                   variant="outline"
@@ -619,12 +584,12 @@ export function AppointmentCalendar({
                   onClick={() => {
                     if (slot.available) {
                       setSelectedSlot(slot.time);
-                      onTimeSlotSelect?.({ ...slot });
+                      onTimeSlotSelect?.(slot);
                     }
                   }}
                 >
                   <div className="flex flex-col items-center gap-1">
-                    <span className="text-base font-semibold">{slot.time}</span>
+                    <span className="text-base font-semibold">{slot.time.substring(0, 5)}</span>
                   </div>
                 </Button>
               ))
@@ -633,43 +598,9 @@ export function AppointmentCalendar({
         </div>
       );
     }
-    if (!selectedDate || !timeSlots.length) return null;
-    return (
-      <div className="p-6">
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-          {timeSlots.map((slot, index) => {
-            const isBlocked = slot.isBlocked;
-            const isSelected = slot.time === selectedSlot;
-            return (
-              <Button
-                key={index}
-                variant="outline"
-                className={cn(
-                  "h-auto py-4 relative group transition-all",
-                  isBlocked ? 'bg-red-50 text-red-700 border-red-200 hover:bg-red-50' :
-                  slot.available === 0 ? 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:bg-yellow-50' :
-                  isSelected ? 'bg-primary/20 border-primary ring-2 ring-primary ring-offset-2 font-semibold shadow-sm' :
-                  'bg-green-50 text-green-700 border-green-200 hover:bg-green-100 hover:border-green-400'
-                )}
-                disabled={isBlocked || slot.available === 0}
-                onClick={() => {
-                  if (!isBlocked && slot.available > 0) {
-                    setSelectedSlot(slot.time);
-                    if (slot && slot.time) {
-                      onTimeSlotSelect?.(slot);
-                    }
-                  }
-                }}
-              >
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-base font-semibold">{slot.time}</span>
-                </div>
-              </Button>
-            );
-          })}
-        </div>
-      </div>
-    );
+
+    // Si no hay servicio o dealershipId, no mostrar nada
+    return null;
   };
 
   return (
