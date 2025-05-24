@@ -71,15 +71,32 @@ const menuItems: MenuItem[] = [
     ]
   },
   {
+    title: "Citas",
+    icon: Calendar,
+    isSection: true,
+    items: [
+      // {
+      //   title: "Lista",
+      //   href: "/backoffice/citas",
+      //   icon: ClipboardList
+      // },
+      {
+        title: "Calendario",
+        href: "/backoffice/citas/calendario",
+        icon: Calendar
+      },
+      {
+        title: "Nueva Cita",
+        href: "/backoffice/citas/nueva",
+        icon: Calendar
+      }
+    ]
+  },
+  {
     title: "Operaciones",
     icon: Calendar,
     isSection: true,
     items: [
-      {
-        title: "Citas",
-        href: "/backoffice/citas",
-        icon: Calendar
-      },
       {
         title: "Transacciones",
         href: "/backoffice/transacciones",

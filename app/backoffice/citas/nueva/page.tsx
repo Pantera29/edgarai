@@ -809,7 +809,8 @@ export default function NuevaReservaPage() {
         });
       }
       
-      router.replace('/backoffice/citas?token=' + token);
+      // Redirigir al calendario de citas en vez de la lista
+      router.replace('/backoffice/citas/calendario?token=' + token);
       
     } catch (error) {
       console.error("Error general:", error);
