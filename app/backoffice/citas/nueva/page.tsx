@@ -218,14 +218,6 @@ export default function NuevaReservaPage() {
   const router = useRouter();
   const { toast } = useToast();
 
-  // Agregar toast de prueba al cargar
-  useEffect(() => {
-    toast({
-      title: "Prueba de toast",
-      description: "Este toast debería aparecer al cargar la página"
-    });
-  }, []);
-
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tokenValue = params.get("token"); // Obtiene el token de los query params
@@ -639,12 +631,6 @@ export default function NuevaReservaPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Toast de prueba inmediato
-    toast({
-      title: "Prueba de toast",
-      description: "Este toast debería aparecer al hacer clic en el botón"
-    });
     
     console.log("Valores al enviar:", {
       cliente: selectedClient,
