@@ -5,7 +5,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { cn } from "@/lib/utils";
@@ -48,7 +48,11 @@ export default function BlockedDates() {
       const params = new URLSearchParams(window.location.search);
       const token = params.get("token");
       if (!token) {
-        toast.error('No se encontró el token de autenticación');
+        toast({
+          title: '¡Error!',
+          description: 'No se encontró el token de autenticación',
+          variant: 'destructive'
+        });
         return;
       }
 
@@ -88,7 +92,11 @@ export default function BlockedDates() {
       setOperatingHours(hoursData || []);
     } catch (error) {
       console.error('Error al cargar datos:', error);
-      toast.error('Error al cargar la información');
+      toast({
+        title: '¡Error!',
+        description: 'Error al cargar la información',
+        variant: 'destructive'
+      });
     } finally {
       setIsLoading(false);
     }
@@ -147,11 +155,19 @@ export default function BlockedDates() {
 
       if (error) throw error;
 
-      toast.success('Bloqueo eliminado correctamente');
+      toast({
+        title: '¡Éxito!',
+        description: 'Bloqueo eliminado correctamente',
+        variant: 'default'
+      });
       await loadData();
     } catch (error) {
       console.error('Error al eliminar bloqueo:', error);
-      toast.error('Error al eliminar el bloqueo');
+      toast({
+        title: '¡Error!',
+        description: 'Error al eliminar el bloqueo',
+        variant: 'destructive'
+      });
     } finally {
       setBlockToDelete(null);
       setShowDeleteDialog(false);

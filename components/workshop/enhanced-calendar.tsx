@@ -31,6 +31,9 @@ export function EnhancedCalendar({
   const [modifierStyles, setModifierStyles] = useState<any>({});
 
   useEffect(() => {
+    console.log('EnhancedCalendar - Bloqueos recibidos:', blockedDates);
+    console.log('EnhancedCalendar - Horarios operativos:', operatingHours);
+
     // Obtener los días no laborables
     const inactiveDays = operatingHours
       .filter(h => !h.is_working_day)

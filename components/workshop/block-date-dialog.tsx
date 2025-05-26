@@ -17,7 +17,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { toast } from "sonner";
+import { toast } from "@/hooks/use-toast";
 import { BlockedDate, HorarioOperacion, SelectedDateInfo } from '@/types/workshop';
 import { verifyToken } from "@/app/jwt/token";
 
@@ -77,7 +77,11 @@ export default function BlockDateDialog({
         setDiaCompleto(true);
         
         if (selectedDate.isNonWorkingDay) {
-          toast.error("Este día está configurado como no operativo en los horarios regulares del taller. Por favor selecciona otro día.");
+          toast({
+            title: "¡Error!",
+            description: "Este día está configurado como no operativo en los horarios regulares del taller. Por favor selecciona otro día.",
+            variant: "destructive"
+          });
           onOpenChange(false);
           return;
         }
@@ -92,47 +96,91 @@ export default function BlockDateDialog({
   }, [open, editingBlock, selectedDate]);
 
   const validateSchedule = () => {
+    console.log('Iniciando validación de horario:', {
+      date,
+      currentSchedule,
+      diaCompleto,
+      horaInicio,
+      horaFin
+    });
+
     // Si no hay fecha o no se encontró el horario, no se puede continuar
     if (!date || !currentSchedule) {
+      console.log('Validación fallida: Fecha o horario no encontrado');
       return false;
     }
 
     // Verificar si es un día laboral
     if (!currentSchedule.is_working_day) {
-      toast.error("No se pueden programar bloqueos en días no laborales.");
+      console.log('Validación fallida: Día no laboral');
+      toast({
+        title: "¡Error!",
+        description: "No se pueden programar bloqueos en días no laborales.",
+        variant: "destructive"
+      });
       return false;
     }
 
     // Verificar que la hora de inicio sea menor que la hora de fin para bloqueos parciales
     if (!diaCompleto && horaInicio && horaFin) {
+      console.log('Validando horario parcial:', {
+        horaInicio,
+        horaFin,
+        openingTime: currentSchedule.opening_time,
+        closingTime: currentSchedule.closing_time
+      });
+
       // Validar que las horas estén dentro del horario de operación
       if (horaInicio < currentSchedule.opening_time || horaFin > currentSchedule.closing_time) {
-        toast.error(`El horario debe estar entre ${currentSchedule.opening_time.slice(0, 5)} y ${currentSchedule.closing_time.slice(0, 5)}.`);
+        console.log('Validación fallida: Horario fuera de rango');
+        toast({
+          title: "¡Error!",
+          description: `El horario seleccionado (${horaInicio} - ${horaFin}) está fuera del horario permitido para ese día: ${currentSchedule.opening_time.slice(0, 5)} - ${currentSchedule.closing_time.slice(0, 5)}. Por favor selecciona un rango dentro del horario operativo.`,
+          variant: "destructive"
+        });
         return false;
       }
 
       if (horaInicio >= horaFin) {
-        toast.error("La hora de inicio debe ser anterior a la hora de fin.");
+        console.log('Validación fallida: Hora de inicio mayor o igual a hora de fin');
+        toast({
+          title: "¡Error!",
+          description: "La hora de inicio debe ser anterior a la hora de fin.",
+          variant: "destructive"
+        });
         return false;
       }
     }
 
+    console.log('Validación exitosa');
     return true;
   };
 
   const handleSave = async () => {
-    console.log('Iniciando guardado...'); // Debug
+    console.log('Iniciando guardado de bloqueo:', {
+      date,
+      motivo,
+      diaCompleto,
+      horaInicio,
+      horaFin,
+      editingBlock
+    });
 
     if (!date || !motivo.trim()) {
-      console.log('Faltan campos requeridos:', { date, motivo }); // Debug
-      toast.error('Por favor completa todos los campos requeridos');
+      console.log('Faltan campos requeridos:', { date, motivo });
+      toast({
+        title: "¡Error!",
+        description: "Por favor completa todos los campos requeridos",
+        variant: "destructive"
+      });
       return;
     }
 
     const validation = validateSchedule();
-    console.log('Resultado validación:', validation); // Debug
+    console.log('Resultado validación:', validation);
 
     if (!validation) {
+      console.log('Validación fallida, abortando guardado');
       return;
     }
 
@@ -142,13 +190,23 @@ export default function BlockDateDialog({
       const params = new URLSearchParams(window.location.search);
       const token = params.get("token");
       if (!token) {
-        toast.error('No se encontró el token de autenticación');
+        console.log('Error: Token no encontrado');
+        toast({
+          title: "¡Error!",
+          description: "No se encontró el token de autenticación",
+          variant: "destructive"
+        });
         return;
       }
 
       const verifiedData = verifyToken(token);
       if (!verifiedData?.dealership_id) {
-        toast.error('No se pudo verificar el concesionario');
+        console.log('Error: No se pudo verificar el concesionario');
+        toast({
+          title: "¡Error!",
+          description: "No se pudo verificar el concesionario",
+          variant: "destructive"
+        });
         return;
       }
 
@@ -168,7 +226,7 @@ export default function BlockDateDialog({
         updated_at: new Date().toISOString()
       };
 
-      console.log('Guardando bloqueo:', blockData); // Debug
+      console.log('Datos a guardar:', blockData);
 
       // Usar upsert para manejar tanto creación como edición
       const { error: saveError } = await supabase
@@ -183,17 +241,22 @@ export default function BlockDateDialog({
         throw saveError;
       }
 
-      toast.success(
-        editingBlock 
-          ? 'Bloqueo actualizado correctamente'
-          : 'Bloqueo creado correctamente'
-      );
+      console.log('Bloqueo guardado exitosamente');
+      toast({
+        title: "¡Éxito!",
+        description: editingBlock ? 'Bloqueo actualizado correctamente' : 'Bloqueo creado correctamente',
+        variant: "default"
+      });
       
       onSave(); // Recargar la lista de bloqueos
       onOpenChange(false); // Cerrar el modal
     } catch (error) {
-      console.error('Error al guardar el bloqueo:', error);
-      toast.error('Error al guardar el bloqueo');
+      console.error('Error completo al guardar el bloqueo:', error);
+      toast({
+        title: "¡Error!",
+        description: "Error al guardar el bloqueo",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
