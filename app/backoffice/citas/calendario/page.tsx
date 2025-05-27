@@ -207,7 +207,7 @@ export default function CalendarioCitasPage() {
     console.log('Cita construida:', cita);
     setSelectedCita(cita)
     setRescheduleDialog(true)
-    setSelectedDate(info.event.start ? new Date(info.event.start) : null)
+    setSelectedDate(null)
     setSelectedSlot(null)
     console.log('Modal de reagendamiento abierto');
   }
