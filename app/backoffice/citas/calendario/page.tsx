@@ -282,30 +282,27 @@ export default function CalendarioCitasPage() {
   const confirmarCambiosCita = async () => {
     if (!selectedCita) return;
     try {
-      let nuevaFecha = selectedCita.appointment_date;
-      let nuevoHorario = selectedCita.appointment_time;
+      const nuevosDatos: Record<string, any> = {};
+      
+      // Solo incluir fecha y hora si se seleccionaron nuevas
       if (selectedDate) {
-        nuevaFecha = selectedDate.toISOString().split('T')[0];
+        nuevosDatos.appointment_date = selectedDate.toISOString().split('T')[0];
       }
       if (selectedSlot) {
-        nuevoHorario = selectedSlot.time;
+        nuevosDatos.appointment_time = selectedSlot.time;
       }
-      const nuevosDatos: Record<string, any> = {};
-      // Comparar y agregar solo los campos que cambiaron
-      if (selectedCita.appointment_date !== nuevaFecha) {
-        nuevosDatos.appointment_date = nuevaFecha;
-      }
-      if (selectedCita.appointment_time !== nuevoHorario) {
-        nuevosDatos.appointment_time = nuevoHorario;
-      }
+      
+      // Incluir el cambio de estado si es diferente
       if (selectedCita.status !== rescheduleStatus) {
         nuevosDatos.status = rescheduleStatus;
       }
+
       // Si no hay cambios, no hacer nada
       if (Object.keys(nuevosDatos).length === 0) {
         toast({ title: "Sin cambios", description: "No se realizaron cambios en la cita." });
         return;
       }
+
       // PATCH al endpoint
       const response = await fetch(`/api/appointments/update/${selectedCita.id}`, {
         method: 'PATCH',
