@@ -84,6 +84,32 @@ export default function NuevoVehiculoPage() {
     vin: ""             
   });
 
+  const [vinError, setVinError] = useState<string | null>(null);
+
+  const validateVin = (vin: string) => {
+    if (!vin) {
+      setVinError(null);
+      return;
+    }
+
+    if (vin.length !== 17) {
+      setVinError("El VIN debe tener exactamente 17 caracteres");
+      return;
+    }
+
+    if (/[IOQ]/i.test(vin)) {
+      setVinError("El VIN no puede contener las letras I, O o Q");
+      return;
+    }
+
+    if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) {
+      setVinError("El VIN solo puede contener letras (A-Z, excepto I, O, Q) y números (0-9)");
+      return;
+    }
+
+    setVinError(null);
+  };
+
   useEffect(() => {
     const fetchClientes = async () => {
       if (!dataToken?.dealership_id) return;
@@ -188,44 +214,7 @@ export default function NuevoVehiculoPage() {
 
       // Validación mejorada para el VIN
       if (formData.vin) {
-        if (formData.vin.length !== 17) {
-          toast({
-            title: "Error",
-            description: "El VIN debe tener exactamente 17 caracteres",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        // Verificar que no contenga I, O o Q
-        if (/[IOQ]/i.test(formData.vin)) {
-          toast({
-            title: "Error",
-            description: "El VIN no puede contener las letras I, O o Q",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        // Verificar que solo contenga letras y números permitidos
-        if (!/^[A-HJ-NPR-Z0-9]{17}$/.test(formData.vin)) {
-          toast({
-            title: "Error",
-            description: "El VIN solo puede contener letras (A-Z, excepto I, O, Q) y números (0-9)",
-            variant: "destructive"
-          });
-          return;
-        }
-        
-        // Verificar que el primer carácter sea M para vehículos fabricados en México
-        if (formData.vin.charAt(0) !== 'M') {
-          toast({
-            title: "Advertencia",
-            description: "El primer carácter del VIN debería ser 'M' para vehículos fabricados en México",
-            variant: "default"
-          });
-          // No bloqueamos el envío, solo mostramos una advertencia
-        }
+        validateVin(formData.vin);
       }
 
       if (!formData.make.trim()) {
@@ -354,13 +343,20 @@ export default function NuevoVehiculoPage() {
           <Input
             id="vin"
             value={formData.vin}
-            onChange={(e) => setFormData({ ...formData, vin: e.target.value.toUpperCase() })}
+            onChange={(e) => {
+              const newVin = e.target.value.toUpperCase();
+              setFormData({ ...formData, vin: newVin });
+              validateVin(newVin);
+            }}
             placeholder="17 caracteres alfanuméricos"
             maxLength={17}
+            className={vinError ? "border-red-500" : ""}
           />
+          {vinError && (
+            <p className="text-sm text-red-500 mt-1">{vinError}</p>
+          )}
           <p className="text-xs text-muted-foreground">
-            El VIN debe tener 17 caracteres. No puede contener las letras I, O o Q. 
-            Para vehículos fabricados en México, debe comenzar con 'M'.
+            El VIN debe tener 17 caracteres. No puede contener las letras I, O o Q.
           </p>
         </div>
         <div className="space-y-2">
