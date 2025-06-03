@@ -11,6 +11,23 @@ export async function GET(request: Request) {
     const serviceId = searchParams.get('service_id');
     const dealershipId = searchParams.get('dealership_id');
 
+    // Verificar si la solicitud viene del backoffice
+    const isBackofficeRequest = request.headers.get('x-request-source') === 'backoffice';
+
+    // Validación de fecha solo para solicitudes que no son del backoffice
+    if (!isBackofficeRequest) {
+      const selectedDate = new Date(date + 'T00:00:00');
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      if (selectedDate < today) {
+        return NextResponse.json({
+          availableSlots: [],
+          message: 'No se pueden crear citas en fechas pasadas'
+        });
+      }
+    }
+
     if (!date || !serviceId) {
       return NextResponse.json(
         { message: 'Date and service_id parameters are required' },

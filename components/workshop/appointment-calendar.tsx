@@ -101,6 +101,7 @@ interface AppointmentCalendarProps {
   selectedService?: Service;
   className?: string;
   dealershipId?: string;
+  allowPastDates?: boolean;
 }
 
 // Agregar este helper para agrupar slots por hora
@@ -331,7 +332,8 @@ export function AppointmentCalendar({
   onTimeSlotSelect,
   selectedService,
   className,
-  dealershipId
+  dealershipId,
+  allowPastDates = false
 }: AppointmentCalendarProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [monthYear, setMonthYear] = useState<Date>(new Date());
@@ -524,6 +526,9 @@ export function AppointmentCalendar({
             service_id: selectedService.id,
             dealership_id: dealershipId,
           },
+          headers: {
+            'x-request-source': 'backoffice'
+          }
         });
         // Log completo de la respuesta del endpoint
         console.log('Respuesta completa del endpoint de disponibilidad:', response.data);
@@ -623,7 +628,7 @@ export function AppointmentCalendar({
                   mode="single"
                   selected={selectedDate || undefined}
                   onSelect={(date) => {
-                    if (date && !isBefore(date, startOfDay(new Date()))) {
+                    if (date && (allowPastDates || !isBefore(date, startOfDay(new Date())))) {
                       onSelect(date);
                     }
                   }}
@@ -636,11 +641,11 @@ export function AppointmentCalendar({
                         date={date}
                         dayInfo={calculateDayAvailability(date)}
                         onClick={() => {
-                          if (!isBefore(date, startOfDay(new Date()))) {
+                          if (allowPastDates || !isBefore(date, startOfDay(new Date()))) {
                             onSelect(date);
                           }
                         }}
-                        disabled={isBefore(date, startOfDay(new Date()))}
+                        disabled={!allowPastDates && isBefore(date, startOfDay(new Date()))}
                         isSelected={selectedDate ? format(date, 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd') : false}
                       />
                     )
