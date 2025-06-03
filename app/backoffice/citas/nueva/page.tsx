@@ -17,6 +17,7 @@ import { verifyToken } from "@/app/jwt/token"
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from '@/components/ui/command';
 import { stringToSafeDate } from '@/lib/utils/date';
 import { sendAppointmentConfirmationSMS } from "@/lib/sms";
+import { Switch } from "@/components/ui/switch";
 
 // Extender la interfaz Vehicle para incluir las propiedades adicionales
 interface ExtendedVehicle extends Vehicle {
@@ -262,6 +263,7 @@ export default function NuevaReservaPage() {
   const [open, setOpen] = useState(true); // Mantener el estado del diálogo abierto
   const supabase = createClientComponentClient();
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [allowPastDates, setAllowPastDates] = useState(false);
 
   const loadDealershipInfo = async (dealershipId: string) => {
     try {
@@ -471,22 +473,22 @@ export default function NuevaReservaPage() {
 
   const loadAppointments = async (date: string) => {
     try {
-      const { data, error } = await supabase
-        .from('appointment')
-        .select(`
-          id,
-          appointment_date,
-          appointment_time,
-          service_id,
-          client_id,
-          client:client_id(names),
-          services:service_id(service_name, duration_minutes)
-        `)
-        .eq('appointment_date', date);
-        
-      if (error) throw error;
+      console.log('Cargando citas con headers:', {
+        'x-request-source': 'backoffice'
+      });
       
-      console.log('Datos originales de citas:', data);
+      const response = await fetch(
+        `/api/appointments/availability?date=${date}&service_id=${selectedService}&dealership_id=${verifiedDataToken?.dealership_id}`,
+        {
+          headers: {
+            'x-request-source': 'backoffice'
+          }
+        }
+      );
+      
+      const data = await response.json();
+      
+      console.log('Respuesta del endpoint:', data);
       
       // Formatear los datos para que sean compatibles con el componente AppointmentCalendar
       const formattedAppointments = data?.map(app => {
@@ -957,11 +959,23 @@ export default function NuevaReservaPage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-12 items-center gap-4">
+            <Label htmlFor="allowPastDates" className="text-right col-span-1">Permitir fechas pasadas</Label>
+            <div className="col-span-11">
+              <Switch
+                checked={allowPastDates}
+                onCheckedChange={setAllowPastDates}
+                id="allowPastDates"
+              />
+            </div>
+          </div>
+
           <div className="grid grid-cols-12 items-start gap-4">
             <Label className="text-right col-span-1 pt-4">Fecha y Hora</Label>
             <div className="col-span-11">
               <div className="bg-white rounded-xl border shadow-sm p-4">
                 <AppointmentCalendar
+                  allowPastDates={allowPastDates}
                   selectedDate={selectedDate ? stringToSafeDate(selectedDate) : new Date()}
                   onSelect={(date) => handleSelectDate(date)}
                   blockedDates={blockedDates.map(date => ({
