@@ -4,7 +4,6 @@ const nextConfig = {
     ENABLE_SMS: process.env.ENABLE_SMS || 'false'
   },
   experimental: {
-    serverActions: true,
     webpackBuildWorker: true,
   },
   trailingSlash: true,

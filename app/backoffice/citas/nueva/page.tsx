@@ -41,6 +41,27 @@ interface ExtendedService extends Service {
   duration_minutes: number;
 }
 
+// Interfaz para el tipo de appointment
+interface Appointment {
+  id: string;
+  appointment_date: string;
+  appointment_time: string;
+  client_id: string;
+  service_id: string;
+  client?: {
+    names: string;
+  } | Array<{
+    names: string;
+  }>;
+  services?: {
+    service_name: string;
+    duration_minutes: number;
+  } | Array<{
+    service_name: string;
+    duration_minutes: number;
+  }>;
+}
+
 // Función para traducir estados de inglés a español
 const traducirEstado = (estado: string | null): string => {
   if (!estado) return 'Desconocido';
@@ -491,7 +512,7 @@ export default function NuevaReservaPage() {
       console.log('Respuesta del endpoint:', data);
       
       // Formatear los datos para que sean compatibles con el componente AppointmentCalendar
-      const formattedAppointments = data?.map(app => {
+      const formattedAppointments = data?.map((app: Appointment) => {
         // Asegurar que client y services sean objetos, no arrays
         const clientObj = Array.isArray(app.client) ? app.client[0] : app.client;
         const serviceObj = Array.isArray(app.services) ? app.services[0] : app.services;
