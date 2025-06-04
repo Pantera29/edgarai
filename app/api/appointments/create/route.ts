@@ -223,7 +223,7 @@ export async function POST(request: Request) {
       const formattedDateTime = formatDateTime(appointment_date, appointment_time);
 
       // Construir mensaje
-      const message = `¡Cita confirmada! Su vehículo ${newAppointment.vehicle.make} ${newAppointment.vehicle.model} (Placa: ${newAppointment.vehicle.license_plate || 'Sin placa'}) está agendado para ${newAppointment.service.service_name} el ${formattedDateTime}. Gracias por confiar en nosotros.`;
+      const message = `¡Cita confirmada! Su vehículo ${newAppointment.vehicle.make} ${newAppointment.vehicle.model} está agendado para el ${formattedDateTime}. Gracias por confiar en nosotros.`;
 
       // Enviar SMS
       const result = await twilioClient.messages.create({

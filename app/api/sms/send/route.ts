@@ -105,7 +105,7 @@ export async function POST(request: Request) {
     console.log('Fecha y hora formateadas:', formattedDateTime);
 
     // Construir mensaje
-    const message = `¡Cita confirmada! Su vehículo ${vehicle_make} ${vehicle_model} (Placa: ${vehicle_plate}) está agendado para ${service_name} el ${formattedDateTime}. Gracias por confiar en nosotros.`;
+    const message = `¡Cita confirmada! Su vehículo ${vehicle_make} ${vehicle_model} está agendado para el ${formattedDateTime}. Gracias por confiar en nosotros.`;
     console.log('Mensaje construido:', message);
 
     // Enviar SMS
