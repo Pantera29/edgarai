@@ -12,7 +12,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
-import { format, addMonths, startOfMonth, endOfMonth } from "date-fns"
+import { format, addMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns"
 import { es } from "date-fns/locale"
 import type { CalendarApi } from '@fullcalendar/core'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -105,9 +105,10 @@ export default function CalendarioCitasPage() {
           return
         }
         setDataToken(verifiedDataToken)
+        // Cargar solo la semana actual en la carga inicial
         const now = new Date()
-        const start = format(startOfMonth(now), 'yyyy-MM-dd')
-        const end = format(endOfMonth(now), 'yyyy-MM-dd')
+        const start = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd') // Lunes
+        const end = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')     // Domingo
         setCurrentRange({ start, end })
         loadEvents(verifiedDataToken.dealership_id, start, end)
       }
@@ -163,6 +164,17 @@ export default function CalendarioCitasPage() {
       const validEvents = formattedEvents;
       setEvents(validEvents)
 
+      // LOGS DE MÉTRICAS
+      console.log('🔄 Iniciando cálculo de métricas para dealership:', dealershipId);
+      console.log('📊 Total de citas recuperadas:', validEvents.length);
+      console.log('📝 Distribución de estados:', {
+        pending: validEvents.filter(e => e.status === 'pending').length,
+        confirmed: validEvents.filter(e => e.status === 'confirmed').length,
+        in_progress: validEvents.filter(e => e.status === 'in_progress').length,
+        completed: validEvents.filter(e => e.status === 'completed').length,
+        cancelled: validEvents.filter(e => e.status === 'cancelled').length
+      });
+
       // Actualizar métricas
       const metricas = {
         total: validEvents.length,
@@ -172,10 +184,11 @@ export default function CalendarioCitasPage() {
         completadas: validEvents.filter(e => e.status === 'completed').length,
         canceladas: validEvents.filter(e => e.status === 'cancelled').length
       }
+      console.log('✅ Métricas calculadas:', metricas);
       setMetricas(metricas)
 
     } catch (error) {
-      console.error('Error cargando eventos:', error)
+      console.error('❌ Error cargando eventos:', error)
       toast({
         title: "Error",
         description: "No se pudieron cargar los eventos",

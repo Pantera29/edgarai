@@ -511,53 +511,47 @@ function CitasPageContent() {
     const cargarMetricas = async () => {
       if (!dataToken?.dealership_id) return;
       try {
-        // Total
-        const { count: total } = await supabase
+        console.log('🔄 Iniciando cálculo de métricas para dealership:', dataToken.dealership_id);
+        
+        // Una sola consulta para obtener todas las citas
+        const { data: citas, error } = await supabase
           .from('appointment')
-          .select('*', { count: 'exact', head: true })
+          .select('status')
           .eq('dealership_id', dataToken.dealership_id);
-        // Pendientes
-        const { count: pendientes } = await supabase
-          .from('appointment')
-          .select('*', { count: 'exact', head: true })
-          .eq('dealership_id', dataToken.dealership_id)
-          .eq('status', 'pending');
-        // Confirmadas
-        const { count: confirmadas } = await supabase
-          .from('appointment')
-          .select('*', { count: 'exact', head: true })
-          .eq('dealership_id', dataToken.dealership_id)
-          .eq('status', 'confirmed');
-        // En proceso
-        const { count: enProceso } = await supabase
-          .from('appointment')
-          .select('*', { count: 'exact', head: true })
-          .eq('dealership_id', dataToken.dealership_id)
-          .eq('status', 'in_progress');
-        // Completadas
-        const { count: completadas } = await supabase
-          .from('appointment')
-          .select('*', { count: 'exact', head: true })
-          .eq('dealership_id', dataToken.dealership_id)
-          .eq('status', 'completed');
-        // Canceladas
-        const { count: canceladas } = await supabase
-          .from('appointment')
-          .select('*', { count: 'exact', head: true })
-          .eq('dealership_id', dataToken.dealership_id)
-          .eq('status', 'cancelled');
-        setMetricas({
-          total: total || 0,
-          pendientes: pendientes || 0,
-          confirmadas: confirmadas || 0,
-          enProceso: enProceso || 0,
-          completadas: completadas || 0,
-          canceladas: canceladas || 0
+        
+        if (error) throw error;
+        
+        console.log('📊 Total de citas recuperadas:', citas.length);
+        console.log('📝 Distribución de estados:', {
+          pending: citas.filter(c => c.status === 'pending').length,
+          confirmed: citas.filter(c => c.status === 'confirmed').length,
+          in_progress: citas.filter(c => c.status === 'in_progress').length,
+          completed: citas.filter(c => c.status === 'completed').length,
+          cancelled: citas.filter(c => c.status === 'cancelled').length
         });
+        
+        // Calcular métricas en memoria
+        const metricas = {
+          total: citas.length,
+          pendientes: citas.filter(c => c.status === 'pending').length,
+          confirmadas: citas.filter(c => c.status === 'confirmed').length,
+          enProceso: citas.filter(c => c.status === 'in_progress').length,
+          completadas: citas.filter(c => c.status === 'completed').length,
+          canceladas: citas.filter(c => c.status === 'cancelled').length
+        };
+        
+        console.log('✅ Métricas calculadas:', metricas);
+        setMetricas(metricas);
       } catch (error) {
-        console.error('Error cargando métricas:', error);
+        console.error('❌ Error cargando métricas:', error);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "No se pudieron cargar las métricas"
+        });
       }
     };
+    
     cargarMetricas();
   }, [dataToken]);
 
