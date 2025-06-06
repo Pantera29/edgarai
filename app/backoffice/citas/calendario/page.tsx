@@ -530,7 +530,7 @@ export default function CalendarioCitasPage() {
                       ? 'bg-gray-100 text-gray-800' 
                       : 'bg-blue-100 text-blue-800'
                   }`}>
-                    {selectedCita.channel || 'No especificado'}
+                    {(selectedCita.channel || 'No especificado').toUpperCase()}
                   </span>
                 </div>
                 <div className="font-medium">Estado:</div>
