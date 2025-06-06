@@ -157,6 +157,7 @@ export default function CalendarioCitasPage() {
           vehicle: appointment.vehicle,
           service: appointment.service ? (appointment.service as ServiceWithIdUuid) : undefined,
           notes: appointment.notes,
+          channel: appointment.channel,
           dealership_id: appointment.dealership_id
         } as CalendarEventWithServiceId
       }).filter((e): e is CalendarEventWithServiceId => !!e)
@@ -521,6 +522,16 @@ export default function CalendarioCitasPage() {
                   {selectedCita.start && selectedCita.end ?
                     `${format(new Date(selectedCita.start), 'dd/MM/yyyy HH:mm')} - ${format(new Date(selectedCita.end), 'HH:mm')}` :
                     'No especificada'}
+                </div>
+                <div className="font-medium">Canal:</div>
+                <div>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${
+                    selectedCita.channel?.toLowerCase() === 'manual' 
+                      ? 'bg-gray-100 text-gray-800' 
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {selectedCita.channel || 'No especificado'}
+                  </span>
                 </div>
                 <div className="font-medium">Estado:</div>
                 <div>
