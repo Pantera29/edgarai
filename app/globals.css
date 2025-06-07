@@ -1,3 +1,4 @@
+@import '../styles/chart.css';
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

@@ -48,6 +48,7 @@ import {
 import { Calendar } from "@/components/ui/calendar"
 import { toast } from "@/components/ui/use-toast"
 import { DonutChart } from "@/components/ui/donut-chart"
+import { AppointmentTrendChart } from "@/components/dashboard/appointment-trend-chart"
 
 interface Servicio {
   nombre: string;
@@ -528,6 +529,9 @@ export default function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* Gráfico de Tendencia de Citas */}
+      <AppointmentTrendChart />
 
       {/* Gráfico de Origen de Citas */}
       <Card className="shadow-sm">
