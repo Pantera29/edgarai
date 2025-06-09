@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts"
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer, Tooltip, ReferenceLine } from "recharts"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { format, subMonths, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -139,7 +139,7 @@ export function AppointmentTrendChart() {
         {/* Gráfico principal responsivo */}
         <div style={{ width: '100%', height: 250 }}>
           <ResponsiveContainer width="100%" height="100%">
-            <AreaChart data={data} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+            <AreaChart data={data} margin={{ top: 32, right: 20, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="fillCurrentMonth" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="var(--color-currentMonth)" stopOpacity={0.8} />
@@ -169,14 +169,20 @@ export function AppointmentTrendChart() {
                 width={32}
                 tick={{ fontSize: 12, fill: '#64748b', fontFamily: 'inherit' }}
               />
-              <ChartTooltip
+              <Tooltip
                 cursor={false}
-                content={
-                  <ChartTooltipContent
-                    labelFormatter={(value) => `Día ${value}`}
-                    indicator="dot"
-                  />
-                }
+                labelFormatter={(value) => `Día ${value}`}
+                formatter={(value, name) => {
+                  if (name === "currentMonth") return [value, "Mes Actual"];
+                  if (name === "previousMonth") return [value, "Mes Anterior"];
+                  return [value, name];
+                }}
+              />
+              <ReferenceLine
+                x={new Date().getDate()}
+                stroke="#2563eb"
+                strokeDasharray="3 3"
+                label={{ value: 'Hoy', position: 'top', fill: '#2563eb', fontSize: 12, fontWeight: 600 }}
               />
               <Area
                 dataKey="previousMonth"
@@ -184,7 +190,6 @@ export function AppointmentTrendChart() {
                 fill="url(#fillPreviousMonth)"
                 stroke="var(--color-previousMonth)"
                 strokeWidth={2}
-                stackId="a"
                 dot={false}
                 activeDot={{ r: 4 }}
               />
@@ -194,7 +199,6 @@ export function AppointmentTrendChart() {
                 fill="url(#fillCurrentMonth)"
                 stroke="var(--color-currentMonth)"
                 strokeWidth={2}
-                stackId="a"
                 dot={false}
                 activeDot={{ r: 4 }}
               />
