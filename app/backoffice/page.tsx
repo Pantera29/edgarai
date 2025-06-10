@@ -29,7 +29,8 @@ import {
   Phone,
   User,
   Globe,
-  Bot
+  Bot,
+  Settings
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { 
@@ -49,6 +50,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { toast } from "@/components/ui/use-toast"
 import { DonutChart } from "@/components/ui/donut-chart"
 import { AppointmentTrendChart } from "@/components/dashboard/appointment-trend-chart"
+import { calculateWorkshopUtilization } from "@/lib/dashboard-metrics"
 
 interface Servicio {
   nombre: string;
@@ -75,6 +77,11 @@ interface CitaSupabase {
   duracion?: number;
 }
 
+interface WorkshopUtilization {
+  status: string;
+  utilizationRate: number;
+}
+
 interface DashboardData {
   estadoCitas: {
     pendientes: number;
@@ -94,6 +101,7 @@ interface DashboardData {
     web: number;
     agenteai: number;
   };
+  workshopUtilization?: WorkshopUtilization;
 }
 
 const getOrigenIcon = (origen: string) => {
@@ -143,6 +151,7 @@ export default function DashboardPage() {
   const [tabActivo, setTabActivo] = useState<string>("todas")
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const [workshopUtilization, setWorkshopUtilization] = useState<WorkshopUtilization | null>(null)
 
   // Obtener la fecha actual
   const fechaHoy = format(new Date(), 'yyyy-MM-dd');
@@ -153,6 +162,7 @@ export default function DashboardPage() {
     if (dataToken?.dealership_id) {
       console.log('useEffect - Cargando datos para fecha:', fechaSeleccionada);
       cargarDatos(dataToken.dealership_id);
+      fetchWorkshopData(dataToken.dealership_id);
     }
   }, [fechaSeleccionada, dataToken?.dealership_id]);
 
@@ -347,6 +357,20 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchWorkshopData = async (dealershipId: string) => {
+    try {
+      const utilization = await calculateWorkshopUtilization(dealershipId, supabase);
+      setWorkshopUtilization(utilization);
+    } catch (error) {
+      console.error('Error al cargar datos de ocupación:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar los datos de ocupación del taller."
+      });
+    }
+  };
+
   const filtrarCitas = (citas: CitaSupabase[] | undefined) => {
     if (!citas) return []
     
@@ -431,7 +455,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
         {/* Estado de Citas */}
         <Card className="shadow-sm">
           <div className="p-6">
@@ -512,20 +536,33 @@ export default function DashboardPage() {
             </div>
             
             <div className="mt-3">
-              <p className="text-xs text-muted-foreground">
-                {data.satisfaccionCliente.tendencia > 0 ? 
-                  <TrendingUp className="inline h-3 w-3 mr-1 text-green-500" /> : 
-                  data.satisfaccionCliente.tendencia < 0 ?
-                  <TrendingDown className="inline h-3 w-3 mr-1 text-red-500" /> :
-                  <TrendingUp className="inline h-3 w-3 mr-1 text-gray-500" />
-                }
-                {data.satisfaccionCliente.tendencia > 0 ? 
-                  'Mejorando' : 
-                  data.satisfaccionCliente.tendencia < 0 ? 
-                  'Disminuyendo' : 
-                  'Estable'} este mes
-              </p>
+              {/* Línea de tendencia eliminada por solicitud */}
             </div>
+          </div>
+        </Card>
+
+        {/* Ocupación del Taller */}
+        <Card className="shadow-sm">
+          <div className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Ocupación del Taller</h3>
+              <div className="rounded-md bg-gray-100 p-1">
+                <Settings className="h-4 w-4 text-gray-600" />
+              </div>
+            </div>
+            <div className={`text-2xl font-bold ${
+              workshopUtilization?.status === 'optimal' ? 'text-green-600' :
+              workshopUtilization?.status === 'overloaded' ? 'text-red-600' :
+              workshopUtilization?.status === 'moderate' ? 'text-amber-600' : 'text-blue-600'
+            }`}>
+              {workshopUtilization?.utilizationRate.toFixed(1) || 0}%
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {workshopUtilization?.status === 'optimal' && 'Funcionamiento óptimo'}
+              {workshopUtilization?.status === 'overloaded' && 'Sobrecargado'}
+              {workshopUtilization?.status === 'moderate' && 'Utilización moderada'}
+              {workshopUtilization?.status === 'low' && 'Baja utilización'}
+            </p>
           </div>
         </Card>
       </div>
