@@ -92,23 +92,23 @@ const menuItems: MenuItem[] = [
       }
     ]
   },
-  {
-    title: "Operaciones",
-    icon: Calendar,
-    isSection: true,
-    items: [
-      {
-        title: "Transacciones",
-        href: "/backoffice/transacciones",
-        icon: Receipt
-      },
-      {
-        title: "Servicios Recomendados",
-        href: "/backoffice/servicios-recomendados",
-        icon: ClipboardList
-      }
-    ]
-  },
+  // {
+  //   title: "Operaciones",
+  //   icon: Calendar,
+  //   isSection: true,
+  //   items: [
+  //     {
+  //       title: "Transacciones",
+  //       href: "/backoffice/transacciones",
+  //       icon: Receipt
+  //     },
+  //     {
+  //       title: "Servicios Recomendados",
+  //       href: "/backoffice/servicios-recomendados",
+  //       icon: ClipboardList
+  //     }
+  //   ]
+  // },
   {
     title: "Administración",
     icon: Settings,
