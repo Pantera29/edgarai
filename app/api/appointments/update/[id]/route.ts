@@ -286,11 +286,12 @@ export async function PATCH(
       status: data.status
     });
 
-    // Si la cita se marcó como completada, crear recordatorio automático
+    // Si la cita se marcó como completada, crear recordatorio automático y transacción
     if (filteredUpdates.status === 'completed' && appointmentExists.status !== 'completed') {
-      console.log('🔔 Cita completada, creando recordatorio automático...');
+      console.log('🔔 Cita completada, creando recordatorio automático y transacción...');
       
       try {
+        // 1. Crear recordatorio automático
         const reminderResult = await createAutomaticReminder({
           appointment_id: data.id,
           client_id: data.client.id,
@@ -305,9 +306,38 @@ export async function PATCH(
         } else {
           console.log('⚠️ No se pudo crear recordatorio:', reminderResult.error);
         }
-      } catch (reminderError) {
-        // IMPORTANTE: No fallar la actualización de la cita si falla el recordatorio
-        console.error('❌ Error en recordatorio automático:', reminderError);
+
+        // 2. Crear transacción automática
+        console.log('💰 Creando transacción automática...');
+        const { data: transaction, error: transactionError } = await supabase
+          .from('service_transactions')
+          .insert({
+            appointment_id: data.id,
+            transaction_date: data.appointment_date,
+            notes: 'Transacción creada automáticamente al completar la cita',
+            dealership_id: data.client.dealership_id
+          })
+          .select(`
+            *,
+            specific_services (
+              service_name,
+              kilometers,
+              months,
+              price
+            )
+          `)
+          .single();
+
+        if (transactionError) {
+          console.error('❌ Error al crear transacción automática:', transactionError);
+          // No fallamos la actualización de la cita si falla la transacción
+        } else {
+          console.log('✅ Transacción automática creada exitosamente:', transaction);
+        }
+
+      } catch (error) {
+        // IMPORTANTE: No fallar la actualización de la cita si falla el recordatorio o la transacción
+        console.error('❌ Error en proceso automático:', error);
       }
     }
 
