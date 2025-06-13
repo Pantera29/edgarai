@@ -155,11 +155,13 @@ export default function FeedbackPage() {
 
   // Función para calcular el NPS
   const calculateNPS = (responses: any[]) => {
-    if (!responses.length) return { score: 0, promoters: 0, detractors: 0 };
+    // Filtrar solo respuestas completadas
+    const completedResponses = responses.filter(r => r.status === 'completed' && r.score !== null);
+    if (!completedResponses.length) return { score: 0, promoters: 0, detractors: 0 };
     
-    const promoters = responses.filter(r => r.score >= 9).length;
-    const detractors = responses.filter(r => r.score <= 6).length;
-    const total = responses.length;
+    const promoters = completedResponses.filter(r => r.score >= 9).length;
+    const detractors = completedResponses.filter(r => r.score <= 6).length;
+    const total = completedResponses.length;
     
     const score = Math.round(((promoters - detractors) / total) * 100);
     
@@ -168,8 +170,11 @@ export default function FeedbackPage() {
 
   // Función para calcular la tendencia del NPS
   const calculateNPSTrend = (currentData: any[], previousData: any[]) => {
-    const currentNPS = calculateNPS(currentData).score;
-    const previousNPS = calculateNPS(previousData).score;
+    const currentCompleted = currentData.filter(item => item.status === 'completed' && item.score !== null);
+    const previousCompleted = previousData.filter(item => item.status === 'completed' && item.score !== null);
+    
+    const currentNPS = calculateNPS(currentCompleted).score;
+    const previousNPS = calculateNPS(previousCompleted).score;
     return currentNPS - previousNPS;
   }
 
@@ -322,18 +327,25 @@ export default function FeedbackPage() {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col gap-1">
-              <div className="text-2xl font-bold">
-                {data.length > 0 
-                  ? format(new Date(data[0].created_at), "dd MMM", { locale: es })
-                  : "Sin datos"
-                }
-              </div>
-              <p className="text-xs text-muted-foreground">
-                {data.length > 0 
-                  ? `${data[0].customer_name || 'Cliente'} - ${data[0].score || 0}/10`
-                  : "No hay respuestas registradas"
-                }
-              </p>
+              {(() => {
+                const lastResponse = data.find(item => item.status === 'completed' && item.score !== null);
+                return (
+                  <>
+                    <div className="text-2xl font-bold">
+                      {lastResponse 
+                        ? format(new Date(lastResponse.created_at), "dd MMM", { locale: es })
+                        : "Sin datos"
+                      }
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {lastResponse 
+                        ? `${lastResponse.customer_name || 'Cliente'} - ${lastResponse.score}/10`
+                        : "No hay respuestas registradas"
+                      }
+                    </p>
+                  </>
+                );
+              })()}
             </div>
           </CardContent>
         </Card>
