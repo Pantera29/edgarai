@@ -333,6 +333,31 @@ export async function PATCH(
           // No fallamos la actualización de la cita si falla la transacción
         } else {
           console.log('✅ Transacción automática creada exitosamente:', transaction);
+
+          // 3. Crear registro NPS
+          console.log('📊 Creando registro NPS...');
+          try {
+            const npsResponse = await fetch(`${new URL(request.url).origin}/api/nps/create`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Cookie': request.headers.get('cookie') || ''
+              },
+              body: JSON.stringify({
+                transaction_id: transaction.transaction_id,
+                customer_id: data.client.id
+              })
+            });
+
+            if (!npsResponse.ok) {
+              console.error('❌ Error al crear registro NPS:', await npsResponse.text());
+            } else {
+              console.log('✅ Registro NPS creado exitosamente');
+            }
+          } catch (npsError) {
+            console.error('❌ Error en proceso de creación de NPS:', npsError);
+            // No fallamos la actualización de la cita si falla la creación del NPS
+          }
         }
 
       } catch (error) {
