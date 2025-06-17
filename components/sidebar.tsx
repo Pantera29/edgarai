@@ -20,7 +20,9 @@ import {
   BarChart,
   Bell,
   LogOut,
-  type LucideIcon
+  type LucideIcon,
+  MessageSquare,
+  Target
 } from "lucide-react"
 import Image from "next/image"
 
@@ -54,11 +56,6 @@ const menuItems: MenuItem[] = [
         icon: Car
       },
       {
-        title: "Conversaciones",
-        href: "/backoffice/conversaciones",
-        icon: ClipboardList
-      },
-      {
         title: "Feedback NPS",
         href: "/backoffice/feedback",
         icon: BarChart
@@ -71,15 +68,27 @@ const menuItems: MenuItem[] = [
     ]
   },
   {
+    title: "Conversaciones",
+    icon: MessageSquare,
+    isSection: true,
+    items: [
+      {
+        title: "KPIs",
+        href: "/backoffice/conversaciones",
+        icon: Target
+      },
+      {
+        title: "Lista",
+        href: "/backoffice/conversaciones/lista",
+        icon: MessageSquare
+      }
+    ]
+  },
+  {
     title: "Citas",
     icon: Calendar,
     isSection: true,
     items: [
-      // {
-      //   title: "Lista",
-      //   href: "/backoffice/citas",
-      //   icon: ClipboardList
-      // },
       {
         title: "Calendario",
         href: "/backoffice/citas/calendario",
@@ -92,23 +101,6 @@ const menuItems: MenuItem[] = [
       }
     ]
   },
-  // {
-  //   title: "Operaciones",
-  //   icon: Calendar,
-  //   isSection: true,
-  //   items: [
-  //     {
-  //       title: "Transacciones",
-  //       href: "/backoffice/transacciones",
-  //       icon: Receipt
-  //     },
-  //     {
-  //       title: "Servicios Recomendados",
-  //       href: "/backoffice/servicios-recomendados",
-  //       icon: ClipboardList
-  //     }
-  //   ]
-  // },
   {
     title: "Administración",
     icon: Settings,

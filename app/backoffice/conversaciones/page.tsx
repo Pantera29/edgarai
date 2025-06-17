@@ -84,18 +84,9 @@ export default function ConversacionesPage() {
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
   const [token, setToken] = useState<string>("");
   const [dataToken, setDataToken] = useState<any>(null);
-  const [conversaciones, setConversaciones] = useState<ConversacionItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [totalConversaciones, setTotalConversaciones] = useState(0);
-  const [pagina, setPagina] = useState(1);
   
-  // Filtros
-  const [busqueda, setBusqueda] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("todos");
-  const [filtroCanal, setFiltroCanal] = useState("todos");
-  const [filtroRazonFinalizacion, setFiltroRazonFinalizacion] = useState("todas");
-
-  // Nuevos estados para métricas
+  // Estados para métricas
   const [metricas, setMetricas] = useState<any>({
     total: 0,
     activas: 0,
@@ -109,8 +100,6 @@ export default function ConversacionesPage() {
     'WhatsApp': true,
     'Teléfono': true
   });
-
-  const [tabActiva, setTabActiva] = useState<'agente' | 'humano'>('agente');
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -143,243 +132,70 @@ export default function ConversacionesPage() {
 
   useEffect(() => {
     if (dataToken) {
-      cargarConversaciones();
       cargarMetricas();
     }
-  }, [dataToken, busqueda, filtroEstado, filtroCanal, pagina, tabActiva]);
-
-  const cargarConversaciones = async () => {
-    setLoading(true);
-    try {
-      console.log(`Cargando conversaciones para pestaña: ${tabActiva}`);
-      
-      let query = supabase
-        .from("chat_conversations")
-        .select(`
-          *,
-          client(names, email, phone_number, dealership_id, agent_active)
-        `, { count: "exact" })
-        .order("updated_at", { ascending: false });
-
-      // Filtrar por dealership_id si está disponible en el token
-      if (dataToken?.dealership_id) {
-        query = query.eq("dealership_id", dataToken.dealership_id);
-        console.log(`Filtrando por dealership_id: ${dataToken.dealership_id}`);
-      }
-
-      // Filtrar por estado del agente según la pestaña activa
-      if (tabActiva === 'agente') {
-        query = query.eq('client.agent_active', true);
-        console.log('Filtrando conversaciones con agent_active = true');
-      } else {
-        query = query.eq('client.agent_active', false);
-        console.log('Filtrando conversaciones con agent_active = false');
-      }
-
-      // Aplicar filtros
-      if (busqueda) {
-        query = query.or(
-          `user_identifier.ilike.%${busqueda}%,client.names.ilike.%${busqueda}%,client.phone_number.ilike.%${busqueda}%,client.email.ilike.%${busqueda}%`
-        );
-        console.log(`Aplicando búsqueda: ${busqueda}`);
-      }
-
-      if (filtroEstado !== "todos") {
-        query = query.eq("status", filtroEstado);
-        console.log(`Filtrando por estado: ${filtroEstado}`);
-      }
-      
-      // Filtro por canal
-      if (filtroCanal !== "todos") {
-        query = query.eq("channel", filtroCanal);
-        console.log(`Filtrando por canal: ${filtroCanal}`);
-      }
-
-      // Filtro por razón de finalización
-      if (filtroRazonFinalizacion !== "todas") {
-        query = query.eq("ended_reason", filtroRazonFinalizacion);
-        console.log(`Filtrando por razón de finalización: ${filtroRazonFinalizacion}`);
-      }
-
-      // Aplicar la paginación
-      query = query.range((pagina - 1) * ITEMS_PER_PAGE, pagina * ITEMS_PER_PAGE - 1);
-
-      const { data, count, error } = await query;
-
-      if (error) {
-        console.error("Error en la consulta:", error);
-        throw error;
-      }
-
-      console.log(`Total de conversaciones encontradas: ${count}`);
-      console.log("Datos de las conversaciones:", data);
-
-      // Obtener conteo de mensajes para cada conversación
-      let conversacionesConConteo = await Promise.all(
-        (data || []).map(async (conv) => {
-          try {
-            // Extraer mensajes del campo JSONB de la conversación
-            const mensajes = Array.isArray(conv.messages) ? conv.messages : [];
-            
-            const userCount = mensajes.filter((m: any) => m.role === "user").length;
-            const assistantCount = mensajes.filter((m: any) => m.role === "assistant").length;
-
-            // Log para cada conversación
-            console.log(`Conversación ${conv.id}:`, {
-              user_identifier: conv.user_identifier,
-              client: conv.client ? {
-                names: conv.client.names,
-                agent_active: conv.client.agent_active,
-                dealership_id: conv.client.dealership_id
-              } : 'Sin cliente asociado',
-              status: conv.status,
-              channel: conv.channel
-            });
-
-            return {
-              ...conv,
-              user_messages_count: userCount,
-              assistant_messages_count: assistantCount
-            };
-          } catch (error) {
-            console.error("Error al obtener mensajes para conversación", conv.id, error);
-            return {
-              ...conv,
-              user_messages_count: 0,
-              assistant_messages_count: 0
-            };
-          }
-        })
-      );
-
-      // FILTRO EXTRA: Solo mostrar conversaciones con cliente asociado y agent_active = false en la pestaña de humano
-      if (tabActiva === 'humano') {
-        conversacionesConConteo = conversacionesConConteo.filter(
-          (conv) => conv.client && conv.client.agent_active === false && conv.client.dealership_id === dataToken.dealership_id
-        );
-      }
-
-      setConversaciones(conversacionesConConteo);
-      setTotalConversaciones(count || 0);
-
-      // Filtrado adicional en frontend para búsqueda por nombre de cliente
-      const conversacionesFiltradas = conversacionesConConteo.filter((conv: ConversacionItem) => {
-        if (!busqueda) return true;
-        const busq = busqueda.toLowerCase();
-        return (
-          conv.user_identifier?.toLowerCase().includes(busq) ||
-          conv.client?.names?.toLowerCase().includes(busq) ||
-          conv.client?.phone_number?.toLowerCase().includes(busq) ||
-          conv.client?.email?.toLowerCase().includes(busq)
-        );
-      });
-
-      setConversaciones(conversacionesFiltradas);
-    } catch (error) {
-      console.error("Error cargando conversaciones:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-500">Activa</Badge>;
-      case "closed":
-        return <Badge className="bg-gray-500">Cerrada</Badge>;
-      case "pending":
-        return <Badge className="bg-yellow-500">Pendiente</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
-
-  const formatDate = (dateString: string) => {
-    try {
-      return formatDistanceToNow(new Date(dateString), {
-        addSuffix: true,
-        locale: es
-      });
-    } catch (error) {
-      return "Fecha inválida";
-    }
-  };
-
-  const verDetalle = (id: string) => {
-    router.push(`/backoffice/conversaciones/${id}?token=${token}`);
-  };
-
-  const totalPaginas = Math.ceil(totalConversaciones / ITEMS_PER_PAGE);
-
-  // Función para obtener el icono según el canal
-  const getCanalIcon = (channel?: string) => {
-    switch (channel) {
-      case 'phone':
-        return <Phone className="h-4 w-4 mr-1 text-blue-500" />;
-      case 'whatsapp':
-      default:
-        return <MessageSquare className="h-4 w-4 mr-1 text-green-500" />;
-    }
-  };
+  }, [dataToken]);
 
   // Función para cargar métricas
   const cargarMetricas = async () => {
+    const tiempoInicio = performance.now();
     try {
       console.log("Iniciando carga de métricas...");
       
-      // Consulta básica para todas las conversaciones
-      let baseQuery = supabase.from('chat_conversations').select('*');
+      // Consulta única optimizada
+      const tiempoConsultaInicio = performance.now();
+      const { data: conversaciones, error } = await supabase
+        .from('chat_conversations')
+        .select(`
+          id,
+          status,
+          channel,
+          created_at,
+          updated_at
+        `)
+        .eq('dealership_id', dataToken.dealership_id);
       
-      // Filtrar por dealership_id si está disponible
-      if (dataToken?.dealership_id) {
-        baseQuery = baseQuery.eq('dealership_id', dataToken.dealership_id);
-      }
-      
-      // Ejecutar la consulta una sola vez y procesar los resultados localmente
-      const { data: conversaciones, error } = await baseQuery;
+      const tiempoConsultaFin = performance.now();
+      console.log(`Tiempo de consulta a Supabase: ${(tiempoConsultaFin - tiempoConsultaInicio).toFixed(2)}ms`);
+      console.log(`Cantidad de registros obtenidos: ${conversaciones?.length || 0}`);
       
       if (error) {
         console.error("Error obteniendo conversaciones:", error);
         throw error;
       }
+
+      const tiempoProcesamientoInicio = performance.now();
       
-      console.log(`Recuperadas ${conversaciones?.length || 0} conversaciones`);
-      
-      // Contar por estado manualmente
+      // Inicialización de contadores y estructuras de datos
       let activas = 0;
       let cerradas = 0;
       let pendientes = 0;
+      let duracionTotal = 0;
+      let llamadasValidas = 0;
       
-      // Mapa para contar por canal
       const canalCount: Record<string, number> = {};
-      
-      // Inicializar fechas de los últimos 30 días
       const hoy = new Date();
-      const fechas = [];
-      for (let i = 0; i < 30; i++) {
+      const fechas = Array.from({ length: 30 }, (_, i) => {
         const fecha = new Date(hoy);
         fecha.setDate(hoy.getDate() - i);
-        const key = format(fecha, 'dd/MM');
-        fechas.push(key);
-      }
+        return format(fecha, 'dd/MM');
+      });
 
-      // Inicializar el mapa de fechas y canales
       const fechaCanalCount: Record<string, { WhatsApp: number, Teléfono: number }> = {};
       fechas.forEach(f => fechaCanalCount[f] = { WhatsApp: 0, Teléfono: 0 });
       
-      // Procesar cada conversación para obtener las métricas
+      // Procesamiento de datos en una sola pasada
       conversaciones?.forEach(conv => {
-        // Contar por estado
+        // Conteo por estado
         if (conv.status === 'active') activas++;
         else if (conv.status === 'closed') cerradas++;
         else if (conv.status === 'pending') pendientes++;
         
-        // Contar por canal
+        // Conteo por canal
         const canal = conv.channel || 'desconocido';
         canalCount[canal] = (canalCount[canal] || 0) + 1;
         
-        // Contar por fecha y canal real
+        // Procesamiento de fechas y canales
         if (conv.created_at) {
           const fecha = format(new Date(conv.created_at), 'dd/MM');
           const canalFormateado = formatearNombreCanal(conv.channel || 'otro');
@@ -388,26 +204,39 @@ export default function ConversacionesPage() {
             else if (canalFormateado === 'Teléfono') fechaCanalCount[fecha].Teléfono += 1;
           }
         }
+
+        // Cálculo de duración para llamadas cerradas
+        if (conv.channel === 'phone' && conv.status === 'closed' && conv.updated_at && conv.created_at) {
+          const inicio = new Date(conv.created_at);
+          const fin = new Date(conv.updated_at);
+          const duracionMinutos = (fin.getTime() - inicio.getTime()) / (1000 * 60);
+          
+          if (duracionMinutos > 1 && duracionMinutos < 120) {
+            duracionTotal += duracionMinutos;
+            llamadasValidas++;
+          }
+        }
       });
       
+      // Cálculo de métricas finales
       const total = activas + cerradas + pendientes;
-      console.log(`Total: ${total}, Activas: ${activas}, Cerradas: ${cerradas}, Pendientes: ${pendientes}`);
+      const duracionPromedio = llamadasValidas > 0 ? Math.round(duracionTotal / llamadasValidas) : 5;
       
-      // Convertir conteo por canal a formato para gráfico
       const porCanal = Object.entries(canalCount).map(([canal, count]) => ({
         name: formatearNombreCanal(canal),
         value: count
       }));
-      console.log("Distribución por canal:", porCanal);
       
-      // Convertir conteo por fecha y canal a formato para gráfico
       const porFechaCanal = fechas.reverse().map(f => ({
         fecha: f,
         WhatsApp: fechaCanalCount[f].WhatsApp,
         Teléfono: fechaCanalCount[f].Teléfono
       }));
       
-      // Actualizar estado con métricas calculadas
+      const tiempoProcesamientoFin = performance.now();
+      console.log(`Tiempo de procesamiento de datos: ${(tiempoProcesamientoFin - tiempoProcesamientoInicio).toFixed(2)}ms`);
+      
+      // Actualización del estado con todas las métricas
       setMetricas({
         total,
         activas,
@@ -416,59 +245,24 @@ export default function ConversacionesPage() {
         porCanal,
         porFecha: porFechaCanal
       });
-      
-      console.log("Métricas cargadas correctamente");
 
-      // Calcular duración aproximada de llamadas telefónicas
-      try {
-        const { data: llamadas, error: errorLlamadas } = await supabase
-          .from('chat_conversations')
-          .select('created_at, updated_at, status')
-          .eq('channel', 'phone')
-          .eq('status', 'closed');  // Solo considerar llamadas cerradas
-          
-        if (errorLlamadas) {
-          console.error('Error al cargar duración de llamadas:', errorLlamadas);
-        } else if (llamadas && llamadas.length > 0) {
-          let duracionTotal = 0;
-          let llamadasValidas = 0;
-          
-          console.log(`Procesando ${llamadas.length} llamadas cerradas para cálculo de duración`);
-          
-          llamadas.forEach((llamada) => {
-            if (llamada.updated_at && llamada.created_at) {
-              const inicio = new Date(llamada.created_at);
-              const fin = new Date(llamada.updated_at);  // Usando updated_at como aproximación del fin
-              const duracionMinutos = (fin.getTime() - inicio.getTime()) / (1000 * 60);
-              
-              console.log(`Llamada: inicio=${inicio.toISOString()}, fin=${fin.toISOString()}, duración=${duracionMinutos.toFixed(2)} min`);
-              
-              // Solo considerar llamadas con duración razonable (entre 1 y 120 minutos)
-              if (duracionMinutos > 1 && duracionMinutos < 120) {
-                duracionTotal += duracionMinutos;
-                llamadasValidas++;
-              }
-            }
-          });
-          
-          if (llamadasValidas > 0) {
-            const promedio = Math.round(duracionTotal / llamadasValidas);
-            console.log(`Duración promedio calculada: ${promedio} minutos (${llamadasValidas} llamadas válidas)`);
-            setDuracionPromedio(promedio);
-          } else {
-            console.log('No se encontraron llamadas válidas para calcular duración');
-            setDuracionPromedio(5); // Valor predeterminado aproximado
-          }
-        } else {
-          console.log('No se encontraron llamadas cerradas para calcular duración');
-          setDuracionPromedio(5); // Valor predeterminado aproximado
-        }
-      } catch (error) {
-        console.error('Error al calcular duración promedio:', error);
-        setDuracionPromedio(5); // Valor predeterminado en caso de error
-      }
+      setDuracionPromedio(duracionPromedio);
+      
+      const tiempoTotal = performance.now() - tiempoInicio;
+      console.log(`Tiempo total de carga: ${tiempoTotal.toFixed(2)}ms`);
+      console.log('Métricas calculadas:', {
+        total,
+        activas,
+        cerradas,
+        pendientes,
+        llamadasValidas,
+        duracionPromedio
+      });
+      
     } catch (error) {
       console.error("Error cargando métricas:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -480,18 +274,54 @@ export default function ConversacionesPage() {
     }
   };
 
-  const traducirRazonFinalizacion = (razon?: string) => {
-    if (!razon) return '-';
-    
-    switch (razon) {
-      case 'customer-ended-call': return 'Cliente finalizó la llamada';
-      case 'assistant-ended-call': return 'Asistente finalizó la llamada';
-      case 'silence-timed-out': return 'Tiempo de silencio agotado';
-      case 'voicemail': return 'Buzón de voz';
-      case 'assistant-forwarded-call': return 'Llamada transferida por asistente';
-      default: return razon;
+  // Calcular métricas de crecimiento
+  const calcularCrecimiento = () => {
+    const hoy = new Date();
+    const inicioMesActual = startOfMonth(hoy);
+    const inicioMesAnterior = startOfMonth(subDays(inicioMesActual, 1));
+
+    const conversacionesMesActual = metricas.porFecha.filter((item: any) => {
+      const [day, month] = item.fecha.split('/').map(Number);
+      const fechaItem = new Date(hoy.getFullYear(), month-1, day);
+      return fechaItem >= inicioMesActual;
+    }).reduce((sum: number, item: any) => sum + (item.WhatsApp || 0) + (item.Teléfono || 0), 0);
+
+    const conversacionesMesAnterior = metricas.porFecha.filter((item: any) => {
+      const [day, month] = item.fecha.split('/').map(Number);
+      const fechaItem = new Date(hoy.getFullYear(), month-1, day);
+      return fechaItem < inicioMesActual && fechaItem >= inicioMesAnterior;
+    }).reduce((sum: number, item: any) => sum + (item.WhatsApp || 0) + (item.Teléfono || 0), 0);
+
+    if (!conversacionesMesAnterior || isNaN(conversacionesMesAnterior)) {
+      if (conversacionesMesActual > 0) {
+        return { porcentaje: 100, creciendo: true };
+      } else {
+        return { porcentaje: 0, creciendo: false };
+      }
     }
+
+    const diferencia = conversacionesMesActual - conversacionesMesAnterior;
+    const porcentaje = Math.round((diferencia / conversacionesMesAnterior) * 100);
+
+    return {
+      porcentaje: Math.abs(porcentaje),
+      creciendo: porcentaje >= 0
+    };
   };
+
+  // Función para alternar la visibilidad de un canal en el gráfico
+  const toggleCanalVisibilidad = (canal: string) => {
+    setCanalesVisibles(prev => ({
+      ...prev,
+      [canal]: !prev[canal]
+    }));
+  };
+
+  // Obtener datos de crecimiento
+  const crecimiento = calcularCrecimiento();
+  
+  // Usar directamente los datos de métricas para el gráfico
+  const datosGraficoArea = metricas.porFecha;
 
   // Colores para el gráfico de canales
   const CANAL_COLORS = {
@@ -525,79 +355,13 @@ export default function ConversacionesPage() {
     return null;
   };
 
-  // Calcular métricas de crecimiento (comparando con el mes anterior)
-  const calcularCrecimiento = () => {
-    const hoy = new Date();
-    const inicioMesActual = startOfMonth(hoy);
-    const inicioMesAnterior = startOfMonth(subDays(inicioMesActual, 1));
-
-    // Ahora cada item tiene { fecha, WhatsApp, Teléfono }
-    const conversacionesMesActual = metricas.porFecha.filter((item: any) => {
-      const [day, month] = item.fecha.split('/').map(Number);
-      const fechaItem = new Date(hoy.getFullYear(), month-1, day);
-      return fechaItem >= inicioMesActual;
-    }).reduce((sum: number, item: any) => sum + (item.WhatsApp || 0) + (item.Teléfono || 0), 0);
-
-    const conversacionesMesAnterior = metricas.porFecha.filter((item: any) => {
-      const [day, month] = item.fecha.split('/').map(Number);
-      const fechaItem = new Date(hoy.getFullYear(), month-1, day);
-      return fechaItem < inicioMesActual && fechaItem >= inicioMesAnterior;
-    }).reduce((sum: number, item: any) => sum + (item.WhatsApp || 0) + (item.Teléfono || 0), 0);
-
-    // LOG para depuración
-    console.log('Crecimiento - Mes actual:', conversacionesMesActual, 'Mes anterior:', conversacionesMesAnterior);
-
-    if (!conversacionesMesAnterior || isNaN(conversacionesMesAnterior)) {
-      if (conversacionesMesActual > 0) {
-        console.log('Crecimiento: 100% (no había conversaciones el mes anterior)');
-        return { porcentaje: 100, creciendo: true };
-      } else {
-        console.log('Crecimiento: 0% (no hay conversaciones en ninguno de los dos meses)');
-        return { porcentaje: 0, creciendo: false };
-      }
-    }
-
-    const diferencia = conversacionesMesActual - conversacionesMesAnterior;
-    const porcentaje = Math.round((diferencia / conversacionesMesAnterior) * 100);
-
-    return {
-      porcentaje: Math.abs(porcentaje),
-      creciendo: porcentaje >= 0
-    };
-  };
-
-  // Función para alternar la visibilidad de un canal en el gráfico
-  const toggleCanalVisibilidad = (canal: string) => {
-    setCanalesVisibles(prev => ({
-      ...prev,
-      [canal]: !prev[canal]
-    }));
-  };
-
-  // Obtener datos de crecimiento
-  const crecimiento = calcularCrecimiento();
-  
-  // Usar directamente los datos de métricas para el gráfico
-  const datosGraficoArea = metricas.porFecha;
-
-  const conversacionesFiltradas = conversaciones.filter((conv: ConversacionItem) => {
-    if (!busqueda) return true;
-    const busq = busqueda.toLowerCase();
-    return (
-      conv.user_identifier?.toLowerCase().includes(busq) ||
-      conv.client?.names?.toLowerCase().includes(busq) ||
-      conv.client?.phone_number?.toLowerCase().includes(busq) ||
-      conv.client?.email?.toLowerCase().includes(busq)
-    );
-  });
-
   return (
     <div className="px-4 py-6 space-y-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Conversaciones</h1>
+        <h1 className="text-3xl font-bold">Dashboard de Conversaciones</h1>
       </div>
 
-      {/* Métricas tipo Shadcn UI Dashboard */}
+      {/* KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total conversaciones */}
         <Card className="p-6">
@@ -725,7 +489,7 @@ export default function ConversacionesPage() {
                 top: 10,
                 right: 30,
                 left: 0,
-                bottom: 0,
+                bottom: 50,
               }}
             >
               <defs>
@@ -745,13 +509,16 @@ export default function ConversacionesPage() {
                 tickLine={false}
                 axisLine={false}
                 dy={10}
+                interval={2}
+                angle={0}
+                textAnchor="middle"
               />
               <YAxis 
-                tick={{fontSize: 12}}
+                tick={{fontSize: 11}}
                 tickLine={false}
                 axisLine={false}
-                width={30}
-                dx={-10}
+                width={32}
+                tickMargin={8}
               />
               <Tooltip content={<CustomTooltip />} />
               {canalesVisibles['WhatsApp'] && (
@@ -778,271 +545,6 @@ export default function ConversacionesPage() {
           </ResponsiveContainer>
         </div>
       </Card>
-
-      <Card className="p-4 mt-8 shadow-sm border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por usuario, cliente, teléfono o email..."
-              className="pl-8"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-            />
-          </div>
-          
-          <Select
-            value={filtroEstado}
-            onValueChange={setFiltroEstado}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todas</SelectItem>
-              <SelectItem value="active">Activas</SelectItem>
-              <SelectItem value="closed">Cerradas</SelectItem>
-              <SelectItem value="pending">Pendientes</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select
-            value={filtroCanal}
-            onValueChange={setFiltroCanal}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Canal" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los canales</SelectItem>
-              <SelectItem value="whatsapp">WhatsApp</SelectItem>
-              <SelectItem value="phone">Llamadas</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={filtroRazonFinalizacion}
-            onValueChange={setFiltroRazonFinalizacion}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Razón de finalización" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas las razones</SelectItem>
-              <SelectItem value="customer-ended-call">Cliente finalizó la llamada</SelectItem>
-              <SelectItem value="assistant-ended-call">Asistente finalizó la llamada</SelectItem>
-              <SelectItem value="silence-timed-out">Tiempo de silencio agotado</SelectItem>
-              <SelectItem value="voicemail">Buzón de voz</SelectItem>
-              <SelectItem value="assistant-forwarded-call">Llamada transferida por asistente</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </Card>
-
-      <Tabs defaultValue="agente" value={tabActiva} onValueChange={(v) => setTabActiva(v as 'agente' | 'humano')}>
-        <TabsList className="grid w-full grid-cols-2 mb-4">
-          <TabsTrigger value="agente">Conversaciones con Agente</TabsTrigger>
-          <TabsTrigger value="humano">Conversaciones con Humano</TabsTrigger>
-        </TabsList>
-        <TabsContent value="agente">
-          <div className="border rounded-md overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Canal</TableHead>
-                  <TableHead>Identificador</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Última actividad</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Razón de finalización</TableHead>
-                  <TableHead className="min-w-[120px]">Resultado</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10">
-                      Cargando conversaciones...
-                    </TableCell>
-                  </TableRow>
-                ) : conversacionesFiltradas.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10">
-                      No se encontraron conversaciones
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  conversacionesFiltradas.map((conversacion: ConversacionItem) => (
-                    <TableRow key={conversacion.id}>
-                      <TableCell className="w-10">
-                        {getCanalIcon(conversacion.channel)}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {conversacion.user_identifier}
-                      </TableCell>
-                      <TableCell>
-                        {conversacion.client ? (
-                          <div>
-                            <div className="font-semibold">{conversacion.client.names}</div>
-                            <div className="text-sm text-muted-foreground">{conversacion.client.phone_number}</div>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">Sin cliente asociado</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {formatDate(conversacion.updated_at)}
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(conversacion.status)}
-                      </TableCell>
-                      <TableCell>
-                        {conversacion.ended_reason ? (
-                          <span className="text-sm text-muted-foreground">{traducirRazonFinalizacion(conversacion.ended_reason)}</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {conversacion.was_successful !== undefined ? (
-                          <Badge className={conversacion.was_successful ? "bg-green-500" : "bg-red-500"}>
-                            {conversacion.was_successful ? "Exitosa" : "No exitosa"}
-                          </Badge>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => verDetalle(conversacion.id)}
-                          className="flex items-center gap-1"
-                        >
-                          <Eye className="h-4 w-4" />
-                          Ver detalles
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </TabsContent>
-        <TabsContent value="humano">
-          <div className="border rounded-md overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Canal</TableHead>
-                  <TableHead>Identificador</TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Última actividad</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead>Razón de finalización</TableHead>
-                  <TableHead className="min-w-[120px]">Resultado</TableHead>
-                  <TableHead>Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10">
-                      Cargando conversaciones...
-                    </TableCell>
-                  </TableRow>
-                ) : conversacionesFiltradas.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={8} className="text-center py-10">
-                      No se encontraron conversaciones
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  conversacionesFiltradas.map((conversacion: ConversacionItem) => (
-                    <TableRow key={conversacion.id}>
-                      <TableCell className="w-10">
-                        {getCanalIcon(conversacion.channel)}
-                      </TableCell>
-                      <TableCell className="font-medium">
-                        {conversacion.user_identifier}
-                      </TableCell>
-                      <TableCell>
-                        {conversacion.client ? (
-                          <div>
-                            <div className="font-semibold">{conversacion.client.names}</div>
-                            <div className="text-sm text-muted-foreground">{conversacion.client.phone_number}</div>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground">Sin cliente asociado</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {formatDate(conversacion.updated_at)}
-                      </TableCell>
-                      <TableCell>
-                        {getStatusBadge(conversacion.status)}
-                      </TableCell>
-                      <TableCell>
-                        {conversacion.ended_reason ? (
-                          <span className="text-sm text-muted-foreground">{traducirRazonFinalizacion(conversacion.ended_reason)}</span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        {conversacion.was_successful !== undefined ? (
-                          <Badge className={conversacion.was_successful ? "bg-green-500" : "bg-red-500"}>
-                            {conversacion.was_successful ? "Exitosa" : "No exitosa"}
-                          </Badge>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => verDetalle(conversacion.id)}
-                          className="flex items-center gap-1"
-                        >
-                          <Eye className="h-4 w-4" />
-                          Ver detalles
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
-        </TabsContent>
-      </Tabs>
-
-      {totalPaginas > 1 && (
-        <div className="flex justify-between items-center">
-          <div className="text-sm text-muted-foreground">
-            Mostrando {((pagina - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(pagina * ITEMS_PER_PAGE, totalConversaciones)} de {totalConversaciones} conversaciones
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setPagina((p) => Math.max(p - 1, 1))}
-              disabled={pagina <= 1}
-            >
-              Anterior
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setPagina((p) => Math.min(p + 1, totalPaginas))}
-              disabled={pagina >= totalPaginas}
-            >
-              Siguiente
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 } 
