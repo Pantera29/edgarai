@@ -134,18 +134,26 @@ export async function GET(request: Request) {
     console.log('🔍 [Price API] Construyendo consulta para modelo:', finalModelId);
     let query = supabase
       .from('specific_services')
-      .select('price, service_name')
+      .select('price, service_name, kilometers, months')
       .eq('model_id', finalModelId)
       .eq('is_active', true);
 
     // Agregar filtro por kilometers o months
     if (kilometers) {
       console.log('🔍 [Price API] Aplicando filtro por kilometers:', kilometers);
-      query = query.eq('kilometers', parseInt(kilometers));
+      const kmValue = parseInt(kilometers);
+      query = query
+        .gte('kilometers', kmValue)  // Buscar servicios con kilómetros mayores o iguales
+        .order('kilometers', { ascending: true })  // Ordenar de menor a mayor
+        .limit(1);  // Tomar el más cercano
     }
     if (months) {
       console.log('🔍 [Price API] Aplicando filtro por months:', months);
-      query = query.eq('months', parseInt(months));
+      const monthsValue = parseInt(months);
+      query = query
+        .gte('months', monthsValue)  // Buscar servicios con meses mayores o iguales
+        .order('months', { ascending: true })  // Ordenar de menor a mayor
+        .limit(1);  // Tomar el más cercano
     }
 
     // Ejecutar la consulta
@@ -178,7 +186,9 @@ export async function GET(request: Request) {
     console.log('✅ [Price API] Servicio encontrado:', {
       service_name: service.service_name,
       price: service.price,
-      model_id: finalModelId
+      model_id: finalModelId,
+      kilometers: service.kilometers,
+      months: service.months
     });
 
     return NextResponse.json({
@@ -186,8 +196,8 @@ export async function GET(request: Request) {
       service_name: service.service_name,
       model_id: finalModelId,
       parameters: {
-        kilometers: kilometers ? parseInt(kilometers) : null,
-        months: months ? parseInt(months) : null
+        kilometers: service.kilometers,
+        months: service.months
       }
     });
 
