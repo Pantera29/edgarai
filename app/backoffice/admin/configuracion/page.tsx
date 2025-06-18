@@ -74,6 +74,7 @@ export default function WorkshopConfiguration() {
         const defaultConfig: TallerConfig = {
           dealership_id: dealershipId,
           shift_duration: 30,
+          timezone: 'America/Mexico_City',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         };
@@ -162,6 +163,7 @@ export default function WorkshopConfiguration() {
         .upsert({
           dealership_id: dealershipId,
           shift_duration: config?.shift_duration || 30,
+          timezone: config?.timezone || 'America/Mexico_City',
           created_at: config?.created_at || new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
@@ -235,21 +237,45 @@ export default function WorkshopConfiguration() {
             <CardTitle>Parámetros Generales</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              <Label>Duración del Turno (minutos)</Label>
-              <Input
-                type="number"
-                min="15"
-                max="60"
-                step="5"
-                value={config?.shift_duration || 30}
-                onChange={(e) => setConfig(prev => ({
-                  ...prev!,
-                  shift_duration: parseInt(e.target.value)
-                }))}
-                disabled={!isEditing}
-                className="max-w-[200px]"
-              />
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Duración de turno (minutos)
+                </label>
+                <select
+                  value={config?.shift_duration || 30}
+                  onChange={(e) => setConfig(prev => prev ? {
+                    ...prev,
+                    shift_duration: Number(e.target.value)
+                  } : null)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  disabled={!isEditing}
+                >
+                  <option value={30}>30 minutos</option>
+                  <option value={60}>60 minutos</option>
+                  <option value={90}>90 minutos</option>
+                  <option value={120}>120 minutos</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Zona Horaria
+                </label>
+                <select
+                  value={config?.timezone || 'America/Mexico_City'}
+                  onChange={(e) => setConfig(prev => prev ? {
+                    ...prev,
+                    timezone: e.target.value
+                  } : null)}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  disabled={!isEditing}
+                >
+                  <option value="America/Mexico_City">Ciudad de México (UTC-6)</option>
+                  <option value="America/Tijuana">Tijuana (UTC-7)</option>
+                  <option value="America/Cancun">Cancún (UTC-5)</option>
+                </select>
+              </div>
             </div>
           </CardContent>
         </Card>

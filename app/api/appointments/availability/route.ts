@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { format, parse, addMinutes, isBefore } from 'date-fns';
+import { zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
 
 export async function GET(request: Request) {
   try {
@@ -62,7 +63,7 @@ export async function GET(request: Request) {
 
     const { data: dealershipConfig, error: configError } = await supabase
       .from('dealership_configuration')
-      .select('shift_duration, reception_end_time')
+      .select('shift_duration, reception_end_time, timezone')
       .eq('dealership_id', dealershipId)
       .maybeSingle();
 
@@ -93,6 +94,7 @@ export async function GET(request: Request) {
 
     // Usar shift_duration de la configuración o 30 minutos por defecto
     const slotDuration = dealershipConfig?.shift_duration || 30;
+    const timezone = dealershipConfig?.timezone || 'America/Mexico_City';
 
     // 2. Obtener el día de la semana (1-7, donde 1 es Domingo)
     const jsDate = new Date(date + 'T00:00:00'); // Forzar hora local
@@ -306,7 +308,8 @@ export async function GET(request: Request) {
           serviceDuration,
           schedule.max_simultaneous_services,
           slotDuration,
-          dealershipConfig?.reception_end_time
+          dealershipConfig?.reception_end_time,
+          timezone
         );
 
         return NextResponse.json({ 
@@ -346,7 +349,8 @@ export async function GET(request: Request) {
       serviceDuration,
       schedule.max_simultaneous_services,
       slotDuration,
-      dealershipConfig?.reception_end_time
+      dealershipConfig?.reception_end_time,
+      timezone
     );
 
     return NextResponse.json({ 
@@ -371,8 +375,30 @@ function generateTimeSlots(
   serviceDuration: number,
   maxSimultaneous: number,
   slotDuration: number,
-  receptionEndTime: string | null
+  receptionEndTime: string | null,
+  timezone: string
 ) {
+  // Verificar si es el día actual
+  const now = new Date();
+  const selectedDate = new Date(date + 'T00:00:00');
+  const isToday = selectedDate.toDateString() === now.toDateString();
+
+  // Convertir la hora actual a la zona horaria del concesionario
+  const currentTimeInDealershipTz = utcToZonedTime(now, timezone);
+  const currentTimeStr = currentTimeInDealershipTz.toLocaleTimeString('es-MX', {
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    timeZone: timezone
+  });
+
+  console.log('Tiempo actual en zona horaria del concesionario:', {
+    currentTimeStr,
+    timezone,
+    isToday
+  });
+
   // 1. Calcular tiempo total disponible en minutos
   const openingMinutes = timeToMinutes(schedule.opening_time);
   const closingMinutes = timeToMinutes(schedule.closing_time);
@@ -431,6 +457,24 @@ function generateTimeSlots(
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
     if (slot.available === 0) continue;
+
+    // Si es el día actual, verificar si el horario ya pasó
+    if (isToday) {
+      const slotMinutes = timeToMinutes(slot.time);
+      const currentMinutes = timeToMinutes(currentTimeStr);
+      
+      console.log('Comparando slot:', {
+        slot: slot.time,
+        slotMinutes,
+        currentTime: currentTimeStr,
+        currentMinutes,
+        isPast: slotMinutes <= currentMinutes
+      });
+
+      if (slotMinutes <= currentMinutes) {
+        continue; // Saltar slots que ya pasaron
+      }
+    }
 
     // Si hay un horario de recepción configurado, verificar que el slot no esté después
     if (receptionEndTime) {
@@ -491,18 +535,30 @@ function generateTimeSlots(
   if (availableSlots.length === 0 && remainingMinutesAvailable >= serviceDuration && receptionEndTime) {
     // Calcular el horario máximo de recepción como un slot disponible
     const receptionEndMinutes = timeToMinutes(receptionEndTime);
+    const currentMinutes = timeToMinutes(currentTimeStr);
     
-    // Determinar si el servicio cabe si comienza en el horario máximo de recepción
-    const serviceEndMinutes = receptionEndMinutes + serviceDuration;
-    if (serviceEndMinutes <= closingMinutes) {
-      console.log('Forzando disponibilidad del último slot de recepción debido a capacidad total disponible:', {
-        slot: receptionEndTime,
-        remainingMinutesAvailable,
-        serviceDuration
+    // Solo agregar el último slot si no ha pasado
+    if (receptionEndMinutes > currentMinutes) {
+      // Determinar si el servicio cabe si comienza en el horario máximo de recepción
+      const serviceEndMinutes = receptionEndMinutes + serviceDuration;
+      if (serviceEndMinutes <= closingMinutes) {
+        console.log('Forzando disponibilidad del último slot de recepción debido a capacidad total disponible:', {
+          slot: receptionEndTime,
+          remainingMinutesAvailable,
+          serviceDuration,
+          currentTime: currentTimeStr,
+          isPast: false
+        });
+        
+        // Añadir el horario máximo de recepción como disponible
+        availableSlots.push(receptionEndTime);
+      }
+    } else {
+      console.log('No se puede forzar el último slot de recepción porque ya pasó:', {
+        receptionEndTime,
+        currentTime: currentTimeStr,
+        isPast: true
       });
-      
-      // Añadir el horario máximo de recepción como disponible
-      availableSlots.push(receptionEndTime);
     }
   }
 
