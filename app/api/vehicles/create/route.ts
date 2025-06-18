@@ -62,7 +62,7 @@ export async function POST(request: Request) {
         .select(`
           id,
           make_id,
-          vehicle_makes!inner (
+          vehicle_makes (
             id,
             name
           )
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
         .eq('is_active', true)
         .single();
 
-      if (modelError) {
+      if (modelError && modelError.code !== 'PGRST116') {
         console.error('❌ Error al buscar el modelo:', {
           error: modelError.message,
           model
@@ -82,21 +82,19 @@ export async function POST(request: Request) {
         );
       }
 
-      if (!modelInfo) {
-        console.log('❌ Modelo no encontrado y no se proporcionó marca:', model);
-        return NextResponse.json(
-          { message: 'Model not found and no make provided' },
-          { status: 404 }
-        );
-      }
-
       // Asegurarnos de que vehicle_makes sea un objeto y no un array
-      const typedModelInfo = {
+      const typedModelInfo = modelInfo ? {
         ...modelInfo,
         vehicle_makes: Array.isArray(modelInfo.vehicle_makes) 
           ? modelInfo.vehicle_makes[0] 
           : modelInfo.vehicle_makes
-      } as VehicleModel;
+      } as VehicleModel : null;
+
+      console.log('🔍 Información del modelo procesada:', {
+        modelInfo,
+        typedModelInfo,
+        vehicle_makes: typedModelInfo?.vehicle_makes
+      });
 
       // Verificar que el cliente existe y obtener su dealership_id
       console.log('🔍 Verificando existencia del cliente:', client_id);
@@ -182,27 +180,27 @@ export async function POST(request: Request) {
       // Crear el vehículo con model_id
       console.log('📝 Creando vehículo con model_id:', {
         client_id,
-        make: typedModelInfo.vehicle_makes.name,
+        make: typedModelInfo?.vehicle_makes.name,
         model,
         year,
         license_plate,
         vin,
         last_km,
-        model_id: typedModelInfo.id
+        model_id: typedModelInfo?.id || null
       });
 
       const { data: newVehicle, error: insertError } = await supabase
         .from('vehicles')
         .insert([{
           client_id,
-          make: typedModelInfo.vehicle_makes.name,
+          make: typedModelInfo?.vehicle_makes.name,
           model,
           year,
           license_plate,
           vin: vin || null,
           last_km: last_km || null,
           dealership_id: client.dealership_id,
-          model_id: typedModelInfo.id
+          model_id: typedModelInfo?.id || null
         }])
         .select()
         .single();
@@ -226,14 +224,22 @@ export async function POST(request: Request) {
         model_id: newVehicle.model_id
       });
 
+      const modelInfoResponse = typedModelInfo && typedModelInfo.vehicle_makes ? {
+        model_id: typedModelInfo.id,
+        make: typedModelInfo.vehicle_makes.name
+      } : null;
+
+      console.log('📤 Preparando respuesta:', {
+        modelInfoResponse,
+        typedModelInfo,
+        vehicle_makes: typedModelInfo?.vehicle_makes
+      });
+
       return NextResponse.json(
         { 
           message: 'Vehicle created successfully', 
           vehicle: newVehicle,
-          model_info: {
-            model_id: typedModelInfo.id,
-            make: typedModelInfo.vehicle_makes.name
-          }
+          model_info: modelInfoResponse
         },
         { status: 201 }
       );
@@ -245,7 +251,7 @@ export async function POST(request: Request) {
         .select(`
           id,
           make_id,
-          vehicle_makes!inner (
+          vehicle_makes (
             id,
             name
           )
@@ -254,7 +260,7 @@ export async function POST(request: Request) {
         .eq('is_active', true)
         .single();
 
-      if (modelError && modelError.code !== 'PGRST116') { // PGRST116 es el código cuando no se encuentra ningún resultado
+      if (modelError && modelError.code !== 'PGRST116') {
         console.error('❌ Error al buscar el modelo:', {
           error: modelError.message,
           model
@@ -264,6 +270,20 @@ export async function POST(request: Request) {
           { status: 500 }
         );
       }
+
+      // Asegurarnos de que vehicle_makes sea un objeto y no un array
+      const typedModelInfo = modelInfo ? {
+        ...modelInfo,
+        vehicle_makes: Array.isArray(modelInfo.vehicle_makes) 
+          ? modelInfo.vehicle_makes[0] 
+          : modelInfo.vehicle_makes
+      } as VehicleModel : null;
+
+      console.log('🔍 Información del modelo procesada:', {
+        modelInfo,
+        typedModelInfo,
+        vehicle_makes: typedModelInfo?.vehicle_makes
+      });
 
       // Verificar que el cliente existe y obtener su dealership_id
       console.log('🔍 Verificando existencia del cliente:', client_id);
@@ -355,7 +375,7 @@ export async function POST(request: Request) {
         license_plate,
         vin,
         last_km,
-        model_id: modelInfo?.id || null
+        model_id: typedModelInfo?.id || null
       });
 
       const { data: newVehicle, error: insertError } = await supabase
@@ -369,7 +389,7 @@ export async function POST(request: Request) {
           vin: vin || null,
           last_km: last_km || null,
           dealership_id: client.dealership_id,
-          model_id: modelInfo?.id || null
+          model_id: typedModelInfo?.id || null
         }])
         .select()
         .single();
@@ -393,14 +413,22 @@ export async function POST(request: Request) {
         model_id: newVehicle.model_id
       });
 
+      const modelInfoResponse = typedModelInfo && typedModelInfo.vehicle_makes ? {
+        model_id: typedModelInfo.id,
+        make: typedModelInfo.vehicle_makes.name
+      } : null;
+
+      console.log('📤 Preparando respuesta:', {
+        modelInfoResponse,
+        typedModelInfo,
+        vehicle_makes: typedModelInfo?.vehicle_makes
+      });
+
       return NextResponse.json(
         { 
           message: 'Vehicle created successfully', 
           vehicle: newVehicle,
-          model_info: modelInfo ? {
-            model_id: modelInfo.id,
-            make: (modelInfo.vehicle_makes[0] as unknown as VehicleMake).name
-          } : null
+          model_info: modelInfoResponse
         },
         { status: 201 }
       );
