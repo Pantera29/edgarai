@@ -10,7 +10,7 @@ interface VehicleMake {
 interface VehicleModel {
   id: string;
   make_id: string;
-  vehicle_makes: VehicleMake;
+  vehicle_makes: VehicleMake | VehicleMake[];
 }
 
 // Función auxiliar para normalizar strings
@@ -53,48 +53,53 @@ export async function POST(request: Request) {
       );
     }
 
-    // Si no se proporciona make, el modelo debe existir en la base de datos
+    // Si no se proporciona make, el modelo debe existir y lo usamos para inferir la marca
     if (!make) {
-      // Buscar el modelo en vehicle_models (case-insensitive)
-      console.log('🔍 Buscando información del modelo:', model);
-      const { data: modelInfo, error: modelError } = await supabase
-        .from('vehicle_models')
-        .select(`
-          id,
-          make_id,
-          vehicle_makes (
-            id,
-            name
-          )
-        `)
-        .ilike('name', normalizeString(model))
-        .eq('is_active', true)
-        .single();
+      console.log('🔍 Buscando modelo (y marca) con lógica flexible:', model);
+      
+      const normalizedModelName = normalizeString(model);
+      const searchTerms = [...new Set(normalizedModelName.split(' ').filter(Boolean))];
+      
+      let bestMatch: (VehicleModel & { score: number; vehicle_makes: VehicleMake }) | null = null;
 
-      if (modelError && modelError.code !== 'PGRST116') {
-        console.error('❌ Error al buscar el modelo:', {
-          error: modelError.message,
-          model
-        });
-        return NextResponse.json(
-          { message: 'Error searching for model' },
-          { status: 500 }
-        );
+      if (searchTerms.length > 0) {
+        const orFilter = searchTerms.map(term => `name.ilike.%${term}%`).join(',');
+        const { data: candidateModels, error: modelSearchError } = await supabase
+          .from('vehicle_models')
+          .select('id, name, make_id, vehicle_makes(id, name)')
+          .eq('is_active', true)
+          .or(orFilter);
+
+        if (modelSearchError) {
+          console.error('⚠️ Error en la búsqueda flexible de modelos. No se puede continuar sin la marca.', { error: modelSearchError.message });
+          return NextResponse.json({ message: 'Error searching for model' }, { status: 500 });
+        }
+        
+        if (candidateModels && candidateModels.length > 0) {
+            const rankedModels = candidateModels
+              .map(m => {
+                  const modelNameLower = m.name.toLowerCase();
+                  const score = searchTerms.reduce((acc, term) => modelNameLower.includes(term) ? acc + 1 : acc, 0);
+                  const vehicle_makes = (Array.isArray(m.vehicle_makes) ? m.vehicle_makes[0] : m.vehicle_makes);
+                  return { ...m, score, vehicle_makes };
+              })
+              .filter(m => m.score > 0 && m.vehicle_makes)
+              .sort((a, b) => {
+                  if (b.score !== a.score) return b.score - a.score;
+                  return a.name.length - b.name.length;
+              });
+
+            bestMatch = rankedModels[0];
+        }
       }
 
-      // Asegurarnos de que vehicle_makes sea un objeto y no un array
-      const typedModelInfo = modelInfo ? {
-        ...modelInfo,
-        vehicle_makes: Array.isArray(modelInfo.vehicle_makes) 
-          ? modelInfo.vehicle_makes[0] 
-          : modelInfo.vehicle_makes
-      } as VehicleModel : null;
+      if (!bestMatch) {
+        console.log('❌ Error: No se encontró un modelo coincidente. La marca (make) es requerida.');
+        return NextResponse.json({ message: 'Model not found, make is required' }, { status: 404 });
+      }
 
-      console.log('🔍 Información del modelo procesada:', {
-        modelInfo,
-        typedModelInfo,
-        vehicle_makes: typedModelInfo?.vehicle_makes
-      });
+      console.log(`✅ Mejor coincidencia: ${(bestMatch as any).name} (ID: ${(bestMatch as any).id}), Score: ${(bestMatch as any).score}`);
+      const typedModelInfo = bestMatch as any;
 
       // Verificar que el cliente existe y obtener su dealership_id
       console.log('🔍 Verificando existencia del cliente:', client_id);
@@ -177,8 +182,8 @@ export async function POST(request: Request) {
         }
       }
 
-      // Crear el vehículo con model_id
-      console.log('📝 Creando vehículo con model_id:', {
+      // Crear el vehículo con model_id y marca inferida
+      console.log('📝 Creando vehículo con model_id y marca inferida:', {
         client_id,
         make: typedModelInfo?.vehicle_makes.name,
         model,
@@ -244,46 +249,48 @@ export async function POST(request: Request) {
         { status: 201 }
       );
     } else {
-      // Si se proporciona make, intentamos buscar el modelo pero permitimos que no exista
-      console.log('🔍 Buscando información del modelo (opcional):', model);
-      const { data: modelInfo, error: modelError } = await supabase
-        .from('vehicle_models')
-        .select(`
-          id,
-          make_id,
-          vehicle_makes (
-            id,
-            name
-          )
-        `)
-        .ilike('name', normalizeString(model))
-        .eq('is_active', true)
-        .single();
+      console.log('🔍 Buscando model_id (opcional) con lógica flexible:', model);
+      
+      const normalizedModelName = normalizeString(model);
+      const searchTerms = [...new Set(normalizedModelName.split(' ').filter(Boolean))];
+      
+      let bestMatch: (VehicleModel & { score: number; vehicle_makes: VehicleMake | null }) | null = null;
 
-      if (modelError && modelError.code !== 'PGRST116') {
-        console.error('❌ Error al buscar el modelo:', {
-          error: modelError.message,
-          model
-        });
-        return NextResponse.json(
-          { message: 'Error searching for model' },
-          { status: 500 }
-        );
+      if (searchTerms.length > 0) {
+        const orFilter = searchTerms.map(term => `name.ilike.%${term}%`).join(',');
+        const { data: candidateModels, error: modelSearchError } = await supabase
+          .from('vehicle_models')
+          .select('id, name, make_id, vehicle_makes(id, name)')
+          .eq('is_active', true)
+          .or(orFilter);
+
+        if (modelSearchError) {
+          console.error('⚠️ Error en la búsqueda flexible de modelos, se continuará sin model_id.', { error: modelSearchError.message });
+        } else if (candidateModels && candidateModels.length > 0) {
+          const rankedModels = candidateModels
+              .map(m => {
+                  const modelNameLower = m.name.toLowerCase();
+                  const score = searchTerms.reduce((acc, term) => modelNameLower.includes(term) ? acc + 1 : acc, 0);
+                  const vehicle_makes = (Array.isArray(m.vehicle_makes) ? m.vehicle_makes[0] : m.vehicle_makes);
+                  return { ...m, score, vehicle_makes };
+              })
+              .filter(m => m.score > 0)
+              .sort((a, b) => {
+                  if (b.score !== a.score) return b.score - a.score;
+                  return a.name.length - b.name.length;
+              });
+          
+          bestMatch = rankedModels[0];
+        }
       }
 
-      // Asegurarnos de que vehicle_makes sea un objeto y no un array
-      const typedModelInfo = modelInfo ? {
-        ...modelInfo,
-        vehicle_makes: Array.isArray(modelInfo.vehicle_makes) 
-          ? modelInfo.vehicle_makes[0] 
-          : modelInfo.vehicle_makes
-      } as VehicleModel : null;
-
-      console.log('🔍 Información del modelo procesada:', {
-        modelInfo,
-        typedModelInfo,
-        vehicle_makes: typedModelInfo?.vehicle_makes
-      });
+      if (bestMatch) {
+        console.log(`✅ Mejor coincidencia encontrada: ${(bestMatch as any).name} (ID: ${(bestMatch as any).id}), Score: ${(bestMatch as any).score}`);
+      } else {
+        console.log('ℹ️ No se encontró coincidencia de modelo, se creará sin model_id.');
+      }
+      
+      const typedModelInfo = bestMatch as any;
 
       // Verificar que el cliente existe y obtener su dealership_id
       console.log('🔍 Verificando existencia del cliente:', client_id);
@@ -366,8 +373,8 @@ export async function POST(request: Request) {
         }
       }
 
-      // Crear el vehículo con o sin model_id
-      console.log('📝 Creando vehículo:', {
+      // Crear el vehículo (con o sin model_id)
+      console.log('📝 Creando vehículo (con o sin model_id):', {
         client_id,
         make,
         model,
