@@ -113,6 +113,12 @@ interface AgentTemplate {
   updated_at: string;
 }
 
+interface WhatsAppTemplate {
+  template_id: string;
+  reminder_type: string;
+  message_template: string;
+}
+
 // Componente mejorado para el combobox de clientes
 function ClienteComboBox({ clientes, onSelect, value }: { clientes: any[], onSelect: (id: string) => void, value: string }) {
   const [open, setOpen] = React.useState(false);
@@ -216,6 +222,18 @@ interface MetricasState {
 // Definir el tipo para el estado de colores
 type EstadoColors = Record<EstadoType, string>;
 
+const translateTemplateType = (type: string): string => {
+  switch (type) {
+    case 'service_reminder':
+      return 'Recordatorio de servicio';
+    case 'appointment_confirmation':
+      return 'Confirmación de cita';
+    default:
+      // Fallback for any new/untranslated types
+      return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+};
+
 const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -239,7 +257,8 @@ export default function RecordatoriosPage() {
   const [seleccionados, setSeleccionados] = useState<string[]>([]);
   const [isLlamando, setIsLlamando] = useState(false);
   const [isEnviandoWhatsApp, setIsEnviandoWhatsApp] = useState(false);
-  const [selectedWhatsAppTemplate, setSelectedWhatsAppTemplate] = useState<string>('service_reminder');
+  const [selectedWhatsAppTemplate, setSelectedWhatsAppTemplate] = useState<string>('');
+  const [whatsAppTemplates, setWhatsAppTemplates] = useState<WhatsAppTemplate[]>([]);
   const [formData, setFormData] = useState({
     client_id: '',
     vehicle_id: '',
@@ -281,6 +300,7 @@ export default function RecordatoriosPage() {
         // Si hay un dealership_id en el token, cargar los recordatorios de esa agencia
         if (verifiedDataToken?.dealership_id) {
           fetchRecordatorios(verifiedDataToken.dealership_id);
+          fetchWhatsAppTemplates(verifiedDataToken.dealership_id);
         } else {
           fetchRecordatorios();
         }
@@ -1307,6 +1327,38 @@ export default function RecordatoriosPage() {
     return null;
   };
 
+  const fetchWhatsAppTemplates = async (dealershipId: string) => {
+    if (!dealershipId) return;
+    try {
+      console.log('Buscando plantillas de WhatsApp para el concesionario:', dealershipId);
+      const { data, error } = await supabase
+        .from('whatsapp_message_templates')
+        .select('template_id, reminder_type, message_template')
+        .eq('dealership_id', dealershipId)
+        .eq('is_active', true);
+
+      if (error) {
+        throw error;
+      }
+
+      if (data) {
+        console.log('Plantillas de WhatsApp activas encontradas:', data);
+        setWhatsAppTemplates(data);
+        if (data.length > 0) {
+          // Seleccionar la primera plantilla por defecto
+          setSelectedWhatsAppTemplate(data[0].reminder_type);
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar las plantillas de WhatsApp:', error);
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar las plantillas de WhatsApp.",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <div className="p-8 space-y-8">
       <div className="flex justify-between items-center">
@@ -1518,7 +1570,7 @@ export default function RecordatoriosPage() {
                 </Button>
 
                 {/* Selector de template de WhatsApp */}
-                {seleccionados.length === 1 && (
+                {seleccionados.length === 1 && whatsAppTemplates.length > 0 && (
                   <Select 
                     value={selectedWhatsAppTemplate} 
                     onValueChange={setSelectedWhatsAppTemplate}
@@ -1528,12 +1580,11 @@ export default function RecordatoriosPage() {
                       <SelectValue placeholder="Tipo de mensaje" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="service_reminder">
-                        Recordatorio de servicio
-                      </SelectItem>
-                      <SelectItem value="appointment_confirmation">
-                        Confirmación de cita
-                      </SelectItem>
+                      {whatsAppTemplates.map((template) => (
+                        <SelectItem key={template.template_id} value={template.reminder_type}>
+                          {translateTemplateType(template.reminder_type)}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}

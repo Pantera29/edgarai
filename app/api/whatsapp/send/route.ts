@@ -30,6 +30,18 @@ function formatPhoneNumber(phone: string): string {
 }
 
 /**
+ * Extrae el número de teléfono de 10 dígitos
+ */
+function get10DigitPhoneNumber(phone: string): string {
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length > 10) {
+        // Asume que los últimos 10 dígitos son el número local
+        return cleaned.slice(-10);
+    }
+    return cleaned;
+}
+
+/**
  * Procesa las variables del template con los datos reales
  */
 function processTemplate(template: string, data: any): string {
@@ -221,6 +233,34 @@ export async function POST(request: Request) {
 
     const responseData = await response.json();
     console.log('✅ Respuesta de Whapi:', responseData);
+
+    // Guardar mensaje en el historial de chat
+    console.log('📝 Guardando mensaje en historial_chat...');
+    try {
+      const chatId = get10DigitPhoneNumber(recordatorio.client.phone_number);
+      const whapiMessageId = responseData.message?.id || responseData.id || null;
+
+      const { error: historyError } = await supabase
+        .from('historial_chat')
+        .insert({
+          chat_id: parseInt(chatId, 10),
+          message_id: whapiMessageId,
+          message: processedMessage,
+          processed: true,
+          status: 'active',
+          agente: true,
+          dealership_id: dealership_id
+        });
+
+      if (historyError) {
+        console.error('❌ Error al guardar en historial_chat:', historyError);
+        // No se falla la petición, solo se loguea el error
+      } else {
+        console.log('✅ Mensaje guardado en historial_chat');
+      }
+    } catch (e) {
+      console.error('💥 Error inesperado al procesar para historial_chat:', e);
+    }
 
     // 9. Actualizar estado del recordatorio
     console.log('📝 Actualizando estado del recordatorio a "sent"');
