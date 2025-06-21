@@ -34,12 +34,9 @@ interface ConversacionItem {
     names: string;
     phone_number: string;
     email: string;
-    agent_active: boolean;
   } | null;
   updated_at: string;
-  status: 'active' | 'closed' | 'pending';
-  user_messages_count: number;
-  assistant_messages_count: number;
+  status: 'active' | 'closed' | 'pending' | 'completed';
   channel?: string;
   ended_reason?: string;
   was_successful?: boolean;
@@ -110,68 +107,42 @@ export default function ConversacionesListaPage() {
     if (dataToken) {
       cargarConversaciones();
     }
-  }, [dataToken, busqueda, filtroEstado, filtroCanal, pagina]);
+  }, [dataToken, busqueda, filtroEstado, filtroCanal, filtroRazonFinalizacion]);
 
   const cargarConversaciones = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from("chat_conversations")
-        .select(`
-          *,
-          client(names, email, phone_number, dealership_id, agent_active)
-        `, { count: "exact" })
-        .order("updated_at", { ascending: false });
+      const rpcParams = {
+        dealership_id_param: dataToken.dealership_id,
+        search_query: busqueda || null,
+        status_filter: filtroEstado,
+        channel_filter: filtroCanal,
+        ended_reason_filter: filtroRazonFinalizacion
+      };
 
-      if (dataToken?.dealership_id) {
-        query = query.eq("dealership_id", dataToken.dealership_id);
-      }
-
-      if (busqueda) {
-        query = query.or(
-          `user_identifier.ilike.%${busqueda}%,client.names.ilike.%${busqueda}%,client.phone_number.ilike.%${busqueda}%,client.email.ilike.%${busqueda}%`
-        );
-      }
-
-      if (filtroEstado !== "todos") {
-        query = query.eq("status", filtroEstado);
-      }
+      console.log('🚀 Llamando a la función RPC get_filtered_conversations con los parámetros:', rpcParams);
       
-      if (filtroCanal !== "todos") {
-        query = query.eq("channel", filtroCanal);
-      }
-
-      if (filtroRazonFinalizacion !== "todas") {
-        query = query.eq("ended_reason", filtroRazonFinalizacion);
-      }
-
-      query = query.range((pagina - 1) * ITEMS_PER_PAGE, pagina * ITEMS_PER_PAGE - 1);
-
-      const { data, count, error } = await query;
-
+      const { data, error } = await supabase.rpc('get_filtered_conversations', rpcParams);
+      
       if (error) {
-        console.error("Error en la consulta:", error);
+        console.error("❌ Error en la llamada RPC:", JSON.stringify(error, null, 2));
         throw error;
       }
 
-      let conversacionesConConteo = await Promise.all(
-        (data || []).map(async (conv) => {
-          const mensajes = Array.isArray(conv.messages) ? conv.messages : [];
-          const userCount = mensajes.filter((m: any) => m.role === "user").length;
-          const assistantCount = mensajes.filter((m: any) => m.role === "assistant").length;
+      console.log('✅ RPC exitosa.');
+      console.log('📊 Total de conversaciones recibidas:', data?.length ?? 'undefined');
+      
+      if (data && data.length > 0) {
+        console.log('📋 Primeras 5 conversaciones recibidas:', data.slice(0, 5));
+      } else {
+        console.log('📋 No se recibieron datos o la lista está vacía.');
+      }
+      
+      setConversaciones(data || []);
+      setTotalConversaciones(data?.length || 0);
 
-          return {
-            ...conv,
-            user_messages_count: userCount,
-            assistant_messages_count: assistantCount
-          };
-        })
-      );
-
-      setConversaciones(conversacionesConConteo);
-      setTotalConversaciones(count || 0);
     } catch (error) {
-      console.error("Error cargando conversaciones:", error);
+      console.error("❌ Error fatal en cargarConversaciones:", error);
     } finally {
       setLoading(false);
     }
@@ -185,6 +156,8 @@ export default function ConversacionesListaPage() {
         return <Badge className="bg-gray-500">Cerrada</Badge>;
       case "pending":
         return <Badge className="bg-yellow-500">Pendiente</Badge>;
+      case "completed":
+        return <Badge className="bg-blue-500">Completada</Badge>;
       default:
         return <Badge>{status}</Badge>;
     }
@@ -205,7 +178,11 @@ export default function ConversacionesListaPage() {
     router.push(`/backoffice/conversaciones/${id}?token=${token}`);
   };
 
+  // La paginación ahora se calcula en el cliente
   const totalPaginas = Math.ceil(totalConversaciones / ITEMS_PER_PAGE);
+  const inicio = (pagina - 1) * ITEMS_PER_PAGE;
+  const fin = inicio + ITEMS_PER_PAGE;
+  const conversacionesEnPagina = conversaciones.slice(inicio, fin);
 
   const getCanalIcon = (channel?: string) => {
     switch (channel) {
@@ -237,7 +214,7 @@ export default function ConversacionesListaPage() {
       </div>
 
       <Card className="p-4 shadow-sm border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -306,25 +283,24 @@ export default function ConversacionesListaPage() {
               <TableHead>Última actividad</TableHead>
               <TableHead>Estado</TableHead>
               <TableHead>Razón de finalización</TableHead>
-              <TableHead className="min-w-[120px]">Resultado</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-10">
+                <TableCell colSpan={7} className="text-center py-10">
                   Cargando conversaciones...
                 </TableCell>
               </TableRow>
-            ) : conversaciones.length === 0 ? (
+            ) : conversacionesEnPagina.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-10">
+                <TableCell colSpan={7} className="text-center py-10">
                   No se encontraron conversaciones
                 </TableCell>
               </TableRow>
             ) : (
-              conversaciones.map((conversacion: ConversacionItem) => (
+              conversacionesEnPagina.map((conversacion: ConversacionItem) => (
                 <TableRow key={conversacion.id}>
                   <TableCell className="w-10">
                     {getCanalIcon(conversacion.channel)}
@@ -351,15 +327,6 @@ export default function ConversacionesListaPage() {
                   <TableCell>
                     {conversacion.ended_reason ? (
                       <span className="text-sm text-muted-foreground">{traducirRazonFinalizacion(conversacion.ended_reason)}</span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {conversacion.was_successful !== undefined ? (
-                      <Badge className={conversacion.was_successful ? "bg-green-500" : "bg-red-500"}>
-                        {conversacion.was_successful ? "Exitosa" : "No exitosa"}
-                      </Badge>
                     ) : (
                       <span className="text-sm text-muted-foreground">-</span>
                     )}
