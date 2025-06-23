@@ -316,7 +316,7 @@ export default function ConversacionDetallePage() {
   };
 
   const volverALista = () => {
-    router.push(`/backoffice/conversaciones?token=${token}`);
+    router.push(`/backoffice/conversaciones/lista?token=${token}`);
   };
 
   const verPerfilCliente = (clientId: string) => {
