@@ -90,7 +90,7 @@ export async function POST(request: Request) {
     // Validar campos requeridos
     if (!client_id || !vehicle_id || !service_id || !appointment_date || !appointment_time) {
       return NextResponse.json(
-        { message: 'Missing required parameters' },
+        { message: 'Missing required parameters. Please provide: client_id, vehicle_id, service_id, appointment_date, appointment_time.' },
         { status: 400 }
       );
     }
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
     const validChannels: AppointmentChannel[] = ['whatsapp', 'twilio', 'manual', 'web', 'agenteai'];
     if (!validChannels.includes(channel as AppointmentChannel)) {
       return NextResponse.json(
-        { message: 'Invalid channel value. Allowed values: whatsapp, twilio, manual, web, agenteai' },
+        { message: 'Invalid channel value. Allowed values: whatsapp, twilio, manual, web, agenteai. Please use one of these valid channel values.' },
         { status: 400 }
       );
     }
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
 
     if (clientError || !client) {
       return NextResponse.json(
-        { message: 'Client not found or error checking client' },
+        { message: 'Client not found. Please verify the client ID or create a new client. You can verify clients by phone at /api/customers/verify?phone={phone_number} or create one at /api/customers/create (requires: names, email, phone_number).' },
         { status: 404 }
       );
     }
@@ -128,7 +128,7 @@ export async function POST(request: Request) {
 
     if (vehicleError || !vehicle) {
       return NextResponse.json(
-        { message: 'Vehicle not found or does not belong to this client' },
+        { message: 'Vehicle not found or does not belong to this client. Please verify the vehicle ID or create a new vehicle for this client. You can get client vehicles from /api/customers/{client_id}/vehicles or create one at /api/vehicles/create (requires: client_id, make, model, license_plate, year).' },
         { status: 404 }
       );
     }
@@ -142,7 +142,7 @@ export async function POST(request: Request) {
 
     if (serviceError || !service) {
       return NextResponse.json(
-        { message: 'Service not found' },
+        { message: 'Service not found. Please verify the service ID or check available services. You can get available services from /api/services/list.' },
         { status: 404 }
       );
     }
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
 
     if (appointmentsError) {
       return NextResponse.json(
-        { message: 'Error checking availability' },
+        { message: 'Error checking availability. Please try again or contact support if the issue persists.' },
         { status: 500 }
       );
     }
@@ -191,7 +191,7 @@ export async function POST(request: Request) {
     if (insertError) {
       console.error('Error creating appointment:', insertError.message);
       return NextResponse.json(
-        { message: 'Failed to create appointment', error: insertError.message },
+        { message: 'Failed to create appointment. Please try again or contact support if the issue persists.', error: insertError.message },
         { status: 500 }
       );
     }
@@ -256,7 +256,7 @@ export async function POST(request: Request) {
       console.error('No se pudo leer el body del request en el catch.');
     }
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Internal server error. Please try again later or contact support if the issue persists.' },
       { status: 500 }
     );
   }
