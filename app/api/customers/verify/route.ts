@@ -30,9 +30,7 @@ export async function GET(request: Request) {
       .from('client')
       .select('id, names, email, created_at, agent_active')
       .eq('phone_number', normalizedPhone)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('❌ Error verificando cliente:', {
@@ -40,33 +38,70 @@ export async function GET(request: Request) {
         phone: normalizedPhone
       });
       return NextResponse.json(
-        { message: 'Error verifying client in database. This is a temporary system issue. Please try again or create a new client at /api/customers/create if this phone number should be registered.' },
+        { 
+          message: 'Database error while verifying client. Please try again or create a new client if this phone number should be registered.',
+          error: error.message,
+          phone: normalizedPhone
+        },
         { status: 500 }
       );
     }
 
-    if (!data) {
+    if (!data || data.length === 0) {
       console.log('ℹ️ Cliente no encontrado:', normalizedPhone);
       return NextResponse.json(
-        { exists: false },
+        { 
+          exists: false,
+          message: 'No client found with this phone number. You can create a new client using the /api/customers/create endpoint.',
+          phone: normalizedPhone
+        },
         { status: 404 }
       );
     }
 
+    if (data.length > 1) {
+      console.log('⚠️ Múltiples clientes encontrados:', {
+        count: data.length,
+        phone: normalizedPhone,
+        clients: data.map(c => ({ id: c.id, name: c.names, created_at: c.created_at }))
+      });
+      return NextResponse.json(
+        { 
+          exists: true,
+          multipleClients: true,
+          count: data.length,
+          message: 'Multiple duplicate clients found with this phone number. This indicates a data integrity issue. Please contact the administrator to resolve this duplication.',
+          phone: normalizedPhone,
+          clients: data.map(client => ({
+            id: client.id,
+            name: client.names,
+            email: client.email,
+            agent_active: client.agent_active,
+            created_at: client.created_at
+          }))
+        },
+        { status: 409 } // Conflict status for multiple records
+      );
+    }
+
+    // Caso: exactamente un cliente encontrado
+    const client = data[0];
     console.log('✅ Cliente encontrado:', {
-      id: data.id,
-      name: data.names,
-      email: data.email,
-      agent_active: data.agent_active
+      id: client.id,
+      name: client.names,
+      email: client.email,
+      agent_active: client.agent_active
     });
 
     return NextResponse.json({
       exists: true,
+      multipleClients: false,
+      message: 'Client found successfully.',
       client: {
-        id: data.id,
-        name: data.names,
-        email: data.email,
-        agent_active: data.agent_active
+        id: client.id,
+        name: client.names,
+        email: client.email,
+        agent_active: client.agent_active
       }
     });
   } catch (error) {
@@ -78,7 +113,10 @@ export async function GET(request: Request) {
       } : error
     });
     return NextResponse.json(
-      { message: 'Internal server error during client verification. Please verify the phone number format and try again. You can also create a new client at /api/customers/create if needed.' },
+      { 
+        message: 'Unexpected server error during client verification. Please verify the phone number format and try again. You can also create a new client at /api/customers/create if needed.',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     );
   }
