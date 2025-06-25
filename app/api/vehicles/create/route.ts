@@ -48,7 +48,7 @@ export async function POST(request: Request) {
         license_plate: !license_plate
       });
       return NextResponse.json(
-        { message: 'Missing required parameters' },
+        { message: 'Missing required parameters. Please provide: client_id, model, year, license_plate. Optional: make, vin, last_km. If \'make\' is not provided, the system will try to infer it from the model. You can verify client_id at /api/customers/verify?phone={phone_number}' },
         { status: 400 }
       );
     }
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
 
         if (modelSearchError) {
           console.error('⚠️ Error en la búsqueda flexible de modelos. No se puede continuar sin la marca.', { error: modelSearchError.message });
-          return NextResponse.json({ message: 'Error searching for model' }, { status: 500 });
+          return NextResponse.json({ message: 'Error searching for vehicle model in database. This is a temporary system issue. Please provide the \'make\' field explicitly or try again. Required format: {"make": "Toyota", "model": "Corolla", "year": 2020, "license_plate": "ABC123"}' }, { status: 500 });
         }
         
         if (candidateModels && candidateModels.length > 0) {
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
 
       if (!bestMatch) {
         console.log('❌ Error: No se encontró un modelo coincidente. La marca (make) es requerida.');
-        return NextResponse.json({ message: 'Model not found, make is required' }, { status: 404 });
+        return NextResponse.json({ message: 'Vehicle model not found in our database, so \'make\' field is required. Please provide both make and model explicitly. Example: {"make": "Toyota", "model": "Corolla"}. You can also check available vehicle models or contact support to add new models to the system.' }, { status: 404 });
       }
 
       console.log(`✅ Mejor coincidencia: ${(bestMatch as any).name} (ID: ${(bestMatch as any).id}), Score: ${(bestMatch as any).score}`);
@@ -115,7 +115,7 @@ export async function POST(request: Request) {
           client_id
         });
         return NextResponse.json(
-          { message: 'Error checking client' },
+          { message: 'Error checking client existence in database. This is a temporary system issue. Please verify the client_id is correct. You can find or create clients at /api/customers/verify?phone={phone_number} or /api/customers/create' },
           { status: 500 }
         );
       }
@@ -123,7 +123,7 @@ export async function POST(request: Request) {
       if (!client) {
         console.log('❌ Cliente no encontrado:', client_id);
         return NextResponse.json(
-          { message: 'Client not found' },
+          { message: 'Client not found with the provided client_id. Please verify the ID is correct. You can search for clients by phone at /api/customers/verify?phone={phone_number} or create a new client at /api/customers/create (requires: names, email, phone_number)' },
           { status: 404 }
         );
       }
@@ -449,7 +449,7 @@ export async function POST(request: Request) {
       } : error
     });
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Internal server error during vehicle creation. Please verify all required fields (client_id, model, year, license_plate) and try again. Ensure the client exists by checking /api/customers/verify?phone={phone_number}' },
       { status: 500 }
     );
   }

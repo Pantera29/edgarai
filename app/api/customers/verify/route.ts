@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     if (!phone) {
       console.log('❌ Error: Teléfono no proporcionado');
       return NextResponse.json(
-        { message: 'Phone parameter is required' },
+        { message: 'Phone parameter is required in URL query. Usage: /api/customers/verify?phone={phone_number}. The phone number should include country code or local format (digits only will be normalized automatically).' },
         { status: 400 }
       );
     }
@@ -40,7 +40,7 @@ export async function GET(request: Request) {
         phone: normalizedPhone
       });
       return NextResponse.json(
-        { message: 'Error verifying client' },
+        { message: 'Error verifying client in database. This is a temporary system issue. Please try again or create a new client at /api/customers/create if this phone number should be registered.' },
         { status: 500 }
       );
     }
@@ -78,7 +78,7 @@ export async function GET(request: Request) {
       } : error
     });
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Internal server error during client verification. Please verify the phone number format and try again. You can also create a new client at /api/customers/create if needed.' },
       { status: 500 }
     );
   }
