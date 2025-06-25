@@ -22,7 +22,7 @@ export async function PATCH(
     if (!appointmentId) {
       console.log('❌ Error: ID de cita no proporcionado');
       return NextResponse.json(
-        { message: 'Appointment ID is required' },
+        { message: 'Appointment ID is required. Please provide a valid appointment ID in the URL.' },
         { status: 400 }
       );
     }
@@ -49,7 +49,7 @@ export async function PATCH(
     if (!appointmentExists) {
       console.log('❌ Cita no encontrada:', appointmentId);
       return NextResponse.json(
-        { message: 'Appointment not found' },
+        { message: 'Appointment not found. Please verify the appointment ID or check if the appointment exists.' },
         { status: 404 }
       );
     }
@@ -79,7 +79,7 @@ export async function PATCH(
     if (Object.keys(filteredUpdates).length === 0) {
       console.log('❌ Error: No hay campos válidos para actualizar');
       return NextResponse.json(
-        { message: 'No valid fields to update' },
+        { message: 'No valid fields to update. Please provide at least one of: status, appointment_date, appointment_time, notes.' },
         { status: 400 }
       );
     }
@@ -90,7 +90,7 @@ export async function PATCH(
       if (!validStatus.includes(filteredUpdates.status as AppointmentStatus)) {
         console.log('❌ Error: Estado inválido:', filteredUpdates.status);
         return NextResponse.json(
-          { message: 'Invalid status. Allowed values: pending, confirmed, in_progress, completed, cancelled' },
+          { message: 'Invalid status. Allowed values: pending, confirmed, in_progress, completed, cancelled. Please use one of these valid status values.' },
           { status: 400 }
         );
       }
@@ -236,7 +236,7 @@ export async function PATCH(
           availableSlots: availabilityData.availableSlots
         });
         return NextResponse.json(
-          { message: 'Time slot is not available' },
+          { message: 'Time slot is not available. Please try a different time. You might check 30 minutes prior or after.' },
           { status: 409 }
         );
       }
