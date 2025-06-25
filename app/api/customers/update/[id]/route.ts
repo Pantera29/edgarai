@@ -24,7 +24,7 @@ export async function PATCH(
     if (!clientId) {
       console.log('❌ Error: ID de cliente no proporcionado');
       return NextResponse.json(
-        { message: 'Client ID is required' },
+        { message: 'Client ID is required in URL path. Usage: /api/customers/update/{client_id}. You can find client IDs by verifying with phone at /api/customers/verify?phone={phone_number}' },
         { status: 400 }
       );
     }
@@ -43,7 +43,7 @@ export async function PATCH(
         clientId
       });
       return NextResponse.json(
-        { message: 'Error checking client' },
+        { message: 'Error checking client existence in database. This is a temporary system issue. Please verify the client ID is correct or find it using /api/customers/verify?phone={phone_number}' },
         { status: 500 }
       );
     }
@@ -51,7 +51,7 @@ export async function PATCH(
     if (!clientExists) {
       console.log('❌ Cliente no encontrado:', clientId);
       return NextResponse.json(
-        { message: 'Client not found' },
+        { message: 'Client not found with the provided ID. Please verify the client ID is correct. You can search for clients by phone at /api/customers/verify?phone={phone_number} or create a new client at /api/customers/create' },
         { status: 404 }
       );
     }
@@ -65,7 +65,7 @@ export async function PATCH(
       console.error('❌ Error de validación:', validationResult.error);
       return NextResponse.json(
         { 
-          message: 'Datos inválidos',
+          message: 'Invalid data format. Currently only \'agent_active\' (boolean) field can be updated. Please provide: {"agent_active": true} or {"agent_active": false}',
           details: validationResult.error.errors 
         },
         { status: 400 }
@@ -93,7 +93,7 @@ export async function PATCH(
         clientId
       });
       return NextResponse.json(
-        { message: 'Failed to update client', error: error.message },
+        { message: 'Failed to update client in database. Please verify the client ID exists and the data format is correct (agent_active: boolean). You can verify client existence at /api/customers/verify?phone={phone_number}', error: error.message },
         { status: 500 }
       );
     }
@@ -117,7 +117,7 @@ export async function PATCH(
       } : error
     });
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Internal server error during client update. Please verify the client ID and data format, then try again. You can check client existence at /api/customers/verify?phone={phone_number}' },
       { status: 500 }
     );
   }

@@ -17,7 +17,7 @@ export async function GET(request: Request) {
     if (!licensePlate) {
       console.log('❌ Error: Placa no proporcionada');
       return NextResponse.json(
-        { message: 'License plate parameter is required' },
+        { message: 'License plate parameter is required in URL query. Usage: /api/vehicles/find-by-plate?plate={license_plate}. The plate should match exactly as registered (case-sensitive).' },
         { status: 400 }
       );
     }
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
         plate: licensePlate
       });
       return NextResponse.json(
-        { message: 'Error fetching vehicle details', details: vehicleError.message },
+        { message: 'Error fetching vehicle details from database. This is a temporary system issue. Please verify the license plate format and try again. If the vehicle doesn\'t exist, you can create it at /api/vehicles/create', details: vehicleError.message },
         { status: 500 }
       );
     }
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
     if (!vehicle) {
       console.log('ℹ️ Vehículo no encontrado:', licensePlate);
       return NextResponse.json(
-        { message: 'Vehicle not found' },
+        { message: 'Vehicle not found with the provided license plate. Please verify the plate number is correct (case-sensitive). You can create a new vehicle at /api/vehicles/create (requires: client_id, model, year, license_plate)' },
         { status: 404 }
       );
     }
@@ -126,7 +126,7 @@ export async function GET(request: Request) {
     });
     return NextResponse.json(
       { 
-        message: 'Internal server error', 
+        message: 'Internal server error during vehicle search. Please verify the license plate format and try again. If the vehicle doesn\'t exist, you can create it at /api/vehicles/create', 
         details: error instanceof Error ? error.message : String(error)
       },
       { status: 500 }

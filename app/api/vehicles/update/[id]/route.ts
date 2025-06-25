@@ -18,7 +18,7 @@ export async function PATCH(
     if (!vehicleId) {
       console.log('❌ Error: ID de vehículo no proporcionado');
       return NextResponse.json(
-        { message: 'Vehicle ID is required' },
+        { message: 'Vehicle ID is required in URL path. Usage: /api/vehicles/update/{vehicle_id}. You can find vehicle IDs by searching with license plate at /api/vehicles/find-by-plate?plate={license_plate}' },
         { status: 400 }
       );
     }
@@ -51,7 +51,7 @@ export async function PATCH(
     if (Object.keys(filteredUpdates).length === 0) {
       console.log('❌ Error: No hay campos válidos para actualizar');
       return NextResponse.json(
-        { message: 'No valid fields to update' },
+        { message: 'No valid fields to update. Allowed fields: client_id, make, model, year, license_plate, vin, last_km. Please provide at least one of these fields in the request body.' },
         { status: 400 }
       );
     }
@@ -70,7 +70,7 @@ export async function PATCH(
         vehicleId
       });
       return NextResponse.json(
-        { message: 'Error checking vehicle' },
+        { message: 'Error checking vehicle existence in database. This is a temporary system issue. Please verify the vehicle ID is correct. You can search for vehicles at /api/vehicles/find-by-plate?plate={license_plate}' },
         { status: 500 }
       );
     }
@@ -78,7 +78,7 @@ export async function PATCH(
     if (!vehicleExists) {
       console.log('❌ Vehículo no encontrado:', vehicleId);
       return NextResponse.json(
-        { message: 'Vehicle not found' },
+        { message: 'Vehicle not found with the provided ID. Please verify the vehicle ID is correct. You can search for vehicles by license plate at /api/vehicles/find-by-plate?plate={license_plate} or create a new vehicle at /api/vehicles/create' },
         { status: 404 }
       );
     }
@@ -98,7 +98,7 @@ export async function PATCH(
           clientId: filteredUpdates.client_id
         });
         return NextResponse.json(
-          { message: 'Error checking client' },
+          { message: 'Error checking client existence in database. This is a temporary system issue. Please verify the client_id is correct. You can find clients at /api/customers/verify?phone={phone_number}' },
           { status: 500 }
         );
       }
@@ -106,7 +106,7 @@ export async function PATCH(
       if (!clientExists) {
         console.log('❌ Cliente no encontrado:', filteredUpdates.client_id);
         return NextResponse.json(
-          { message: 'Client not found' },
+          { message: 'Client not found with the provided client_id. Please verify the ID is correct. You can search for clients by phone at /api/customers/verify?phone={phone_number} or create a new client at /api/customers/create' },
           { status: 404 }
         );
       }
@@ -128,7 +128,7 @@ export async function PATCH(
           license_plate: filteredUpdates.license_plate
         });
         return NextResponse.json(
-          { message: 'Error checking license plate' },
+          { message: 'Error checking license plate uniqueness in database. This is a temporary system issue. Please verify the license plate format and try again. Each vehicle must have a unique license plate.' },
           { status: 500 }
         );
       }
@@ -139,7 +139,7 @@ export async function PATCH(
           existing_id: plateExists.id_uuid
         });
         return NextResponse.json(
-          { message: 'License plate already exists on another vehicle' },
+          { message: 'License plate already exists on another vehicle. Each license plate must be unique in the system. Please use a different plate or update the existing vehicle at /api/vehicles/find-by-plate?plate={license_plate}' },
           { status: 409 }
         );
       }
@@ -161,7 +161,7 @@ export async function PATCH(
           vin: filteredUpdates.vin
         });
         return NextResponse.json(
-          { message: 'Error checking VIN' },
+          { message: 'Error checking VIN uniqueness in database. This is a temporary system issue. Please verify the VIN format and try again. Each vehicle must have a unique VIN number.' },
           { status: 500 }
         );
       }
@@ -172,7 +172,7 @@ export async function PATCH(
           existing_id: vinExists.id_uuid
         });
         return NextResponse.json(
-          { message: 'VIN already exists on another vehicle' },
+          { message: 'VIN already exists on another vehicle. Each VIN must be unique in the system. Please use a different VIN or verify you\'re updating the correct vehicle. You can search for the existing vehicle by its details.' },
           { status: 409 }
         );
       }
@@ -198,7 +198,7 @@ export async function PATCH(
         updates: filteredUpdates
       });
       return NextResponse.json(
-        { message: 'Failed to update vehicle', error: error.message },
+        { message: 'Failed to update vehicle in database. This may be due to data validation or system issues. Please verify all field formats and ensure license_plate and VIN are unique. Check that the client_id exists at /api/customers/verify?phone={phone_number}', error: error.message },
         { status: 500 }
       );
     }
@@ -222,7 +222,7 @@ export async function PATCH(
       } : error
     });
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Internal server error during vehicle update. Please verify the vehicle ID and all field formats, then try again. You can check vehicle existence at /api/vehicles/find-by-plate?plate={license_plate}' },
       { status: 500 }
     );
   }

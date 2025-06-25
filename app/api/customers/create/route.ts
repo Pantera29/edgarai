@@ -21,7 +21,7 @@ export async function POST(request: Request) {
         phone_number: !phone_number
       });
       return NextResponse.json(
-        { message: 'Missing required parameters' },
+        { message: 'Missing required parameters. Please provide: names, email, phone_number. Optional: dealership_id, dealership_phone, external_id. You can verify if a client already exists at /api/customers/verify?phone={phone_number}' },
         { status: 400 }
       );
     }
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
     if (!emailRegex.test(email)) {
       console.log('Email inválido:', email);
       return NextResponse.json(
-        { message: 'Invalid email format' },
+        { message: 'Invalid email format. Please provide a valid email address (example: usuario@dominio.com). The email will be used for appointment notifications and client communications.' },
         { status: 400 }
       );
     }
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
         phone_number: normalizedPhone
       });
       return NextResponse.json(
-        { message: 'Error checking for existing client' },
+        { message: 'Error checking for existing client in database. This is a temporary system issue. Please try again in a few seconds or verify client manually at /api/customers/verify?phone={phone_number}' },
         { status: 500 }
       );
     }
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     if (existingClient) {
       console.log('Cliente ya existe:', existingClient);
       return NextResponse.json(
-        { message: 'Client already exists', clientId: existingClient.id },
+        { message: 'Client already exists with this email or phone number. Use the existing client ID for operations or update client information at /api/customers/update/{client_id}. You can also retrieve client vehicles at /api/customers/{client_id}/vehicles', clientId: existingClient.id },
         { status: 409 }
       );
     }
@@ -95,7 +95,7 @@ export async function POST(request: Request) {
         code: insertError.code
       });
       return NextResponse.json(
-        { message: 'Failed to create client', error: insertError.message },
+        { message: 'Failed to create client in database. This may be due to data validation or system issues. Please verify all required fields (names, email, phone_number) and try again. If the problem persists, check if the client already exists at /api/customers/verify?phone={phone_number}', error: insertError.message },
         { status: 500 }
       );
     }
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
       stack: error instanceof Error ? error.stack : undefined
     });
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Internal server error while processing client creation. Please try again in a few moments. If the issue persists, verify client data format and check if the client already exists at /api/customers/verify?phone={phone_number}' },
       { status: 500 }
     );
   }

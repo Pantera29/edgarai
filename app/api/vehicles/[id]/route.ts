@@ -18,7 +18,7 @@ export async function GET(
     if (!vehicleId) {
       console.log('❌ Error: ID de vehículo no proporcionado');
       return NextResponse.json(
-        { message: 'Vehicle ID is required' },
+        { message: 'Vehicle ID is required in URL path. Usage: /api/vehicles/{vehicle_id}. You can find vehicle IDs by searching with license plate at /api/vehicles/find-by-plate?plate={license_plate}' },
         { status: 400 }
       );
     }
@@ -53,7 +53,7 @@ export async function GET(
         vehicleId
       });
       return NextResponse.json(
-        { message: 'Error fetching vehicle' },
+        { message: 'Error fetching vehicle from database. This is a temporary system issue. Please verify the vehicle ID is correct or search by license plate at /api/vehicles/find-by-plate?plate={license_plate}' },
         { status: 500 }
       );
     }
@@ -61,7 +61,7 @@ export async function GET(
     if (!data) {
       console.log('ℹ️ Vehículo no encontrado:', vehicleId);
       return NextResponse.json(
-        { message: 'Vehicle not found' },
+        { message: 'Vehicle not found with the provided ID. Please verify the vehicle ID is correct. You can search for vehicles by license plate at /api/vehicles/find-by-plate?plate={license_plate} or create a new vehicle at /api/vehicles/create' },
         { status: 404 }
       );
     }
@@ -83,7 +83,7 @@ export async function GET(
       } : error
     });
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { message: 'Internal server error while fetching vehicle details. Please verify the vehicle ID format and try again. You can search by license plate at /api/vehicles/find-by-plate?plate={license_plate}' },
       { status: 500 }
     );
   }
