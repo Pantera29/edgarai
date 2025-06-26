@@ -18,6 +18,7 @@ interface ReminderData {
   reminder_date: string;
   notes: string;
   status: 'pending';
+  dealership_id: string;
 }
 
 export async function createAutomaticReminder(params: CreateReminderParams, request: Request) {
@@ -67,7 +68,8 @@ export async function createAutomaticReminder(params: CreateReminderParams, requ
       base_date: baseDateStr,
       reminder_date: reminderDateStr,
       notes: `Recordatorio automático generado por cita completada (ID: ${params.appointment_id})`,
-      status: 'pending'
+      status: 'pending',
+      dealership_id: params.dealership_id
     };
 
     // Llamar al endpoint de recordatorios

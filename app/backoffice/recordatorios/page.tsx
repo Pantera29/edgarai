@@ -68,6 +68,7 @@ interface Recordatorio {
   notes: string
   created_at: string
   updated_at: string
+  dealership_id: string
   appointment_date?: string
   appointment_time?: string
   agent_parameters?: {
@@ -292,21 +293,23 @@ export default function RecordatoriosPage() {
           Object.keys(verifiedDataToken).length === 0 ||
           !(verifiedDataToken as any).dealership_id
         ) {
+          console.error('[Seguridad] Token inválido o sin dealership_id. Redirigiendo a login.');
           router.push("/login");
           return;
         }
         setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
 
-        // Si hay un dealership_id en el token, cargar los recordatorios de esa agencia
-        if (verifiedDataToken?.dealership_id) {
-          fetchRecordatorios(verifiedDataToken.dealership_id);
-          fetchWhatsAppTemplates(verifiedDataToken.dealership_id);
-        } else {
-          fetchRecordatorios();
-        }
+        // Siempre pasar dealership_id a fetchRecordatorios y fetchWhatsAppTemplates
+        const dealershipId = (verifiedDataToken as any).dealership_id;
+        fetchRecordatorios(dealershipId);
+        fetchWhatsAppTemplates(dealershipId);
+      } else {
+        // Nunca ejecutar fetchRecordatorios sin dealership_id
+        console.error('[Seguridad] No hay token en los query params. Redirigiendo a login.');
+        router.push("/login");
       }
     }
-  }, [searchParams, router]); 
+  }, [searchParams, router]);
 
   const [recordatorios, setRecordatorios] = useState<Recordatorio[]>([])
   const [filteredRecordatorios, setFilteredRecordatorios] = useState<Recordatorio[]>([])
@@ -362,7 +365,22 @@ export default function RecordatoriosPage() {
     'Error': true
   });
 
+  // --- fetchRecordatorios seguro ---
   const fetchRecordatorios = async (dealershipIdFromToken?: string) => {
+    // Validación estricta de dealershipId
+    if (!dealershipIdFromToken) {
+      console.error('❌ [Seguridad] fetchRecordatorios llamado SIN dealershipId. Abortando.');
+      setRecordatorios([]);
+      setFilteredRecordatorios([]);
+      setMetricas(prev => ({ ...prev, porFecha: [] }));
+      toast({
+        title: "Error de seguridad",
+        description: "No se pudo cargar recordatorios: falta dealership_id.",
+        variant: "destructive",
+      });
+      return;
+    }
+    console.log(`[Auditoría] Consultando recordatorios para dealership_id: ${dealershipIdFromToken}`);
     const { data, error } = await supabase
       .from('reminders')
       .select(`
@@ -385,81 +403,76 @@ export default function RecordatoriosPage() {
           dealership_id
         )
       `)
-      .order('reminder_date', { ascending: true })
+      .eq('dealership_id', dealershipIdFromToken)
+      .order('reminder_date', { ascending: true });
 
     if (error) {
-      console.error('Error fetching recordatorios:', error)
-      return
+      console.error('[Seguridad] Error al consultar recordatorios:', error);
+      setRecordatorios([]);
+      setFilteredRecordatorios([]);
+      setMetricas(prev => ({ ...prev, porFecha: [] }));
+      return;
     }
 
-    if (data) {
-      // Si hay un dealership_id en el token, filtrar los recordatorios
-      let filteredData = data as Recordatorio[];
-      
-      if (dealershipIdFromToken) {
-        console.log("Filtrando recordatorios por dealership_id:", dealershipIdFromToken);
-        // Filtrar los recordatorios por el dealership_id del cliente
-        filteredData = filteredData.filter(recordatorio => 
-          recordatorio.client && 
-          recordatorio.client.dealership_id === dealershipIdFromToken
-        );
-      }
-      
-      setRecordatorios(filteredData)
-      setFilteredRecordatorios(filteredData)
-      updateStats(filteredData)
+    // Doble verificación: nunca mostrar datos de otra agencia
+    const filteredData = (data as Recordatorio[]).filter(r => r.dealership_id === dealershipIdFromToken);
+    if (filteredData.length !== (data as Recordatorio[]).length) {
+      console.error('[ALERTA] Se detectaron recordatorios de otra agencia en la consulta. Esto NO debería ocurrir.');
+    }
+    setRecordatorios(filteredData);
+    setFilteredRecordatorios(filteredData);
+    updateStats(filteredData);
 
-      // Preparar datos para el gráfico
-      const hoy = new Date();
-      const fechas = [];
-      
-      // Generar fechas para los últimos 30 días
-      for (let i = 30; i > 0; i--) {
-        const fecha = new Date(hoy);
-        fecha.setDate(hoy.getDate() - i);
-        const key = format(fecha, 'dd/MM');
-        fechas.push(key);
-      }
-      
-      // Agregar la fecha actual
-      fechas.push(format(hoy, 'dd/MM'));
-      
-      // Generar fechas para los próximos 30 días
-      for (let i = 1; i <= 30; i++) {
-        const fecha = new Date(hoy);
-        fecha.setDate(hoy.getDate() + i);
-        const key = format(fecha, 'dd/MM');
-        fechas.push(key);
-      }
+    // Preparar datos para el gráfico
+    const hoy = new Date();
+    const fechas = [];
+    
+    // Generar fechas para los últimos 30 días
+    for (let i = 30; i > 0; i--) {
+      const fecha = new Date(hoy);
+      fecha.setDate(hoy.getDate() - i);
+      const key = format(fecha, 'dd/MM');
+      fechas.push(key);
+    }
+    
+    // Agregar la fecha actual
+    fechas.push(format(hoy, 'dd/MM'));
+    
+    // Generar fechas para los próximos 30 días
+    for (let i = 1; i <= 30; i++) {
+      const fecha = new Date(hoy);
+      fecha.setDate(hoy.getDate() + i);
+      const key = format(fecha, 'dd/MM');
+      fechas.push(key);
+    }
 
-      // Inicializar el mapa de fechas y estados
-      const fechaEstadoCount: Record<string, { Pendiente: number, Enviado: number, Completado: number, Cancelado: number, Error: number }> = {};
-      fechas.forEach(f => fechaEstadoCount[f] = { Pendiente: 0, Enviado: 0, Completado: 0, Cancelado: 0, Error: 0 });
+    // Inicializar el mapa de fechas y estados
+    const fechaEstadoCount: Record<string, { Pendiente: number, Enviado: number, Completado: number, Cancelado: number, Error: number }> = {};
+    fechas.forEach(f => fechaEstadoCount[f] = { Pendiente: 0, Enviado: 0, Completado: 0, Cancelado: 0, Error: 0 });
 
-      // Procesar cada recordatorio para obtener las métricas
-      filteredData.forEach(recordatorio => {
-        if (recordatorio.reminder_date) {
-          // Tomar solo la parte de la fecha (YYYY-MM-DD) del reminder_date
-          const fecha = recordatorio.reminder_date.split('T')[0].split('-').reverse().slice(0, 2).join('/');
-          const estado = traducirEstado(recordatorio.status);
-          if (fechaEstadoCount[fecha]) {
-            fechaEstadoCount[fecha][estado] += 1;
-          }
+    // Procesar cada recordatorio para obtener las métricas
+    filteredData.forEach(recordatorio => {
+      if (recordatorio.reminder_date) {
+        // Tomar solo la parte de la fecha (YYYY-MM-DD) del reminder_date
+        const fecha = recordatorio.reminder_date.split('T')[0].split('-').reverse().slice(0, 2).join('/');
+        const estado = traducirEstado(recordatorio.status);
+        if (fechaEstadoCount[fecha]) {
+          fechaEstadoCount[fecha][estado] += 1;
         }
-      });
+      }
+    });
 
-      // Convertir conteo por fecha y estado a formato para gráfico
-      const porFechaEstado = fechas.map(f => ({
-        fecha: f,
-        ...fechaEstadoCount[f]
-      }));
+    // Convertir conteo por fecha y estado a formato para gráfico
+    const porFechaEstado = fechas.map(f => ({
+      fecha: f,
+      ...fechaEstadoCount[f]
+    }));
 
-      // Actualizar estado con métricas calculadas
-      setMetricas(prev => ({
-        ...prev,
-        porFecha: porFechaEstado
-      }));
-    }
+    // Actualizar estado con métricas calculadas
+    setMetricas(prev => ({
+      ...prev,
+      porFecha: porFechaEstado
+    }));
   }
 
   const updateStats = (data: Recordatorio[]) => {
@@ -740,9 +753,18 @@ export default function RecordatoriosPage() {
     fetchAgentTemplates();
   }, [dataToken as any]); // Agregar dataToken como dependencia para que se ejecute cuando cambie
 
+  // --- handleSubmit seguro ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    const dealershipId = (dataToken as any)?.dealership_id;
+    if (!dealershipId) {
+      toast({
+        title: "Error de seguridad",
+        description: "No se puede crear recordatorio: falta dealership_id.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!formData.client_id || !formData.vehicle_id || !formData.service_id || !formData.base_date || !formData.reminder_date) {
       toast({
         title: "Error",
@@ -751,9 +773,7 @@ export default function RecordatoriosPage() {
       });
       return;
     }
-
     try {
-      // Convertir fechas a medianoche UTC
       const baseDateUTC = new Date(formData.base_date + "T00:00:00Z").toISOString();
       const reminderDateUTC = new Date(formData.reminder_date + "T00:00:00Z").toISOString();
       const recordatorioData = {
@@ -763,24 +783,21 @@ export default function RecordatoriosPage() {
         base_date: baseDateUTC,
         reminder_date: reminderDateUTC,
         notes: formData.notes,
-        status: 'pending' as const
+        status: 'pending' as const,
+        dealership_id: dealershipId
       };
-
       const { data, error } = await supabase
         .from('reminders')
         .insert([recordatorioData])
         .select();
-
       if (error) {
         console.error('Error detallado:', error);
         throw error;
       }
-
       toast({
         title: "Éxito",
         description: "Recordatorio creado correctamente",
       });
-
       setMostrarFormulario(false);
       setFormData({
         client_id: '',
@@ -790,8 +807,7 @@ export default function RecordatoriosPage() {
         reminder_date: '',
         notes: ''
       });
-      
-      fetchRecordatorios();
+      fetchRecordatorios(dealershipId);
     } catch (error) {
       console.error('Error al crear recordatorio:', error);
       toast({
@@ -815,7 +831,15 @@ export default function RecordatoriosPage() {
 
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    const dealershipId = (dataToken as any)?.dealership_id;
+    if (!dealershipId) {
+      toast({
+        title: "Error de seguridad",
+        description: "No se puede editar recordatorio: falta dealership_id.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!formDataEditar.client_id || !formDataEditar.vehicle_id || !formDataEditar.service_id || !formDataEditar.base_date || !formDataEditar.reminder_date) {
       toast({
         title: "Error",
@@ -824,9 +848,17 @@ export default function RecordatoriosPage() {
       });
       return;
     }
-
+    // Validar que el recordatorio pertenece al dealership del token
+    if (!recordatorioEditar || recordatorioEditar.dealership_id !== dealershipId) {
+      console.error('[Seguridad] Intento de editar recordatorio de otra agencia o sin recordatorioEditar.');
+      toast({
+        title: "Error de seguridad",
+        description: "No se puede editar un recordatorio de otra agencia.",
+        variant: "destructive",
+      });
+      return;
+    }
     try {
-      // Convertir fechas a medianoche UTC
       const baseDateUTC = new Date(formDataEditar.base_date + "T00:00:00Z").toISOString();
       const reminderDateUTC = new Date(formDataEditar.reminder_date + "T00:00:00Z").toISOString();
       const { error } = await supabase
@@ -838,18 +870,17 @@ export default function RecordatoriosPage() {
           base_date: baseDateUTC,
           reminder_date: reminderDateUTC,
           notes: formDataEditar.notes
+          // dealership_id NO se actualiza nunca
         })
-        .eq('reminder_id', recordatorioEditar?.reminder_id);
-
+        .eq('reminder_id', recordatorioEditar.reminder_id)
+        .eq('dealership_id', dealershipId); // Seguridad extra
       if (error) throw error;
-
       toast({
         title: "Éxito",
         description: "Recordatorio actualizado correctamente"
       });
-
       setMostrarFormularioEditar(false);
-      await fetchRecordatorios();
+      await fetchRecordatorios(dealershipId);
     } catch (error) {
       console.error('Error al actualizar recordatorio:', error);
       toast({
