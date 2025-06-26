@@ -683,23 +683,49 @@ export default function RecordatoriosPage() {
     const fetchAgentTemplates = async () => {
       try {
         console.log('🤖 Cargando plantillas de agentes...');
-        const { data, error } = await supabase
+        
+        // Obtener el dealership_id del token si existe
+        const dealershipId = (dataToken as any)?.dealership_id;
+        console.log('🔍 Dealership ID del token:', dealershipId);
+        console.log('🔍 DataToken completo:', dataToken);
+
+        let query = supabase
           .from('agent_templates')
           .select('*')
           .eq('active', true)
+          .eq('dealership_id', dealershipId)
           .order('name');
+
+        // Si no hay dealershipId, no traemos ninguna plantilla (opcional: podrías traer globales si lo deseas)
+        if (!dealershipId) {
+          console.log('⚠️ No hay dealership_id en el token, no se traerán plantillas');
+          setAgentTemplates([]);
+          return;
+        }
+
+        const { data, error } = await query;
           
         if (error) {
           console.error('❌ Error al cargar plantillas de agentes:', error);
           throw error;
         }
         
-        console.log('✅ Plantillas de agentes cargadas:', data?.length || 0);
+        console.log('📋 Plantillas encontradas:', data?.length || 0);
+        console.log('📋 Detalle de plantillas:', data?.map(t => ({
+          id: t.id,
+          name: t.name,
+          dealership_id: t.dealership_id,
+          active: t.active
+        })));
+        
         setAgentTemplates(data || []);
         
         // Seleccionar automáticamente el primero si hay disponibles
         if (data && data.length > 0) {
+          console.log('🎯 Seleccionando primera plantilla:', data[0].name);
           setSelectedAgentTemplate(data[0].id);
+        } else {
+          console.log('⚠️ No se encontraron plantillas de agentes');
         }
       } catch (error) {
         console.error('Error al cargar plantillas de agentes:', error);
@@ -712,7 +738,7 @@ export default function RecordatoriosPage() {
     };
     
     fetchAgentTemplates();
-  }, []);
+  }, [dataToken as any]); // Agregar dataToken como dependencia para que se ejecute cuando cambie
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
