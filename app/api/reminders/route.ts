@@ -11,15 +11,45 @@ export async function POST(request: Request) {
     const body = await request.json();
     console.log('📦 [Reminders API] Body recibido:', JSON.stringify(body, null, 2));
 
-    // Validar campos requeridos
+    // Validar campos requeridos (sin dealership_id)
     const requiredFields = ['client_id_uuid', 'vehicle_id', 'service_id', 'base_date', 'reminder_date'];
     const missingFields = requiredFields.filter(field => !body[field]);
-
     if (missingFields.length > 0) {
       console.log('❌ [Reminders API] Campos requeridos faltantes:', missingFields);
       return NextResponse.json(
         { error: `Campos requeridos faltantes: ${missingFields.join(', ')}` },
         { status: 400 }
+      );
+    }
+
+    // Buscar el cliente y extraer dealership_id si no viene en el body
+    let dealershipId = body.dealership_id;
+    const { data: client, error: clientError } = await supabase
+      .from('client')
+      .select('id, dealership_id')
+      .eq('id', body.client_id_uuid)
+      .single();
+    if (clientError || !client) {
+      console.log('❌ [Reminders API] Cliente no encontrado:', clientError);
+      return NextResponse.json(
+        { error: 'Cliente no encontrado o error en la consulta', details: clientError },
+        { status: 404 }
+      );
+    }
+    if (!dealershipId) {
+      dealershipId = client.dealership_id;
+      console.log(`[Reminders API] dealership_id extraído del cliente: ${dealershipId}`);
+    }
+
+    // Validar que el cliente pertenece al dealership_id
+    if (dealershipId !== client.dealership_id) {
+      console.error('❌ [Seguridad] Intento de crear recordatorio con mismatch de dealership_id:', {
+        dealership_id_enviado: dealershipId,
+        dealership_id_cliente: client.dealership_id
+      });
+      return NextResponse.json(
+        { error: 'No autorizado: el cliente no pertenece al dealership especificado.' },
+        { status: 403 }
       );
     }
 
@@ -39,7 +69,8 @@ export async function POST(request: Request) {
       base_date: baseDateUTC,
       reminder_date: reminderDateUTC,
       notes: body.notes || '',
-      status: 'pending' as const
+      status: 'pending' as const,
+      dealership_id: dealershipId
     };
     console.log('📋 [Reminders API] Datos preparados para inserción:', JSON.stringify(recordatorioData, null, 2));
 
