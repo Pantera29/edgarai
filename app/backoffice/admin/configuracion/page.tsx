@@ -251,6 +251,7 @@ export default function WorkshopConfiguration() {
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   disabled={!isEditing}
                 >
+                  <option value={15}>15 minutos</option>
                   <option value={30}>30 minutos</option>
                   <option value={60}>60 minutos</option>
                   <option value={90}>90 minutos</option>
