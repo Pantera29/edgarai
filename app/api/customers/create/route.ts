@@ -40,6 +40,19 @@ export async function POST(request: Request) {
     const normalizedPhone = phone_number.replace(/[^0-9]/g, '');
     console.log('Número de teléfono normalizado:', normalizedPhone);
 
+    // Validar longitud del número de teléfono
+    if (normalizedPhone.length !== 10) {
+      console.log('Teléfono inválido - longitud incorrecta:', {
+        original: phone_number,
+        normalized: normalizedPhone,
+        length: normalizedPhone.length
+      });
+      return NextResponse.json(
+        { message: `Invalid phone number format. Phone number must contain exactly 10 digits after removing non-numeric characters. Received: ${normalizedPhone.length} digits. Example: 5551234567` },
+        { status: 400 }
+      );
+    }
+
     // Verificar si el cliente ya existe
     const { data: existingClient, error: searchError } = await supabase
       .from("client")
