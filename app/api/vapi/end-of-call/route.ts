@@ -19,7 +19,7 @@ async function translateSummary(text: string): Promise<string> {
     });
     
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4.1",
       messages: [
         {
           role: "system",
@@ -174,7 +174,7 @@ async function analyzeConversationOutcome(summary: string): Promise<Conversation
     });
     
     const response = await openai.chat.completions.create({
-      model: "gpt-4",
+      model: "gpt-4.1",
       messages: [
         {
           role: "system",
