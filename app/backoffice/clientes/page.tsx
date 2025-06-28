@@ -168,17 +168,10 @@ const router = useRouter();
     }
   };
 
-  const clientesFiltrados = clientes.filter((cliente) => {
-    if (clienteId) {
-      return cliente.id === clienteId;
-    }
-
-    return (
-      cliente.names.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cliente.email?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      cliente.phone_number?.includes(busqueda)
-    );
-  });
+  // Solo mantener el filtro por clienteId cuando sea necesario
+  const clientesAMostrar = clienteId 
+    ? clientes.filter(cliente => cliente.id === clienteId)
+    : clientes;
 
   const limpiarFiltro = () => {
     setClienteId(null);
@@ -262,7 +255,7 @@ const router = useRouter();
         </div>
       </div>
 
-      <ClientesTable clientes={clientesFiltrados} loading={loading} token ={token}/>
+      <ClientesTable clientes={clientesAMostrar} loading={loading} token ={token}/>
 
       <div className="flex justify-between items-center">
         <div className="text-sm text-muted-foreground">
