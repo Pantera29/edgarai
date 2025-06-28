@@ -101,6 +101,7 @@ interface DashboardData {
     web: number;
     agenteai: number;
   };
+  citasPorServicio: Record<string, number>;
   workshopUtilization?: WorkshopUtilization;
 }
 
@@ -141,6 +142,26 @@ const getOrigenLabel = (origen: string) => {
     default:
       return origen;
   }
+};
+
+// Funciones auxiliares para servicios
+const getServicioColor = (index: number) => {
+  // Paleta azul estándar de Tailwind
+  const blueShades = [
+    '#dbeafe', // blue-100
+    '#93c5fd', // blue-300
+    '#60a5fa', // blue-400
+    '#3b82f6', // blue-500
+    '#2563eb', // blue-600
+    '#1d4ed8', // blue-700
+    '#1e40af', // blue-800
+    '#172554'  // blue-900
+  ];
+  return blueShades[index % blueShades.length];
+};
+
+const getServicioIcon = () => {
+  return <Wrench className="h-4 w-4" />;
 };
 
 export default function DashboardPage() {
@@ -266,6 +287,29 @@ export default function DashboardPage() {
         web: citasMesData?.filter(cita => cita.channel === 'web').length || 0,
         agenteai: citasMesData?.filter(cita => cita.channel === 'agenteai').length || 0
       };
+
+      // Obtener citas por servicio del mes actual
+      const { data: citasServiciosData, error: citasServiciosError } = await supabase
+        .from('appointment')
+        .select(`
+          service_id,
+          services:service_id (
+            service_name
+          )
+        `)
+        .gte('appointment_date', primerDiaMes)
+        .lte('appointment_date', ultimoDiaMes)
+        .eq('dealership_id', dealershipId || '');
+
+      if (citasServiciosError) throw citasServiciosError;
+
+      // Contar citas por servicio
+      const citasPorServicio: Record<string, number> = {};
+      citasServiciosData?.forEach(cita => {
+        const servicioData = Array.isArray(cita.services) ? cita.services[0] : cita.services;
+        const nombreServicio = servicioData?.service_name || 'Servicio desconocido';
+        citasPorServicio[nombreServicio] = (citasPorServicio[nombreServicio] || 0) + 1;
+      });
       
       // 2. Obtener citas del día
       const { data: citasDelDiaData, error: citasDelDiaError } = await supabase
@@ -341,7 +385,8 @@ export default function DashboardPage() {
         estadoCitas,
         satisfaccionCliente,
         citasDelDia,
-        citasPorOrigen
+        citasPorOrigen,
+        citasPorServicio
       };
 
       setData(datosDashboard);
@@ -442,6 +487,12 @@ export default function DashboardPage() {
   }
 
   if (!data) return <div>Cargando...</div>
+
+  const serviciosSorted = Object.entries(data.citasPorServicio)
+    .sort(([, a], [, b]) => b - a);
+
+  const origenesSorted = Object.entries(data.citasPorOrigen)
+    .filter(([origen]) => origen === 'manual' || origen === 'agenteai');
 
   return (
     <div className="flex-1 space-y-6 p-8 pt-6">
@@ -579,32 +630,70 @@ export default function DashboardPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex items-center justify-center">
               <DonutChart
-                data={Object.entries(data.citasPorOrigen).map(([origen, cantidad]) => ({
+                data={origenesSorted.map(([origen, cantidad], index) => ({
                   id: origen,
                   label: getOrigenLabel(origen),
                   value: cantidad,
-                  color: ''
+                  color: getServicioColor(index)
                 }))}
-                total={Object.entries(data.citasPorOrigen)
-                  .filter(([origen]) => origen === 'manual' || origen === 'agenteai')
-                  .reduce((a, [_, b]) => a + b, 0)}
+                total={origenesSorted.reduce((a, [, b]) => a + b, 0)}
                 centerLabel="Total Citas"
               />
             </div>
             <div className="space-y-4">
-              {Object.entries(data.citasPorOrigen)
-                .filter(([origen]) => origen === 'manual' || origen === 'agenteai')
-                .map(([origen, cantidad]) => (
-                  <div key={origen} className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`p-2 rounded-full ${getOrigenColor(origen)}`}>
-                        {getOrigenIcon(origen)}
-                      </div>
-                      <span className="text-sm font-medium">{getOrigenLabel(origen)}</span>
+              {origenesSorted.map(([origen, cantidad], index) => (
+                <div key={origen} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="p-2 rounded-full"
+                      style={{ backgroundColor: getServicioColor(index) }}
+                    >
+                      {getOrigenIcon(origen)}
                     </div>
-                    <div className="text-sm font-medium">{cantidad}</div>
+                    <span className="text-sm font-medium">{getOrigenLabel(origen)}</span>
                   </div>
-                ))}
+                  <div className="text-sm font-medium">{cantidad}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Gráfico de Citas por Servicio */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle>Citas por Servicio - {format(new Date(), 'MMMM yyyy', { locale: es })}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex items-center justify-center">
+              <DonutChart
+                data={serviciosSorted.map(([servicio, cantidad], index) => ({
+                  id: servicio,
+                  label: servicio,
+                  value: cantidad,
+                  color: getServicioColor(index)
+                }))}
+                total={serviciosSorted.reduce((a, [, b]) => a + b, 0)}
+                centerLabel="Total Citas"
+              />
+            </div>
+            <div className="space-y-4">
+              {serviciosSorted.map(([servicio, cantidad], index) => (
+                <div key={servicio} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div
+                      className="p-2 rounded-full"
+                      style={{ backgroundColor: getServicioColor(index) }}
+                    >
+                      {getServicioIcon()}
+                    </div>
+                    <span className="text-sm font-medium">{servicio}</span>
+                  </div>
+                  <div className="text-sm font-medium">{cantidad}</div>
+                </div>
+              ))}
             </div>
           </div>
         </CardContent>
