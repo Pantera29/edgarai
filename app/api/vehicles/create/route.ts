@@ -40,15 +40,14 @@ export async function POST(request: Request) {
     } = payload;
 
     // Validar campos requeridos
-    if (!client_id || !model || !year || !license_plate) {
+    if (!client_id || !model || !year) {
       console.log('❌ Error: Campos requeridos faltantes:', {
         client_id: !client_id,
         model: !model,
-        year: !year,
-        license_plate: !license_plate
+        year: !year
       });
       return NextResponse.json(
-        { message: 'Missing required parameters. Please provide: client_id, model, year, license_plate. Optional: make, vin, last_km. If \'make\' is not provided, the system will try to infer it from the model. You can verify client_id at /api/customers/verify?phone={phone_number}' },
+        { message: 'Missing required parameters. Please provide: client_id, model, year. Optional: license_plate, make, vin, last_km. If \'make\' is not provided, the system will try to infer it from the model. You can verify client_id at /api/customers/verify?phone={phone_number}' },
         { status: 400 }
       );
     }
@@ -128,34 +127,36 @@ export async function POST(request: Request) {
         );
       }
 
-      // Verificar si ya existe un vehículo con la misma placa
-      console.log('🔍 Verificando placa duplicada:', license_plate);
-      const { data: existingVehiclePlate, error: searchPlateError } = await supabase
-        .from('vehicles')
-        .select('id_uuid')
-        .eq('license_plate', license_plate)
-        .maybeSingle();
+      // Verificar si ya existe un vehículo con la misma placa (solo si se proporciona una placa)
+      if (license_plate) {
+        console.log('🔍 Verificando placa duplicada:', license_plate);
+        const { data: existingVehiclePlate, error: searchPlateError } = await supabase
+          .from('vehicles')
+          .select('id_uuid')
+          .eq('license_plate', license_plate)
+          .maybeSingle();
 
-      if (searchPlateError) {
-        console.error('❌ Error al buscar vehículo por placa:', {
-          error: searchPlateError.message,
-          license_plate
-        });
-        return NextResponse.json(
-          { message: 'Error checking for existing vehicle' },
-          { status: 500 }
-        );
-      }
+        if (searchPlateError) {
+          console.error('❌ Error al buscar vehículo por placa:', {
+            error: searchPlateError.message,
+            license_plate
+          });
+          return NextResponse.json(
+            { message: 'Error checking for existing vehicle' },
+            { status: 500 }
+          );
+        }
 
-      if (existingVehiclePlate) {
-        console.log('❌ Vehículo con placa duplicada:', {
-          license_plate,
-          existing_id: existingVehiclePlate.id_uuid
-        });
-        return NextResponse.json(
-          { message: 'Vehicle with this license plate already exists', vehicleId: existingVehiclePlate.id_uuid },
-          { status: 409 }
-        );
+        if (existingVehiclePlate) {
+          console.log('❌ Vehículo con placa duplicada:', {
+            license_plate,
+            existing_id: existingVehiclePlate.id_uuid
+          });
+          return NextResponse.json(
+            { message: 'Vehicle with this license plate already exists', vehicleId: existingVehiclePlate.id_uuid },
+            { status: 409 }
+          );
+        }
       }
       
       // Verificar si ya existe un vehículo con el mismo VIN (solo si se proporciona un VIN)
@@ -201,7 +202,7 @@ export async function POST(request: Request) {
           make: typedModelInfo?.vehicle_makes.name,
           model,
           year,
-          license_plate,
+          license_plate: license_plate || null,
           vin: vin || null,
           last_km: last_km || null,
           dealership_id: client.dealership_id,
@@ -319,34 +320,36 @@ export async function POST(request: Request) {
         );
       }
 
-      // Verificar si ya existe un vehículo con la misma placa
-      console.log('🔍 Verificando placa duplicada:', license_plate);
-      const { data: existingVehiclePlate, error: searchPlateError } = await supabase
-        .from('vehicles')
-        .select('id_uuid')
-        .eq('license_plate', license_plate)
-        .maybeSingle();
+      // Verificar si ya existe un vehículo con la misma placa (solo si se proporciona una placa)
+      if (license_plate) {
+        console.log('🔍 Verificando placa duplicada:', license_plate);
+        const { data: existingVehiclePlate, error: searchPlateError } = await supabase
+          .from('vehicles')
+          .select('id_uuid')
+          .eq('license_plate', license_plate)
+          .maybeSingle();
 
-      if (searchPlateError) {
-        console.error('❌ Error al buscar vehículo por placa:', {
-          error: searchPlateError.message,
-          license_plate
-        });
-        return NextResponse.json(
-          { message: 'Error checking for existing vehicle' },
-          { status: 500 }
-        );
-      }
+        if (searchPlateError) {
+          console.error('❌ Error al buscar vehículo por placa:', {
+            error: searchPlateError.message,
+            license_plate
+          });
+          return NextResponse.json(
+            { message: 'Error checking for existing vehicle' },
+            { status: 500 }
+          );
+        }
 
-      if (existingVehiclePlate) {
-        console.log('❌ Vehículo con placa duplicada:', {
-          license_plate,
-          existing_id: existingVehiclePlate.id_uuid
-        });
-        return NextResponse.json(
-          { message: 'Vehicle with this license plate already exists', vehicleId: existingVehiclePlate.id_uuid },
-          { status: 409 }
-        );
+        if (existingVehiclePlate) {
+          console.log('❌ Vehículo con placa duplicada:', {
+            license_plate,
+            existing_id: existingVehiclePlate.id_uuid
+          });
+          return NextResponse.json(
+            { message: 'Vehicle with this license plate already exists', vehicleId: existingVehiclePlate.id_uuid },
+            { status: 409 }
+          );
+        }
       }
       
       // Verificar si ya existe un vehículo con el mismo VIN (solo si se proporciona un VIN)
@@ -392,7 +395,7 @@ export async function POST(request: Request) {
           make,
           model,
           year,
-          license_plate,
+          license_plate: license_plate || null,
           vin: vin || null,
           last_km: last_km || null,
           dealership_id: client.dealership_id,
@@ -449,7 +452,7 @@ export async function POST(request: Request) {
       } : error
     });
     return NextResponse.json(
-      { message: 'Internal server error during vehicle creation. Please verify all required fields (client_id, model, year, license_plate) and try again. Ensure the client exists by checking /api/customers/verify?phone={phone_number}' },
+      { message: 'Internal server error during vehicle creation. Please verify all required fields (client_id, model, year) and try again. Ensure the client exists by checking /api/customers/verify?phone={phone_number}' },
       { status: 500 }
     );
   }
