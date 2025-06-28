@@ -407,13 +407,14 @@ export default function NuevaReservaPage() {
         { data: vehiculosData, error: vehiculosError },
         { data: serviciosData, error: serviciosError }
       ] = await Promise.all([
-        // Filtrar clientes por dealership_id
+        // Filtrar clientes por dealership_id - SIN LÍMITE
         supabase
           .from('client')
           .select('*')
           .eq('dealership_id', verifiedDataToken.dealership_id)
-          .order('names'),
-        supabase.from('vehicles').select('*').order('make, model'),
+          .order('names')
+          .limit(100000), // Límite muy alto para prácticamente sin límite
+        supabase.from('vehicles').select('*').order('make, model').limit(100000), // Límite muy alto para prácticamente sin límite
         supabase.from('services').select('*').eq('dealership_id', verifiedDataToken.dealership_id).order('service_name')
       ]);
 
