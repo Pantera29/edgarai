@@ -28,13 +28,12 @@ const bluePalette = [
 ]
 
 export function DonutChart({ data, total, centerLabel }: DonutChartProps) {
-  // Filtrar solo manual y agenteai
-  const filteredData = data.filter(d => d.id === 'manual' || d.id === 'agenteai');
-  const allZero = filteredData.every(d => d.value === 0);
-  const rechartsData = filteredData.map((d, i) => ({
+  // Usar todos los datos recibidos
+  const allZero = data.every(d => d.value === 0);
+  const rechartsData = data.map((d, i) => ({
     name: d.label,
     value: d.value,
-    fill: allZero ? bluePalette[i % bluePalette.length] : (origenColorMap[d.id] || d.color || "#e5e7eb")
+    fill: d.color || bluePalette[i % bluePalette.length]
   }));
 
   return (
