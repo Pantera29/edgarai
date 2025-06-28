@@ -161,41 +161,90 @@ export default function VehiculosPage() {
     }
   }, [])
 
+  const VEHICULOS_POR_PAGINA = 50;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalVehiculos, setTotalVehiculos] = useState(0);
+
   const cargarVehiculos = async (dealershipIdFromToken?: string) => {
-    setLoading(true)
+    if (!dealershipIdFromToken) {
+      console.error('No se proporcionó dealership_id');
+      return;
+    }
 
+    setLoading(true);
     try {
-      // Si no hay dealership_id, no cargar nada
-      if (!dealershipIdFromToken) {
-        setVehiculos([]);
-        setMarcasDisponibles([]);
-        return;
-      }
-
-      // Consulta directa usando dealership_id
-      const { data, error } = await supabase
-        .from('vehicles')
+      let query = supabase
+        .from("vehicles")
         .select(`
           *,
           client:client(names)
-        `)
-        .eq('dealership_id', dealershipIdFromToken)
-        .order('make');
+        `, { count: "exact" })
+        .eq("dealership_id", dealershipIdFromToken)
+        .order("make")
+        .range((currentPage - 1) * VEHICULOS_POR_PAGINA, currentPage * VEHICULOS_POR_PAGINA - 1);
+
+      // Aplicar filtro de búsqueda si existe
+      if (busqueda) {
+        // Buscar en campos del vehículo
+        query = query.or(
+          `make.ilike.%${busqueda}%,model.ilike.%${busqueda}%,license_plate.ilike.%${busqueda}%,vin.ilike.%${busqueda}%`
+        );
+      }
+
+      // Aplicar filtro de marca si no es "todas"
+      if (filtroMarca !== "todas") {
+        query = query.eq("make", filtroMarca);
+      }
+
+      const { data, count, error } = await query;
 
       if (error) throw error;
 
-      console.log('Vehículos cargados:', data);
-      // Verificar que cada vehículo tenga un ID
-      const vehiculosConId = data?.map(v => {
-        console.log('ID del vehículo:', v.id_uuid);
-        return v;
-      }) || [];
-      setVehiculos(vehiculosConId);
-      // Extraer marcas únicas para el filtro
-      const marcas = Array.from(new Set(data?.map(v => v.make) || []));
-      setMarcasDisponibles(marcas);
+      // Si hay búsqueda por cliente, hacer una consulta adicional
+      let vehiculosFinales = data || [];
+      if (busqueda) {
+        // Buscar clientes que coincidan con la búsqueda
+        const { data: clientesCoincidentes } = await supabase
+          .from('client')
+          .select('id')
+          .eq('dealership_id', dealershipIdFromToken)
+          .ilike('names', `%${busqueda}%`);
+
+        if (clientesCoincidentes && clientesCoincidentes.length > 0) {
+          const clientIds = clientesCoincidentes.map(c => c.id);
+          // Buscar vehículos de esos clientes
+          const { data: vehiculosPorCliente } = await supabase
+            .from("vehicles")
+            .select(`
+              *,
+              client:client(names)
+            `)
+            .eq("dealership_id", dealershipIdFromToken)
+            .in('client_id', clientIds)
+            .order("make");
+
+          // Combinar resultados únicos
+          const vehiculosCombinados = [...vehiculosFinales];
+          vehiculosPorCliente?.forEach(vehiculo => {
+            if (!vehiculosCombinados.find(v => v.id_uuid === vehiculo.id_uuid)) {
+              vehiculosCombinados.push(vehiculo);
+            }
+          });
+          vehiculosFinales = vehiculosCombinados;
+        }
+      }
+
+      console.log('Vehículos cargados:', vehiculosFinales);
+      setVehiculos(vehiculosFinales);
+      setTotalVehiculos(count || 0);
+      
+      // Extraer marcas únicas para el filtro (solo si no hay búsqueda activa)
+      if (!busqueda) {
+        const marcas = Array.from(new Set(data?.map(v => v.make) || []));
+        setMarcasDisponibles(marcas);
+      }
     } catch (error) {
-      console.error('Error cargando vehículos:', error);
+      console.error("Error cargando vehículos:", error);
       setVehiculos([]);
       setMarcasDisponibles([]);
     } finally {
@@ -207,25 +256,17 @@ export default function VehiculosPage() {
     if (dataToken?.dealership_id) {
       cargarVehiculos(dataToken.dealership_id);
     }
-  }, [dataToken]);
+  }, [dataToken, busqueda, filtroMarca, currentPage]);
 
-  const vehiculosFiltrados = vehiculos.filter(vehiculo => {
-    // Si hay un ID específico, solo mostrar ese vehículo
-    if (vehiculoId) {
-      return vehiculo.id_uuid === vehiculoId
-    }
+  // Resetear página cuando cambien los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [busqueda, filtroMarca]);
 
-    // Si no hay ID, aplicar los filtros normales
-    const cumpleBusqueda = 
-      vehiculo.make.toLowerCase().includes(busqueda.toLowerCase()) ||
-      vehiculo.model.toLowerCase().includes(busqueda.toLowerCase()) ||
-      vehiculo.license_plate?.toLowerCase().includes(busqueda.toLowerCase()) ||
-      vehiculo.client.names.toLowerCase().includes(busqueda.toLowerCase())
-    
-    const cumpleFiltroMarca = filtroMarca === "todas" || vehiculo.make === filtroMarca
-
-    return cumpleBusqueda && cumpleFiltroMarca
-  })
+  // Solo mantener el filtro por vehiculoId cuando sea necesario
+  const vehiculosAMostrar = vehiculoId 
+    ? vehiculos.filter(vehiculo => vehiculo.id_uuid === vehiculoId)
+    : vehiculos;
 
   // Agregar un botón para limpiar el filtro
   const limpiarFiltro = () => {
@@ -343,15 +384,8 @@ export default function VehiculosPage() {
     }
   };
 
-  const VEHICULOS_POR_PAGINA = 50;
-  const [currentPage, setCurrentPage] = useState(1);
-
   // Lógica de paginación
-  const totalPages = Math.ceil(vehiculosFiltrados.length / VEHICULOS_POR_PAGINA);
-  const vehiculosPaginados = vehiculosFiltrados.slice(
-    (currentPage - 1) * VEHICULOS_POR_PAGINA,
-    currentPage * VEHICULOS_POR_PAGINA
-  );
+  const totalPages = Math.ceil(totalVehiculos / VEHICULOS_POR_PAGINA);
 
   const getPageRange = () => {
     const range = [];
@@ -408,14 +442,12 @@ export default function VehiculosPage() {
             <TableRow>
               <TableHead>Marca y Modelo</TableHead>
               <TableHead>Cliente</TableHead>
-              <TableHead>Placa</TableHead>
-              <TableHead>Kilometraje</TableHead>
-              <TableHead>Último Servicio</TableHead>
+              <TableHead>VIN</TableHead>
               <TableHead>Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {vehiculosPaginados.map((vehiculo) => (
+            {vehiculosAMostrar.map((vehiculo) => (
               <TableRow key={vehiculo.id_uuid}>
                 <TableCell>
                   <div>
@@ -431,13 +463,7 @@ export default function VehiculosPage() {
                     {vehiculo.client.names}
                   </Link>
                 </TableCell>
-                <TableCell>{vehiculo.license_plate || 'N/A'}</TableCell>
-                <TableCell>{vehiculo.last_km ? `${vehiculo.last_km} km` : 'N/A'}</TableCell>
-                <TableCell>
-                  {vehiculo.last_service_date ? 
-                    format(new Date(vehiculo.last_service_date), 'PP', { locale: es }) : 
-                    'Sin servicios'}
-                </TableCell>
+                <TableCell>{vehiculo.vin || 'N/A'}</TableCell>
                 <TableCell>
                   {vehiculo.id_uuid ? (
                     <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}?token=${token}`}>
@@ -469,7 +495,9 @@ export default function VehiculosPage() {
       {totalPages > 1 && (
         <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center border-t pt-4">
           <div className="text-sm text-muted-foreground order-2 sm:order-1">
-            Mostrando página {currentPage} de {totalPages}
+            Mostrando {((currentPage - 1) * VEHICULOS_POR_PAGINA) + 1} -{" "}
+            {Math.min(currentPage * VEHICULOS_POR_PAGINA, totalVehiculos)} de {totalVehiculos}{" "}
+            vehículos
           </div>
           <div className="order-1 sm:order-2">
             <Pagination>
