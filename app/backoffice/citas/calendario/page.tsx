@@ -548,6 +548,17 @@ export default function CalendarioCitasPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {selectedCita.notes && (
+                  <>
+                    <div className="font-medium">Nota:</div>
+                    <div className="col-span-1 text-sm text-gray-600 max-w-xs">
+                      {selectedCita.notes.length > 100 ?
+                        `${selectedCita.notes.substring(0, 100)}...` :
+                        selectedCita.notes
+                      }
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex-grow overflow-auto">
                 <AppointmentCalendar
