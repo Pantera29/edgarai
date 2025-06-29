@@ -50,7 +50,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { toast } from "@/components/ui/use-toast"
 import { DonutChart } from "@/components/ui/donut-chart"
 import { AppointmentTrendChart } from "@/components/dashboard/appointment-trend-chart"
-import { calculateWorkshopUtilization } from "@/lib/dashboard-metrics"
+import { calculateWorkshopUtilization, calculateReingresoRate } from "@/lib/dashboard-metrics"
 
 interface Servicio {
   nombre: string;
@@ -80,6 +80,16 @@ interface CitaSupabase {
 interface WorkshopUtilization {
   status: string;
   utilizationRate: number;
+}
+
+interface ReingresoData {
+  tasa_reingreso: number;
+  vehiculos_reingresados: number;
+  total_vehiculos_unicos: number;
+  periodo: {
+    year: number;
+    month: number;
+  };
 }
 
 interface DashboardData {
@@ -173,6 +183,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState<boolean>(false)
   const [datePickerOpen, setDatePickerOpen] = useState(false)
   const [workshopUtilization, setWorkshopUtilization] = useState<WorkshopUtilization | null>(null)
+  const [reingresoData, setReingresoData] = useState<ReingresoData | null>(null)
 
   // Obtener la fecha actual
   const fechaHoy = format(new Date(), 'yyyy-MM-dd');
@@ -184,6 +195,7 @@ export default function DashboardPage() {
       console.log('useEffect - Cargando datos para fecha:', fechaSeleccionada);
       cargarDatos(dataToken.dealership_id);
       fetchWorkshopData(dataToken.dealership_id);
+      fetchReingresoData(dataToken.dealership_id);
     }
   }, [fechaSeleccionada, dataToken?.dealership_id]);
 
@@ -416,6 +428,20 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchReingresoData = async (dealershipId: string) => {
+    try {
+      const reingreso = await calculateReingresoRate(dealershipId, supabase);
+      setReingresoData(reingreso);
+    } catch (error) {
+      console.error('Error al cargar datos de reingreso:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar los datos de tasa de reingreso."
+      });
+    }
+  };
+
   const filtrarCitas = (citas: CitaSupabase[] | undefined) => {
     if (!citas) return []
     
@@ -506,9 +532,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        {/* Estado de Citas */}
-        <Card className="shadow-sm">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-5">
+        <Card className="shadow-sm md:col-span-2">
+          {/* Estado de Citas */}
           <div className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
               <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Estado de Citas</h3>
@@ -516,7 +542,6 @@ export default function DashboardPage() {
                 <CalendarLucideIcon className="h-4 w-4 text-green-600" />
               </div>
             </div>
-            
             <div className="grid grid-cols-4 gap-2 mt-2">
               <div className="flex flex-col items-center">
                 <div className="bg-gray-200 rounded-full h-10 w-10 flex items-center justify-center mb-2">
@@ -545,14 +570,13 @@ export default function DashboardPage() {
             </div>
           </div>
         </Card>
-
-        {/* Satisfacción del Cliente */}
         <Card className="shadow-sm">
+          {/* Satisfacción del Cliente */}
           <div className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
               <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Satisfacción del Cliente</h3>
-              <div className={`rounded-md p-1 flex items-center gap-1 ${data.satisfaccionCliente.tendencia > 0 ? 'bg-green-100' : data.satisfaccionCliente.tendencia < 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
-                <span className={`text-xs font-medium ${data.satisfaccionCliente.tendencia > 0 ? 'text-green-600' : data.satisfaccionCliente.tendencia < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+              <div className={`rounded-md p-1 flex items-center gap-1 ${data.satisfaccionCliente.tendencia > 0 ? 'bg-green-100' : data.satisfaccionCliente.tendencia < 0 ? 'bg-red-100' : 'bg-gray-100'}`}> 
+                <span className={`text-xs font-medium ${data.satisfaccionCliente.tendencia > 0 ? 'text-green-600' : data.satisfaccionCliente.tendencia < 0 ? 'text-red-600' : 'text-gray-600'}`}> 
                   {data.satisfaccionCliente.tendencia > 0 ? '+' : ''}{data.satisfaccionCliente.tendencia}%
                 </span>
                 {data.satisfaccionCliente.tendencia > 0 ? 
@@ -563,10 +587,8 @@ export default function DashboardPage() {
                 }
               </div>
             </div>
-            
             <div className="text-3xl font-bold">{data.satisfaccionCliente.nps}</div>
             <p className="text-xs text-muted-foreground mb-1">NPS</p>
-            
             <Progress 
               value={data.satisfaccionCliente.nps} 
               className="h-2 mt-2 mb-2"
@@ -579,21 +601,18 @@ export default function DashboardPage() {
                 style={{ transform: `translateX(-${100 - data.satisfaccionCliente.nps}%)` }} 
               />
             </Progress>
-            
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>0</span>
               <span>50</span>
               <span>100</span>
             </div>
-            
             <div className="mt-3">
               {/* Línea de tendencia eliminada por solicitud */}
             </div>
           </div>
         </Card>
-
-        {/* Ocupación del Taller */}
         <Card className="shadow-sm">
+          {/* Ocupación del Taller */}
           <div className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
               <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Ocupación del Taller</h3>
@@ -613,6 +632,23 @@ export default function DashboardPage() {
               {workshopUtilization?.status === 'overloaded' && 'Sobrecargado'}
               {workshopUtilization?.status === 'moderate' && 'Utilización moderada'}
               {workshopUtilization?.status === 'low' && 'Baja utilización'}
+            </p>
+          </div>
+        </Card>
+        <Card className="shadow-sm">
+          {/* Tasa de Reingreso */}
+          <div className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Tasa de Reingreso</h3>
+              <div className="rounded-md bg-blue-100 p-1">
+                <Car className="h-4 w-4 text-blue-600" />
+              </div>
+            </div>
+            <div className="text-2xl font-bold text-blue-600">
+              {reingresoData?.tasa_reingreso.toFixed(1) || 0}%
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {reingresoData?.vehiculos_reingresados || 0} de {reingresoData?.total_vehiculos_unicos || 0} vehículos del mes actual
             </p>
           </div>
         </Card>
