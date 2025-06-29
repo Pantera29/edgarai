@@ -24,6 +24,16 @@ interface Appointment {
   };
 }
 
+interface ReingresoData {
+  tasa_reingreso: number;
+  vehiculos_reingresados: number;
+  total_vehiculos_unicos: number;
+  periodo: {
+    year: number;
+    month: number;
+  };
+}
+
 export async function calculateWorkshopUtilization(
   dealershipId: string,
   supabase: any
@@ -149,4 +159,39 @@ export async function calculateWorkshopUtilization(
 function timeToMinutes(timeStr: string): number {
   const [hours, minutes] = timeStr.split(':').map(Number);
   return hours * 60 + minutes;
+}
+
+export async function calculateReingresoRate(
+  dealershipId: string,
+  supabase: any
+): Promise<ReingresoData> {
+  const currentDate = new Date();
+  const currentMonth = currentDate.getMonth() + 1; // +1 porque getMonth() es 0-based
+  const currentYear = currentDate.getFullYear();
+  
+  console.log('📊 Calculando tasa de reingreso:', {
+    dealershipId,
+    year: currentYear,
+    month: currentMonth
+  });
+
+  const { data, error } = await supabase.rpc('calculate_reingreso_rate', {
+    p_dealership_id: dealershipId,
+    p_year: currentYear,
+    p_month: currentMonth
+  });
+
+  if (error) {
+    console.error('❌ Error al calcular tasa de reingreso:', error);
+    throw new Error(`Error al calcular tasa de reingreso: ${error.message}`);
+  }
+
+  console.log('✅ Datos de reingreso obtenidos:', data);
+
+  return {
+    tasa_reingreso: data.tasa_reingreso || 0,
+    vehiculos_reingresados: data.vehiculos_reingresados || 0,
+    total_vehiculos_unicos: data.total_vehiculos_unicos || 0,
+    periodo: data.periodo || { year: currentYear, month: currentMonth }
+  };
 } 
