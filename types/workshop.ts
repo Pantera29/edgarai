@@ -111,6 +111,7 @@ export interface Servicio {
   description?: string;
   duration_minutes: number;
   price?: number;
+  client_visible?: boolean;
 }
 
 export interface Service {
@@ -119,6 +120,7 @@ export interface Service {
   description?: string;
   duration_minutes: number;
   price?: number;
+  client_visible?: boolean;
 }
 
 export type AppointmentStatus = 'pendiente' | 'en_proceso' | 'completada' | 'cancelada';

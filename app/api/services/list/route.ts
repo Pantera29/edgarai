@@ -30,6 +30,7 @@ export async function GET(request: Request) {
       .from('services')
       .select('*')
       .eq('dealership_id', dealership_id)
+      .eq('client_visible', true)
       .order('service_name');
 
     // Si se proporciona una categoría, filtrar por ella
