@@ -63,7 +63,7 @@ export async function GET(request: Request) {
 
     const { data: dealershipConfig, error: configError } = await supabase
       .from('dealership_configuration')
-      .select('shift_duration, reception_end_time, timezone')
+      .select('shift_duration, reception_end_time, timezone, custom_morning_slots, regular_slots_start_time')
       .eq('dealership_id', dealershipId)
       .maybeSingle();
 
@@ -195,7 +195,7 @@ export async function GET(request: Request) {
 
       return NextResponse.json({
         availableSlots: [],
-        message: `El día ${format(new Date(date), 'dd/MM/yyyy')} no es un día laborable para este concesionario`
+        message: `El día ${date.split('-').reverse().join('/')} no es un día laborable para este concesionario`
       });
     }
 
@@ -309,7 +309,9 @@ export async function GET(request: Request) {
           schedule.max_simultaneous_services,
           slotDuration,
           dealershipConfig?.reception_end_time,
-          timezone
+          timezone,
+          dealershipConfig?.custom_morning_slots,
+          dealershipConfig?.regular_slots_start_time
         );
 
         return NextResponse.json({ 
@@ -350,7 +352,9 @@ export async function GET(request: Request) {
       schedule.max_simultaneous_services,
       slotDuration,
       dealershipConfig?.reception_end_time,
-      timezone
+      timezone,
+      dealershipConfig?.custom_morning_slots,
+      dealershipConfig?.regular_slots_start_time
     );
 
     return NextResponse.json({ 
@@ -376,7 +380,9 @@ function generateTimeSlots(
   maxSimultaneous: number,
   slotDuration: number,
   receptionEndTime: string | null,
-  timezone: string
+  timezone: string,
+  customMorningSlots: string[] | null = null,
+  regularSlotsStartTime: string | null = null
 ) {
   // Verificar si es el día actual
   const now = new Date();
@@ -421,13 +427,138 @@ function generateTimeSlots(
     canFitAdditionalService: remainingMinutesAvailable >= serviceDuration
   });
 
+  // NUEVO: Procesar slots custom de mañana si existen
+  const customSlotsToProcess: string[] = [];
+  if (customMorningSlots && Array.isArray(customMorningSlots)) {
+    const openingMinutes = timeToMinutes(schedule.opening_time);
+    
+    for (const customSlot of customMorningSlots) {
+      const customSlotMinutes = timeToMinutes(customSlot);
+      
+      // Solo incluir si la agencia ya está abierta a esa hora
+      if (customSlotMinutes >= openingMinutes) {
+        customSlotsToProcess.push(customSlot);
+      } else {
+        console.log('Slot custom descartado (agencia cerrada):', {
+          slot: customSlot,
+          openingTime: schedule.opening_time,
+          customSlotMinutes,
+          openingMinutes
+        });
+      }
+    }
+    
+    console.log('Slots custom a procesar:', {
+      originalSlots: customMorningSlots,
+      validSlots: customSlotsToProcess,
+      openingTime: schedule.opening_time
+    });
+  }
+
   const slots: { time: string; available: number }[] = [];
   const availableSlots: string[] = [];
-  const startTime = parse(schedule.opening_time, 'HH:mm:ss', new Date());
+  
+  // Determinar desde dónde empezar la lógica regular
+  let regularStartTime;
+  if (customSlotsToProcess.length > 0 && regularSlotsStartTime) {
+    // Si hay slots custom Y está configurado regular_slots_start_time, usarlo
+    regularStartTime = parse(regularSlotsStartTime, 'HH:mm:ss', new Date());
+    console.log('Usando regular_slots_start_time configurado:', {
+      regularSlotsStartTime,
+      customSlotsCount: customSlotsToProcess.length
+    });
+  } else {
+    // Si no hay slots custom O no está configurado, usar opening_time normal
+    regularStartTime = parse(schedule.opening_time, 'HH:mm:ss', new Date());
+    console.log('Usando opening_time normal:', {
+      openingTime: schedule.opening_time,
+      hasCustomSlots: customSlotsToProcess.length > 0,
+      hasRegularStartTime: !!regularSlotsStartTime
+    });
+  }
+  
   const endTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
   
+  // NUEVO: Procesar slots custom válidos
+  for (const customSlot of customSlotsToProcess) {
+    // Verificar si el slot está bloqueado
+    const isBlocked = blockedDate?.blocked_slots?.includes(customSlot);
+    if (isBlocked) {
+      console.log('Slot custom bloqueado:', customSlot);
+      continue;
+    }
+    
+    // Si es el día actual, verificar si el horario ya pasó
+    if (isToday) {
+      const slotMinutes = timeToMinutes(customSlot);
+      const currentMinutes = timeToMinutes(currentTimeStr);
+      
+      if (slotMinutes <= currentMinutes) {
+        console.log('Slot custom ya pasó:', {
+          slot: customSlot,
+          currentTime: currentTimeStr
+        });
+        continue;
+      }
+    }
+    
+    // Si hay horario de recepción, verificar que el slot no esté después
+    if (receptionEndTime) {
+      const slotTime = timeToMinutes(customSlot);
+      const receptionEndMinutes = timeToMinutes(receptionEndTime);
+      
+      if (slotTime > receptionEndMinutes) {
+        console.log('Slot custom después de horario de recepción:', {
+          slot: customSlot,
+          receptionEndTime
+        });
+        continue;
+      }
+    }
+    
+    // Verificar si el servicio cabe en el horario de cierre
+    const slotStartTime = parse(customSlot, 'HH:mm:ss', new Date());
+    const slotEndTime = addMinutes(slotStartTime, serviceDuration);
+    const closingTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
+    
+    if (!isBefore(slotEndTime, closingTime)) {
+      console.log('Servicio no cabe en slot custom:', {
+        slot: customSlot,
+        serviceDuration,
+        closingTime: schedule.closing_time
+      });
+      continue;
+    }
+    
+    // Verificar solapamiento con citas existentes
+    const slotStartMinutes = timeToMinutes(customSlot);
+    const slotEndMinutes = slotStartMinutes + serviceDuration;
+    
+    const overlappingAppointments = appointments.filter(app => {
+      const appStart = timeToMinutes(app.appointment_time);
+      const appEnd = appStart + (app.services?.duration_minutes || 60);
+      return appStart < slotEndMinutes && appEnd > slotStartMinutes;
+    });
+    
+    // Verificar capacidad
+    if (overlappingAppointments.length < maxSimultaneous) {
+      availableSlots.push(customSlot);
+      console.log('Slot custom agregado:', {
+        slot: customSlot,
+        overlapping: overlappingAppointments.length,
+        maxSimultaneous
+      });
+    } else {
+      console.log('Slot custom sin capacidad:', {
+        slot: customSlot,
+        overlapping: overlappingAppointments.length,
+        maxSimultaneous
+      });
+    }
+  }
+  
   // Generamos slots desde la apertura hasta el cierre
-  let currentTime = startTime;
+  let currentTime = regularStartTime;
   while (currentTime < endTime) {
     const timeStr = format(currentTime, 'HH:mm:ss');
     
