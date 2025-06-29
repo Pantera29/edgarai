@@ -11,10 +11,13 @@ import { getBaseUrl } from "@/lib/utils"
 import { verifyToken } from '../../../jwt/token'
 import { toast } from "@/components/ui/use-toast"
 import { carBrands } from "@/lib/car-brands"
+import { useClientSearch } from "@/hooks/useClientSearch"
+import React from "react"
 
 interface Cliente {
   id: string;           // Cambiado de id_uuid
   names: string;        // Cambiado de nombre
+  phone_number: string;
 }
 
 interface TokenData {
@@ -30,6 +33,131 @@ interface VehicleMake {
 interface DealershipBrand {
   make_id: string;
   vehicle_makes: VehicleMake;
+}
+
+// ClienteComboBox copiado exactamente de la página de crear cita
+function ClienteComboBox({ 
+  dealershipId, 
+  onSelect, 
+  value 
+}: { 
+  dealershipId: string;
+  onSelect: (id: string) => void; 
+  value: string;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+  
+  // Usar el hook personalizado para búsqueda de clientes
+  const { 
+    clients, 
+    loading, 
+    error, 
+    searchClients, 
+    addSelectedClient, 
+    getClientById 
+  } = useClientSearch(dealershipId);
+
+  // Buscar el cliente seleccionado
+  const selectedClient = getClientById(value);
+
+  // Manejar cambios en la búsqueda
+  const handleSearchChange = (newSearch: string) => {
+    setSearch(newSearch);
+    searchClients(newSearch);
+  };
+
+  // Manejar selección de cliente
+  const handleClientSelect = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (client) {
+      addSelectedClient(client);
+      onSelect(clientId);
+      setOpen(false);
+      setSearch('');
+    }
+  };
+
+  // Cerrar el dropdown si se hace clic fuera
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  // Cargar clientes seleccionados previamente al abrir
+  React.useEffect(() => {
+    if (open && selectedClient) {
+      addSelectedClient(selectedClient);
+    }
+  }, [open, selectedClient, addSelectedClient]);
+
+  return (
+    <div className="relative w-full" ref={triggerRef}>
+      <button
+        type="button"
+        className="w-full border rounded-md px-3 py-2 text-left bg-white"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {selectedClient
+          ? `${selectedClient.names} (${selectedClient.phone_number})`
+          : "Selecciona un cliente..."}
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
+          <input
+            type="text"
+            className="w-full px-3 py-2 border-b outline-none bg-white text-black"
+            placeholder="Buscar cliente por nombre..."
+            value={search}
+            onChange={e => handleSearchChange(e.target.value)}
+            autoFocus
+          />
+          <ul className="max-h-60 overflow-y-auto">
+            {loading ? (
+              <li className="px-3 py-2 text-gray-500 text-center">
+                <div className="flex items-center justify-center">
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-600 mr-2"></div>
+                  Buscando...
+                </div>
+              </li>
+            ) : error ? (
+              <li className="px-3 py-2 text-red-500 text-center">
+                Error: {error}
+              </li>
+            ) : clients.length > 0 ? (
+              clients.map((cliente) => (
+                <li
+                  key={cliente.id}
+                  className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${value === cliente.id ? 'bg-blue-50 font-semibold' : ''}`}
+                  onClick={() => handleClientSelect(cliente.id)}
+                >
+                  {cliente.names} ({cliente.phone_number})
+                </li>
+              ))
+            ) : search.trim() ? (
+              <li className="px-3 py-2 text-gray-400 text-center">
+                No se encontraron clientes
+              </li>
+            ) : (
+              <li className="px-3 py-2 text-gray-400 text-center">
+                Escribe para buscar clientes
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function NuevoVehiculoPage() {
@@ -70,10 +198,6 @@ export default function NuevoVehiculoPage() {
     }
   }, [searchParams, router]); 
 
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  
   const [formData, setFormData] = useState({
     client_id: "",      
     make: "",           
@@ -109,36 +233,6 @@ export default function NuevoVehiculoPage() {
 
     setVinError(null);
   };
-
-  useEffect(() => {
-    const fetchClientes = async () => {
-      if (!dataToken?.dealership_id) return;
-      
-      try {
-        setLoading(true);
-        setError(null);
-        const supabase = createClientComponentClient();
-        const { data, error } = await supabase
-          .from('client')
-          .select('id, names')
-          .eq('dealership_id', dataToken.dealership_id)
-          .order('names', { ascending: true });
-        
-        if (error) throw error;
-        
-        if (data) {
-          setClientes(data);
-        }
-      } catch (err) {
-        console.error('Error al cargar clientes:', err);
-        setError('Error al cargar la lista de clientes');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchClientes();
-  }, [dataToken]);
 
   // Nuevo efecto para cargar las marcas permitidas
   useEffect(() => {
@@ -184,7 +278,19 @@ export default function NuevoVehiculoPage() {
     const supabase = createClientComponentClient()
 
     try {
+      // Log para depuración
+      console.log('Datos del formulario al guardar vehículo:', formData);
+
       // Validaciones
+      if (!formData.client_id) {
+        toast({
+          title: "Error",
+          description: "Debe seleccionar un cliente",
+          variant: "destructive"
+        });
+        return;
+      }
+
       if (formData.year < 1900 || formData.year > new Date().getFullYear() + 1) {
         toast({
           title: "Error",
@@ -269,27 +375,11 @@ export default function NuevoVehiculoPage() {
       <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
         <div className="space-y-2">
           <Label htmlFor="cliente">Propietario</Label>
-          <Select 
+          <ClienteComboBox
+            dealershipId={dataToken?.dealership_id || ""}
+            onSelect={(id) => setFormData({ ...formData, client_id: id })}
             value={formData.client_id}
-            onValueChange={(value) => setFormData({ ...formData, client_id: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={loading ? "Cargando..." : "Seleccionar cliente"} />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px] overflow-y-auto">
-              {error ? (
-                <SelectItem value="error">Error al cargar clientes</SelectItem>
-              ) : clientes.length === 0 ? (
-                <SelectItem value="empty">No hay clientes disponibles</SelectItem>
-              ) : (
-                clientes.map((cliente) => (
-                  <SelectItem key={cliente.id} value={cliente.id}>
-                    {cliente.names}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="make">Marca</Label>

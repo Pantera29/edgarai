@@ -18,6 +18,7 @@ import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from '@
 import { stringToSafeDate } from '@/lib/utils/date';
 import { sendAppointmentConfirmationSMS } from "@/lib/sms";
 import { Switch } from "@/components/ui/switch";
+import { useClientSearch } from "@/hooks/useClientSearch";
 
 // Extender la interfaz Vehicle para incluir las propiedades adicionales
 interface ExtendedVehicle extends Vehicle {
@@ -77,21 +78,49 @@ const traducirEstado = (estado: string | null): string => {
   return traducciones[estado] || estado;
 };
 
-// Componente mejorado y simplificado para el combobox de clientes
-function ClienteComboBox({ clientes, onSelect, value }: { clientes: ExtendedClient[], onSelect: (id: string) => void, value: string }) {
+// Componente mejorado para el combobox de clientes con búsqueda server-side
+function ClienteComboBox({ 
+  dealershipId, 
+  onSelect, 
+  value 
+}: { 
+  dealershipId: string;
+  onSelect: (id: string) => void; 
+  value: string;
+}) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const triggerRef = React.useRef<HTMLDivElement>(null);
+  
+  // Usar el hook personalizado para búsqueda de clientes
+  const { 
+    clients, 
+    loading, 
+    error, 
+    searchClients, 
+    addSelectedClient, 
+    getClientById 
+  } = useClientSearch(dealershipId);
 
   // Buscar el cliente seleccionado
-  const selectedClient = clientes.find(c => c.id === value);
+  const selectedClient = getClientById(value);
 
-  // Filtrar clientes por búsqueda de nombre
-  const filtered = search.trim() === ''
-    ? clientes
-    : clientes.filter(cliente =>
-        cliente.names.toLowerCase().includes(search.toLowerCase())
-      );
+  // Manejar cambios en la búsqueda
+  const handleSearchChange = (newSearch: string) => {
+    setSearch(newSearch);
+    searchClients(newSearch);
+  };
+
+  // Manejar selección de cliente
+  const handleClientSelect = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (client) {
+      addSelectedClient(client);
+      onSelect(clientId);
+      setOpen(false);
+      setSearch('');
+    }
+  };
 
   // Cerrar el dropdown si se hace clic fuera
   React.useEffect(() => {
@@ -107,6 +136,13 @@ function ClienteComboBox({ clientes, onSelect, value }: { clientes: ExtendedClie
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [open]);
+
+  // Cargar clientes seleccionados previamente al abrir
+  React.useEffect(() => {
+    if (open && selectedClient) {
+      addSelectedClient(selectedClient);
+    }
+  }, [open, selectedClient, addSelectedClient]);
 
   return (
     <div className="relative w-full" ref={triggerRef}>
@@ -126,26 +162,39 @@ function ClienteComboBox({ clientes, onSelect, value }: { clientes: ExtendedClie
             className="w-full px-3 py-2 border-b outline-none bg-white text-black"
             placeholder="Buscar cliente por nombre..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => handleSearchChange(e.target.value)}
             autoFocus
           />
           <ul className="max-h-60 overflow-y-auto">
-            {filtered.length > 0 ? (
-              filtered.map((cliente) => (
+            {loading ? (
+              <li className="px-3 py-2 text-gray-500 text-center">
+                <div className="flex items-center justify-center">
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-600 mr-2"></div>
+                  Buscando...
+                </div>
+              </li>
+            ) : error ? (
+              <li className="px-3 py-2 text-red-500 text-center">
+                Error: {error}
+              </li>
+            ) : clients.length > 0 ? (
+              clients.map((cliente) => (
                 <li
                   key={cliente.id}
                   className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${value === cliente.id ? 'bg-blue-50 font-semibold' : ''}`}
-                  onClick={() => {
-                    onSelect(cliente.id);
-                    setOpen(false);
-                    setSearch('');
-                  }}
+                  onClick={() => handleClientSelect(cliente.id)}
                 >
                   {cliente.names} ({cliente.phone_number})
                 </li>
               ))
+            ) : search.trim() ? (
+              <li className="px-3 py-2 text-gray-400 text-center">
+                No se encontraron clientes
+              </li>
             ) : (
-              <li className="px-3 py-2 text-gray-400">No se encontraron clientes</li>
+              <li className="px-3 py-2 text-gray-400 text-center">
+                Escribe para buscar clientes
+              </li>
             )}
           </ul>
         </div>
@@ -265,7 +314,6 @@ export default function NuevaReservaPage() {
     }
   }, [router]);
 
-  const [clientes, setClientes] = useState<ExtendedClient[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [vehiculos, setVehiculos] = useState<ExtendedVehicle[]>([]);
   const [selectedClient, setSelectedClient] = useState<string>('');
@@ -285,6 +333,16 @@ export default function NuevaReservaPage() {
   const supabase = createClientComponentClient();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [allowPastDates, setAllowPastDates] = useState(false);
+  const [selectedClientData, setSelectedClientData] = useState<ExtendedClient | null>(null);
+
+  // Hook para búsqueda de clientes
+  const { getClientById } = useClientSearch(verifiedDataToken?.dealership_id || '');
+
+  // Obtener el texto del cliente seleccionado
+  const selectedClientText = React.useMemo(() => {
+    if (!selectedClient || !selectedClientData) return "";
+    return `${selectedClientData.names} (${selectedClientData.phone_number})`;
+  }, [selectedClient, selectedClientData]);
 
   const loadDealershipInfo = async (dealershipId: string) => {
     try {
@@ -303,17 +361,6 @@ export default function NuevaReservaPage() {
     }
   };
 
-  // Filtrar clientes basado en la búsqueda
-  const filteredClientes = React.useMemo(() => {
-    if (!searchQuery) return clientes;
-    
-    const query = searchQuery.toLowerCase();
-    return clientes.filter(cliente => 
-      cliente.names.toLowerCase().includes(query) ||
-      cliente.phone_number.toLowerCase().includes(query)
-    );
-  }, [clientes, searchQuery]);
-
   // Obtener el texto del vehículo seleccionado
   const selectedVehicleText = React.useMemo(() => {
     if (!selectedVehicle) return "";
@@ -331,14 +378,6 @@ export default function NuevaReservaPage() {
     
     return `${vehicle.make} ${vehicle.model}${vehicle.license_plate ? ` (${vehicle.license_plate})` : ''}`;
   }, [selectedVehicle, filteredVehicles]);
-
-  // Obtener el texto del cliente seleccionado
-  const selectedClientText = React.useMemo(() => {
-    if (!selectedClient) return "";
-    const client = clientes.find(c => c.id === selectedClient);
-    if (!client) return "";
-    return `${client.names} (${client.phone_number})`;
-  }, [selectedClient, clientes]);
 
   // Obtener el texto del servicio seleccionado
   const selectedServiceText = React.useMemo(() => {
@@ -403,24 +442,13 @@ export default function NuevaReservaPage() {
       }
 
       const [
-        { data: clientesData, error: clientesError },
         { data: vehiculosData, error: vehiculosError },
         { data: serviciosData, error: serviciosError }
       ] = await Promise.all([
-        // Filtrar clientes por dealership_id - SIN LÍMITE
-        supabase
-          .from('client')
-          .select('*')
-          .eq('dealership_id', verifiedDataToken.dealership_id)
-          .order('names')
-          .limit(100000), // Límite muy alto para prácticamente sin límite
         supabase.from('vehicles').select('*').order('make, model').limit(100000), // Límite muy alto para prácticamente sin límite
         supabase.from('services').select('*').eq('dealership_id', verifiedDataToken.dealership_id).order('service_name')
       ]);
 
-      if (clientesError){
-        throw clientesError;
-      } 
       if (vehiculosError) {
         throw vehiculosError;
       }
@@ -428,11 +456,9 @@ export default function NuevaReservaPage() {
         throw serviciosError;
       } 
       
-      console.log('Clientes cargados:', clientesData?.length || 0);
       console.log('Vehículos cargados:', vehiculosData?.length || 0);
       console.log('Un ejemplo de vehículo:', vehiculosData?.[0]);
       
-      setClientes(clientesData || []);
       setVehiculos(vehiculosData || []);
       setServicios(serviciosData || []);
     } catch (error) {
@@ -598,60 +624,6 @@ export default function NuevaReservaPage() {
       }
     }
   }, [selectedService, servicios]);
-
-  useEffect(() => {
-    if (selectedClient) {
-      console.log("Filtrando vehículos para cliente ID:", selectedClient);
-      console.log("Vehículos disponibles antes del filtrado:", vehiculos);
-      
-      // Filtrar los vehículos que pertenecen al cliente seleccionado
-      const vehiculosFiltrados = vehiculos.filter(v => {
-        // Verificar si hay coincidencia con client_id
-        const matchesClientId = v.client_id === selectedClient;
-        
-        // Verificar si hay coincidencia con client.id 
-        const matchesNestedClientId = v.client && v.client.id === selectedClient;
-        
-        // Verificar si hay otros tipos de coincidencia (conversión de tipos)
-        const matchesStringConversion = 
-          String(v.client_id) === String(selectedClient);
-        
-        console.log(`Vehículo ${v.id_uuid || v.id}: client_id=${v.client_id}, coincide=${matchesClientId || matchesNestedClientId || matchesStringConversion}`);
-        
-        return matchesClientId || matchesNestedClientId || matchesStringConversion;
-      });
-      
-      console.log("Vehículos filtrados para el cliente:", vehiculosFiltrados);
-      
-      // Pre-seleccionar el primer vehículo si hay vehículos disponibles
-      if (vehiculosFiltrados.length > 0) {
-        const primerVehiculo = vehiculosFiltrados[0];
-        const idVehiculo = primerVehiculo.id_uuid || primerVehiculo.id;
-        
-        console.log("Pre-seleccionando vehículo por defecto:", {
-          make: primerVehiculo.make,
-          model: primerVehiculo.model,
-          id: idVehiculo
-        });
-        
-        setSelectedVehicle(idVehiculo);
-        
-        // Notificar al usuario que se ha seleccionado un vehículo por defecto
-        toast({
-          title: "Vehículo seleccionado",
-          description: `${primerVehiculo.make} ${primerVehiculo.model}`,
-          duration: 3000
-        });
-      } else {
-        setSelectedVehicle('');
-      }
-      
-      setFilteredVehicles(vehiculosFiltrados);
-    } else {
-      setFilteredVehicles([]);
-      setSelectedVehicle('');
-    }
-  }, [selectedClient, vehiculos, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -839,40 +811,69 @@ export default function NuevaReservaPage() {
     console.log('Cliente seleccionado:', clientId);
     setSelectedClient(clientId);
     setSelectedVehicle(''); // Resetear vehículo seleccionado
-    
+
+    // Obtener datos del cliente seleccionado
+    try {
+      const { data: clientData, error: clientError } = await supabase
+        .from('client')
+        .select('id, names, phone_number')
+        .eq('id', clientId)
+        .single();
+      if (clientError) throw clientError;
+      if (clientData) {
+        setSelectedClientData({
+          id: clientData.id,
+          names: clientData.names,
+          phone_number: clientData.phone_number,
+          email: ""
+        });
+        console.log('Datos del cliente seleccionado:', clientData);
+      }
+    } catch (error) {
+      console.error('Error obteniendo datos del cliente:', error);
+    }
+
     // Si no hay ID de cliente, limpiar vehículos
     if (!clientId) {
       setFilteredVehicles([]);
+      setSelectedClientData(null);
       return;
     }
-    
+
     // Cargar vehículos específicamente para este cliente
     try {
-      // Primero mostrar un toast de carga
       toast({
         title: "Cargando vehículos",
         description: "Obteniendo vehículos del cliente...",
         duration: 2000,
       });
-      
       const { data, error } = await supabase
         .from('vehicles')
         .select('*')
         .eq('client_id', clientId)
         .order('make, model');
-        
       if (error) throw error;
-      
       console.log('Vehículos disponibles para el cliente:', data);
-      
-      // Verificar si los vehículos tienen el formato correcto
       const vehiculosValidados = data ? data.map(vehiculo => {
         console.log(`Vehículo cargado: ID=${vehiculo.id}, Make=${vehiculo.make}, Model=${vehiculo.model}`);
         return vehiculo;
       }) : [];
-      
       setFilteredVehicles(vehiculosValidados);
-      
+      if (vehiculosValidados.length > 0) {
+        const primerVehiculo = vehiculosValidados[0];
+        const idVehiculo = primerVehiculo.id_uuid || primerVehiculo.id;
+        console.log("Pre-seleccionando vehículo por defecto:", {
+          make: primerVehiculo.make,
+          model: primerVehiculo.model,
+          id: idVehiculo
+        });
+        setSelectedVehicle(idVehiculo);
+        toast({
+          title: "Vehículo seleccionado",
+          description: `${primerVehiculo.make} ${primerVehiculo.model}`,
+          duration: 3000
+        });
+      }
       if (!vehiculosValidados || vehiculosValidados.length === 0) {
         toast({
           variant: "destructive",
@@ -925,7 +926,7 @@ export default function NuevaReservaPage() {
             <Label htmlFor="cliente" className="text-right col-span-1">Cliente</Label>
             <div className="col-span-11">
               <ClienteComboBox
-                clientes={clientes}
+                dealershipId={verifiedDataToken?.dealership_id || ''}
                 onSelect={handleClientSelection}
                 value={selectedClient}
               />

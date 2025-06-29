@@ -11,10 +11,13 @@ import { getBaseUrl } from "@/lib/utils"
 import { verifyToken } from '../../../jwt/token'
 import { toast } from "@/components/ui/use-toast"
 import { carBrands } from "@/lib/car-brands"
+import { useClientSearch } from '@/hooks/useClientSearch'
+import React from 'react'
 
 interface Cliente {
   id: string;
   names: string;
+  phone_number: string;
 }
 
 interface VehicleMake {
@@ -31,6 +34,125 @@ interface PageProps {
   params: {
     id: string;
   };
+}
+
+function ClienteComboBox({
+  value,
+  onSelect,
+  clients,
+  loading,
+  error,
+  searchClients,
+  addSelectedClient,
+  getClientById
+}: {
+  value: string;
+  onSelect: (id: string) => void;
+  clients: any[];
+  loading: boolean;
+  error: string | null;
+  searchClients: (query: string) => void;
+  addSelectedClient: (client: any) => void;
+  getClientById: (id: string) => any;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+
+  const selectedClient = getClientById(value);
+
+  const handleSearchChange = (newSearch: string) => {
+    setSearch(newSearch);
+    searchClients(newSearch);
+  };
+
+  const handleClientSelect = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (client) {
+      addSelectedClient(client);
+      onSelect(clientId);
+      setOpen(false);
+      setSearch('');
+    }
+  };
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  React.useEffect(() => {
+    if (open && selectedClient) {
+      addSelectedClient(selectedClient);
+    }
+  }, [open, selectedClient, addSelectedClient]);
+
+  return (
+    <div className="relative w-full" ref={triggerRef}>
+      <button
+        type="button"
+        className="w-full border rounded-md px-3 py-2 text-left bg-white"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {selectedClient
+          ? `${selectedClient.names} (${selectedClient.phone_number})`
+          : "Selecciona un cliente..."}
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
+          <input
+            type="text"
+            className="w-full px-3 py-2 border-b outline-none bg-white text-black"
+            placeholder="Buscar cliente por nombre..."
+            value={search}
+            onChange={e => handleSearchChange(e.target.value)}
+            autoFocus
+          />
+          <ul className="max-h-60 overflow-y-auto">
+            {loading ? (
+              <li className="px-3 py-2 text-gray-500 text-center">
+                <div className="flex items-center justify-center">
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-600 mr-2"></div>
+                  Buscando...
+                </div>
+              </li>
+            ) : error ? (
+              <li className="px-3 py-2 text-red-500 text-center">
+                Error: {error}
+              </li>
+            ) : clients.length > 0 ? (
+              clients.map((cliente) => (
+                <li
+                  key={cliente.id}
+                  className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${value === cliente.id ? 'bg-blue-50 font-semibold' : ''}`}
+                  onClick={() => handleClientSelect(cliente.id)}
+                >
+                  {cliente.names} ({cliente.phone_number})
+                </li>
+              ))
+            ) : search.trim() ? (
+              <li className="px-3 py-2 text-gray-400 text-center">
+                No se encontraron clientes
+              </li>
+            ) : (
+              <li className="px-3 py-2 text-gray-400 text-center">
+                Escribe para buscar clientes
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function EditarVehiculoPage({ params }: PageProps) {
@@ -114,6 +236,16 @@ export default function EditarVehiculoPage({ params }: PageProps) {
     cargarMarcasPermitidas();
   }, [dataToken.dealership_id, supabase]);
 
+  // Hook para búsqueda de clientes
+  const {
+    clients,
+    loading: clientLoading,
+    error: clientError,
+    searchClients,
+    addSelectedClient,
+    getClientById
+  } = useClientSearch(dataToken.dealership_id || '');
+
   // Cargar datos del vehículo
   useEffect(() => {
     const cargarVehiculo = async () => {
@@ -135,6 +267,17 @@ export default function EditarVehiculoPage({ params }: PageProps) {
             last_km: vehiculo.last_km || 0,
             vin: vehiculo.vin || ""
           });
+          // Buscar y agregar el cliente propietario al hook para que aparezca seleccionado
+          if (vehiculo.client_id) {
+            const { data: cliente } = await supabase
+              .from('client')
+              .select('id, names, phone_number')
+              .eq('id', vehiculo.client_id)
+              .single();
+            if (cliente) {
+              addSelectedClient(cliente);
+            }
+          }
         }
       } catch (error) {
         console.error('Error al cargar vehículo:', error);
@@ -151,7 +294,7 @@ export default function EditarVehiculoPage({ params }: PageProps) {
     if (params.id) {
       cargarVehiculo();
     }
-  }, [params.id, supabase]);
+  }, [params.id, supabase, addSelectedClient]);
 
   // Cargar clientes de la agencia
   useEffect(() => {
@@ -161,7 +304,7 @@ export default function EditarVehiculoPage({ params }: PageProps) {
       try {
         const { data, error } = await supabase
           .from('client')
-          .select('id, names')
+          .select('id, names, phone_number')
           .eq('dealership_id', dataToken.dealership_id)
           .order('names');
 
@@ -309,21 +452,16 @@ export default function EditarVehiculoPage({ params }: PageProps) {
       <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
         <div className="space-y-2">
           <Label htmlFor="cliente">Propietario</Label>
-          <Select 
+          <ClienteComboBox
             value={formData.client_id}
-            onValueChange={(value) => setFormData({ ...formData, client_id: value })}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Seleccionar cliente" />
-            </SelectTrigger>
-            <SelectContent>
-              {clientes.map((cliente) => (
-                <SelectItem key={cliente.id} value={cliente.id}>
-                  {cliente.names}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            onSelect={(id) => setFormData({ ...formData, client_id: id })}
+            clients={clients}
+            loading={clientLoading}
+            error={clientError}
+            searchClients={searchClients}
+            addSelectedClient={addSelectedClient}
+            getClientById={getClientById}
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="make">Marca</Label>
