@@ -35,6 +35,8 @@ import { MoreHorizontal } from 'lucide-react'
 import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
 import { Textarea } from "@/components/ui/textarea"
+import { Switch } from "@/components/ui/switch"
+import { Eye, EyeOff } from 'lucide-react'
 
 interface Servicio {
   id_uuid: string
@@ -43,6 +45,7 @@ interface Servicio {
   duration_minutes: number
   price: number
   dealership_id?: string
+  client_visible?: boolean
 }
 
 export default function ServiciosPage() {
@@ -98,7 +101,8 @@ export default function ServiciosPage() {
     service_name: "",
     description: "",
     duration_minutes: 0,
-    price: 0
+    price: 0,
+    client_visible: true
   })
   const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null)
   const [editando, setEditando] = useState(false)
@@ -169,6 +173,7 @@ export default function ServiciosPage() {
             description: formData.description,
             duration_minutes: formData.duration_minutes,
             price: formData.price,
+            client_visible: formData.client_visible,
             dealership_id: dealershipId // Añadir el dealership_id del token
           }
         ])
@@ -180,7 +185,8 @@ export default function ServiciosPage() {
         service_name: '',
         description: '',
         duration_minutes: 30,
-        price: 0
+        price: 0,
+        client_visible: true
       })
       toast({
         title: "Éxito",
@@ -220,7 +226,8 @@ export default function ServiciosPage() {
           service_name: servicioSeleccionado.service_name,
           description: servicioSeleccionado.description,
           duration_minutes: servicioSeleccionado.duration_minutes,
-          price: servicioSeleccionado.price
+          price: servicioSeleccionado.price,
+          client_visible: servicioSeleccionado.client_visible
         })
         .eq('id_uuid', servicioSeleccionado.id_uuid)
 
@@ -292,6 +299,7 @@ export default function ServiciosPage() {
             <TableHead>Descripción</TableHead>
             <TableHead>Duración (min)</TableHead>
             <TableHead>Precio</TableHead>
+            <TableHead>Visible para clientes</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -302,6 +310,13 @@ export default function ServiciosPage() {
               <TableCell>{servicio.description || '-'}</TableCell>
               <TableCell>{servicio.duration_minutes}</TableCell>
               <TableCell>{formatPrice(servicio.price || 0)}</TableCell>
+              <TableCell>
+                {servicio.client_visible ? (
+                  <Eye className="h-4 w-4 text-green-600" />
+                ) : (
+                  <EyeOff className="h-4 w-4 text-gray-400" />
+                )}
+              </TableCell>
               <TableCell className="text-right">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -384,6 +399,17 @@ export default function ServiciosPage() {
                   />
                 </div>
               </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="client-visible"
+                  checked={formData.client_visible ?? true}
+                  onCheckedChange={(checked) => setFormData({ ...formData, client_visible: checked })}
+                />
+                <Label htmlFor="client-visible">Visible para clientes</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Los servicios visibles pueden ser agendados por los clientes. Los servicios internos solo son visibles para la agencia.
+              </p>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={loading}>
@@ -451,6 +477,19 @@ export default function ServiciosPage() {
                   />
                 </div>
               </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-client-visible"
+                  checked={servicioSeleccionado?.client_visible ?? true}
+                  onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                    prev ? {...prev, client_visible: checked} : prev
+                  )}
+                />
+                <Label htmlFor="edit-client-visible">Visible para clientes</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Los servicios visibles pueden ser agendados por los clientes. Los servicios internos solo son visibles para la agencia.
+              </p>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={loading}>
