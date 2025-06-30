@@ -311,7 +311,8 @@ export async function GET(request: Request) {
           dealershipConfig?.reception_end_time,
           timezone,
           dealershipConfig?.custom_morning_slots,
-          dealershipConfig?.regular_slots_start_time
+          dealershipConfig?.regular_slots_start_time,
+          schedule.max_arrivals_per_slot
         );
 
         return NextResponse.json({ 
@@ -354,7 +355,8 @@ export async function GET(request: Request) {
       dealershipConfig?.reception_end_time,
       timezone,
       dealershipConfig?.custom_morning_slots,
-      dealershipConfig?.regular_slots_start_time
+      dealershipConfig?.regular_slots_start_time,
+      schedule.max_arrivals_per_slot
     );
 
     return NextResponse.json({ 
@@ -382,7 +384,8 @@ function generateTimeSlots(
   receptionEndTime: string | null,
   timezone: string,
   customMorningSlots: string[] | null = null,
-  regularSlotsStartTime: string | null = null
+  regularSlotsStartTime: string | null = null,
+  maxArrivalsPerSlot: number | null = null
 ) {
   // Verificar si es el día actual
   const now = new Date();
@@ -530,7 +533,24 @@ function generateTimeSlots(
       continue;
     }
     
-    // Verificar solapamiento con citas existentes
+    // NUEVO: Validar política de llegadas (slots exactos)
+    let exactSlotAppointments: any[] = [];
+    if (maxArrivalsPerSlot !== null) {
+      exactSlotAppointments = appointments.filter(app => 
+        app.appointment_time === customSlot
+      );
+      
+      if (exactSlotAppointments.length >= maxArrivalsPerSlot) {
+        console.log('Slot custom lleno por política de llegadas:', {
+          slot: customSlot,
+          exactAppointments: exactSlotAppointments.length,
+          maxArrivalsPerSlot
+        });
+        continue;
+      }
+    }
+    
+    // Verificar solapamiento con citas existentes (capacidad del taller)
     const slotStartMinutes = timeToMinutes(customSlot);
     const slotEndMinutes = slotStartMinutes + serviceDuration;
     
@@ -540,11 +560,10 @@ function generateTimeSlots(
       return appStart < slotEndMinutes && appEnd > slotStartMinutes;
     });
     
-    // Calcular disponibilidad real usando la misma lógica que slots regulares
+    // Verificar capacidad del taller
     const occupiedSpaces = overlappingAppointments.length;
     const availableSpaces = Math.max(0, maxSimultaneous - occupiedSpaces);
 
-    // Solo agregar si hay espacios disponibles
     if (availableSpaces > 0) {
       availableSlots.push(customSlot);
       console.log('Slot custom agregado:', {
@@ -552,21 +571,14 @@ function generateTimeSlots(
         occupiedSpaces,
         availableSpaces,
         maxSimultaneous,
-        overlappingAppointments: overlappingAppointments.map(app => ({
-          time: app.appointment_time,
-          duration: app.services?.duration_minutes
-        }))
+        maxArrivalsPerSlot,
+        exactSlotAppointments: maxArrivalsPerSlot !== null ? exactSlotAppointments.length : 'N/A'
       });
     } else {
-      console.log('Slot custom OCUPADO - no agregado:', {
+      console.log('Slot custom OCUPADO por capacidad del taller:', {
         slot: customSlot,
         occupiedSpaces,
-        availableSpaces,
-        maxSimultaneous,
-        overlappingAppointments: overlappingAppointments.map(app => ({
-          time: app.appointment_time,
-          duration: app.services?.duration_minutes
-        }))
+        maxSimultaneous
       });
     }
   }
@@ -637,6 +649,22 @@ function generateTimeSlots(
     
     if (!isBefore(slotEndTime, closingTime)) {
       continue; // No cabe en el horario de operación
+    }
+    
+    // NUEVO: Validar política de llegadas antes de verificar capacidad
+    if (maxArrivalsPerSlot !== null) {
+      const exactSlotAppointments = appointments.filter(app => 
+        app.appointment_time === slot.time
+      );
+      
+      if (exactSlotAppointments.length >= maxArrivalsPerSlot) {
+        console.log('Slot regular lleno por política de llegadas:', {
+          slot: slot.time,
+          exactAppointments: exactSlotAppointments.length,
+          maxArrivalsPerSlot
+        });
+        continue;
+      }
     }
     
     // Verificar solapamiento con citas existentes

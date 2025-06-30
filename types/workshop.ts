@@ -16,6 +16,7 @@ export interface HorarioOperacion {
   closing_time: string;
   is_working_day: boolean;
   max_simultaneous_services: number;
+  max_arrivals_per_slot?: number | null;
   created_at?: string;
   updated_at?: string;
 }

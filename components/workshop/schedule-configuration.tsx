@@ -60,7 +60,8 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
             opening_time: horario.opening_time,
             closing_time: horario.closing_time,
             is_working_day: horario.is_working_day,
-            max_simultaneous_services: horario.max_simultaneous_services
+            max_simultaneous_services: horario.max_simultaneous_services,
+            max_arrivals_per_slot: horario.max_arrivals_per_slot
           }));
           setSchedules(mappedSchedules);
         } else {
@@ -72,6 +73,7 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
             closing_time: '18:00:00',
             is_working_day: true,
             max_simultaneous_services: 3,
+            max_arrivals_per_slot: null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }));
@@ -127,6 +129,9 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
             max_simultaneous_services: isLaboral 
               ? Math.max(1, Math.min(10, existingSchedule?.max_simultaneous_services || 3))
               : 3,
+            max_arrivals_per_slot: isLaboral 
+              ? existingSchedule?.max_arrivals_per_slot || null
+              : null,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           };
@@ -205,20 +210,38 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
                   </Label>
                 </div>
                 
-                <Input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={schedule.max_simultaneous_services}
-                  onChange={(e) => 
-                    handleScheduleChange(index, { 
-                      max_simultaneous_services: parseInt(e.target.value) 
-                    })
-                  }
-                  className="w-24"
-                  disabled={readOnly || !schedule.is_working_day}
-                  placeholder="Max"
-                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={schedule.max_simultaneous_services}
+                    onChange={(e) => 
+                      handleScheduleChange(index, { 
+                        max_simultaneous_services: parseInt(e.target.value) 
+                      })
+                    }
+                    className="w-24"
+                    disabled={readOnly || !schedule.is_working_day}
+                    placeholder="Max"
+                  />
+                  
+                  <select
+                    value={schedule?.max_arrivals_per_slot || ''}
+                    onChange={(e) => handleScheduleChange(index, {
+                      max_arrivals_per_slot: e.target.value ? parseInt(e.target.value) : null
+                    })}
+                    disabled={readOnly || !schedule?.is_working_day}
+                    className="w-32 border border-gray-300 rounded-md px-3 py-2 text-sm"
+                  >
+                    <option value="">Usar capacidad</option>
+                    <option value="1">1 cliente</option>
+                    <option value="2">2 clientes</option>
+                    <option value="3">3 clientes</option>
+                    <option value="4">4 clientes</option>
+                    <option value="5">5 clientes</option>
+                  </select>
+                </div>
               </div>
               
               {schedule.is_working_day && (
@@ -243,6 +266,12 @@ const ScheduleConfiguration = forwardRef<ScheduleConfigurationRef, Props>(
                     className="w-32"
                     disabled={readOnly}
                   />
+                </div>
+              )}
+
+              {schedule.is_working_day && schedule.max_arrivals_per_slot && (
+                <div className="text-xs text-gray-500">
+                  Máximo {schedule.max_arrivals_per_slot} cliente(s) pueden llegar al mismo horario
                 </div>
               )}
             </div>
