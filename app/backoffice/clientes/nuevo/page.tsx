@@ -75,6 +75,11 @@ export default function NuevoClientePage() {
   };
 
   const validateEmail = (email: string) => {
+    // Si el email está vacío, es válido (opcional)
+    if (!email || email.trim() === '') {
+      return null;
+    }
+    
     if (email.length < 6) {
       return "El email debe tener al menos 6 caracteres";
     }
@@ -122,7 +127,6 @@ export default function NuevoClientePage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     console.log('handleSubmit ejecutado');
-    const supabase = createClientComponentClient()
 
     // Validaciones avanzadas
     const nameError = validateName(formData.names);
@@ -179,29 +183,42 @@ export default function NuevoClientePage() {
       
       const dealershipId = (dataToken as any).dealership_id;
       
-      const { data, error } = await supabase
-        .from('client')
-        .insert([{
-          ...formData,
-          dealership_id: dealershipId,
-          external_id: formData.external_id || null
-        }])
-        .select()
+      // Preparar datos del cliente para la API
+      const clientData: any = {
+        names: formData.names,
+        phone_number: formData.phone_number,
+        dealership_id: dealershipId,
+        external_id: formData.external_id || null
+      };
 
-      if (error) {
-        console.error('Error de Supabase:', error);
+      // Solo incluir email si se proporciona y no está vacío
+      if (formData.email && formData.email.trim() !== '') {
+        clientData.email = formData.email;
+      }
+      
+      // Llamar a la API en lugar de insertar directamente
+      const response = await fetch('/api/customers/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(clientData)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('Error de la API:', result);
         
-        // Manejo específico de errores de Supabase
+        // Manejo específico de errores de la API
         let errorMessage = "Error al crear el cliente";
         
-        if (error.code === '23505') { // Error de duplicado
-          errorMessage = "Ya existe un cliente con este email o teléfono";
-        } else if (error.code === '23503') { // Error de clave foránea
-          errorMessage = "La agencia especificada no existe";
-        } else if (error.code === '22P02') { // Error de formato inválido
-          errorMessage = "Uno de los campos tiene un formato inválido";
-        } else if (error.code === '23514') { // Error de restricción de check
-          errorMessage = "Uno de los campos no cumple con las restricciones requeridas";
+        if (response.status === 409) {
+          errorMessage = result.message || "Ya existe un cliente con este email o teléfono en esta agencia";
+        } else if (response.status === 400) {
+          errorMessage = result.message || "Datos inválidos proporcionados";
+        } else if (response.status === 500) {
+          errorMessage = result.message || "Error interno del servidor";
         }
         
         toast({
@@ -243,13 +260,12 @@ export default function NuevoClientePage() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email">Email (opcional)</Label>
           <Input
             id="email"
             type="email"
             value={formData.email}
             onChange={handleInputChange}
-            required
           />
           {formErrors.email && (
             <p className="text-sm text-red-500 mt-1">{formErrors.email}</p>

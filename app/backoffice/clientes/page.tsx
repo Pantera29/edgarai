@@ -199,27 +199,60 @@ const router = useRouter();
       }
       
       const dealershipId = (dataToken as any).dealership_id;
+      
+      // Preparar datos del cliente para la API
+      const clientData = {
+        names: nuevoCliente.names,
+        email: nuevoCliente.email,
+        phone_number: nuevoCliente.phone_number,
+        dealership_id: dealershipId
+      };
         
-      const { data, error } = await supabase
-        .from("client")
-        .insert([
-          {
-            names: nuevoCliente.names,
-            email: nuevoCliente.email,
-            phone_number: nuevoCliente.phone_number,
-            dealership_id: dealershipId
-          },
-        ])
-        .select();
+      // Llamar a la API en lugar de insertar directamente
+      const response = await fetch('/api/customers/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(clientData)
+      });
 
-      if (error) throw error;
+      const result = await response.json();
 
-      setClientes([...clientes, data[0]]);
+      if (!response.ok) {
+        console.error('Error de la API:', result);
+        
+        // Manejo específico de errores de la API
+        let errorMessage = "No se pudo crear el cliente";
+        
+        if (response.status === 409) {
+          errorMessage = result.message || "Ya existe un cliente con este email o teléfono en esta agencia";
+        } else if (response.status === 400) {
+          errorMessage = result.message || "Datos inválidos proporcionados";
+        } else if (response.status === 500) {
+          errorMessage = result.message || "Error interno del servidor";
+        }
+        
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: errorMessage
+        });
+        return;
+      }
+
+      // Agregar el nuevo cliente a la lista
+      setClientes([...clientes, result.client]);
       setShowNuevoCliente(false);
       setNuevoCliente({
         names: "",
         email: "",
         phone_number: "",
+      });
+      
+      toast({
+        title: "Cliente creado",
+        description: "El cliente ha sido registrado exitosamente."
       });
     } catch (error) {
       console.error("Error al crear cliente:", error);
