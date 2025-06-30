@@ -540,19 +540,33 @@ function generateTimeSlots(
       return appStart < slotEndMinutes && appEnd > slotStartMinutes;
     });
     
-    // Verificar capacidad
-    if (overlappingAppointments.length < maxSimultaneous) {
+    // Calcular disponibilidad real usando la misma lógica que slots regulares
+    const occupiedSpaces = overlappingAppointments.length;
+    const availableSpaces = Math.max(0, maxSimultaneous - occupiedSpaces);
+
+    // Solo agregar si hay espacios disponibles
+    if (availableSpaces > 0) {
       availableSlots.push(customSlot);
       console.log('Slot custom agregado:', {
         slot: customSlot,
-        overlapping: overlappingAppointments.length,
-        maxSimultaneous
+        occupiedSpaces,
+        availableSpaces,
+        maxSimultaneous,
+        overlappingAppointments: overlappingAppointments.map(app => ({
+          time: app.appointment_time,
+          duration: app.services?.duration_minutes
+        }))
       });
     } else {
-      console.log('Slot custom sin capacidad:', {
+      console.log('Slot custom OCUPADO - no agregado:', {
         slot: customSlot,
-        overlapping: overlappingAppointments.length,
-        maxSimultaneous
+        occupiedSpaces,
+        availableSpaces,
+        maxSimultaneous,
+        overlappingAppointments: overlappingAppointments.map(app => ({
+          time: app.appointment_time,
+          duration: app.services?.duration_minutes
+        }))
       });
     }
   }
