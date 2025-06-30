@@ -241,9 +241,18 @@ function ServiceComboBox({ servicios, onSelect, value }: { servicios: ExtendedSe
         className="w-full border rounded-md px-3 py-2 text-left bg-white"
         onClick={() => setOpen((prev) => !prev)}
       >
-        {selectedService
-          ? `${selectedService.service_name} (${selectedService.duration_minutes} min)`
-          : "Selecciona un servicio..."}
+        {selectedService ? (
+          <div>
+            <span className="font-medium">
+              {selectedService.service_name} ({selectedService.duration_minutes} min)
+            </span>
+            {selectedService.description && (
+              <span className="text-gray-500"> - {selectedService.description}</span>
+            )}
+          </div>
+        ) : (
+          "Selecciona un servicio..."
+        )}
       </button>
       {open && (
         <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
@@ -267,7 +276,12 @@ function ServiceComboBox({ servicios, onSelect, value }: { servicios: ExtendedSe
                     setSearch('');
                   }}
                 >
-                  {servicio.service_name} ({servicio.duration_minutes} min)
+                  <span className="font-medium">
+                    {servicio.service_name} ({servicio.duration_minutes} min)
+                  </span>
+                  {servicio.description && (
+                    <span className="text-gray-500"> - {servicio.description}</span>
+                  )}
                 </li>
               ))
             ) : (
