@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     // 1. Obtener la duración del servicio y la configuración del taller
     const { data: service, error: serviceError } = await supabase
       .from('services')
-      .select('duration_minutes')
+      .select('duration_minutes, daily_limit')
       .eq('id_uuid', serviceId)
       .single();
 
@@ -52,6 +52,12 @@ export async function GET(request: Request) {
     }
 
     const serviceDuration = service.duration_minutes;
+
+    console.log('📊 Información del servicio obtenida:', {
+      serviceId,
+      duration_minutes: service.duration_minutes,
+      daily_limit: service.daily_limit
+    });
 
     // Obtener la configuración del taller
     console.log('🔍 Consultando configuración del concesionario:', {
@@ -239,8 +245,8 @@ export async function GET(request: Request) {
       dealershipId
     });
 
-    // Primero obtenemos las citas sin filtrar por clientes
-    let appointmentQuery = supabase
+    // Obtener citas directamente filtradas por dealership_id
+    const { data: appointments, error: appointmentsError } = await supabase
       .from('appointment')
       .select(`
         id,
@@ -252,80 +258,8 @@ export async function GET(request: Request) {
         ),
         client_id
       `)
-      .eq('appointment_date', date);
-    
-    // Si tenemos dealership_id, primero obtenemos los clientes
-    if (dealershipId) {
-      const { data: clients, error: clientsError } = await supabase
-        .from('client')
-        .select('id')
-        .eq('dealership_id', dealershipId);
-      
-      if (clientsError) {
-        console.error('Error fetching clients:', clientsError.message);
-        return NextResponse.json(
-          { message: 'Error fetching clients' },
-          { status: 500 }
-        );
-      }
-      
-      if (clients && clients.length > 0) {
-        console.log('Filtrando citas por clientes:', {
-          clientCount: clients.length
-        });
-
-        // En lugar de usar .in(), vamos a filtrar los resultados después
-        const { data: allAppointments, error: appointmentsError } = await appointmentQuery;
-        
-        if (appointmentsError) {
-          console.error('Error fetching appointments:', {
-            error: appointmentsError.message,
-            details: appointmentsError.details,
-            hint: appointmentsError.hint
-          });
-          return NextResponse.json(
-            { message: 'Error fetching appointments' },
-            { status: 500 }
-          );
-        }
-
-        // Filtrar las citas por clientes después de obtenerlas
-        const appointments = allAppointments?.filter(app => 
-          clients.some(client => client.id === app.client_id)
-        ) || [];
-
-        console.log('📊 Citas encontradas después de filtrar:', {
-          totalAppointments: allAppointments?.length || 0,
-          filteredAppointments: appointments.length
-        });
-
-        // 6. Generar slots de tiempo disponibles
-        const availableSlots = generateTimeSlots(
-          date,
-          schedule,
-          blockedDate,
-          appointments,
-          serviceDuration,
-          schedule.max_simultaneous_services,
-          slotDuration,
-          dealershipConfig?.reception_end_time,
-          timezone,
-          dealershipConfig?.custom_morning_slots,
-          dealershipConfig?.regular_slots_start_time,
-          schedule.max_arrivals_per_slot
-        );
-
-        return NextResponse.json({ 
-          availableSlots,
-          totalSlots: availableSlots.length
-        });
-      } else {
-        console.log('No se encontraron clientes para el concesionario');
-      }
-    }
-
-    // Si no hay dealership_id o no hay clientes, obtener todas las citas
-    const { data: appointments, error: appointmentsError } = await appointmentQuery;
+      .eq('appointment_date', date)
+      .eq('dealership_id', dealershipId);
 
     if (appointmentsError) {
       console.error('Error fetching appointments:', {
@@ -340,8 +274,51 @@ export async function GET(request: Request) {
     }
 
     console.log('📊 Citas encontradas:', {
-      count: appointments?.length || 0
+      count: appointments?.length || 0,
+      appointments: appointments?.map(app => ({
+        id: app.id,
+        service_id: app.service_id,
+        appointment_time: app.appointment_time,
+        client_id: app.client_id
+      })) || []
     });
+
+    // Validación de límite diario por servicio
+    if (service.daily_limit) {
+      console.log('🔍 Validando límite diario:', {
+        dailyLimit: service.daily_limit,
+        serviceId,
+        totalAppointments: appointments?.length || 0
+      });
+      
+      const sameServiceAppointments = appointments?.filter(app => 
+        app.service_id === serviceId
+      ) || [];
+      
+      console.log('📊 Citas del mismo servicio:', {
+        serviceId,
+        sameServiceAppointments: sameServiceAppointments.length,
+        appointments: sameServiceAppointments.map(app => ({
+          id: app.id,
+          service_id: app.service_id,
+          appointment_time: app.appointment_time,
+          client_id: app.client_id
+        }))
+      });
+      
+      if (sameServiceAppointments.length >= service.daily_limit) {
+        console.log('❌ Límite diario alcanzado para el servicio:', {
+          serviceId,
+          dailyLimit: service.daily_limit,
+          appointmentsCount: sameServiceAppointments.length
+        });
+        return NextResponse.json({ 
+          availableSlots: [],
+          totalSlots: 0,
+          message: `Daily limit reached for this service (${service.daily_limit} appointments per day)`
+        });
+      }
+    }
 
     // 6. Generar slots de tiempo disponibles
     const availableSlots = generateTimeSlots(

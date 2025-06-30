@@ -44,6 +44,7 @@ interface Servicio {
   description: string
   duration_minutes: number
   price: number
+  daily_limit: number | null
   dealership_id?: string
   client_visible?: boolean
 }
@@ -102,6 +103,7 @@ export default function ServiciosPage() {
     description: "",
     duration_minutes: 0,
     price: 0,
+    daily_limit: null,
     client_visible: true
   })
   const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null)
@@ -123,7 +125,7 @@ export default function ServiciosPage() {
 
       const { data, error } = await supabase
         .from('services')
-        .select('*')
+        .select('id_uuid, service_name, description, duration_minutes, price, daily_limit, dealership_id, client_visible')
         .eq('dealership_id', dealershipIdFromToken)
         .order('service_name')
 
@@ -173,6 +175,7 @@ export default function ServiciosPage() {
             description: formData.description,
             duration_minutes: formData.duration_minutes,
             price: formData.price,
+            daily_limit: formData.daily_limit,
             client_visible: formData.client_visible,
             dealership_id: dealershipId // Añadir el dealership_id del token
           }
@@ -186,6 +189,7 @@ export default function ServiciosPage() {
         description: '',
         duration_minutes: 30,
         price: 0,
+        daily_limit: null,
         client_visible: true
       })
       toast({
@@ -227,6 +231,7 @@ export default function ServiciosPage() {
           description: servicioSeleccionado.description,
           duration_minutes: servicioSeleccionado.duration_minutes,
           price: servicioSeleccionado.price,
+          daily_limit: servicioSeleccionado.daily_limit,
           client_visible: servicioSeleccionado.client_visible
         })
         .eq('id_uuid', servicioSeleccionado.id_uuid)
@@ -299,6 +304,7 @@ export default function ServiciosPage() {
             <TableHead>Descripción</TableHead>
             <TableHead>Duración (min)</TableHead>
             <TableHead>Precio</TableHead>
+            <TableHead>Límite Diario</TableHead>
             <TableHead>Visible para clientes</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -310,6 +316,7 @@ export default function ServiciosPage() {
               <TableCell>{servicio.description || '-'}</TableCell>
               <TableCell>{servicio.duration_minutes}</TableCell>
               <TableCell>{formatPrice(servicio.price || 0)}</TableCell>
+              <TableCell>{servicio.daily_limit ? `${servicio.daily_limit} por día` : 'Ilimitado'}</TableCell>
               <TableCell>
                 {servicio.client_visible ? (
                   <Eye className="h-4 w-4 text-green-600" />
@@ -399,6 +406,23 @@ export default function ServiciosPage() {
                   />
                 </div>
               </div>
+              <div className="space-y-1">
+                <Label htmlFor="daily_limit">Límite diario (opcional)</Label>
+                <Input
+                  id="daily_limit"
+                  type="number"
+                  min="1"
+                  placeholder="Ej: 10 (máximo por día)"
+                  value={formData.daily_limit || ''}
+                  onChange={(e) => setFormData(prev => ({
+                    ...prev,
+                    daily_limit: e.target.value ? parseInt(e.target.value) : null
+                  }))}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Dejar vacío para permitir servicios ilimitados por día
+                </p>
+              </div>
               <div className="flex items-center space-x-2">
                 <Switch
                   id="client-visible"
@@ -476,6 +500,25 @@ export default function ServiciosPage() {
                     )}
                   />
                 </div>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="edit-daily-limit">Límite diario (opcional)</Label>
+                <Input
+                  id="edit-daily-limit"
+                  type="number"
+                  min="1"
+                  placeholder="Ej: 10 (máximo por día)"
+                  value={servicioSeleccionado?.daily_limit || ''}
+                  onChange={(e) => setServicioSeleccionado(prev => 
+                    prev ? {
+                      ...prev, 
+                      daily_limit: e.target.value ? parseInt(e.target.value) : null
+                    } : prev
+                  )}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Dejar vacío para permitir servicios ilimitados por día
+                </p>
               </div>
               <div className="flex items-center space-x-2">
                 <Switch
