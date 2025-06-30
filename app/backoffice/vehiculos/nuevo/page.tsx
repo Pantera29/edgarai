@@ -30,6 +30,12 @@ interface VehicleMake {
   name: string;
 }
 
+interface VehicleModel {
+  id: string;
+  name: string;
+  make_id: string;
+}
+
 interface DealershipBrand {
   make_id: string;
   vehicle_makes: VehicleMake;
@@ -165,6 +171,8 @@ export default function NuevoVehiculoPage() {
   const [token, setToken] = useState<string>("");
   const [dataToken, setDataToken] = useState<TokenData | null>(null);
   const [marcasPermitidas, setMarcasPermitidas] = useState<string[]>([]);
+  const [marcasConId, setMarcasConId] = useState<VehicleMake[]>([]);
+  const [modelosDisponibles, setModelosDisponibles] = useState<VehicleModel[]>([]);
   
   const router = useRouter();
   
@@ -201,7 +209,8 @@ export default function NuevoVehiculoPage() {
   const [formData, setFormData] = useState({
     client_id: "",      
     make: "",           
-    model: "",          
+    model_id: '', // ID del modelo seleccionado
+    model_name: '', // Nombre para mostrar (opcional)
     year: new Date().getFullYear(),
     license_plate: "",  
     last_km: 0,         
@@ -234,13 +243,15 @@ export default function NuevoVehiculoPage() {
     setVinError(null);
   };
 
-  // Nuevo efecto para cargar las marcas permitidas
+  // Efecto para cargar las marcas permitidas con IDs
   useEffect(() => {
     const cargarMarcasPermitidas = async () => {
       if (!dataToken?.dealership_id) return;
 
       try {
         const supabase = createClientComponentClient();
+        
+        // Obtener marcas permitidas para el dealership (FILTRADO POR DEALERSHIP_ID)
         const { data: marcas, error } = await supabase
           .from('dealership_brands')
           .select(`
@@ -257,31 +268,102 @@ export default function NuevoVehiculoPage() {
           return;
         }
 
-        // Si no hay marcas configuradas, permitir todas
+        // IMPORTANTE: Si no hay marcas configuradas, cargar todas las marcas disponibles
         if (!marcas || marcas.length === 0) {
-          setMarcasPermitidas(carBrands);
+          const { data: todasMarcas, error: errorTodasMarcas } = await supabase
+            .from('vehicle_makes')
+            .select('id, name')
+            .order('name');
+
+          if (errorTodasMarcas) {
+            console.error('Error cargando todas las marcas:', errorTodasMarcas);
+            setMarcasPermitidas(carBrands); // Fallback a constante
+            return;
+          }
+
+          setMarcasConId(todasMarcas || []);
+          setMarcasPermitidas(todasMarcas?.map(m => m.name) || carBrands);
         } else {
+          // Extraer marcas con IDs del dealership_brands
           const marcasArray = marcas as unknown as DealershipBrand[];
+          const marcasConIdArray = marcasArray.map(m => m.vehicle_makes);
+          setMarcasConId(marcasConIdArray);
           setMarcasPermitidas(marcasArray.map(m => m.vehicle_makes.name));
         }
       } catch (error) {
         console.error('Error al cargar marcas permitidas:', error);
-        setMarcasPermitidas(carBrands); // Por defecto, mostrar todas las marcas
+        setMarcasPermitidas(carBrands); // Fallback
       }
     };
 
     cargarMarcasPermitidas();
   }, [dataToken?.dealership_id]);
 
+  // Nuevo efecto para cargar modelos cuando cambia la marca
+  useEffect(() => {
+    const cargarModelos = async () => {
+      if (!formData.make || !dataToken?.dealership_id) {
+        setModelosDisponibles([]);
+        return;
+      }
+
+      // IMPORTANTE: Solo cargar modelos de marcas permitidas para el dealership
+      try {
+        const supabase = createClientComponentClient();
+        
+        // Encontrar el ID de la marca seleccionada
+        const marcaSeleccionada = marcasConId.find(m => m.name === formData.make);
+        if (!marcaSeleccionada) {
+          console.error('Marca no encontrada:', formData.make);
+          setModelosDisponibles([]);
+          return;
+        }
+
+        // Cargar modelos de esa marca (ya filtrados por dealership via marcasConId)
+        const { data: modelos, error } = await supabase
+          .from('vehicle_models')
+          .select('id, name, make_id')
+          .eq('make_id', marcaSeleccionada.id)
+          .eq('is_active', true)
+          .order('name');
+
+        if (error) {
+          console.error('Error cargando modelos:', error);
+          return;
+        }
+
+        setModelosDisponibles(modelos || []);
+        
+        // Limpiar modelo seleccionado si no está en nueva lista
+        if (formData.model_id) {
+          const modeloExiste = modelos?.find(m => m.id === formData.model_id);
+          if (!modeloExiste) {
+            setFormData(prev => ({ ...prev, model_id: '', model_name: '' }));
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar modelos:', error);
+      }
+    };
+
+    cargarModelos();
+  }, [formData.make, marcasConId, dataToken?.dealership_id]);
+
+  // Función para limpiar modelo al cambiar marca
+  const handleMakeChange = (value: string) => {
+    setFormData(prev => ({ 
+      ...prev, 
+      make: value,
+      model_id: '', // Limpiar modelo seleccionado
+      model_name: ''
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    const supabase = createClientComponentClient()
+    e.preventDefault();
 
     try {
-      // Log para depuración
-      console.log('Datos del formulario al guardar vehículo:', formData);
-
-      // Validaciones
+      // Validaciones básicas
       if (!formData.client_id) {
         toast({
           title: "Error",
@@ -309,15 +391,6 @@ export default function NuevoVehiculoPage() {
         return;
       }
 
-      if (formData.license_plate.length < 5 || formData.license_plate.length > 8) {
-        toast({
-          title: "Error",
-          description: "La placa debe tener entre 5 y 8 caracteres",
-          variant: "destructive"
-        });
-        return;
-      }
-
       // Validación mejorada para el VIN
       if (formData.vin) {
         validateVin(formData.vin);
@@ -332,42 +405,72 @@ export default function NuevoVehiculoPage() {
         return;
       }
 
-      if (!formData.model.trim()) {
+      if (!formData.model_id) {
         toast({
           title: "Error",
-          description: "El modelo es requerido",
+          description: "Debe seleccionar un modelo",
           variant: "destructive"
         });
         return;
       }
 
-      const { data, error } = await supabase
-        .from('vehicles')         
-        .insert([{
-          client_id: formData.client_id,
-          make: formData.make,
-          model: formData.model,
-          year: formData.year,
-          license_plate: formData.license_plate,
-          last_km: formData.last_km,
-          vin: formData.vin,
-          dealership_id: dataToken?.dealership_id
-        }])
-        .select()
+      // Obtener nombre del modelo seleccionado
+      const modeloSeleccionado = modelosDisponibles.find(m => m.id === formData.model_id);
+      if (!modeloSeleccionado) {
+        toast({
+          title: "Error", 
+          description: "Modelo seleccionado no válido",
+          variant: "destructive"
+        });
+        return;
+      }
 
-      if (error) throw error
+      // Preparar datos para el endpoint
+      const vehicleData = {
+        client_id: formData.client_id,
+        make: formData.make,
+        model: modeloSeleccionado.name, // Nombre del modelo
+        year: formData.year,
+        license_plate: formData.license_plate || undefined,
+        vin: formData.vin || undefined,
+        last_km: formData.last_km || undefined
+      };
+
+      console.log('Enviando al endpoint:', vehicleData);
+
+      // USAR ENDPOINT en lugar de Supabase directo
+      const response = await fetch('/api/vehicles/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(vehicleData)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.message || 'Error al crear el vehículo');
+      }
+
+      console.log('✅ Vehículo creado:', result);
 
       toast({
         title: "Vehículo creado",
         description: "El vehículo ha sido registrado exitosamente."
       });
 
-      // Redirigir a la página de vehículos con el token (sin refresh=true)
-      router.push(`/backoffice/vehiculos?token=${token}`)
-    } catch (error) {
-      console.error('Error al crear vehículo:', error)
+      router.push(`/backoffice/vehiculos?token=${token}`);
+
+    } catch (error: any) {
+      console.error('Error al crear vehículo:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Error al crear el vehículo",
+        variant: "destructive"
+      });
     }
-  }
+  };
 
   return (
     <div className="space-y-4 p-8">
@@ -385,7 +488,7 @@ export default function NuevoVehiculoPage() {
           <Label htmlFor="make">Marca</Label>
           <Select
             value={formData.make}
-            onValueChange={(value) => setFormData({ ...formData, make: value })}
+            onValueChange={handleMakeChange}
             required
           >
             <SelectTrigger>
@@ -402,12 +505,42 @@ export default function NuevoVehiculoPage() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="model">Modelo</Label>
-          <Input
-            id="model"
-            value={formData.model}
-            onChange={(e) => setFormData({ ...formData, model: e.target.value })}
+          <Select
+            value={formData.model_id}
+            onValueChange={(value) => {
+              const modeloSeleccionado = modelosDisponibles.find(m => m.id === value);
+              setFormData({ 
+                ...formData, 
+                model_id: value,
+                model_name: modeloSeleccionado?.name || ''
+              });
+            }}
             required
-          />
+            disabled={!formData.make} // Deshabilitado hasta seleccionar marca
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={
+                !formData.make 
+                  ? "Seleccione una marca primero" 
+                  : modelosDisponibles.length === 0 
+                    ? "Cargando modelos..." 
+                    : "Seleccionar modelo"
+              } />
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              {modelosDisponibles.length === 0 ? (
+                <SelectItem value="empty" disabled>
+                  {!formData.make ? "Seleccione una marca primero" : "No hay modelos disponibles"}
+                </SelectItem>
+              ) : (
+                modelosDisponibles.map((modelo) => (
+                  <SelectItem key={modelo.id} value={modelo.id}>
+                    {modelo.name}
+                  </SelectItem>
+                ))
+              )}
+            </SelectContent>
+          </Select>
         </div>
         <div className="space-y-2">
           <Label htmlFor="year">Año</Label>
@@ -425,7 +558,6 @@ export default function NuevoVehiculoPage() {
             id="license_plate"
             value={formData.license_plate}
             onChange={(e) => setFormData({ ...formData, license_plate: e.target.value })}
-            required
           />
         </div>
         <div className="space-y-2">

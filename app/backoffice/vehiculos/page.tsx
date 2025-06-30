@@ -332,14 +332,23 @@ export default function VehiculosPage() {
         last_km: nuevoVehiculo.last_km
       };
 
-      const { error } = await supabase
-        .from('vehicles')
-        .insert([vehiculoData])
+      // USAR ENDPOINT en lugar de Supabase directo
+      const response = await fetch('/api/vehicles/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(vehiculoData)
+      });
 
-      if (error) {
-        console.error('Error al crear vehículo:', error)
-        return
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('Error al crear vehículo:', result.message);
+        return;
       }
+
+      console.log('✅ Vehículo creado desde modal:', result);
 
       // Recargar la lista completa de vehículos
       await cargarVehiculos(dataToken?.dealership_id);
