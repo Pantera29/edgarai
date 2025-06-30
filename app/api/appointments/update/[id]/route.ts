@@ -31,7 +31,7 @@ export async function PATCH(
     console.log('🔍 Verificando existencia de la cita:', appointmentId);
     const { data: appointmentExists, error: checkError } = await supabase
       .from('appointment')
-      .select('id, status')
+      .select('id, status, service_id')
       .eq('id', appointmentId)
       .maybeSingle();
 
@@ -62,7 +62,8 @@ export async function PATCH(
       'status',
       'appointment_date',
       'appointment_time',
-      'notes'
+      'notes',
+      'service_id'
     ];
 
     // Filtrar solo los campos permitidos
@@ -239,6 +240,62 @@ export async function PATCH(
           { message: 'Time slot is not available. Please try a different time. You might check 30 minutes prior or after.' },
           { status: 409 }
         );
+      }
+
+      // Validación de límite diario cuando se cambia el service_id
+      if (filteredUpdates.service_id && filteredUpdates.service_id !== currentAppointment.service_id) {
+        console.log('🔍 Validando límite diario para cambio de servicio:', {
+          newServiceId: filteredUpdates.service_id,
+          oldServiceId: currentAppointment.service_id
+        });
+
+        // Obtener información del nuevo servicio
+        const { data: newService, error: newServiceError } = await supabase
+          .from('services')
+          .select('daily_limit')
+          .eq('id_uuid', filteredUpdates.service_id)
+          .single();
+
+        if (newServiceError) {
+          console.error('❌ Error al obtener información del nuevo servicio:', newServiceError);
+          return NextResponse.json(
+            { message: 'Error fetching new service information' },
+            { status: 500 }
+          );
+        }
+
+        // Si el nuevo servicio tiene límite diario, verificarlo
+        if (newService.daily_limit) {
+          const appointmentDate = filteredUpdates.appointment_date || currentAppointment.appointment_date;
+          
+          const { data: sameServiceAppointments, error: countError } = await supabase
+            .from('appointment')
+            .select('id')
+            .eq('service_id', filteredUpdates.service_id)
+            .eq('appointment_date', appointmentDate)
+            .neq('id', appointmentId); // Excluir la cita actual
+
+          if (countError) {
+            console.error('❌ Error al contar citas del mismo servicio:', countError);
+            return NextResponse.json(
+              { message: 'Error checking daily service limit' },
+              { status: 500 }
+            );
+          }
+
+          if (sameServiceAppointments.length >= newService.daily_limit) {
+            console.log('❌ Límite diario alcanzado para el nuevo servicio:', {
+              serviceId: filteredUpdates.service_id,
+              dailyLimit: newService.daily_limit,
+              currentCount: sameServiceAppointments.length
+            });
+            
+            return NextResponse.json(
+              { message: `Daily limit reached for this service (${newService.daily_limit} appointments per day). Please choose a different date or service.` },
+              { status: 409 }
+            );
+          }
+        }
       }
     }
 
