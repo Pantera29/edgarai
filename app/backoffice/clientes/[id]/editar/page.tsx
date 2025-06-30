@@ -93,7 +93,6 @@ export default function EditarClientePage({ params }: PageProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const supabase = createClientComponentClient();
 
     try {
       // Verificar si hay un dealership_id en el token
@@ -106,17 +105,33 @@ export default function EditarClientePage({ params }: PageProps) {
         return;
       }
 
-      const { error } = await supabase
-        .from('client')
-        .update({
-          names: formData.names,
-          email: formData.email,
-          phone_number: formData.phone_number,
-          external_id: formData.external_id || null
-        })
-        .eq('id', params.id);
+      // Preparar payload solo con los campos editables
+      const payload: any = {
+        names: formData.names,
+        email: formData.email,
+        phone_number: formData.phone_number,
+        external_id: formData.external_id || null
+      };
 
-      if (error) throw error;
+      // Llamar a la API PATCH
+      const response = await fetch(`/api/customers/update/${params.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.message || "No se pudo actualizar el cliente."
+        });
+        return;
+      }
 
       toast({
         title: "Cliente actualizado",

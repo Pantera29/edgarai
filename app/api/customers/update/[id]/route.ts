@@ -1,12 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
-import { z } from 'zod';
-
-// Esquema de validación para actualización
-const updateClientSchema = z.object({
-  agent_active: z.boolean()
-});
 
 export async function PATCH(
   request: Request,
@@ -15,109 +9,134 @@ export async function PATCH(
   try {
     const supabase = createServerComponentClient({ cookies });
     const clientId = params.id;
-    
-    console.log('👤 Actualizando cliente:', {
-      id: clientId,
-      url: request.url
-    });
 
     if (!clientId) {
-      console.log('❌ Error: ID de cliente no proporcionado');
       return NextResponse.json(
-        { message: 'Client ID is required in URL path. Usage: /api/customers/update/{client_id}. You can find client IDs by verifying with phone at /api/customers/verify?phone={phone_number}' },
+        { message: 'Client ID is required in URL path.' },
         { status: 400 }
       );
     }
 
-    // Verificar si el cliente existe
-    console.log('🔍 Verificando existencia del cliente:', clientId);
+    // Verificar si el cliente existe y obtener su dealership_id
     const { data: clientExists, error: checkError } = await supabase
       .from('client')
-      .select('id')
+      .select('id, dealership_id')
       .eq('id', clientId)
       .maybeSingle();
 
     if (checkError) {
-      console.error('❌ Error al verificar cliente:', {
-        error: checkError.message,
-        clientId
-      });
       return NextResponse.json(
-        { message: 'Error checking client existence in database. This is a temporary system issue. Please verify the client ID is correct or find it using /api/customers/verify?phone={phone_number}' },
+        { message: 'Error checking client existence in database.' },
         { status: 500 }
       );
     }
 
     if (!clientExists) {
-      console.log('❌ Cliente no encontrado:', clientId);
       return NextResponse.json(
-        { message: 'Client not found with the provided ID. Please verify the client ID is correct. You can search for clients by phone at /api/customers/verify?phone={phone_number} or create a new client at /api/customers/create' },
+        { message: 'Client not found with the provided ID.' },
         { status: 404 }
       );
     }
 
     // Obtener y validar el cuerpo de la petición
     const body = await request.json();
-    console.log('📝 Payload de actualización recibido:', body);
-    
-    const validationResult = updateClientSchema.safeParse(body);
-    if (!validationResult.success) {
-      console.error('❌ Error de validación:', validationResult.error);
+    const { names, email, phone_number, external_id, agent_active } = body;
+
+    // Validar email si se proporciona
+    if (email !== undefined && email !== null && email.trim() !== "") {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return NextResponse.json(
+          { message: 'Formato de email inválido.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validar teléfono si se proporciona
+    let normalizedPhone = undefined;
+    if (phone_number !== undefined && phone_number !== null && phone_number !== "") {
+      normalizedPhone = phone_number.replace(/[^0-9]/g, '');
+      if (normalizedPhone.length !== 10) {
+        return NextResponse.json(
+          { message: 'El teléfono debe tener exactamente 10 dígitos numéricos.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validar duplicados en la misma agencia (excluyendo el propio cliente)
+    if ((email && email.trim() !== "") || normalizedPhone) {
+      let orConditions = [];
+      if (normalizedPhone) orConditions.push(`phone_number.eq.${normalizedPhone}`);
+      if (email && email.trim() !== "") orConditions.push(`email.eq.${email}`);
+
+      const { data: existingClients, error: searchError } = await supabase
+        .from("client")
+        .select("id")
+        .eq("dealership_id", clientExists.dealership_id)
+        .or(orConditions.join(","))
+        .neq("id", clientId);
+
+      if (searchError) {
+        return NextResponse.json(
+          { message: 'Error consultando la base de datos para duplicados.' },
+          { status: 500 }
+        );
+      }
+
+      if (existingClients && existingClients.length > 1) {
+        return NextResponse.json(
+          { message: 'Ya existen múltiples clientes con este teléfono o email en esta agencia. Contacta a soporte para resolver la duplicidad.' },
+          { status: 409 }
+        );
+      }
+      if (existingClients && existingClients.length === 1) {
+        return NextResponse.json(
+          { message: 'Ya existe otro cliente con este teléfono o email en esta agencia.' },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Preparar objeto de actualización solo con los campos enviados
+    const updateData: any = {};
+    if (names !== undefined) updateData.names = names;
+    if (email !== undefined) updateData.email = email;
+    if (normalizedPhone !== undefined) updateData.phone_number = normalizedPhone;
+    if (external_id !== undefined) updateData.external_id = external_id;
+    if (agent_active !== undefined) updateData.agent_active = agent_active;
+
+    if (Object.keys(updateData).length === 0) {
       return NextResponse.json(
-        { 
-          message: 'Invalid data format. Currently only \'agent_active\' (boolean) field can be updated. Please provide: {"agent_active": true} or {"agent_active": false}',
-          details: validationResult.error.errors 
-        },
+        { message: 'No se proporcionaron campos para actualizar.' },
         { status: 400 }
       );
     }
 
-    const { agent_active } = validationResult.data;
-
     // Actualizar el cliente
-    console.log('📝 Actualizando cliente:', {
-      id: clientId,
-      agent_active
-    });
-
     const { data, error } = await supabase
       .from('client')
-      .update({ agent_active })
+      .update(updateData)
       .eq('id', clientId)
       .select()
       .single();
 
     if (error) {
-      console.error('❌ Error al actualizar cliente:', {
-        error: error.message,
-        clientId
-      });
       return NextResponse.json(
-        { message: 'Failed to update client in database. Please verify the client ID exists and the data format is correct (agent_active: boolean). You can verify client existence at /api/customers/verify?phone={phone_number}', error: error.message },
+        { message: 'Error al actualizar el cliente.', error: error.message },
         { status: 500 }
       );
     }
 
-    console.log('✅ Cliente actualizado exitosamente:', {
-      id: data.id,
-      agent_active: data.agent_active
-    });
-
-    return NextResponse.json({ 
-      message: 'Client updated successfully',
+    return NextResponse.json({
+      message: 'Cliente actualizado exitosamente.',
       client: data
     });
-    
+
   } catch (error) {
-    console.error('💥 Error inesperado:', {
-      error: error instanceof Error ? {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      } : error
-    });
     return NextResponse.json(
-      { message: 'Internal server error during client update. Please verify the client ID and data format, then try again. You can check client existence at /api/customers/verify?phone={phone_number}' },
+      { message: 'Error inesperado al actualizar el cliente.' },
       { status: 500 }
     );
   }
