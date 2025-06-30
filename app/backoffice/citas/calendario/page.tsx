@@ -75,6 +75,7 @@ export default function CalendarioCitasPage() {
   const [blockedDates, setBlockedDates] = useState<any[]>([])
   const [rescheduleStatus, setRescheduleStatus] = useState<string>("")
   const [cancelReason, setCancelReason] = useState("")
+  const [dealershipReady, setDealershipReady] = useState(false)
   
   const router = useRouter()
   const { toast } = useToast()
@@ -94,7 +95,6 @@ export default function CalendarioCitasPage() {
       if (tokenValue) {
         setToken(tokenValue)
         const verifiedDataToken = verifyToken(tokenValue)
-        
         if (
           !verifiedDataToken ||
           typeof verifiedDataToken !== "object" ||
@@ -105,12 +105,8 @@ export default function CalendarioCitasPage() {
           return
         }
         setDataToken(verifiedDataToken)
-        // Cargar solo la semana actual en la carga inicial
-        const now = new Date()
-        const start = format(startOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd') // Lunes
-        const end = format(endOfWeek(now, { weekStartsOn: 1 }), 'yyyy-MM-dd')     // Domingo
-        setCurrentRange({ start, end })
-        loadEvents(verifiedDataToken.dealership_id, start, end)
+        setDealershipReady(true)
+        // Ya no llamamos a loadEvents aquí
       }
     }
   }, [searchParams, router])
@@ -460,43 +456,45 @@ export default function CalendarioCitasPage() {
           {loading && (
             <div className="text-center py-8 text-gray-500">Cargando citas...</div>
           )}
-          <FullCalendar
-            ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-            initialView="timeGridWeek"
-            headerToolbar={{
-              left: '', // Ocultamos los botones nativos
-              center: 'title',
-              right: ''
-            }}
-            buttonText={{
-              today: 'Hoy',
-              month: 'Mes',
-              week: 'Semana',
-              day: 'Día',
-              list: 'Lista'
-            }}
-            locale="es"
-            events={events.map(event => ({
-              ...event,
-              backgroundColor: statusColors[event.status],
-              borderColor: statusColors[event.status]
-            }))}
-            eventClick={handleEventClick}
-            dateClick={handleDateClick}
-            height="auto"
-            allDaySlot={false}
-            slotMinTime="08:00:00"
-            slotMaxTime="20:00:00"
-            slotDuration="00:30:00"
-            nowIndicator={true}
-            editable={true}
-            selectable={true}
-            selectMirror={true}
-            dayMaxEvents={true}
-            weekends={true}
-            datesSet={handleDatesSet}
-          />
+          {dealershipReady && (
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+              initialView="timeGridWeek"
+              headerToolbar={{
+                left: '', // Ocultamos los botones nativos
+                center: 'title',
+                right: ''
+              }}
+              buttonText={{
+                today: 'Hoy',
+                month: 'Mes',
+                week: 'Semana',
+                day: 'Día',
+                list: 'Lista'
+              }}
+              locale="es"
+              events={events.map(event => ({
+                ...event,
+                backgroundColor: statusColors[event.status],
+                borderColor: statusColors[event.status]
+              }))}
+              eventClick={handleEventClick}
+              dateClick={handleDateClick}
+              height="auto"
+              allDaySlot={false}
+              slotMinTime="08:00:00"
+              slotMaxTime="20:00:00"
+              slotDuration="00:30:00"
+              nowIndicator={true}
+              editable={true}
+              selectable={true}
+              selectMirror={true}
+              dayMaxEvents={true}
+              weekends={true}
+              datesSet={handleDatesSet}
+            />
+          )}
         </div>
       </div>
 
