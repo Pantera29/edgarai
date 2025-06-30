@@ -111,7 +111,8 @@ export default function WorkshopConfiguration() {
           is_working_day: index !== 0,
           opening_time: '09:00:00',
           closing_time: '18:00:00',
-          max_simultaneous_services: 3
+          max_simultaneous_services: 3,
+          max_arrivals_per_slot: null
         }));
         console.log('Creando horarios por defecto:', defaultSchedules);
         setSchedules(defaultSchedules);
@@ -248,7 +249,7 @@ export default function WorkshopConfiguration() {
                     ...prev,
                     shift_duration: Number(e.target.value)
                   } : null)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-white text-black"
                   disabled={!isEditing}
                 >
                   <option value={15}>15 minutos</option>
@@ -267,7 +268,7 @@ export default function WorkshopConfiguration() {
                     ...prev,
                     timezone: e.target.value
                   } : null)}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm bg-white text-black"
                   disabled={!isEditing}
                 >
                   <option value="America/Mexico_City">Ciudad de México (UTC-6)</option>
@@ -282,6 +283,12 @@ export default function WorkshopConfiguration() {
         <Card>
           <CardHeader>
             <CardTitle>Horarios de Operación</CardTitle>
+            <CardDescription>
+              <div className="text-sm text-gray-600 space-y-1">
+                <div><strong>Capacidad:</strong> Número máximo de servicios que pueden ejecutarse en paralelo</div>
+                <div><strong>Llegadas:</strong> Número máximo de clientes que pueden llegar al mismo horario exacto</div>
+              </div>
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             {DAYS.map((day, index) => {
@@ -333,22 +340,53 @@ export default function WorkshopConfiguration() {
                             className="w-32"
                           />
                         </div>
-                        <Input
-                          type="number"
-                          min="1"
-                          max="10"
-                          value={schedule.max_simultaneous_services}
-                          onChange={(e) => 
-                            updateSchedule(index, { 
-                              max_simultaneous_services: parseInt(e.target.value) 
-                            })
-                          }
-                          disabled={!isEditing}
-                          className="w-24"
-                        />
+                        
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm text-gray-600">Capacidad:</Label>
+                          <Input
+                            type="number"
+                            min="1"
+                            max="10"
+                            value={schedule.max_simultaneous_services}
+                            onChange={(e) => 
+                              updateSchedule(index, { 
+                                max_simultaneous_services: parseInt(e.target.value) 
+                              })
+                            }
+                            disabled={!isEditing}
+                            className="w-20"
+                          />
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                          <Label className="text-sm text-gray-600">Llegadas:</Label>
+                          <select
+                            value={schedule.max_arrivals_per_slot || ''}
+                            onChange={(e) => 
+                              updateSchedule(index, { 
+                                max_arrivals_per_slot: e.target.value ? parseInt(e.target.value) : null 
+                              })
+                            }
+                            disabled={!isEditing}
+                            className="w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm bg-white text-black"
+                          >
+                            <option value="">Sin límite</option>
+                            <option value="1">1 cliente</option>
+                            <option value="2">2 clientes</option>
+                            <option value="3">3 clientes</option>
+                            <option value="4">4 clientes</option>
+                            <option value="5">5 clientes</option>
+                          </select>
+                        </div>
                       </div>
                     )}
                   </div>
+                  
+                  {schedule.is_working_day && schedule.max_arrivals_per_slot && (
+                    <div className="mt-2 text-xs text-gray-500">
+                      Máximo {schedule.max_arrivals_per_slot} cliente(s) pueden llegar al mismo horario
+                    </div>
+                  )}
                 </div>
               );
             })}
