@@ -7,44 +7,53 @@ export async function GET(request: Request) {
     const supabase = createServerComponentClient({ cookies });
     const { searchParams } = new URL(request.url);
     const licensePlate = searchParams.get('plate');
+    const vin = searchParams.get('vin');
 
-    console.log('🚗 Buscando vehículo por placa:', {
+    console.log('🚗 Buscando vehículo por placa o VIN:', {
       plate: licensePlate,
+      vin: vin,
       url: request.url,
       searchParams: Object.fromEntries(searchParams.entries())
     });
 
-    if (!licensePlate) {
-      console.log('❌ Error: Placa no proporcionada');
+    if (!licensePlate && !vin) {
+      console.log('❌ Error: Placa o VIN no proporcionados');
       return NextResponse.json(
-        { message: 'License plate parameter is required in URL query. Usage: /api/vehicles/find-by-plate?plate={license_plate}. The plate should match exactly as registered (case-sensitive).' },
+        { message: 'License plate or VIN parameter is required in URL query. Usage: /api/vehicles/find-by-plate?plate={license_plate} OR /api/vehicles/find-by-plate?vin={vin}. The plate should match exactly as registered (case-sensitive).' },
         { status: 400 }
       );
     }
 
-    // Buscar el vehículo por su matrícula
-    console.log('🔍 Consultando vehículo en la base de datos:', licensePlate);
-    const { data: vehicle, error: vehicleError } = await supabase
-      .from('vehicles')
-      .select('*')
-      .eq('license_plate', licensePlate)
-      .maybeSingle();
+    // Buscar el vehículo por su matrícula o VIN
+    let query = supabase.from('vehicles').select('*');
+    
+    if (licensePlate) {
+      console.log('🔍 Consultando vehículo por placa en la base de datos:', licensePlate);
+      query = query.eq('license_plate', licensePlate);
+    } else if (vin) {
+      console.log('🔍 Consultando vehículo por VIN en la base de datos:', vin);
+      query = query.eq('vin', vin);
+    }
+    
+    const { data: vehicle, error: vehicleError } = await query.maybeSingle();
 
     if (vehicleError) {
       console.error('❌ Error al obtener vehículo:', {
         error: vehicleError.message,
-        plate: licensePlate
+        plate: licensePlate,
+        vin: vin
       });
       return NextResponse.json(
-        { message: 'Error fetching vehicle details from database. This is a temporary system issue. Please verify the license plate format and try again. If the vehicle doesn\'t exist, you can create it at /api/vehicles/create', details: vehicleError.message },
+        { message: 'Error fetching vehicle details from database. This is a temporary system issue. Please verify the license plate or VIN format and try again. If the vehicle doesn\'t exist, you can create it at /api/vehicles/create', details: vehicleError.message },
         { status: 500 }
       );
     }
 
     if (!vehicle) {
-      console.log('ℹ️ Vehículo no encontrado:', licensePlate);
+      const searchTerm = licensePlate || vin;
+      console.log('ℹ️ Vehículo no encontrado:', searchTerm);
       return NextResponse.json(
-        { message: 'Vehicle not found with the provided license plate. Please verify the plate number is correct (case-sensitive). You can create a new vehicle at /api/vehicles/create (requires: client_id, model, year, license_plate)' },
+        { message: `Vehicle not found with the provided ${licensePlate ? 'license plate' : 'VIN'}. Please verify the ${licensePlate ? 'plate number' : 'VIN'} is correct (case-sensitive). You can create a new vehicle at /api/vehicles/create (requires: client_id, model, year, license_plate)` },
         { status: 404 }
       );
     }
@@ -104,6 +113,7 @@ export async function GET(request: Request) {
     console.log('✅ Búsqueda completada:', {
       vehicleId: vehicle.id_uuid,
       plate: vehicle.license_plate,
+      vin: vehicle.vin,
       hasClientData: !!clientData,
       appointmentsCount: appointments?.length || 0
     });
@@ -126,7 +136,7 @@ export async function GET(request: Request) {
     });
     return NextResponse.json(
       { 
-        message: 'Internal server error during vehicle search. Please verify the license plate format and try again. If the vehicle doesn\'t exist, you can create it at /api/vehicles/create', 
+        message: 'Internal server error during vehicle search. Please verify the license plate or VIN format and try again. If the vehicle doesn\'t exist, you can create it at /api/vehicles/create', 
         details: error instanceof Error ? error.message : String(error)
       },
       { status: 500 }
