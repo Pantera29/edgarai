@@ -908,7 +908,7 @@ export default function RecordatoriosPage() {
       });
 
       setMostrarFormularioEditar(false);
-      await fetchRecordatorios();
+      await fetchRecordatorios((dataToken as any)?.dealership_id);
     } catch (error) {
       console.error('Error al eliminar recordatorio:', error);
       toast({
@@ -1175,7 +1175,8 @@ export default function RecordatoriosPage() {
       }
       
       // Refrescar los recordatorios y limpiar selección
-      await fetchRecordatorios();
+      const dealershipId = recordatoriosSeleccionados[0]?.client?.dealership_id;
+      await fetchRecordatorios(dealershipId);
       setSeleccionados([]);
     } catch (error) {
       console.error('💥 Error inesperado:', error);
@@ -1260,7 +1261,7 @@ export default function RecordatoriosPage() {
       });
       
       // Refrescar los recordatorios y limpiar selección
-      await fetchRecordatorios();
+      await fetchRecordatorios(recordatorio.client.dealership_id);
       setSeleccionados([]);
     } catch (error) {
       console.error('💥 Error inesperado:', error);
