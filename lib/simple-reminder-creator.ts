@@ -18,6 +18,7 @@ interface ReminderData {
   reminder_date: string;
   notes: string;
   status: 'pending';
+  reminder_type?: string; // ← AGREGAR esta línea
   dealership_id: string;
 }
 
@@ -69,6 +70,7 @@ export async function createAutomaticReminder(params: CreateReminderParams, requ
       reminder_date: reminderDateStr,
       notes: `Recordatorio automático generado por cita completada (ID: ${params.appointment_id})`,
       status: 'pending',
+      reminder_type: 'follow_up', // ← AGREGAR esta línea
       dealership_id: params.dealership_id
     };
 

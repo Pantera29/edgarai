@@ -68,4 +68,7 @@ export interface UsageSummaryData {
   previous_period?: {
     unique_conversations: number
   }
-} 
+}
+
+// Tipos para sistema de recordatorios
+export type ReminderType = 'confirmation' | 'follow_up' | 'nps'; 
