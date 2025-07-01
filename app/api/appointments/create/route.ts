@@ -5,6 +5,8 @@ import { getDealershipId } from "@/lib/config";
 import twilio from 'twilio';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { createConfirmationReminder } from '@/lib/confirmation-reminder-creator';
+console.log('🔍 [DEBUG] Import de confirmation-reminder-creator cargado exitosamente');
 
 // Cliente de Twilio
 const twilioClient = twilio(
@@ -196,7 +198,72 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. Enviar SMS de confirmación
+    // 6. NUEVO: Crear recordatorio de confirmación automáticamente
+    console.log('🔍 [DEBUG] Iniciando lógica de recordatorio de confirmación');
+    console.log('🔍 [DEBUG] newAppointment existe:', !!newAppointment);
+    
+    if (newAppointment) {
+      console.log('🔍 [DEBUG] Datos de la cita creada:', {
+        id: newAppointment.id,
+        appointment_date: appointment_date,
+        client_id: client_id,
+        vehicle_id: vehicle_id,
+        service_id: service_id
+      });
+      
+      // Comparación simple de fechas usando strings
+      const today = new Date();
+      const todayString = today.toISOString().split('T')[0]; // YYYY-MM-DD
+      
+      console.log('🔍 [DEBUG] Comparación simple de fechas:', {
+        appointment_date,
+        todayString,
+        isFuture: appointment_date > todayString
+      });
+      
+      // Solo crear recordatorio si la cita NO es para hoy
+      if (appointment_date > todayString) {
+        console.log('🔍 [DEBUG] Cita es futura, procediendo a crear recordatorio');
+        try {
+          console.log('🔍 [DEBUG] Obteniendo dealership_id...');
+          const targetDealershipId = await getDealershipId({ 
+            dealershipId: dealership_id,
+            dealershipPhone: dealership_phone || (channel === 'whatsapp' ? phone_number : null),
+            supabase 
+          });
+          
+          console.log('🔍 [DEBUG] dealership_id obtenido:', targetDealershipId);
+          console.log('🔍 [DEBUG] Llamando a createConfirmationReminder...');
+          
+          const reminderResult = await createConfirmationReminder({
+            appointment_id: newAppointment.id.toString(),
+            client_id: client_id,
+            vehicle_id: vehicle_id,
+            service_id: service_id,
+            appointment_date: appointment_date,
+            dealership_id: targetDealershipId
+          });
+          
+          console.log('🔍 [DEBUG] Resultado de createConfirmationReminder:', reminderResult);
+          
+          if (reminderResult.success) {
+            console.log('✅ Recordatorio de confirmación creado exitosamente');
+          } else {
+            console.log('❌ Error en createConfirmationReminder:', reminderResult.error);
+          }
+        } catch (error) {
+          console.log('⚠️ Error creando recordatorio de confirmación:', error);
+          console.log('⚠️ Stack trace:', error instanceof Error ? error.stack : 'No stack trace');
+          // No fallar la creación de la cita por esto
+        }
+      } else {
+        console.log('⏭️ Cita es para hoy, no se crea recordatorio de confirmación');
+      }
+    } else {
+      console.log('❌ [DEBUG] newAppointment es null/undefined, no se puede crear recordatorio');
+    }
+
+    // 7. Enviar SMS de confirmación
     try {
       // Verificar si los SMS están habilitados
       const smsEnabled = process.env.ENABLE_SMS === 'true';

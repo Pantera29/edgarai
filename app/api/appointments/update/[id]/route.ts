@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { createAutomaticReminder } from '@/lib/simple-reminder-creator';
+import { createConfirmationReminder } from '@/lib/confirmation-reminder-creator';
 
 // Definimos los estados permitidos en inglés
 type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
@@ -342,6 +343,71 @@ export async function PATCH(
       time: data.appointment_time,
       status: data.status
     });
+
+    // NUEVO: Manejar recordatorios de confirmación en reagendamiento
+    if (filteredUpdates.appointment_date) {
+      const newAppointmentDate = new Date(filteredUpdates.appointment_date);
+      const today = new Date();
+      
+      // Normalizar fechas para comparar solo el día
+      const newDateOnly = new Date(newAppointmentDate.getFullYear(), newAppointmentDate.getMonth(), newAppointmentDate.getDate());
+      const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      
+      try {
+        if (newDateOnly > todayOnly) {
+          // Nueva fecha es futura - actualizar o crear recordatorio
+          const newReminderDate = new Date(newAppointmentDate);
+          newReminderDate.setDate(newReminderDate.getDate() - 1);
+          
+          // Intentar actualizar recordatorio existente
+          const { data: updatedReminder, error: updateError } = await supabase
+            .from('reminders')
+            .update({
+              reminder_date: newReminderDate.toISOString().split('T')[0],
+              base_date: filteredUpdates.appointment_date,
+              notes: `Recordatorio de confirmación para cita reagendada al ${filteredUpdates.appointment_date}`,
+              status: 'pending' // Resetear a pending si estaba cancelled
+            })
+            .eq('appointment_id', appointmentId)
+            .eq('reminder_type', 'confirmation')
+            .select()
+            .maybeSingle();
+          
+          if (updateError && updateError.code !== 'PGRST116') {
+            console.error('Error actualizando recordatorio:', updateError);
+          } else if (!updatedReminder) {
+            // No existía recordatorio, crear uno nuevo
+            await createConfirmationReminder({
+              appointment_id: appointmentId,
+              client_id: data.client.id,
+              vehicle_id: data.vehicle.id_uuid,
+              service_id: data.service.id_uuid,
+              appointment_date: filteredUpdates.appointment_date,
+              dealership_id: data.client.dealership_id
+            });
+            console.log('✅ Nuevo recordatorio creado para cita reagendada');
+          } else {
+            console.log('✅ Recordatorio actualizado para nueva fecha');
+          }
+          
+        } else {
+          // Nueva fecha es para hoy - cancelar recordatorio
+          await supabase
+            .from('reminders')
+            .update({ 
+              status: 'cancelled',
+              notes: 'Cancelado: cita reagendada para hoy'
+            })
+            .eq('appointment_id', appointmentId)
+            .eq('reminder_type', 'confirmation');
+          
+          console.log('🚫 Recordatorio cancelado: cita reagendada para hoy');
+        }
+        
+      } catch (error) {
+        console.log('⚠️ Error manejando recordatorio en reagendamiento:', error);
+      }
+    }
 
     // Si la cita se marcó como completada, crear recordatorio automático y transacción
     if (filteredUpdates.status === 'completed' && appointmentExists.status !== 'completed') {
