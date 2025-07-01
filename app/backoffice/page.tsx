@@ -51,6 +51,7 @@ import { toast } from "@/components/ui/use-toast"
 import { DonutChart } from "@/components/ui/donut-chart"
 import { AppointmentTrendChart } from "@/components/dashboard/appointment-trend-chart"
 import { calculateWorkshopUtilization, calculateReingresoRate } from "@/lib/dashboard-metrics"
+import { UsageSummaryCard } from "@/components/usage-summary-card"
 
 interface Servicio {
   nombre: string;

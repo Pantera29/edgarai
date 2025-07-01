@@ -122,7 +122,12 @@ const menuItems: MenuItem[] = [
         icon: Wrench
       }
     ]
-  }
+  },
+  {
+    title: "Uso de la Plataforma",
+    href: "/backoffice/uso",
+    icon: BarChart
+  },
 ];
 
 export function Sidebar() {

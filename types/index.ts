@@ -29,4 +29,43 @@ export interface CalendarEvent {
 export interface CalendarView {
   type: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay';
   title: string;
+}
+
+// Tipos para el dashboard de uso de la plataforma
+export interface UsageData {
+  dealership_id: string
+  current_period: {
+    period: string
+    year: number
+    month: number
+    unique_conversations: number
+    by_channel: {
+      phone: number
+      whatsapp: number
+    }
+  }
+  historical_usage: Array<{
+    period: string
+    year: number
+    month: number
+    unique_conversations: number
+    by_channel: { 
+      phone: number
+      whatsapp: number 
+    }
+  }>
+  calculated_at: string
+}
+
+export interface UsageSummaryData {
+  current_period: {
+    unique_conversations: number
+    by_channel: {
+      phone: number
+      whatsapp: number
+    }
+  }
+  previous_period?: {
+    unique_conversations: number
+  }
 } 
