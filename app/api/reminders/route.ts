@@ -70,6 +70,8 @@ export async function POST(request: Request) {
       reminder_date: reminderDateUTC,
       notes: body.notes || '',
       status: 'pending' as const,
+      reminder_type: body.reminder_type || 'follow_up', // Agregar campo reminder_type
+      appointment_id: body.appointment_id || null, // Agregar campo appointment_id para futuros recordatorios
       dealership_id: dealershipId
     };
     console.log('📋 [Reminders API] Datos preparados para inserción:', JSON.stringify(recordatorioData, null, 2));
@@ -80,7 +82,20 @@ export async function POST(request: Request) {
       .from('reminders')
       .insert([recordatorioData])
       .select(`
-        *,
+        reminder_id,
+        client_id_uuid,
+        vehicle_id,
+        service_id,
+        base_date,
+        reminder_date,
+        sent_date,
+        status,
+        notes,
+        created_at,
+        updated_at,
+        dealership_id,
+        appointment_id,
+        reminder_type,
         client!reminders_client_id_fkey (
           names,
           email,

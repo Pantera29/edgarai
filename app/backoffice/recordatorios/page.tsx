@@ -69,6 +69,8 @@ interface Recordatorio {
   created_at: string
   updated_at: string
   dealership_id: string
+  appointment_id?: string | null
+  reminder_type?: string
   appointment_date?: string
   appointment_time?: string
   agent_parameters?: {
@@ -233,6 +235,16 @@ const translateTemplateType = (type: string): string => {
       // Fallback for any new/untranslated types
       return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   }
+};
+
+const translateReminderType = (type: string | undefined): string => {
+  if (!type) return 'Seguimiento'; // Por defecto para recordatorios existentes
+  const translations: Record<string, string> = {
+    'confirmation': 'Confirmación',
+    'follow_up': 'Seguimiento',
+    'nps': 'NPS'
+  };
+  return translations[type] || type;
 };
 
 const WhatsAppIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -1688,7 +1700,7 @@ export default function RecordatoriosPage() {
                   </TableHead>
                   <TableHead>Cliente</TableHead>
                   <TableHead>Vehículo</TableHead>
-                  <TableHead>Servicio</TableHead>
+                  <TableHead>Tipo</TableHead>
                   <TableHead>Fecha Creación</TableHead>
                   <TableHead>Fecha Recordatorio</TableHead>
                   <TableHead>Estado</TableHead>
@@ -1714,7 +1726,7 @@ export default function RecordatoriosPage() {
                       {recordatorio.vehicles.license_plate && ` (${recordatorio.vehicles.license_plate})`}
                     </TableCell>
                     <TableCell>
-                      {recordatorio.services?.service_name || 'Sin servicio'}
+                      {translateReminderType(recordatorio.reminder_type)}
                     </TableCell>
                     <TableCell>
                       {(() => {
