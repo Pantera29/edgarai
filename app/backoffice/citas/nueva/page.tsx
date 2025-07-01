@@ -722,28 +722,30 @@ export default function NuevaReservaPage() {
         channel: 'manual'
       };
       
-      console.log("Datos finales a insertar:", appointmentData);
+      console.log("Datos finales a enviar al endpoint:", appointmentData);
       
-      const { data, error } = await supabase
-        .from('appointment')
-        .insert([appointmentData])
-        .select(`
-          *,
-          client:client_id(phone_number),
-          vehicle:vehicle_id(make, model, license_plate),
-          service:service_id(service_name)
-        `)
-        .single();
+      // Usar el endpoint de la API en lugar de inserción directa
+      const response = await fetch('/api/appointments/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(appointmentData),
+      });
 
-      if (error) {
-        console.error("Error de Supabase:", error);
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error("Error del endpoint:", result);
         
         // Mensaje de error por defecto
         let errorMessage = "Error al agendar la cita";
         
         // Si es un error de duplicación
-        if (error.code === "23505") {
+        if (result.error && result.error.includes('23505')) {
           errorMessage = "Ya existe una cita para este vehículo en el horario seleccionado";
+        } else if (result.message) {
+          errorMessage = result.message;
         }
         
         // Mostrar el error en el frontend
@@ -757,53 +759,14 @@ export default function NuevaReservaPage() {
         return;
       }
       
-      console.log("Cita creada con éxito:", data);
+      console.log("Cita creada con éxito:", result.appointment);
+      const data = result.appointment;
 
-      // Enviar SMS de confirmación
-      try {
-        if (!selectedDate || !selectedSlot) {
-          throw new Error('Fecha u hora no seleccionadas');
-        }
-
-        const smsResult = await fetch('/api/sms/send', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            client_phone: data.client.phone_number,
-            vehicle_make: data.vehicle.make,
-            vehicle_model: data.vehicle.model,
-            vehicle_plate: data.vehicle.license_plate || 'Sin placa',
-            service_name: data.service.service_name,
-            appointment_date: selectedDate,
-            appointment_time: selectedSlot
-          }),
-        });
-
-        const smsResponse = await smsResult.json();
-
-        if (!smsResult.ok) {
-          console.warn('No se pudo enviar el SMS de confirmación:', smsResponse.error);
-          toast({
-            variant: "destructive",
-            title: "Advertencia",
-            description: "La cita se creó pero no se pudo enviar el SMS de confirmación"
-          });
-        } else {
-          toast({
-            title: "Cita agendada",
-            description: "La cita se ha creado exitosamente y se envió el SMS de confirmación"
-          });
-        }
-      } catch (smsError) {
-        console.error('Error al enviar SMS de confirmación:', smsError);
-        toast({
-          variant: "destructive",
-          title: "Advertencia",
-          description: "La cita se creó pero no se pudo enviar el SMS de confirmación"
-        });
-      }
+      // El endpoint de la API ya maneja el envío de SMS
+      toast({
+        title: "Cita agendada",
+        description: "La cita se ha creado exitosamente"
+      });
       
       // Redirigir al calendario de citas en vez de la lista
       router.replace('/backoffice/citas/calendario?token=' + token);
