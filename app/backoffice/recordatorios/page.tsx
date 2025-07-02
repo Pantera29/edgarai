@@ -229,7 +229,7 @@ const translateTemplateType = (type: string): string => {
   switch (type) {
     case 'service_reminder':
       return 'Recordatorio de servicio';
-    case 'appointment_confirmation':
+    case 'confirmation':
       return 'Confirmación de cita';
     default:
       // Fallback for any new/untranslated types
