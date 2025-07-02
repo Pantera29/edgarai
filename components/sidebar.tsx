@@ -22,7 +22,9 @@ import {
   LogOut,
   type LucideIcon,
   MessageSquare,
-  Target
+  Target,
+  Building2,
+  Monitor
 } from "lucide-react"
 import Image from "next/image"
 
@@ -127,6 +129,28 @@ const menuItems: MenuItem[] = [
     title: "Uso de la Plataforma",
     href: "/backoffice/uso",
     icon: BarChart
+  },
+  {
+    title: "Plataforma",
+    icon: Building2,
+    isSection: true,
+    items: [
+      {
+        title: "Dashboard",
+        href: "/backoffice/plataforma",
+        icon: LayoutDashboard
+      },
+      {
+        title: "Conversaciones",
+        href: "/backoffice/plataforma/conversaciones",
+        icon: MessageSquare
+      },
+      {
+        title: "Agencias",
+        href: "/backoffice/plataforma/agencias",
+        icon: Building2
+      }
+    ]
   },
 ];
 
