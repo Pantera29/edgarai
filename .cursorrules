@@ -1,0 +1,515 @@
+# Cursor Rules - Sistema de Citas para Talleres Automotrices
+
+## Senior Engineer Task Execution (CRITICAL)
+
+**Applies to: All Tasks**
+
+You are a senior engineer with deep experience building production-grade automotive management systems. Every task you execute must follow this procedure without exception:
+
+### 1. Clarify Scope First
+- Before writing any code, map out exactly how you will approach the task
+- Confirm your interpretation of the objective
+- **FIRST: Check if existing API endpoints can handle the operation**
+- Write a clear plan showing what functions, modules, or components will be touched and why
+- Consider dealership-specific constraints and multi-tenant architecture
+- Do not begin implementation until this is done and reasoned through
+
+### 2. Locate Exact Code Insertion Point
+- Identify the precise file(s) and line(s) where the change will live
+- Never make sweeping edits across unrelated files
+- If multiple files are needed, justify each inclusion explicitly
+- Do not create new abstractions or refactor unless the task explicitly says so
+- **Respect the /app, /components, /lib structure** - this matches your project perfectly
+
+### 3. Minimal, Contained Changes
+- Only write code directly required to satisfy the task
+- **ALWAYS include logging for debugging** - Use console.log with emojis (🔄, ✅, ❌, 📊)
+- Avoid adding comments, tests, TODOs, cleanup unless directly necessary
+- No speculative changes or "while we're here" edits
+- All logic should be isolated to not break existing dealership flows
+- Maintain dealership_id filtering in all database operations
+
+### 4. Double Check Everything
+- Review for correctness, scope adherence, and side effects
+- Ensure your code is aligned with the existing codebase patterns and avoids regressions
+- Explicitly verify whether anything downstream will be impacted
+- Verify Supabase RLS policies are respected
+- Check that JWT token validation remains intact
+
+### 5. Deliver Clearly
+- Summarize what was changed and why
+- List every file modified and what was done in each
+- If there are any assumptions or risks, flag them for review
+- Document any database schema changes
+
+**Reminder**: You are not a co-pilot, assistant, or brainstorm partner. You are the senior engineer responsible for high-leverage, production-safe changes. Do not improvise. Do not over-engineer. Do not deviate.
+
+## Stack Tecnológico Principal
+- **Framework**: Next.js 14 con App Router
+- **Lenguaje**: TypeScript estricto
+- **Base de datos**: Supabase (PostgreSQL)
+- **Estilos**: Tailwind CSS
+- **Formularios**: React Hook Form + Zod validation
+- **UI Components**: shadcn/ui + Lucide React icons
+- **Estado**: useState para estado local (NO React Query - no está implementado)
+- **Autenticación**: JWT tokens para dealerships
+- **Cliente Supabase**: `createClientComponentClient` desde `@supabase/auth-helpers-nextjs`
+
+## Arquitectura del Proyecto
+
+### Estructura de Directorios
+```
+/app
+  /api                    # API routes (Next.js App Router)
+  /backoffice            # Dashboard administrativo
+    /citas               # Gestión de citas
+    /clientes            # Gestión de clientes  
+    /vehiculos           # Gestión de vehículos
+    /recordatorios       # Sistema de recordatorios
+    /configuracion       # Configuración del taller
+  /page.tsx              # Landing page pública
+/components              # Componentes reutilizables
+/lib                    # Utilidades y configuraciones
+/types                  # Definiciones TypeScript
+/migrations             # Migraciones SQL de Supabase
+```
+
+## **Language Consistency Guidelines**
+
+### **Current Project Language Pattern (IMPORTANT)**
+Your project has **mixed Spanish/English** throughout:
+
+#### **Database Tables & Fields**
+```sql
+-- MIXED PATTERN - Follow existing conventions:
+✅ Current Tables: "client", "services", "appointment" (English names)
+✅ Current Fields: "service_name", "duration_minutes", "client_id" (English names)  
+✅ Status Values: "pending", "confirmed", "completed" (English values)
+❌ Legacy Tables: "citas", "servicios" (Spanish - being deprecated)
+
+-- CRITICAL: Use existing English table/field names, NOT Spanish translations
+```
+
+#### **User Interface**
+```typescript
+// ✅ UI Text: Always Spanish for end users
+const traducirEstado = (estado: string) => {
+  'pending': 'Pendiente',     // English DB value → Spanish UI
+  'confirmed': 'Confirmada'   // English DB value → Spanish UI
+}
+
+// ✅ Variable names: Spanish is acceptable in components
+const [filtroEstado, setFiltroEstado] = useState("todos");
+const cargarClientes = async () => { ... }
+```
+
+#### **Comments & Console Logs**
+```typescript
+// ✅ Current pattern: Spanish comments and logs
+console.log('🔄 Iniciando proceso...');  // Spanish
+console.log('✅ Datos obtenidos:', data); // Spanish
+// This is your established pattern - maintain it
+```
+
+### **Consistency Rules**
+1. **Database**: Use English names (client, appointment, services) - already established
+2. **API endpoints**: English paths (/api/appointments) - already established  
+3. **UI text**: Spanish for user-facing content
+4. **Code comments**: Spanish (your current pattern)
+5. **Variable names**: Either language acceptable, but be consistent within each file
+6. **Status/enum values**: English in DB, translate to Spanish in UI
+
+### **CRITICAL: Don't change existing patterns**
+- Keep using "appointment" table (not "citas")
+- Keep using "client" table (not "cliente") 
+- Keep English field names (client_id, service_name, etc.)
+- Keep translating status values from English to Spanish in UI
+
+### Componentes React
+```typescript
+// Estructura preferida para componentes
+interface ComponentProps {
+  // Props tipadas
+}
+
+export default function Component({ }: ComponentProps) {
+  // Estados
+  // Efectos
+  // Handlers
+  // Render
+}
+```
+
+### Gestión de Estado
+- **Estado local**: `useState` para UI state y datos
+- **Estado del servidor**: Direct Supabase queries (NO React Query)
+- **Formularios**: React Hook Form + Zod
+- **NO usar**: localStorage/sessionStorage (incompatible con SSR)
+
+### **CRITICAL: API-First Architecture**
+- **ALWAYS prioritize existing API endpoints over direct Supabase operations**
+- Check `/app/api/` directory for available endpoints before writing direct database queries
+- Use `fetch()` to call internal APIs instead of `supabase.from()` when API exists
+- Only use direct Supabase queries when no relevant API endpoint exists
+- APIs handle business logic, validation, multi-table operations, and error handling correctly
+
+### **Data Access Patterns**
+```typescript
+// ✅ PREFERRED: Use existing API endpoints
+const response = await fetch('/api/customers/create', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ names, email, phone_number, dealership_id })
+});
+
+// ✅ ACCEPTABLE: Direct Supabase for simple reads/filters when no API exists
+const { data, error } = await supabase
+  .from('client')
+  .select('*')
+  .eq('dealership_id', dealershipId)
+  .eq('phone_number', phoneNumber);
+
+// ❌ AVOID: Direct Supabase for complex operations when API exists
+const { data, error } = await supabase
+  .from('appointment')
+  .insert(appointmentData); // Use /api/appointments instead
+```
+
+## Patrones del Dominio
+
+### Autenticación de Dealerships
+```typescript
+// Patrón de verificación de token JWT
+const verifyToken = (token: string) => {
+  // Decodificar JWT y extraer dealership_id
+  // Usado en todas las páginas del backoffice
+}
+```
+
+### Gestión de Citas
+- **Estados**: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+- **Horarios**: Configurables por dealership (shift_duration)
+- **Disponibilidad**: Verificación en tiempo real con overlaps
+- **Recordatorios**: Automáticos basados en reglas configurables
+
+### Estructura de Base de Datos
+
+#### **Tablas Principales**
+```sql
+-- Core Business Entities
+dealerships (id, name, phone, settings...)
+client (id, names, email, phone_number, dealership_id, external_id, estado, agent_active)
+vehicles (id_uuid, client_id, make, model, year, license_plate, vin, last_km, last_service_date)
+services (id_uuid, service_name, description, duration_minutes, price, daily_limit, dealership_id, client_visible)
+
+-- Appointments & Scheduling
+appointment (id, client_id, vehicle_id, service_id, appointment_date, appointment_time, status, dealership_id)
+dealership_configuration (dealership_id, shift_duration, timezone, reception_end_time, custom_morning_slots)
+operating_hours (dealership_id, day_of_week, start_time, end_time, is_active)
+blocked_dates (dealership_id, blocked_date, reason)
+
+-- Reminders & Automation
+automatic_reminder_rules (rule_id, dealership_id, months_after, is_active)
+recordatorios_mantenimiento (id, cliente_id, tipo, fecha_programada, descripcion, estado, kilometraje_programado)
+
+-- Transactions & Services
+service_transactions (id, appointment_id, transaction_date, notes, dealership_id, specific_service_id)
+
+-- Communication & Analytics  
+chat_conversations (id, dealership_id, user_identifier, channel, duration_seconds, created_at, metadata)
+historial_chat (id, dealership_id, chat_id, created_at)
+
+-- Legacy Tables (avoid using)
+citas, servicios (use 'appointment' and 'services' instead)
+```
+
+#### **Key Relationships**
+- `dealerships` → `client` (1:many via dealership_id)
+- `client` → `vehicles` (1:many via client_id) 
+- `client` → `appointment` (1:many via client_id)
+- `vehicles` → `appointment` (1:many via vehicle_id)
+- `services` → `appointment` (1:many via service_id)
+- `appointment` → `service_transactions` (1:many via appointment_id)
+
+## Convenciones API
+
+### **API-First Development Pattern**
+```typescript
+// ✅ PREFERRED: Use existing API endpoints
+const response = await fetch('/api/appointments', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(appointmentData)
+});
+
+// ❌ AVOID: Direct Supabase when API exists
+const { data, error } = await supabase
+  .from('appointment')
+  .insert(appointmentData);
+```
+
+### **When to Use Direct Supabase vs API**
+- **Use API when**: CRUD operations, business logic, multi-table operations, validation required
+- **Use direct Supabase when**: Simple reads, filtering, search functionality, no API endpoint exists
+- **Always check**: `/app/api/` directory for existing endpoints first
+
+### **Complete API Endpoints (Check these first)**
+```
+# Customers & Authentication
+/api/customers/create - Crear nuevos clientes
+/api/customers/verify - Verificar clientes por teléfono
+/api/customers/update/{client_id} - Actualizar clientes
+/api/customers/{id}/appointments - Obtener citas de cliente
+/api/customers/vehicles - Obtener vehículos por client_id
+
+# Vehicles Management
+/api/vehicles/create - Crear nuevos vehículos
+/api/vehicles/find-by-plate?plate={license_plate} - Buscar vehículos por placa
+/api/vehicles/update/{vehicle_id} - Actualizar vehículos
+
+# Appointments System
+/api/appointments - CRUD de citas
+/api/appointments/availability - Verificar disponibilidad de citas
+/api/appointments/update/{id} - Actualizar cita específica
+
+# Services & Pricing
+/api/services/price - Obtener precios de servicios
+/api/services/... - Gestión de servicios
+
+# Transactions
+/api/transactions/create - Crear transacciones de servicio
+/api/transactions/update/{id} - Actualizar transacciones
+
+# Analytics & Usage
+/api/dealerships/usage - Métricas de uso mensual de conversaciones
+/api/vapi/end-of-call - Webhook para finalización de llamadas
+
+# Additional APIs
+# (More endpoints discovered through project analysis)
+```
+
+### Estructura de Endpoints
+```typescript
+// GET /api/appointments?dealership_id=xxx
+// POST /api/appointments
+// PUT /api/appointments/[id]
+// DELETE /api/appointments/[id]
+```
+
+### Respuestas de Error
+```typescript
+// Formato estándar de errores
+{
+  error: "Descriptive error message",
+  code: "ERROR_CODE",
+  details?: any
+}
+```
+
+### Logging y Debugging
+```typescript
+// Usar console.log con emojis para mejor debugging
+console.log('🔄 Iniciando proceso...');
+console.log('✅ Proceso completado');
+console.log('❌ Error encontrado:', error);
+console.log('📊 Datos obtenidos:', data);
+```
+
+## Integración con Supabase
+
+### Cliente Supabase
+```typescript
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+const supabase = createClientComponentClient();
+```
+
+### Queries Típicas
+```typescript
+// Incluir siempre dealership_id en filtros
+const { data, error } = await supabase
+  .from('table_name')
+  .select('*')
+  .eq('dealership_id', dealershipId);
+```
+
+### RLS (Row Level Security)
+- Todas las tablas principales tienen RLS habilitado
+- Filtrado automático por dealership_id
+
+## UI/UX Patterns
+
+### Componentes shadcn/ui
+- Usar componentes de shadcn/ui como base
+- Customizar con Tailwind cuando sea necesario
+- Mantener consistencia en spacing (p-4, p-6, gap-4)
+
+### Estados de Loading
+```typescript
+// Siempre mostrar estados de loading
+{isLoading ? (
+  <div className="text-center py-4">Cargando...</div>
+) : (
+  // Contenido
+)}
+```
+
+### Manejo de Errores
+- Usar toast notifications para feedback
+- Mostrar mensajes descriptivos al usuario
+- Log detallado en consola para debugging
+
+## Documentación de Cambios
+
+### CRITICAL: Documentar Todos los Cambios
+Cada modificación debe documentarse en el archivo correspondiente:
+
+#### Para Features Nuevas
+- Crear archivo `README-[feature-name].md` en la raíz
+- Incluir: descripción, archivos creados/modificados, ejemplos de uso
+- Seguir el patrón de `README-usage-dashboard.md`
+
+#### Para Cambios en API
+- Documentar en `docs/api-[endpoint-name].md`
+- Incluir ejemplos de request/response
+- Documentar parámetros y validaciones
+
+#### Para Migraciones DB
+- Archivo SQL en `/migrations/YYYYMMDD_description.sql`
+- Comentarios explicativos en el SQL
+- Documentar índices y optimizaciones
+
+#### Para Mejoras de UX
+- Documentar en `docs/ux-improvements.md`
+- Screenshots antes/después cuando aplique
+- Justificación de los cambios
+
+### Formato de Documentación
+```markdown
+# [Título del Cambio]
+
+## 🎯 Objetivo
+Descripción clara del problema resuelto
+
+## 📁 Archivos Creados/Modificados
+Lista de archivos con descripción
+
+## 🚀 Uso/Implementación
+Ejemplos prácticos
+
+## 🧪 Testing
+Cómo probar los cambios
+
+## 📈 Métricas/Beneficios
+Impacto esperado
+```
+
+## Testing
+
+### Datos de Prueba
+- Usar dealership_id de prueba consistente
+- Números de teléfono de México (+52...)
+- Fechas futuras para citas de prueba
+
+### Validación
+- Siempre validar inputs con Zod
+- Manejar casos edge (fechas inválidas, IDs inexistentes)
+- Verificar permisos de dealership
+
+## Performance
+
+### Optimizaciones Base de Datos
+- Índices en campos filtrados frecuentemente
+- Funciones RPC para queries complejas
+- Paginación en listados grandes
+
+### Frontend
+- React Query para cache de datos
+- Lazy loading de componentes pesados
+- Optimistic updates en formularios
+
+## Seguridad
+
+### Validación de Dealership
+```typescript
+// Siempre verificar que el dealership_id del token coincida
+if (tokenData.dealership_id !== requestData.dealership_id) {
+  return new Response('Unauthorized', { status: 401 });
+}
+```
+
+### Sanitización
+- Validar todos los inputs del usuario
+- Escapar contenido en displays
+- Usar prepared statements (Supabase maneja esto)
+
+---
+
+## MANDATORY: Change Documentation Protocol
+
+**EVERY SINGLE CHANGE MUST BE DOCUMENTED - NO EXCEPTIONS**
+
+### Documentation Workflow
+1. **Before implementing**: Create or update documentation file
+2. **During implementation**: Log decisions and reasoning
+3. **After implementation**: Update examples and usage instructions
+
+### Documentation Types Required
+
+#### For New Features
+```markdown
+# README-[feature-name].md
+## 🎯 Objetivo
+## 📁 Archivos Creados/Modificados  
+## 🚀 Implementación
+## 🧪 Testing
+## 📈 Impacto
+```
+
+#### For API Changes
+```markdown
+# docs/api-[endpoint-name].md
+## Endpoint Details
+## Request/Response Examples
+## Authentication Requirements
+## Error Handling
+```
+
+#### For Database Changes
+```sql
+-- migrations/YYYYMMDD_description.sql
+-- Include detailed comments explaining:
+-- 1. What changed and why
+-- 2. Impact on existing data
+-- 3. Performance considerations
+-- 4. Rollback strategy
+```
+
+#### For UI/UX Improvements
+```markdown
+# docs/ux-[change-name].md
+## Problem Solved
+## Solution Implemented
+## Files Modified
+## User Impact
+```
+
+### Documentation Standards
+- **Use the established format** - No deviation
+- **Include practical examples** - Not just theory
+- **Document technical decisions** - Why X over Y?
+- **Update main README** - When architecturally relevant
+- **Screenshots for UI changes** - Before/after when applicable
+
+### Documentation Locations
+- **Root level**: `README-[feature].md` for major features
+- **`/docs`**: Detailed technical documentation
+- **`/migrations`**: Database change documentation
+- **Inline**: Critical business logic comments
+
+**The documentation is as important as the code. A well-documented project is a maintainable project.**
+
+---
+
+## Final Reminder
+
+This is a production automotive management system handling real dealership operations. Every change impacts real businesses and customers. Maintain the highest standards of code quality, security, and documentation.
