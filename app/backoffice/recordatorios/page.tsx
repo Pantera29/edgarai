@@ -227,10 +227,14 @@ type EstadoColors = Record<EstadoType, string>;
 
 const translateTemplateType = (type: string): string => {
   switch (type) {
-    case 'service_reminder':
-      return 'Recordatorio de servicio';
+    case 'follow_up':
+      return 'Seguimiento';
     case 'confirmation':
       return 'Confirmación de cita';
+    case 'confirmation_diagnosis':
+      return 'Confirmación de diagnóstico';
+    case 'nps':
+      return 'NPS';
     default:
       // Fallback for any new/untranslated types
       return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
