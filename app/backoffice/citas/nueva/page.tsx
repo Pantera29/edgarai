@@ -587,18 +587,37 @@ export default function NuevaReservaPage() {
         return;
       }
 
+      // Buscar taller principal por defecto
+      const { data: mainWorkshop } = await supabase
+        .from('workshops')
+        .select('id')
+        .eq('dealership_id', verifiedDataToken.dealership_id)
+        .eq('is_main', true)
+        .single();
+
+      if (!mainWorkshop) {
+        console.error('No se encontró taller principal');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('dealership_configuration')
         .select('*')
         .eq('dealership_id', verifiedDataToken.dealership_id)
-        .single();
+        .eq('workshop_id', mainWorkshop.id)
+        .maybeSingle();
 
       if (error) {
         console.error('Error al cargar la configuración:', error);
         return;
       }
 
-      setTallerConfig(data);
+      setTallerConfig(data || {
+        dealership_id: verifiedDataToken.dealership_id,
+        workshop_id: mainWorkshop.id,
+        shift_duration: 30,
+        timezone: 'America/Mexico_City'
+      });
     } catch (error) {
       console.error('Error al cargar la configuración:', error);
     }

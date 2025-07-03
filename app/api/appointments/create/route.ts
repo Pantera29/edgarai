@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getDealershipId } from "@/lib/config";
+import { resolveWorkshopId } from '@/lib/workshop-resolver';
 import twilio from 'twilio';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -73,7 +74,8 @@ export async function POST(request: Request) {
       channel = 'agenteai', // Valor por defecto si no se proporciona
       dealership_id = null, // Permitir que se envíe un dealership_id explícito
       dealership_phone = null, // Número de teléfono para buscar el dealership
-      phone_number = null // Mantener para compatibilidad
+      phone_number = null, // Mantener para compatibilidad
+      workshop_id = null // Workshop ID específico (opcional)
     } = await request.json();
 
     // Log de los parámetros principales del request
@@ -86,7 +88,8 @@ export async function POST(request: Request) {
       channel,
       dealership_id,
       dealership_phone,
-      phone_number
+      phone_number,
+      workshop_id
     });
 
     // Validar campos requeridos
@@ -149,7 +152,22 @@ export async function POST(request: Request) {
       );
     }
 
-    // 4. Verificar disponibilidad antes de crear la cita
+    // 4. Resolver workshop_id
+    const finalDealershipId = await getDealershipId({ 
+      dealershipId: dealership_id,
+      dealershipPhone: dealership_phone || (channel === 'whatsapp' ? phone_number : null),
+      supabase 
+    });
+
+    const finalWorkshopId = await resolveWorkshopId(finalDealershipId, supabase, workshop_id);
+
+    console.log('🔧 Workshop ID resuelto para cita:', {
+      dealershipId: finalDealershipId,
+      workshopId: finalWorkshopId,
+      providedWorkshopId: workshop_id
+    });
+
+    // 5. Verificar disponibilidad antes de crear la cita
     const { data: existingAppointments, error: appointmentsError } = await supabase
       .from('appointment')
       .select('id')
@@ -164,7 +182,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 5. Crear la cita
+    // 6. Crear la cita
     const { data: newAppointment, error: insertError } = await supabase
       .from('appointment')
       .insert([{
@@ -174,11 +192,8 @@ export async function POST(request: Request) {
         appointment_date,
         appointment_time,
         status: 'pending',
-        dealership_id: await getDealershipId({ 
-          dealershipId: dealership_id,
-          dealershipPhone: dealership_phone || (channel === 'whatsapp' ? phone_number : null),
-          supabase 
-        }),
+        dealership_id: finalDealershipId,
+        workshop_id: finalWorkshopId,
         notes: notes || null,
         channel: channel
       }])
@@ -225,14 +240,7 @@ export async function POST(request: Request) {
       if (appointment_date > todayString) {
         console.log('🔍 [DEBUG] Cita es futura, procediendo a crear recordatorio');
         try {
-          console.log('🔍 [DEBUG] Obteniendo dealership_id...');
-          const targetDealershipId = await getDealershipId({ 
-            dealershipId: dealership_id,
-            dealershipPhone: dealership_phone || (channel === 'whatsapp' ? phone_number : null),
-            supabase 
-          });
-          
-          console.log('🔍 [DEBUG] dealership_id obtenido:', targetDealershipId);
+          console.log('🔍 [DEBUG] Usando dealership_id ya resuelto:', finalDealershipId);
           console.log('🔍 [DEBUG] Llamando a createConfirmationReminder...');
           
           const reminderResult = await createConfirmationReminder({
@@ -241,7 +249,7 @@ export async function POST(request: Request) {
             vehicle_id: vehicle_id,
             service_id: service_id,
             appointment_date: appointment_date,
-            dealership_id: targetDealershipId
+            dealership_id: finalDealershipId
           });
           
           console.log('🔍 [DEBUG] Resultado de createConfirmationReminder:', reminderResult);

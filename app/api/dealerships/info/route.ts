@@ -67,7 +67,7 @@ export async function GET(request: Request) {
       // Configuración de la agencia - excluyendo shift_duration
       supabase
         .from('dealership_configuration')
-        .select('dealership_id, created_at, updated_at')
+        .select('dealership_id, workshop_id, created_at, updated_at')
         .eq('dealership_id', dealershipId)
         .maybeSingle(),
       

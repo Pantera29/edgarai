@@ -148,11 +148,29 @@ export async function POST(request: Request) {
 
     // 4. Obtener token de WhatsApp
     console.log('🔑 Obteniendo token de WhatsApp');
+    
+    // Buscar taller principal por defecto
+    const { data: mainWorkshop } = await supabase
+      .from('workshops')
+      .select('id')
+      .eq('dealership_id', dealership_id)
+      .eq('is_main', true)
+      .single();
+
+    if (!mainWorkshop) {
+      console.error('❌ No se encontró taller principal');
+      return NextResponse.json(
+        { success: false, error: 'No se encontró taller principal para este concesionario' },
+        { status: 400 }
+      );
+    }
+
     const { data: config, error: configError } = await supabase
       .from('dealership_configuration')
       .select('whatsapp_token')
       .eq('dealership_id', dealership_id)
-      .single();
+      .eq('workshop_id', mainWorkshop.id)
+      .maybeSingle();
 
     if (configError || !config?.whatsapp_token) {
       console.error('❌ Error al obtener token de WhatsApp:', configError);
