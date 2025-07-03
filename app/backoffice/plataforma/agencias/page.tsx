@@ -205,7 +205,7 @@ export default function PlataformaAgenciasPage() {
       }
 
       // Limpiar formulario y cerrar modal
-      setFormData({ name: "", phone: "", is_active: true });
+      setFormData({ name: "", address: "", is_active: true });
       setEditingAgency(null);
       setIsEditDialogOpen(false);
       
