@@ -117,8 +117,8 @@ Implementar soporte completo para múltiples talleres por dealership en el siste
 - **`app/api/appointments/availability/route.ts`** - Actualizado para soporte multi-taller
 - **`app/api/appointments/create/route.ts`** - Actualizado para usar workshop_id
 - **`app/api/appointments/update/[id]/route.ts`** - Actualizado para permitir cambio de taller
+- **`app/api/dealerships/info/route.ts`** - Actualizado para retornar configuración específica del taller
 - **`app/api/whatsapp/send/route.ts`** - Actualizado para obtener token por taller
-- **`app/api/dealerships/info/route.ts`** - Actualizado para incluir workshop_id
 
 ### Frontend - Panel de Administración
 - **`app/backoffice/admin/configuracion/page.tsx`** - Selector de taller y gestión por taller
@@ -166,7 +166,16 @@ export async function resolveWorkshopId(
 // Campos permitidos: status, appointment_date, appointment_time, notes, service_id, workshop_id
 ```
 
-### 5. Panel de Configuración Multi-Taller
+### 5. Información de Dealership Multi-Taller
+```typescript
+// app/api/dealerships/info/route.ts
+// Parámetros: dealership_id, workshop_id (opcional)
+// Si workshop_id no se especifica, usa el taller principal
+// Retorna configuración específica del taller (shift_duration, timezone, etc.)
+// operating_hours y blocked_dates siguen a nivel dealership
+```
+
+### 6. Panel de Configuración Multi-Taller
 ```typescript
 // app/backoffice/admin/configuracion/page.tsx
 // Selector de taller en la parte superior
@@ -176,6 +185,26 @@ export async function resolveWorkshopId(
 ```
 
 ## 🧪 Testing
+
+### Casos de Prueba - Endpoint de Información de Dealership
+
+#### 1. Información con Taller Específico
+```bash
+GET /api/dealerships/info?dealership_id=xxx&workshop_id=workshop_2_uuid
+```
+**Resultado esperado**: ✅ Configuración específica del taller 2
+
+#### 2. Información sin Especificar Taller
+```bash
+GET /api/dealerships/info?dealership_id=xxx
+```
+**Resultado esperado**: ✅ Configuración del taller principal (is_primary = true)
+
+#### 3. Información con Taller Inválido
+```bash
+GET /api/dealerships/info?dealership_id=xxx&workshop_id=workshop_invalid
+```
+**Resultado esperado**: ✅ Usa el taller principal por defecto
 
 ### Casos de Prueba - Endpoint de Actualización
 
@@ -222,6 +251,7 @@ PATCH /api/appointments/update/{appointment_id}
 #### Backend
 - ✅ Validación de que el nuevo taller pertenezca al mismo dealership
 - ✅ Verificación de disponibilidad en el nuevo taller
+- ✅ Resolución automática del taller principal cuando no se especifica
 - ✅ Mantenimiento de recordatorios sin workshop_id (no requerido)
 - ✅ Compatibilidad con citas existentes sin workshop_id
 
@@ -236,13 +266,15 @@ PATCH /api/appointments/update/{appointment_id}
 ### Beneficios
 1. **Flexibilidad Operacional**: Las agencias pueden mover citas entre talleres según disponibilidad
 2. **Gestión Independiente**: Cada taller puede tener su propia configuración de horarios
-3. **Compatibilidad**: Funciona con agencias de un solo taller sin cambios
-4. **Escalabilidad**: Fácil agregar nuevos talleres sin modificar código
+3. **Configuración Específica**: Cada taller puede tener diferentes shift_duration, timezone, etc.
+4. **Compatibilidad**: Funciona con agencias de un solo taller sin cambios
+5. **Escalabilidad**: Fácil agregar nuevos talleres sin modificar código
 
 ### Consideraciones
 - Los recordatorios no requieren workshop_id (mantienen dealership_id)
 - Las citas existentes mantienen su workshop_id original
 - La validación asegura que solo se usen talleres del mismo dealership
+- operating_hours y blocked_dates siguen a nivel dealership (no por taller)
 
 ## 🔄 Flujo de Cambio de Taller
 
@@ -253,7 +285,31 @@ PATCH /api/appointments/update/{appointment_id}
 5. **Se actualiza la cita** con el nuevo workshop_id
 6. **Se mantienen recordatorios** sin cambios (no requieren workshop_id)
 
+## 🔄 Flujo de Información de Dealership
+
+1. **Cliente solicita información** con o sin workshop_id
+2. **Backend resuelve workshop_id** (específico o principal)
+3. **Se consulta configuración** del taller específico
+4. **Se retorna información completa** incluyendo workshop_id usado
+
 ## 📊 Logs de Ejemplo
+
+### Información de Dealership con Taller Específico
+```
+🏢 Obteniendo información de agencia: {
+  explicitDealershipId: "dealership_123",
+  workshopId: "workshop_2_uuid"
+}
+🏭 Workshop ID resuelto: {
+  requested: "workshop_2_uuid",
+  resolved: "workshop_2_uuid"
+}
+✅ Información obtenida exitosamente: {
+  dealershipId: "dealership_123",
+  workshopId: "workshop_2_uuid",
+  hasConfiguration: true
+}
+```
 
 ### Cambio de Taller Exitoso
 ```
