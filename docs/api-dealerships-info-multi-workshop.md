@@ -1,7 +1,7 @@
 # API Dealerships Info - Soporte Multi-Taller
 
 ## 📋 Resumen
-El endpoint `/api/dealerships/info` ha sido actualizado para soportar múltiples talleres por dealership, permitiendo obtener configuración específica de cada taller.
+El endpoint `/api/dealerships/info` ha sido actualizado para soportar múltiples talleres por dealership, permitiendo obtener configuración específica de cada taller y detectar si una agencia es multi-taller.
 
 ## 🔄 Cambios Implementados
 
@@ -35,11 +35,22 @@ GET /api/dealerships/info?dealership_id=dealership_123
     "custom_morning_slots": [...]
   },
   "blocked_dates": [ ... ],
-  "workshop_id": "workshop_primary_uuid"
+  "workshop_id": "workshop_primary_uuid",
+  "is_multi_workshop": false,
+  "all_workshops": [
+    {
+      "workshop_id": "workshop_primary_uuid",
+      "name": "Taller Principal",
+      "is_primary": true,
+      "shift_duration": 30,
+      "timezone": "America/Mexico_City",
+      "reception_end_time": "18:00"
+    }
+  ]
 }
 ```
 
-### Ejemplo 2: Información de Taller Específico
+### Ejemplo 2: Información de Taller Específico (Agencia Multi-Taller)
 ```bash
 GET /api/dealerships/info?dealership_id=dealership_123&workshop_id=workshop_2_uuid
 ```
@@ -58,7 +69,34 @@ GET /api/dealerships/info?dealership_id=dealership_123&workshop_id=workshop_2_uu
     "custom_morning_slots": [...]
   },
   "blocked_dates": [ ... ],
-  "workshop_id": "workshop_2_uuid"
+  "workshop_id": "workshop_2_uuid",
+  "is_multi_workshop": true,
+  "all_workshops": [
+    {
+      "workshop_id": "workshop_primary_uuid",
+      "name": "Taller Principal",
+      "is_primary": true,
+      "shift_duration": 30,
+      "timezone": "America/Mexico_City",
+      "reception_end_time": "18:00"
+    },
+    {
+      "workshop_id": "workshop_2_uuid",
+      "name": "Taller Norte",
+      "is_primary": false,
+      "shift_duration": 45,
+      "timezone": "America/Mexico_City",
+      "reception_end_time": "19:00"
+    },
+    {
+      "workshop_id": "workshop_3_uuid",
+      "name": "Taller Sur",
+      "is_primary": false,
+      "shift_duration": 60,
+      "timezone": "America/Mexico_City",
+      "reception_end_time": "17:00"
+    }
+  ]
 }
 ```
 
@@ -76,6 +114,16 @@ const configResponse = await supabase
   .eq('dealership_id', dealershipId)
   .eq('workshop_id', finalWorkshopId)
   .maybeSingle();
+
+// Consultar todos los talleres de la agencia
+const allWorkshopsResponse = await supabase
+  .from('dealership_configuration')
+  .select('*')
+  .eq('dealership_id', dealershipId)
+  .order('is_primary', { ascending: false });
+
+// Determinar si es multi-taller
+const isMultiWorkshop = allWorkshopsResponse.data && allWorkshopsResponse.data.length > 1;
 ```
 
 ### Logs de Debug
@@ -91,29 +139,48 @@ const configResponse = await supabase
 ✅ Información obtenida exitosamente: {
   dealershipId: "dealership_123",
   workshopId: "workshop_2_uuid",
+  isMultiWorkshop: true,
+  workshopsCount: 3,
   hasConfiguration: true
 }
 ```
 
 ## 🧪 Casos de Prueba
 
+### ✅ Caso Exitoso - Agencia Multi-Taller
+```bash
+curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_123"
+```
+**Resultado**: 
+- `is_multi_workshop: true`
+- `all_workshops` con 3 talleres
+- Configuración del taller principal
+
+### ✅ Caso Exitoso - Agencia de Un Solo Taller
+```bash
+curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_456"
+```
+**Resultado**: 
+- `is_multi_workshop: false`
+- `all_workshops` con 1 taller
+- Configuración del taller principal
+
 ### ✅ Caso Exitoso - Taller Específico
 ```bash
 curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_123&workshop_id=workshop_2_uuid"
 ```
-**Resultado**: Configuración del taller 2
-
-### ✅ Caso Exitoso - Taller Principal
-```bash
-curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_123"
-```
-**Resultado**: Configuración del taller principal
+**Resultado**: 
+- `is_multi_workshop: true`
+- `all_workshops` con todos los talleres
+- Configuración del taller 2
 
 ### ✅ Caso Exitoso - Taller Inválido
 ```bash
 curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_123&workshop_id=workshop_invalid"
 ```
-**Resultado**: Configuración del taller principal (fallback)
+**Resultado**: 
+- Usa el taller principal por defecto
+- `all_workshops` con todos los talleres válidos
 
 ### ❌ Caso de Error - Dealership No Encontrado
 ```bash
@@ -124,13 +191,37 @@ curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_invali
 ## 📊 Estructura de Respuesta
 
 ### Campos Nuevos
-- **`workshop_id`**: UUID del taller usado para la consulta
+- **`is_multi_workshop`**: Boolean que indica si la agencia tiene múltiples talleres
+- **`all_workshops`**: Array con información de todos los talleres de la agencia
 
 ### Campos Mantenidos
 - **`dealership`**: Información básica de la agencia
 - **`operating_hours`**: Horarios de operación (a nivel dealership)
-- **`configuration`**: Configuración específica del taller
+- **`configuration`**: Configuración específica del taller consultado
 - **`blocked_dates`**: Fechas bloqueadas (a nivel dealership)
+- **`workshop_id`**: UUID del taller usado para la consulta
+
+### Estructura de `all_workshops`
+```json
+[
+  {
+    "workshop_id": "workshop_primary_uuid",
+    "name": "Taller Principal",
+    "is_primary": true,
+    "shift_duration": 30,
+    "timezone": "America/Mexico_City",
+    "reception_end_time": "18:00"
+  },
+  {
+    "workshop_id": "workshop_2_uuid",
+    "name": "Taller Norte",
+    "is_primary": false,
+    "shift_duration": 45,
+    "timezone": "America/Mexico_City",
+    "reception_end_time": "19:00"
+  }
+]
+```
 
 ## 🔒 Consideraciones de Seguridad
 
@@ -149,22 +240,67 @@ curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_invali
 - ✅ Funciona sin `workshop_id` (usa taller principal)
 - ✅ Funciona con agencias de un solo taller
 - ✅ Mantiene estructura de respuesta existente
+- ✅ Nuevos campos son opcionales para clientes existentes
 
 ### Migración
 - **No requiere cambios** en clientes existentes
-- **Opcional** agregar `workshop_id` para multi-taller
+- **Opcional** usar nuevos campos para multi-taller
 - **Automático** fallback al taller principal
 
 ## 📈 Beneficios
 
-1. **Configuración Específica**: Cada taller puede tener diferentes horarios y configuraciones
-2. **Flexibilidad**: Fácil cambiar entre talleres sin modificar código cliente
-3. **Escalabilidad**: Fácil agregar nuevos talleres
-4. **Compatibilidad**: No rompe implementaciones existentes
+1. **Detección Clara**: Saber inmediatamente si es multi-taller
+2. **Lista Completa**: Ver todos los talleres disponibles
+3. **Información Detallada**: Configuración de cada taller
+4. **Selección Inteligente**: Permitir al usuario elegir
+5. **Mejor UX**: Mostrar opciones claras al usuario
+6. **Compatibilidad**: No rompe implementaciones existentes
+
+## 🚀 Estrategia para Agente AI
+
+### Detección de Multi-Taller
+```javascript
+// 1. Obtener información de dealership
+const response = await fetch('/api/dealerships/info?dealership_id=dealership_123');
+const { is_multi_workshop, all_workshops, configuration } = await response.json();
+
+if (is_multi_workshop) {
+  console.log('🏭 Agencia multi-taller detectada');
+  console.log('📋 Talleres disponibles:', all_workshops.map(w => w.name));
+  
+  // Permitir al usuario elegir taller
+  const availableWorkshops = all_workshops.map(w => ({
+    id: w.workshop_id,
+    name: w.name,
+    is_primary: w.is_primary,
+    shift_duration: w.shift_duration
+  }));
+} else {
+  console.log(' Agencia de un solo taller');
+  // Usar automáticamente el taller principal
+}
+```
+
+### Flujo de Usuario
+```javascript
+// Si es multi-taller, mostrar opciones
+if (is_multi_workshop) {
+  const message = `Esta agencia tiene ${all_workshops.length} talleres disponibles:\n` +
+    all_workshops.map(w => `• ${w.name}${w.is_primary ? ' (Principal)' : ''} - ${w.shift_duration} min`).join('\n') +
+    '\n\n¿En cuál taller te gustaría agendar tu cita?';
+    
+  // Permitir selección
+  const selectedWorkshop = await getUserSelection(all_workshops);
+  workshopId = selectedWorkshop.workshop_id;
+} else {
+  // Usar automáticamente el taller principal
+  workshopId = all_workshops[0].workshop_id;
+}
+```
 
 ## 🚀 Próximos Pasos
 
-1. **Frontend**: Actualizar interfaces para usar `workshop_id`
+1. **Frontend**: Actualizar interfaces para usar `is_multi_workshop`
 2. **Testing**: Validar con múltiples talleres
 3. **Documentación**: Actualizar documentación de clientes
 4. **Monitoreo**: Agregar métricas de uso por taller
@@ -172,5 +308,5 @@ curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_invali
 ---
 
 **Estado**: ✅ Implementado y documentado
-**Versión**: 1.0.0
+**Versión**: 1.1.0
 **Compatibilidad**: ✅ Backward compatible 
