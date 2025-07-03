@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { cn } from '@/lib/utils';
 import { verifyToken } from "@/app/jwt/token";
 import { useRouter } from 'next/navigation';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const DAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -21,6 +22,8 @@ export default function WorkshopConfiguration() {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
+  const [selectedWorkshop, setSelectedWorkshop] = useState<string>('');
+  const [workshops, setWorkshops] = useState<any[]>([]);
   const supabase = createClientComponentClient();
   const router = useRouter();
 
@@ -54,32 +57,42 @@ export default function WorkshopConfiguration() {
       const dealershipId = verifiedData.dealership_id;
       console.log('Cargando datos para dealership_id:', dealershipId);
 
-      // Cargar configuración
-      const { data: configData, error: configError } = await supabase
-        .from('dealership_configuration')
+      // Cargar talleres primero
+      const { data: workshopsData } = await supabase
+        .from('workshops')
         .select('*')
         .eq('dealership_id', dealershipId)
-        .single();
+        .order('is_main', { ascending: false });
 
-      if (configError && configError.code !== 'PGRST116') {
-        console.error('Error al cargar configuración:', configError);
-        toast.error('Error al cargar la configuración');
-        return;
-      }
+      setWorkshops(workshopsData || []);
 
-      if (configData) {
-        setConfig(configData);
-      } else {
-        // Si no existe una configuración, crear una predeterminada
-        const defaultConfig: TallerConfig = {
-          dealership_id: dealershipId,
-          shift_duration: 30,
-          timezone: 'America/Mexico_City',
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
-        console.log('Creando configuración por defecto:', defaultConfig);
-        setConfig(defaultConfig);
+      // Seleccionar taller principal por defecto
+      const mainWorkshop = workshopsData?.find(w => w.is_main);
+      const defaultWorkshopId = mainWorkshop?.id;
+      setSelectedWorkshop(defaultWorkshopId);
+
+      // Cargar configuración del taller principal
+      if (defaultWorkshopId) {
+        const { data: configData, error: configError } = await supabase
+          .from('dealership_configuration')
+          .select('*')
+          .eq('dealership_id', dealershipId)
+          .eq('workshop_id', defaultWorkshopId)
+          .maybeSingle();
+
+        if (configData) {
+          setConfig(configData);
+        } else {
+          // Crear configuración por defecto
+          setConfig({
+            dealership_id: dealershipId,
+            workshop_id: defaultWorkshopId,
+            shift_duration: 30,
+            timezone: 'America/Mexico_City',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+        }
       }
 
       // Cargar horarios
@@ -163,6 +176,7 @@ export default function WorkshopConfiguration() {
         .from('dealership_configuration')
         .upsert({
           dealership_id: dealershipId,
+          workshop_id: selectedWorkshop,
           shift_duration: config?.shift_duration || 30,
           timezone: config?.timezone || 'America/Mexico_City',
           created_at: config?.created_at || new Date().toISOString(),
@@ -217,6 +231,39 @@ export default function WorkshopConfiguration() {
     );
   };
 
+  const handleWorkshopChange = async (workshopId: string) => {
+    setSelectedWorkshop(workshopId);
+    
+    // Obtener el dealership_id del token
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+    if (!token) return;
+    
+    const verifiedData = verifyToken(token);
+    if (!verifiedData?.dealership_id) return;
+    
+    // Cargar configuración del taller seleccionado
+    const { data: configData } = await supabase
+      .from('dealership_configuration')
+      .select('*')
+      .eq('dealership_id', verifiedData.dealership_id)
+      .eq('workshop_id', workshopId)
+      .maybeSingle();
+    
+    if (configData) {
+      setConfig(configData);
+    } else {
+      setConfig({
+        dealership_id: verifiedData.dealership_id,
+        workshop_id: workshopId,
+        shift_duration: 30,
+        timezone: 'America/Mexico_City',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    }
+  };
+
   if (isLoading) {
     return <div className="text-center py-4">Cargando configuración...</div>;
   }
@@ -233,6 +280,31 @@ export default function WorkshopConfiguration() {
       </div>
 
       <div className="grid gap-6">
+        {workshops.length > 1 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Seleccionar Taller</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Select 
+                value={selectedWorkshop} 
+                onValueChange={handleWorkshopChange}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccione un taller" />
+                </SelectTrigger>
+                <SelectContent>
+                  {workshops.map((workshop) => (
+                    <SelectItem key={workshop.id} value={workshop.id}>
+                      {workshop.name} {workshop.is_main && "(Principal)"}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>Parámetros Generales</CardTitle>

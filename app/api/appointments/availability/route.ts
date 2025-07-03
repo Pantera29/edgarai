@@ -3,6 +3,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { format, parse, addMinutes, isBefore } from 'date-fns';
 import { zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
+import { resolveWorkshopId, getWorkshopConfiguration } from '@/lib/workshop-resolver';
 
 export async function GET(request: Request) {
   try {
@@ -11,6 +12,7 @@ export async function GET(request: Request) {
     const date = searchParams.get('date');
     const serviceId = searchParams.get('service_id');
     const dealershipId = searchParams.get('dealership_id');
+    const workshopId = searchParams.get('workshop_id');
 
     // Verificar si la solicitud viene del backoffice
     const isBackofficeRequest = request.headers.get('x-request-source') === 'backoffice';
@@ -29,9 +31,9 @@ export async function GET(request: Request) {
       }
     }
 
-    if (!date || !serviceId) {
+    if (!date || !serviceId || !dealershipId) {
       return NextResponse.json(
-        { message: 'Date and service_id parameters are required' },
+        { message: 'Date, service_id and dealership_id parameters are required' },
         { status: 400 }
       );
     }
@@ -59,44 +61,17 @@ export async function GET(request: Request) {
       daily_limit: service.daily_limit
     });
 
-    // Obtener la configuración del taller
-    console.log('🔍 Consultando configuración del concesionario:', {
+    // Resolver workshop_id automáticamente si no se proporciona
+    const finalWorkshopId = await resolveWorkshopId(dealershipId, supabase, workshopId);
+
+    // Obtener configuración específica del taller
+    const dealershipConfig = await getWorkshopConfiguration(dealershipId, finalWorkshopId, supabase);
+
+    console.log('📊 Configuración del taller obtenida:', {
       dealershipId,
-      query: {
-        dealership_id: dealershipId
-      }
+      workshopId: finalWorkshopId,
+      config: dealershipConfig
     });
-
-    const { data: dealershipConfig, error: configError } = await supabase
-      .from('dealership_configuration')
-      .select('shift_duration, reception_end_time, timezone, custom_morning_slots, regular_slots_start_time')
-      .eq('dealership_id', dealershipId)
-      .maybeSingle();
-
-    console.log('📊 Resultado de configuración:', {
-      config: dealershipConfig,
-      error: configError,
-      dealershipId
-    });
-
-    if (configError) {
-      console.error('❌ Error al obtener configuración del concesionario:', {
-        error: configError.message,
-        dealershipId
-      });
-      return NextResponse.json(
-        { message: 'Error fetching dealership configuration' },
-        { status: 500 }
-      );
-    }
-
-    // Si no hay configuración, usar valores por defecto
-    if (!dealershipConfig) {
-      console.log('⚠️ No se encontró configuración para el concesionario, usando valores por defecto:', {
-        dealershipId,
-        defaultShiftDuration: 30
-      });
-    }
 
     // Usar shift_duration de la configuración o 30 minutos por defecto
     const slotDuration = dealershipConfig?.shift_duration || 30;

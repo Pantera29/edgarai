@@ -2,6 +2,7 @@ import { es } from 'date-fns/locale';
 
 export interface TallerConfig {
   dealership_id: string;
+  workshop_id?: string;
   shift_duration: number;
   timezone: string;
   created_at: string;
