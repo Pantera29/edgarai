@@ -2,9 +2,12 @@ import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getDealershipId } from "@/lib/config";
+import { resolveWorkshopId } from '@/lib/workshop-resolver';
 
 /**
  * GET endpoint para obtener información detallada de una agencia
+ * Soporta multi-taller: si se especifica workshop_id, retorna configuración específica del taller
+ * Si no se especifica, usa el taller principal por defecto
  */
 export async function GET(request: Request) {
   try {
@@ -15,11 +18,13 @@ export async function GET(request: Request) {
     const explicitDealershipId = searchParams.get('dealership_id');
     const dealershipPhone = searchParams.get('dealership_phone');
     const phoneNumber = searchParams.get('phone_number'); // Mantener por compatibilidad
+    const workshopId = searchParams.get('workshop_id'); // Nuevo parámetro para multi-taller
     
     console.log('🏢 Obteniendo información de agencia:', {
       explicitDealershipId,
       dealershipPhone,
       phoneNumber,
+      workshopId,
       url: request.url,
       searchParams: Object.fromEntries(searchParams.entries())
     });
@@ -42,6 +47,13 @@ export async function GET(request: Request) {
 
     console.log('✅ ID de agencia determinado:', dealershipId);
     
+    // Resolver workshop_id automáticamente si no se especifica
+    const finalWorkshopId = await resolveWorkshopId(dealershipId, workshopId);
+    console.log('🏭 Workshop ID resuelto:', {
+      requested: workshopId,
+      resolved: finalWorkshopId
+    });
+    
     // Consultas en paralelo para mayor eficiencia
     console.log('📊 Iniciando consultas en paralelo...');
     const [
@@ -57,21 +69,22 @@ export async function GET(request: Request) {
         .eq('id', dealershipId)
         .maybeSingle(),
       
-      // Horarios de operación
+      // Horarios de operación (a nivel dealership, no workshop)
       supabase
         .from('operating_hours')
         .select('*')
         .eq('dealership_id', dealershipId)
         .order('day_of_week'),
       
-      // Configuración de la agencia - excluyendo shift_duration
+      // Configuración específica del taller
       supabase
         .from('dealership_configuration')
-        .select('dealership_id, workshop_id, created_at, updated_at')
+        .select('*')
         .eq('dealership_id', dealershipId)
+        .eq('workshop_id', finalWorkshopId)
         .maybeSingle(),
       
-      // Fechas bloqueadas
+      // Fechas bloqueadas (a nivel dealership, no workshop)
       supabase
         .from('blocked_dates')
         .select('*')
@@ -104,12 +117,13 @@ export async function GET(request: Request) {
     }
 
     if (configResponse.error) {
-      console.error('❌ Error al obtener configuración:', {
+      console.error('❌ Error al obtener configuración del taller:', {
         error: configResponse.error.message,
-        dealershipId
+        dealershipId,
+        workshopId: finalWorkshopId
       });
       return NextResponse.json(
-        { message: 'Error fetching dealership configuration' },
+        { message: 'Error fetching workshop configuration' },
         { status: 500 }
       );
     }
@@ -136,6 +150,7 @@ export async function GET(request: Request) {
 
     console.log('✅ Información obtenida exitosamente:', {
       dealershipId,
+      workshopId: finalWorkshopId,
       hasOperatingHours: operatingHoursResponse.data?.length > 0,
       hasConfiguration: !!configResponse.data,
       blockedDatesCount: blockedDatesResponse.data?.length || 0
@@ -158,7 +173,8 @@ export async function GET(request: Request) {
       dealership: dealershipResponse.data,
       operating_hours: formattedHours,
       configuration: configResponse.data || null,
-      blocked_dates: blockedDatesResponse.data || []
+      blocked_dates: blockedDatesResponse.data || [],
+      workshop_id: finalWorkshopId // Incluir el workshop_id usado
     };
 
     return NextResponse.json(response);
