@@ -103,4 +103,183 @@ const config = await getWorkshopConfiguration(dealershipId, workshopId, supabase
 1. **Migración requerida**: Las configuraciones existentes necesitan ser migradas para incluir workshop_id
 2. **Taller principal**: Cada dealership debe tener exactamente un taller marcado como principal
 3. **Compatibilidad**: El sistema mantiene compatibilidad hacia atrás usando el taller principal por defecto
-4. **Validaciones**: Se agregaron validaciones para asegurar que workshop_id pertenezca al dealership correcto 
+4. **Validaciones**: Se agregaron validaciones para asegurar que workshop_id pertenezca al dealership correcto
+
+# Soporte Multi-Taller en Sistema de Citas Automotrices
+
+## 🎯 Objetivo
+Implementar soporte completo para múltiples talleres por dealership en el sistema de gestión automotriz, permitiendo que cada agencia pueda manejar múltiples ubicaciones con configuraciones independientes.
+
+## 📁 Archivos Creados/Modificados
+
+### Backend - APIs y Helpers
+- **`lib/workshop-resolver.ts`** (NUEVO) - Helper para resolver workshop_id
+- **`app/api/appointments/availability/route.ts`** - Actualizado para soporte multi-taller
+- **`app/api/appointments/create/route.ts`** - Actualizado para usar workshop_id
+- **`app/api/appointments/update/[id]/route.ts`** - Actualizado para permitir cambio de taller
+- **`app/api/whatsapp/send/route.ts`** - Actualizado para obtener token por taller
+- **`app/api/dealerships/info/route.ts`** - Actualizado para incluir workshop_id
+
+### Frontend - Panel de Administración
+- **`app/backoffice/admin/configuracion/page.tsx`** - Selector de taller y gestión por taller
+
+### Tipos TypeScript
+- **`types/index.ts`** - Agregado workshop_id opcional
+
+## 🚀 Implementación
+
+### 1. Helper de Resolución de Taller
+```typescript
+// lib/workshop-resolver.ts
+export async function resolveWorkshopId(
+  dealershipId: string, 
+  workshopId?: string
+): Promise<string> {
+  // Si se especifica workshop_id, validar que pertenezca al dealership
+  // Si no se especifica, obtener el taller principal (is_primary = true)
+  // Retornar el workshop_id válido
+}
+```
+
+### 2. API de Disponibilidad Multi-Taller
+```typescript
+// app/api/appointments/availability/route.ts
+// Parámetros: date, service_id, dealership_id, workshop_id (opcional)
+// Si workshop_id no se especifica, usa el taller principal automáticamente
+// Valida disponibilidad usando configuración específica del taller
+```
+
+### 3. Creación de Citas con Taller
+```typescript
+// app/api/appointments/create/route.ts
+// Recibe workshop_id opcional
+// Si no se especifica, resuelve automáticamente al taller principal
+// Guarda la cita con el workshop_id correspondiente
+```
+
+### 4. Actualización de Citas con Cambio de Taller
+```typescript
+// app/api/appointments/update/[id]/route.ts
+// Permite actualizar workshop_id de una cita existente
+// Valida que el nuevo taller pertenezca al mismo dealership
+// Verifica disponibilidad en el nuevo taller
+// Campos permitidos: status, appointment_date, appointment_time, notes, service_id, workshop_id
+```
+
+### 5. Panel de Configuración Multi-Taller
+```typescript
+// app/backoffice/admin/configuracion/page.tsx
+// Selector de taller en la parte superior
+// Carga configuración específica del taller seleccionado
+// Guarda cambios en el taller específico
+// Estados de loading por taller
+```
+
+## 🧪 Testing
+
+### Casos de Prueba - Endpoint de Actualización
+
+#### 1. Cambio de Taller Válido
+```bash
+PATCH /api/appointments/update/{appointment_id}
+{
+  "workshop_id": "workshop_2_uuid"
+}
+```
+**Resultado esperado**: ✅ Cita actualizada al nuevo taller
+
+#### 2. Cambio de Taller Inválido
+```bash
+PATCH /api/appointments/update/{appointment_id}
+{
+  "workshop_id": "workshop_de_otro_dealership"
+}
+```
+**Resultado esperado**: ❌ Error 400 - "Invalid workshop for this dealership"
+
+#### 3. Cambio de Taller + Reprogramación
+```bash
+PATCH /api/appointments/update/{appointment_id}
+{
+  "workshop_id": "workshop_2_uuid",
+  "appointment_date": "2024-12-15",
+  "appointment_time": "10:00"
+}
+```
+**Resultado esperado**: ✅ Verifica disponibilidad en el nuevo taller
+
+#### 4. Actualización Sin Cambio de Taller
+```bash
+PATCH /api/appointments/update/{appointment_id}
+{
+  "status": "confirmed"
+}
+```
+**Resultado esperado**: ✅ Mantiene el taller original
+
+### Validaciones Implementadas
+
+#### Backend
+- ✅ Validación de que el nuevo taller pertenezca al mismo dealership
+- ✅ Verificación de disponibilidad en el nuevo taller
+- ✅ Mantenimiento de recordatorios sin workshop_id (no requerido)
+- ✅ Compatibilidad con citas existentes sin workshop_id
+
+#### Frontend
+- ✅ Selector de taller en panel de configuración
+- ✅ Carga/guardado de configuración por taller
+- ✅ Estados de loading independientes
+- ✅ Validación de taller seleccionado
+
+## 📈 Impacto
+
+### Beneficios
+1. **Flexibilidad Operacional**: Las agencias pueden mover citas entre talleres según disponibilidad
+2. **Gestión Independiente**: Cada taller puede tener su propia configuración de horarios
+3. **Compatibilidad**: Funciona con agencias de un solo taller sin cambios
+4. **Escalabilidad**: Fácil agregar nuevos talleres sin modificar código
+
+### Consideraciones
+- Los recordatorios no requieren workshop_id (mantienen dealership_id)
+- Las citas existentes mantienen su workshop_id original
+- La validación asegura que solo se usen talleres del mismo dealership
+
+## 🔄 Flujo de Cambio de Taller
+
+1. **Usuario selecciona nuevo taller** en la interfaz
+2. **Frontend envía PATCH** con nuevo workshop_id
+3. **Backend valida** que el taller pertenezca al dealership
+4. **Se verifica disponibilidad** en el nuevo taller
+5. **Se actualiza la cita** con el nuevo workshop_id
+6. **Se mantienen recordatorios** sin cambios (no requieren workshop_id)
+
+## 📊 Logs de Ejemplo
+
+### Cambio de Taller Exitoso
+```
+🏭 Validando cambio de taller: {
+  oldWorkshopId: "workshop_1_uuid",
+  newWorkshopId: "workshop_2_uuid"
+}
+✅ Taller válido para el dealership
+🔍 Verificando disponibilidad: {
+  date: "2024-12-15",
+  time: "10:00",
+  workshop_id: "workshop_2_uuid"
+}
+✅ Cita actualizada exitosamente
+```
+
+### Error de Taller Inválido
+```
+❌ Taller no válido para este dealership: {
+  workshop_id: "workshop_invalid",
+  dealership_id: "dealership_123"
+}
+```
+
+---
+
+**Estado**: ✅ Implementación completa y probada
+**Compatibilidad**: ✅ Backward compatible con agencias de un solo taller
+**Documentación**: ✅ Actualizada con ejemplos y casos de uso 

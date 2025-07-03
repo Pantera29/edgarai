@@ -3,6 +3,7 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { createAutomaticReminder } from '@/lib/simple-reminder-creator';
 import { createConfirmationReminder } from '@/lib/confirmation-reminder-creator';
+import { resolveWorkshopId } from '@/lib/workshop-resolver';
 
 // Definimos los estados permitidos en inglés
 type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
@@ -64,7 +65,8 @@ export async function PATCH(
       'appointment_date',
       'appointment_time',
       'notes',
-      'service_id'
+      'service_id',
+      'workshop_id'
     ];
 
     // Filtrar solo los campos permitidos
@@ -81,7 +83,7 @@ export async function PATCH(
     if (Object.keys(filteredUpdates).length === 0) {
       console.log('❌ Error: No hay campos válidos para actualizar');
       return NextResponse.json(
-        { message: 'No valid fields to update. Please provide at least one of: status, appointment_date, appointment_time, notes.' },
+        { message: 'No valid fields to update. Please provide at least one of: status, appointment_date, appointment_time, notes, workshop_id.' },
         { status: 400 }
       );
     }
@@ -104,14 +106,14 @@ export async function PATCH(
       }
     }
 
-    // Si se está reprogramando (cambiando fecha u hora)
-    if (filteredUpdates.appointment_date || filteredUpdates.appointment_time) {
-      console.log('🔍 Verificando disponibilidad para reprogramación');
+    // Si se está reprogramando (cambiando fecha u hora) O cambiando de taller
+    if (filteredUpdates.appointment_date || filteredUpdates.appointment_time || filteredUpdates.workshop_id) {
+      console.log('🔍 Verificando disponibilidad para reprogramación o cambio de taller');
       
       // Obtener la cita actual para tener todos los datos necesarios
       const { data: currentAppointment, error: fetchError } = await supabase
         .from('appointment')
-        .select('appointment_date, appointment_time, service_id, client_id')
+        .select('appointment_date, appointment_time, service_id, client_id, workshop_id')
         .eq('id', appointmentId)
         .single();
 
@@ -129,12 +131,69 @@ export async function PATCH(
       // Usar los valores actuales para los campos que no se están actualizando
       const newDate = filteredUpdates.appointment_date || currentAppointment.appointment_date;
       const newTime = filteredUpdates.appointment_time || currentAppointment.appointment_time;
+      const newWorkshopId = filteredUpdates.workshop_id || currentAppointment.workshop_id;
 
       console.log('🔍 Verificando disponibilidad:', {
         date: newDate,
         time: newTime,
+        workshop_id: newWorkshopId,
         appointmentId
       });
+
+      // Si se está cambiando de taller, validar que el nuevo taller pertenezca al mismo dealership
+      if (filteredUpdates.workshop_id && filteredUpdates.workshop_id !== currentAppointment.workshop_id) {
+        console.log('🏭 Validando cambio de taller:', {
+          oldWorkshopId: currentAppointment.workshop_id,
+          newWorkshopId: filteredUpdates.workshop_id
+        });
+
+        // Obtener el dealership_id del cliente
+        const { data: client, error: clientError } = await supabase
+          .from('client')
+          .select('dealership_id')
+          .eq('id', currentAppointment.client_id)
+          .single();
+
+        if (clientError || !client) {
+          console.error('❌ Error al obtener información del cliente:', {
+            error: clientError?.message,
+            clientId: currentAppointment.client_id
+          });
+          return NextResponse.json(
+            { message: 'Error fetching client information' },
+            { status: 500 }
+          );
+        }
+
+        // Verificar que el nuevo taller pertenezca al mismo dealership
+        const { data: workshopConfig, error: workshopError } = await supabase
+          .from('dealership_configuration')
+          .select('workshop_id')
+          .eq('workshop_id', filteredUpdates.workshop_id)
+          .eq('dealership_id', client.dealership_id)
+          .maybeSingle();
+
+        if (workshopError) {
+          console.error('❌ Error al verificar taller:', workshopError);
+          return NextResponse.json(
+            { message: 'Error verifying workshop' },
+            { status: 500 }
+          );
+        }
+
+        if (!workshopConfig) {
+          console.log('❌ Taller no válido para este dealership:', {
+            workshop_id: filteredUpdates.workshop_id,
+            dealership_id: client.dealership_id
+          });
+          return NextResponse.json(
+            { message: 'Invalid workshop for this dealership. Please select a valid workshop.' },
+            { status: 400 }
+          );
+        }
+
+        console.log('✅ Taller válido para el dealership');
+      }
 
       // Obtener el dealership_id del cliente
       console.log('🔍 Consultando información del cliente:', {
@@ -176,18 +235,25 @@ export async function PATCH(
         dealership_id_last_chars: client.dealership_id?.slice(-4)
       });
 
-      // Verificar disponibilidad usando el endpoint de disponibilidad
+      // Verificar disponibilidad usando el endpoint de disponibilidad con workshop_id
       const baseUrl = new URL(request.url).origin;
-      const availabilityUrl = `${baseUrl}/api/appointments/availability?` + 
-        new URLSearchParams({
-          date: newDate,
-          service_id: currentAppointment.service_id,
-          dealership_id: client.dealership_id
-        });
+      const availabilityParams = new URLSearchParams({
+        date: newDate,
+        service_id: currentAppointment.service_id,
+        dealership_id: client.dealership_id
+      });
+
+      // Agregar workshop_id si se está especificando
+      if (newWorkshopId) {
+        availabilityParams.append('workshop_id', newWorkshopId);
+      }
+
+      const availabilityUrl = `${baseUrl}/api/appointments/availability?${availabilityParams}`;
 
       console.log('🔍 URL de disponibilidad:', {
         url: availabilityUrl,
         dealership_id: client.dealership_id,
+        workshop_id: newWorkshopId,
         dealership_id_length: client.dealership_id?.length,
         dealership_id_last_chars: client.dealership_id?.slice(-4)
       });
