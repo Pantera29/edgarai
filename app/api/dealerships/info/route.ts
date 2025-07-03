@@ -60,7 +60,8 @@ export async function GET(request: Request) {
       dealershipResponse,
       operatingHoursResponse,
       configResponse,
-      blockedDatesResponse
+      blockedDatesResponse,
+      allWorkshopsResponse
     ] = await Promise.all([
       // Información básica de la agencia
       supabase
@@ -90,7 +91,14 @@ export async function GET(request: Request) {
         .select('*')
         .eq('dealership_id', dealershipId)
         .gte('date', new Date().toISOString().split('T')[0]) // Solo fechas futuras
-        .order('date')
+        .order('date'),
+      
+      // Todos los talleres de la agencia
+      supabase
+        .from('dealership_configuration')
+        .select('*')
+        .eq('dealership_id', dealershipId)
+        .order('is_primary', { ascending: false })
     ]);
 
     // Verificar errores en las consultas
@@ -139,6 +147,17 @@ export async function GET(request: Request) {
       );
     }
 
+    if (allWorkshopsResponse.error) {
+      console.error('❌ Error al obtener talleres:', {
+        error: allWorkshopsResponse.error.message,
+        dealershipId
+      });
+      return NextResponse.json(
+        { message: 'Error fetching workshops' },
+        { status: 500 }
+      );
+    }
+
     // Verificar si la agencia existe
     if (!dealershipResponse.data) {
       console.log('❌ Agencia no encontrada:', dealershipId);
@@ -148,9 +167,24 @@ export async function GET(request: Request) {
       );
     }
 
+    // Determinar si es multi-taller
+    const isMultiWorkshop = allWorkshopsResponse.data && allWorkshopsResponse.data.length > 1;
+    
+    // Formatear información de todos los talleres
+    const allWorkshops = allWorkshopsResponse.data?.map(workshop => ({
+      workshop_id: workshop.workshop_id,
+      name: workshop.name || (workshop.is_primary ? 'Taller Principal' : `Taller ${workshop.workshop_id.slice(-4)}`),
+      is_primary: workshop.is_primary,
+      shift_duration: workshop.shift_duration,
+      timezone: workshop.timezone,
+      reception_end_time: workshop.reception_end_time
+    })) || [];
+
     console.log('✅ Información obtenida exitosamente:', {
       dealershipId,
       workshopId: finalWorkshopId,
+      isMultiWorkshop,
+      workshopsCount: allWorkshops.length,
       hasOperatingHours: operatingHoursResponse.data?.length > 0,
       hasConfiguration: !!configResponse.data,
       blockedDatesCount: blockedDatesResponse.data?.length || 0
@@ -174,7 +208,9 @@ export async function GET(request: Request) {
       operating_hours: formattedHours,
       configuration: configResponse.data || null,
       blocked_dates: blockedDatesResponse.data || [],
-      workshop_id: finalWorkshopId // Incluir el workshop_id usado
+      workshop_id: finalWorkshopId, // Incluir el workshop_id usado
+      is_multi_workshop: isMultiWorkshop, // ← NUEVO
+      all_workshops: allWorkshops // ← NUEVO
     };
 
     return NextResponse.json(response);

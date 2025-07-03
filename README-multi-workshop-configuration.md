@@ -173,6 +173,7 @@ export async function resolveWorkshopId(
 // Si workshop_id no se especifica, usa el taller principal
 // Retorna configuración específica del taller (shift_duration, timezone, etc.)
 // operating_hours y blocked_dates siguen a nivel dealership
+// NUEVO: is_multi_workshop y all_workshops para detectar múltiples ubicaciones
 ```
 
 ### 6. Panel de Configuración Multi-Taller
@@ -192,19 +193,25 @@ export async function resolveWorkshopId(
 ```bash
 GET /api/dealerships/info?dealership_id=xxx&workshop_id=workshop_2_uuid
 ```
-**Resultado esperado**: ✅ Configuración específica del taller 2
+**Resultado esperado**: ✅ Configuración específica del taller 2 + `is_multi_workshop: true` + `all_workshops`
 
-#### 2. Información sin Especificar Taller
+#### 2. Información sin Especificar Taller (Agencia Multi-Taller)
 ```bash
 GET /api/dealerships/info?dealership_id=xxx
 ```
-**Resultado esperado**: ✅ Configuración del taller principal (is_primary = true)
+**Resultado esperado**: ✅ Configuración del taller principal + `is_multi_workshop: true` + `all_workshops`
 
-#### 3. Información con Taller Inválido
+#### 3. Información sin Especificar Taller (Agencia de Un Solo Taller)
+```bash
+GET /api/dealerships/info?dealership_id=xxx
+```
+**Resultado esperado**: ✅ Configuración del taller principal + `is_multi_workshop: false` + `all_workshops` con 1 taller
+
+#### 4. Información con Taller Inválido
 ```bash
 GET /api/dealerships/info?dealership_id=xxx&workshop_id=workshop_invalid
 ```
-**Resultado esperado**: ✅ Usa el taller principal por defecto
+**Resultado esperado**: ✅ Usa el taller principal por defecto + `all_workshops` con talleres válidos
 
 ### Casos de Prueba - Endpoint de Actualización
 
@@ -252,6 +259,8 @@ PATCH /api/appointments/update/{appointment_id}
 - ✅ Validación de que el nuevo taller pertenezca al mismo dealership
 - ✅ Verificación de disponibilidad en el nuevo taller
 - ✅ Resolución automática del taller principal cuando no se especifica
+- ✅ Detección automática de agencias multi-taller
+- ✅ Lista completa de talleres disponibles
 - ✅ Mantenimiento de recordatorios sin workshop_id (no requerido)
 - ✅ Compatibilidad con citas existentes sin workshop_id
 
@@ -267,14 +276,17 @@ PATCH /api/appointments/update/{appointment_id}
 1. **Flexibilidad Operacional**: Las agencias pueden mover citas entre talleres según disponibilidad
 2. **Gestión Independiente**: Cada taller puede tener su propia configuración de horarios
 3. **Configuración Específica**: Cada taller puede tener diferentes shift_duration, timezone, etc.
-4. **Compatibilidad**: Funciona con agencias de un solo taller sin cambios
-5. **Escalabilidad**: Fácil agregar nuevos talleres sin modificar código
+4. **Detección Automática**: El sistema detecta automáticamente si es multi-taller
+5. **Lista Completa**: Se pueden ver todos los talleres disponibles
+6. **Compatibilidad**: Funciona con agencias de un solo taller sin cambios
+7. **Escalabilidad**: Fácil agregar nuevos talleres sin modificar código
 
 ### Consideraciones
 - Los recordatorios no requieren workshop_id (mantienen dealership_id)
 - Las citas existentes mantienen su workshop_id original
 - La validación asegura que solo se usen talleres del mismo dealership
 - operating_hours y blocked_dates siguen a nivel dealership (no por taller)
+- Nuevos campos `is_multi_workshop` y `all_workshops` son opcionales para clientes existentes
 
 ## 🔄 Flujo de Cambio de Taller
 
@@ -290,11 +302,20 @@ PATCH /api/appointments/update/{appointment_id}
 1. **Cliente solicita información** con o sin workshop_id
 2. **Backend resuelve workshop_id** (específico o principal)
 3. **Se consulta configuración** del taller específico
-4. **Se retorna información completa** incluyendo workshop_id usado
+4. **Se detecta si es multi-taller** automáticamente
+5. **Se retorna información completa** incluyendo lista de todos los talleres
+
+## 🔄 Flujo de Detección Multi-Taller
+
+1. **Agente AI consulta** información de dealership
+2. **Sistema detecta** `is_multi_workshop: true/false`
+3. **Si es multi-taller**, muestra lista de talleres disponibles
+4. **Usuario selecciona** taller preferido
+5. **Se usan parámetros** específicos del taller seleccionado
 
 ## 📊 Logs de Ejemplo
 
-### Información de Dealership con Taller Específico
+### Información de Dealership Multi-Taller
 ```
 🏢 Obteniendo información de agencia: {
   explicitDealershipId: "dealership_123",
@@ -307,6 +328,26 @@ PATCH /api/appointments/update/{appointment_id}
 ✅ Información obtenida exitosamente: {
   dealershipId: "dealership_123",
   workshopId: "workshop_2_uuid",
+  isMultiWorkshop: true,
+  workshopsCount: 3,
+  hasConfiguration: true
+}
+```
+
+### Información de Dealership de Un Solo Taller
+```
+🏢 Obteniendo información de agencia: {
+  explicitDealershipId: "dealership_456"
+}
+🏭 Workshop ID resuelto: {
+  requested: null,
+  resolved: "workshop_primary_uuid"
+}
+✅ Información obtenida exitosamente: {
+  dealershipId: "dealership_456",
+  workshopId: "workshop_primary_uuid",
+  isMultiWorkshop: false,
+  workshopsCount: 1,
   hasConfiguration: true
 }
 ```
