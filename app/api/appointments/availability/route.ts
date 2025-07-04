@@ -62,9 +62,24 @@ export async function GET(request: Request) {
     });
 
     // Resolver workshop_id automáticamente si no se proporciona
+    console.log('🔍 Resolviendo workshop_id:', {
+      dealershipId,
+      providedWorkshopId: workshopId
+    });
+    
     const finalWorkshopId = await resolveWorkshopId(dealershipId, supabase, workshopId);
+    
+    console.log('✅ Workshop_id resuelto:', {
+      finalWorkshopId,
+      dealershipId
+    });
 
     // Obtener configuración específica del taller
+    console.log('🔍 Obteniendo configuración del taller:', {
+      dealershipId,
+      workshopId: finalWorkshopId
+    });
+    
     const dealershipConfig = await getWorkshopConfiguration(dealershipId, finalWorkshopId, supabase);
 
     console.log('📊 Configuración del taller obtenida:', {
@@ -115,19 +130,22 @@ export async function GET(request: Request) {
       }
     });
 
-    // Ahora consultamos el horario específico
+    // Ahora consultamos el horario específico para el taller
     let scheduleQuery = supabase
       .from('operating_hours')
       .select('*')
       .eq('day_of_week', dayOfWeek)
-      .eq('dealership_id', dealershipId);
+      .eq('dealership_id', dealershipId)
+      .eq('workshop_id', finalWorkshopId);
 
     console.log('🔍 Consultando horario específico:', {
       dayOfWeek,
       dealershipId,
+      workshopId: finalWorkshopId,
       query: {
         day_of_week: dayOfWeek,
         dealership_id: dealershipId,
+        workshop_id: finalWorkshopId,
         dealership_id_length: dealershipId?.length,
         dealership_id_last_chars: dealershipId?.slice(-4)
       }
@@ -214,13 +232,14 @@ export async function GET(request: Request) {
       });
     }
 
-    // 5. Obtener citas existentes para ese día
+    // 5. Obtener citas existentes para ese día y taller específico
     console.log('🔍 Consultando citas existentes:', {
       date,
-      dealershipId
+      dealershipId,
+      workshopId: finalWorkshopId
     });
 
-    // Obtener citas directamente filtradas por dealership_id
+    // Obtener citas filtradas por dealership_id y workshop_id específico
     const { data: appointments, error: appointmentsError } = await supabase
       .from('appointment')
       .select(`
@@ -234,7 +253,8 @@ export async function GET(request: Request) {
         client_id
       `)
       .eq('appointment_date', date)
-      .eq('dealership_id', dealershipId);
+      .eq('dealership_id', dealershipId)
+      .eq('workshop_id', finalWorkshopId);
 
     if (appointmentsError) {
       console.error('Error fetching appointments:', {
