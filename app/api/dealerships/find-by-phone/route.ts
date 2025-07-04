@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { normalizePhoneNumber } from "@/lib/utils";
 
 /**
  * GET endpoint para obtener el dealership_id asociado a un número de teléfono
@@ -27,15 +28,18 @@ export async function GET(request: Request) {
       );
     }
 
-    // Normalizar el número de teléfono
-    const normalizedPhone = phoneNumber.replace(/[^0-9]/g, '');
-    console.log('📱 Teléfono normalizado:', normalizedPhone);
+    // Normalizar el número de teléfono usando la función de utilidad
+    const normalizedPhone = normalizePhoneNumber(phoneNumber);
+    console.log('📱 Normalización de teléfono:', {
+      original: phoneNumber,
+      normalized: normalizedPhone
+    });
 
-    // Buscar en la tabla dealership_mapping
+    // Buscar en la tabla dealership_mapping usando el número normalizado
     const { data, error } = await supabase
       .from('dealership_mapping')
       .select('dealership_id')
-      .eq('phone_number', phoneNumber)
+      .eq('phone_number', normalizedPhone)
       .maybeSingle();
 
     if (error) {
@@ -50,7 +54,10 @@ export async function GET(request: Request) {
     }
 
     if (!data) {
-      console.log('ℹ️ Agencia no encontrada:', normalizedPhone);
+      console.log('ℹ️ Agencia no encontrada:', {
+        original: phoneNumber,
+        normalized: normalizedPhone
+      });
       return NextResponse.json(
         { message: 'No se encontró ningún dealership con ese número de teléfono' },
         { status: 404 }
@@ -59,7 +66,8 @@ export async function GET(request: Request) {
 
     console.log('✅ Agencia encontrada:', {
       dealership_id: data.dealership_id,
-      phone: normalizedPhone
+      original_phone: phoneNumber,
+      normalized_phone: normalizedPhone
     });
 
     return NextResponse.json({

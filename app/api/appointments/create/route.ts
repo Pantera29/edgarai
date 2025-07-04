@@ -156,8 +156,26 @@ export async function POST(request: Request) {
     const finalDealershipId = await getDealershipId({ 
       dealershipId: dealership_id,
       dealershipPhone: dealership_phone || (channel === 'whatsapp' ? phone_number : null),
-      supabase 
+      supabase,
+      useFallback: false // ← NO usar fallback por defecto
     });
+
+    if (!finalDealershipId) {
+      console.log('❌ Error: No se pudo determinar el ID de la agencia');
+      
+      // Si se proporcionó un teléfono pero no se encontró, dar mensaje específico
+      if (dealership_phone || (channel === 'whatsapp' ? phone_number : null)) {
+        return NextResponse.json(
+          { message: 'No se encontró ningún dealership con ese número de teléfono' },
+          { status: 404 }
+        );
+      }
+      
+      return NextResponse.json(
+        { message: 'Could not determine dealership ID' },
+        { status: 400 }
+      );
+    }
 
     const finalWorkshopId = await resolveWorkshopId(finalDealershipId, supabase, workshop_id);
 

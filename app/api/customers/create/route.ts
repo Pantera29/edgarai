@@ -57,8 +57,27 @@ export async function POST(request: Request) {
     // Determinar el dealership_id a usar
     const dealershipIdToUse = dealership_id || await getDealershipId({ 
       dealershipPhone: dealership_phone, 
-      supabase 
+      supabase,
+      useFallback: false
     });
+    
+    if (!dealershipIdToUse) {
+      console.log('❌ Error: No se pudo determinar el ID de la agencia');
+      
+      // Si se proporcionó un teléfono pero no se encontró, dar mensaje específico
+      if (dealership_phone) {
+        return NextResponse.json(
+          { message: 'No se encontró ningún dealership con ese número de teléfono' },
+          { status: 404 }
+        );
+      }
+      
+      return NextResponse.json(
+        { message: 'Could not determine dealership ID' },
+        { status: 400 }
+      );
+    }
+    
     console.log('Dealership ID a usar:', dealershipIdToUse);
 
     // Verificar si el cliente ya existe

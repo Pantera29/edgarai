@@ -34,11 +34,21 @@ export async function GET(request: Request) {
     const dealershipId = await getDealershipId({
       dealershipId: explicitDealershipId,
       dealershipPhone: dealershipPhone || phoneNumber,
-      supabase
+      supabase,
+      useFallback: false
     });
 
     if (!dealershipId) {
       console.log('❌ Error: No se pudo determinar el ID de la agencia');
+      
+      // Si se proporcionó un teléfono pero no se encontró, dar mensaje específico
+      if (dealershipPhone || phoneNumber) {
+        return NextResponse.json(
+          { message: 'No se encontró ningún dealership con ese número de teléfono' },
+          { status: 404 }
+        );
+      }
+      
       return NextResponse.json(
         { message: 'Could not determine dealership ID' },
         { status: 400 }
