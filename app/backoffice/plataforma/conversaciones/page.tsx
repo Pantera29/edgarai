@@ -70,7 +70,6 @@ export default function PlataformaConversacionesPage() {
   const [filtroAgencia, setFiltroAgencia] = useState("todas");
   const [filtroCanal, setFiltroCanal] = useState("todos");
   const [filtroEvaluacion, setFiltroEvaluacion] = useState("todas");
-  const [duracionMinima, setDuracionMinima] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -129,7 +128,7 @@ export default function PlataformaConversacionesPage() {
     } else {
       console.log('❌ dataToken no válido, no se cargan datos');
     }
-  }, [dataToken, busqueda, filtroAgencia, filtroCanal, filtroEvaluacion, duracionMinima, pagina]);
+  }, [dataToken, busqueda, filtroAgencia, filtroCanal, filtroEvaluacion, pagina]);
 
   const cargarAgencias = async () => {
     try {
@@ -159,7 +158,6 @@ export default function PlataformaConversacionesPage() {
         filtroAgencia,
         filtroCanal,
         filtroEvaluacion,
-        duracionMinima,
         pagina
       });
 
@@ -194,20 +192,10 @@ export default function PlataformaConversacionesPage() {
         console.log('📋 Valor exacto de data:', data);
       }
       
-      // Filtrar por duración mínima si se especifica
-      let conversacionesFiltradas = data || [];
-      if (duracionMinima && duracionMinima !== "") {
-        const duracionMin = parseInt(duracionMinima);
-        conversacionesFiltradas = conversacionesFiltradas.filter((conv: any) => 
-          conv.duration_seconds && conv.duration_seconds >= duracionMin
-        );
-        console.log('🔍 Conversaciones después del filtro de duración:', conversacionesFiltradas.length);
-      }
+      setConversaciones(data || []);
+      setTotalConversaciones(data?.length || 0);
       
-      setConversaciones(conversacionesFiltradas);
-      setTotalConversaciones(conversacionesFiltradas.length);
-      
-      console.log('✅ Estado actualizado con', conversacionesFiltradas.length, 'conversaciones');
+      console.log('✅ Estado actualizado con', data?.length || 0, 'conversaciones');
 
     } catch (error) {
       console.error("❌ Error fatal en cargarConversaciones:", error);
@@ -274,7 +262,7 @@ export default function PlataformaConversacionesPage() {
       </div>
 
       <Card className="p-4 shadow-sm border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="relative">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -330,13 +318,6 @@ export default function PlataformaConversacionesPage() {
               <SelectItem value="unsuccessful">No exitosa</SelectItem>
             </SelectContent>
           </Select>
-
-          <Input
-            placeholder="Duración mín. (seg)"
-            type="number"
-            value={duracionMinima}
-            onChange={(e) => setDuracionMinima(e.target.value)}
-          />
         </div>
       </Card>
 
