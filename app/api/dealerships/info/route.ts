@@ -48,7 +48,7 @@ export async function GET(request: Request) {
     console.log('✅ ID de agencia determinado:', dealershipId);
     
     // Resolver workshop_id automáticamente si no se especifica
-    const finalWorkshopId = await resolveWorkshopId(dealershipId, workshopId);
+    const finalWorkshopId = await resolveWorkshopId(dealershipId, supabase, workshopId);
     console.log('🏭 Workshop ID resuelto:', {
       requested: workshopId,
       resolved: finalWorkshopId
@@ -95,10 +95,11 @@ export async function GET(request: Request) {
       
       // Todos los talleres de la agencia
       supabase
-        .from('dealership_configuration')
+        .from('workshops')
         .select('*')
         .eq('dealership_id', dealershipId)
-        .order('is_primary', { ascending: false })
+        .eq('is_active', true)
+        .order('is_main', { ascending: false })
     ]);
 
     // Verificar errores en las consultas
@@ -172,12 +173,13 @@ export async function GET(request: Request) {
     
     // Formatear información de todos los talleres
     const allWorkshops = allWorkshopsResponse.data?.map(workshop => ({
-      workshop_id: workshop.workshop_id,
-      name: workshop.name || (workshop.is_primary ? 'Taller Principal' : `Taller ${workshop.workshop_id.slice(-4)}`),
-      is_primary: workshop.is_primary,
-      shift_duration: workshop.shift_duration,
-      timezone: workshop.timezone,
-      reception_end_time: workshop.reception_end_time
+      workshop_id: workshop.id,
+      name: workshop.name || (workshop.is_main ? 'Taller Principal' : `Taller ${workshop.id.slice(-4)}`),
+      is_primary: workshop.is_main,
+      address: workshop.address,
+      city: workshop.city,
+      phone: workshop.phone,
+      is_active: workshop.is_active
     })) || [];
 
     console.log('✅ Información obtenida exitosamente:', {
