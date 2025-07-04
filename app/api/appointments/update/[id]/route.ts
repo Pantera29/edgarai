@@ -547,6 +547,37 @@ export async function PATCH(
             console.error('❌ Error en proceso de creación de NPS:', npsError);
             // No fallamos la actualización de la cita si falla la creación del NPS
           }
+
+          // 4. Crear recordatorio NPS para el día siguiente
+          try {
+            const appointmentDate = new Date(data.appointment_date);
+            const npsReminderDate = new Date(appointmentDate);
+            npsReminderDate.setDate(npsReminderDate.getDate() + 1);
+
+            const { data: npsReminder, error: npsReminderError } = await supabase
+              .from('reminders')
+              .insert({
+                client_id_uuid: data.client.id,
+                vehicle_id: data.vehicle.id_uuid,
+                service_id: data.service.id_uuid,
+                base_date: data.appointment_date,
+                reminder_date: npsReminderDate.toISOString().split('T')[0],
+                notes: 'Recordatorio NPS post-servicio',
+                status: 'pending',
+                reminder_type: 'nps',
+                dealership_id: data.client.dealership_id
+              })
+              .select()
+              .single();
+
+            if (npsReminderError) {
+              console.error('❌ Error al crear recordatorio NPS:', npsReminderError);
+            } else {
+              console.log('✅ Recordatorio NPS creado exitosamente:', npsReminder?.reminder_id);
+            }
+          } catch (npsReminderCatchError) {
+            console.error('❌ Error inesperado al crear recordatorio NPS:', npsReminderCatchError);
+          }
         }
 
       } catch (error) {
