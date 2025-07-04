@@ -46,7 +46,10 @@ export async function createConfirmationReminder(params: CreateConfirmationRemin
     console.log('🔍 [Confirmation Reminder] Datos del recordatorio preparados:', reminderData);
     
     // Usar el endpoint existente de reminders
-    const baseUrl = new URL('http://localhost:3000'); // Se ajustará en runtime
+    // En producción, usar la URL del servidor actual
+    const baseUrl = process.env.NODE_ENV === 'production' 
+      ? new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://www.edgarai.com.mx')
+      : new URL('http://localhost:3000');
     const remindersUrl = `${baseUrl.origin}/api/reminders`;
     
     console.log('🔍 [Confirmation Reminder] URL del endpoint:', remindersUrl);
