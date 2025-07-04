@@ -68,20 +68,59 @@ export async function PUT(
       );
     }
 
-    // Actualizar o crear evaluación
-    const evaluationData = {
+    // Verificar si ya existe una evaluación
+    const { data: existingEvaluation, error: fetchError } = await supabase
+      .from('conversation_evaluations')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .single();
+
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('❌ Error verificando evaluación existente:', fetchError);
+      return NextResponse.json(
+        { message: 'Error al verificar evaluación existente', error: fetchError.message },
+        { status: 500 }
+      );
+    }
+
+    // Preparar datos de actualización - solo incluir campos que se envían
+    const updateData: any = {
       conversation_id: conversationId,
-      evaluation_status: evaluation_status || 'pending',
-      evaluation_tags: evaluation_tags || [],
-      admin_comments: admin_comments || null,
       evaluated_by: tokenData.dealership_id,
-      evaluated_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
+    // Solo incluir campos que se envían en el request
+    if (evaluation_status !== undefined) {
+      updateData.evaluation_status = evaluation_status;
+    }
+    if (evaluation_tags !== undefined) {
+      updateData.evaluation_tags = evaluation_tags;
+    }
+    if (admin_comments !== undefined) {
+      updateData.admin_comments = admin_comments;
+    }
+
+    // Si es una nueva evaluación, agregar campos de creación
+    if (!existingEvaluation) {
+      updateData.evaluated_at = new Date().toISOString();
+      // Establecer valores por defecto solo para nuevas evaluaciones
+      if (evaluation_status === undefined) {
+        updateData.evaluation_status = 'pending';
+      }
+      if (evaluation_tags === undefined) {
+        updateData.evaluation_tags = [];
+      }
+      if (admin_comments === undefined) {
+        updateData.admin_comments = null;
+      }
+    }
+
+    console.log('🔄 Datos de actualización:', updateData);
+
     const { data, error } = await supabase
       .from('conversation_evaluations')
-      .upsert(evaluationData, {
+      .upsert(updateData, {
         onConflict: 'conversation_id',
         ignoreDuplicates: false
       })
