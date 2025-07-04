@@ -9,9 +9,10 @@ export async function resolveWorkshopId(
       .from('workshops')
       .select('id, dealership_id')
       .eq('id', workshop_id)
+      .eq('dealership_id', dealership_id)
       .single();
     
-    if (!workshop || workshop.dealership_id !== dealership_id) {
+    if (!workshop) {
       throw new Error('Invalid workshop_id for dealership');
     }
     return workshop_id;
