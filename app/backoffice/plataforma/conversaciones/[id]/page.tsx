@@ -250,8 +250,8 @@ export default function PlataformaConversacionDetallePage() {
           
           // Calcular estadísticas
           const total = mensajesFormateados.length;
-          const user = mensajesFormateados.filter(m => m.role === 'user').length;
-          const assistant = mensajesFormateados.filter(m => m.role === 'assistant').length;
+          const user = mensajesFormateados.filter((m: Message) => m.role === 'user').length;
+          const assistant = mensajesFormateados.filter((m: Message) => m.role === 'assistant').length;
           
           setStats({ total, user, assistant });
         }
