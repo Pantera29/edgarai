@@ -149,6 +149,11 @@ const menuItems: MenuItem[] = [
         title: "Agencias",
         href: "/backoffice/plataforma/agencias",
         icon: Building2
+      },
+      {
+        title: "Usuarios",
+        href: "/backoffice/plataforma/usuarios",
+        icon: Users
       }
     ]
   },
