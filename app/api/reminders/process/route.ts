@@ -87,8 +87,8 @@ export async function POST(request: Request) {
             .update({ status: 'processing' })
             .eq('reminder_id', reminder.reminder_id);
           
-          // Llamar al endpoint WhatsApp existente
-          const response = await fetch(`${new URL(request.url).origin}/api/whatsapp/send`, {
+          // Llamar al endpoint N8N
+          const response = await fetch(`${new URL(request.url).origin}/api/n8n/send`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
