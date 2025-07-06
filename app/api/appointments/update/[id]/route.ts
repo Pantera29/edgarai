@@ -107,7 +107,9 @@ export async function PATCH(
     }
 
     // Si se está reprogramando (cambiando fecha u hora) O cambiando de taller
-    if (filteredUpdates.appointment_date || filteredUpdates.appointment_time || filteredUpdates.workshop_id) {
+    // PERO NO cuando solo se está cancelando
+    if ((filteredUpdates.appointment_date || filteredUpdates.appointment_time || filteredUpdates.workshop_id) && 
+        filteredUpdates.status !== 'cancelled') {
       console.log('🔍 Verificando disponibilidad para reprogramación o cambio de taller');
       
       // Obtener la cita actual para tener todos los datos necesarios
