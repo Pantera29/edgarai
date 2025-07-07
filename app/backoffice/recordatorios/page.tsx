@@ -331,6 +331,7 @@ export default function RecordatoriosPage() {
   const [filteredRecordatorios, setFilteredRecordatorios] = useState<Recordatorio[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDate, setSelectedDate] = useState<Date>()
+  const [selectedReminderType, setSelectedReminderType] = useState<string>("todos")
   const [currentTab, setCurrentTab] = useState<string>("todos")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(50)
@@ -508,11 +509,20 @@ export default function RecordatoriosPage() {
     });
   }
 
-  const filterRecordatorios = (estado: string, date?: Date, search?: string) => {
+  const filterRecordatorios = (estado: string, date?: Date, search?: string, reminderType?: string) => {
     let filtered = recordatorios;
+    
+    // Filtro por estado
     if (estado !== 'todos') {
       filtered = filtered.filter(r => r.status === mapEstado(estado));
     }
+    
+    // Filtro por tipo de recordatorio
+    if (reminderType && reminderType !== 'todos') {
+      filtered = filtered.filter(r => r.reminder_type === reminderType);
+    }
+    
+    // Filtro por búsqueda
     if (search || searchTerm) {
       const term = (search ?? searchTerm).toLowerCase();
       if (term) {
@@ -522,14 +532,27 @@ export default function RecordatoriosPage() {
         );
       }
     }
+    
+    // Filtro por fecha
     if (date || selectedDate) {
       const fechaFiltro = format(date ?? selectedDate!, 'yyyy-MM-dd');
       filtered = filtered.filter(r => r.reminder_date.startsWith(fechaFiltro));
     }
+    
     // Ordenar por fecha de recordatorio de más próxima a más lejana (ascendente)
     filtered.sort((a, b) => new Date(a.reminder_date).getTime() - new Date(b.reminder_date).getTime());
     setFilteredRecordatorios(filtered);
     setCurrentPage(1); // Resetear a la primera página cuando se aplica un filtro
+  };
+
+  // Función para obtener tipos únicos de recordatorios
+  const getUniqueReminderTypes = () => {
+    const types = recordatorios
+      .map(r => r.reminder_type)
+      .filter((type, index, self) => type && self.indexOf(type) === index)
+      .sort();
+    
+    return types;
   };
 
   // Calcular los índices para la paginación
@@ -545,8 +568,8 @@ export default function RecordatoriosPage() {
 
   // Efecto reactivo para filtrar automáticamente
   useEffect(() => {
-    filterRecordatorios(currentTab);
-  }, [selectedDate, searchTerm, recordatorios, currentTab]);
+    filterRecordatorios(currentTab, undefined, undefined, selectedReminderType);
+  }, [selectedDate, searchTerm, recordatorios, currentTab, selectedReminderType]);
 
   const mapEstado = (estado: string): string => {
     const mapeo = {
@@ -1570,6 +1593,27 @@ export default function RecordatoriosPage() {
               className="max-w-sm"
             />
           </div>
+          
+          {/* Filtro de tipo de recordatorio */}
+          <Select 
+            value={selectedReminderType} 
+            onValueChange={setSelectedReminderType}
+          >
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filtrar por tipo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos los tipos</SelectItem>
+              {getUniqueReminderTypes().map((type) => (
+                type && (
+                  <SelectItem key={type} value={type}>
+                    {translateReminderType(type)}
+                  </SelectItem>
+                )
+              ))}
+            </SelectContent>
+          </Select>
+          
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-[240px] justify-start text-left font-normal">
