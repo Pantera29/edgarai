@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { verifyToken } from "../../jwt/token";
@@ -136,146 +136,65 @@ export default function ConversacionesPage() {
     }
   }, [dataToken]);
 
-  // Función para cargar métricas
+  // Función para cargar métricas optimizada
   const cargarMetricas = async () => {
     const tiempoInicio = performance.now();
     try {
-      console.log("Iniciando carga de métricas...");
+      console.log("🔄 Iniciando carga de KPIs optimizada...");
+      setLoading(true);
       
-      // Consulta única optimizada
-      const tiempoConsultaInicio = performance.now();
-      const { data: conversaciones, error } = await supabase
-        .from('chat_conversations')
-        .select(`
-          id,
-          status,
-          channel,
-          created_at,
-          updated_at
-        `)
-        .eq('dealership_id', dataToken.dealership_id);
+      // Single optimized API call
+      const response = await fetch(
+        `/api/conversations/kpis?dealership_id=${dataToken.dealership_id}`
+      );
       
-      const tiempoConsultaFin = performance.now();
-      console.log(`Tiempo de consulta a Supabase: ${(tiempoConsultaFin - tiempoConsultaInicio).toFixed(2)}ms`);
-      console.log(`Cantidad de registros obtenidos: ${conversaciones?.length || 0}`);
-      
-      if (error) {
-        console.error("Error obteniendo conversaciones:", error);
-        throw error;
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
       }
-
-      const tiempoProcesamientoInicio = performance.now();
       
-      // Inicialización de contadores y estructuras de datos
-      let activas = 0;
-      let cerradas = 0;
-      let pendientes = 0;
-      let duracionTotal = 0;
-      let llamadasValidas = 0;
+      const data = await response.json();
       
-      const canalCount: Record<string, number> = {};
-      const hoy = new Date();
-      const fechas = Array.from({ length: 30 }, (_, i) => {
-        const fecha = new Date(hoy);
-        fecha.setDate(hoy.getDate() - i);
-        return format(fecha, 'dd/MM');
-      });
-
-      const fechaCanalCount: Record<string, { WhatsApp: number, Teléfono: number }> = {};
-      fechas.forEach(f => fechaCanalCount[f] = { WhatsApp: 0, Teléfono: 0 });
-      
-      // Procesamiento de datos en una sola pasada
-      conversaciones?.forEach(conv => {
-        // Conteo por estado
-        if (conv.status === 'active') activas++;
-        else if (conv.status === 'closed') cerradas++;
-        else if (conv.status === 'pending') pendientes++;
-        
-        // Conteo por canal
-        const canal = conv.channel || 'desconocido';
-        canalCount[canal] = (canalCount[canal] || 0) + 1;
-        
-        // Procesamiento de fechas y canales
-        if (conv.created_at) {
-          const fecha = format(new Date(conv.created_at), 'dd/MM');
-          const canalFormateado = formatearNombreCanal(conv.channel || 'otro');
-          if (fechaCanalCount[fecha]) {
-            if (canalFormateado === 'WhatsApp') fechaCanalCount[fecha].WhatsApp += 1;
-            else if (canalFormateado === 'Teléfono') fechaCanalCount[fecha].Teléfono += 1;
-          }
-        }
-
-        // Cálculo de duración para llamadas cerradas
-        if (conv.channel === 'phone' && conv.status === 'closed' && conv.updated_at && conv.created_at) {
-          const inicio = new Date(conv.created_at);
-          const fin = new Date(conv.updated_at);
-          const duracionMinutos = (fin.getTime() - inicio.getTime()) / (1000 * 60);
-          
-          if (duracionMinutos > 1 && duracionMinutos < 120) {
-            duracionTotal += duracionMinutos;
-            llamadasValidas++;
-          }
-        }
+      console.log('📊 Datos recibidos en frontend:', {
+        hasData: !!data,
+        dataType: typeof data,
+        dataKeys: data ? Object.keys(data) : 'no data',
+        metricasKeys: data?.metricas ? Object.keys(data.metricas) : 'no metricas',
+        duracionPromedio: data?.duracionPromedio,
+        metricasTotal: data?.metricas?.total,
+        metricasActivas: data?.metricas?.activas
       });
       
-      // Cálculo de métricas finales
-      const total = activas + cerradas + pendientes;
-      const duracionPromedio = llamadasValidas > 0 ? Math.round(duracionTotal / llamadasValidas) : 5;
-      
-      const porCanal = Object.entries(canalCount).map(([canal, count]) => ({
-        name: formatearNombreCanal(canal),
-        value: count
-      }));
-      
-      const porFechaCanal = fechas.reverse().map(f => ({
-        fecha: f,
-        WhatsApp: fechaCanalCount[f].WhatsApp,
-        Teléfono: fechaCanalCount[f].Teléfono
-      }));
-      
-      const tiempoProcesamientoFin = performance.now();
-      console.log(`Tiempo de procesamiento de datos: ${(tiempoProcesamientoFin - tiempoProcesamientoInicio).toFixed(2)}ms`);
-      
-      // Actualización del estado con todas las métricas
-      setMetricas({
-        total,
-        activas,
-        cerradas,
-        pendientes,
-        porCanal,
-        porFecha: porFechaCanal
-      });
-
-      setDuracionPromedio(duracionPromedio);
+      // Data comes pre-processed from backend
+      setMetricas(data.metricas);
+      setDuracionPromedio(data.duracionPromedio);
       
       const tiempoTotal = performance.now() - tiempoInicio;
-      console.log(`Tiempo total de carga: ${tiempoTotal.toFixed(2)}ms`);
-      console.log('Métricas calculadas:', {
-        total,
-        activas,
-        cerradas,
-        pendientes,
-        llamadasValidas,
-        duracionPromedio
-      });
+      console.log(`✅ KPIs cargados en ${tiempoTotal.toFixed(2)}ms (optimizado)`);
       
     } catch (error) {
-      console.error("Error cargando métricas:", error);
+      console.error("❌ Error cargando KPIs:", error);
+      // Could add toast notification here
     } finally {
       setLoading(false);
     }
   };
 
-  const formatearNombreCanal = (canal: string) => {
-    switch (canal) {
-      case 'whatsapp': return 'WhatsApp';
-      case 'phone': return 'Teléfono';
-      default: return 'Otro';
-    }
+
+
+  // Función para alternar la visibilidad de un canal en el gráfico
+  const toggleCanalVisibilidad = (canal: string) => {
+    setCanalesVisibles(prev => ({
+      ...prev,
+      [canal]: !prev[canal]
+    }));
   };
 
-  // Calcular métricas de crecimiento
-  const calcularCrecimiento = () => {
+  // Calcular métricas de crecimiento con memoización
+  const crecimiento = useMemo(() => {
+    if (!metricas.porFecha?.length) {
+      return { porcentaje: 0, creciendo: false };
+    }
+    
     const hoy = new Date();
     const inicioMesActual = startOfMonth(hoy);
     const inicioMesAnterior = startOfMonth(subDays(inicioMesActual, 1));
@@ -293,11 +212,9 @@ export default function ConversacionesPage() {
     }).reduce((sum: number, item: any) => sum + (item.WhatsApp || 0) + (item.Teléfono || 0), 0);
 
     if (!conversacionesMesAnterior || isNaN(conversacionesMesAnterior)) {
-      if (conversacionesMesActual > 0) {
-        return { porcentaje: 100, creciendo: true };
-      } else {
-        return { porcentaje: 0, creciendo: false };
-      }
+      return conversacionesMesActual > 0 
+        ? { porcentaje: 100, creciendo: true }
+        : { porcentaje: 0, creciendo: false };
     }
 
     const diferencia = conversacionesMesActual - conversacionesMesAnterior;
@@ -307,18 +224,7 @@ export default function ConversacionesPage() {
       porcentaje: Math.abs(porcentaje),
       creciendo: porcentaje >= 0
     };
-  };
-
-  // Función para alternar la visibilidad de un canal en el gráfico
-  const toggleCanalVisibilidad = (canal: string) => {
-    setCanalesVisibles(prev => ({
-      ...prev,
-      [canal]: !prev[canal]
-    }));
-  };
-
-  // Obtener datos de crecimiento
-  const crecimiento = calcularCrecimiento();
+  }, [metricas.porFecha]); // Only recalculate when data changes
   
   // Usar directamente los datos de métricas para el gráfico
   const datosGraficoArea = metricas.porFecha;
