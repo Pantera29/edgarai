@@ -7,14 +7,34 @@ export async function POST(request: Request) {
     const supabase = createRouteHandlerClient({ cookies });
     const today = new Date().toISOString().split('T')[0];
     
-    console.log('🔄 [Reminder Process] Iniciando procesamiento para:', today);
+    // 1. Leer parámetros de query y variables de entorno
+    const url = new URL(request.url);
+    const dealershipIdFromQuery = url.searchParams.get('dealership_id');
+    const reminderTypeFromQuery = url.searchParams.get('reminder_type');
+    const targetDealershipId = dealershipIdFromQuery || process.env.TARGET_DEALERSHIP_ID;
+    const targetReminderType = reminderTypeFromQuery || process.env.TARGET_REMINDER_TYPE;
     
-    // 1. Obtener agencias que tienen recordatorios pendientes hoy
-    const { data: agenciasConRecordatorios, error: agenciasError } = await supabase
+    console.log('🔄 [Reminder Process] Iniciando procesamiento para:', today);
+    console.log('🔍 Filtros aplicados:', {
+      dealership_id: targetDealershipId || 'todos',
+      reminder_type: targetReminderType || 'todos'
+    });
+    
+    // 2. Obtener agencias que tienen recordatorios pendientes hoy con filtros
+    let agenciasQuery = supabase
       .from('reminders')
       .select('dealership_id')
       .eq('reminder_date', today)
       .eq('status', 'pending');
+    
+    if (targetDealershipId) {
+      agenciasQuery = agenciasQuery.eq('dealership_id', targetDealershipId);
+    }
+    if (targetReminderType) {
+      agenciasQuery = agenciasQuery.eq('reminder_type', targetReminderType);
+    }
+    
+    const { data: agenciasConRecordatorios, error: agenciasError } = await agenciasQuery;
     
     if (agenciasError) {
       console.error('❌ Error consultando agencias:', agenciasError);
@@ -31,11 +51,15 @@ export async function POST(request: Request) {
         success: true,
         processed: 0,
         agencies_processed: 0,
-        message: 'No pending reminders for today'
+        message: 'No pending reminders for today',
+        filters: {
+          dealership_id: targetDealershipId || 'todos',
+          reminder_type: targetReminderType || 'todos'
+        }
       });
     }
     
-    // 2. Para cada agencia, obtener su siguiente recordatorio
+    // 3. Para cada agencia, obtener su siguiente recordatorio con filtros
     const recordatoriosAEnviar: Array<{
       reminder_id: string;
       reminder_type: string;
@@ -45,15 +69,20 @@ export async function POST(request: Request) {
     
     for (const agencyId of agenciasUnicas) {
       try {
-        const { data: nextReminder, error: reminderError } = await supabase
+        let reminderQuery = supabase
           .from('reminders')
           .select('reminder_id, reminder_type, dealership_id, created_at')
           .eq('reminder_date', today)
           .eq('status', 'pending')
           .eq('dealership_id', agencyId)
           .order('created_at', { ascending: true })
-          .limit(1)
-          .single();
+          .limit(1);
+        
+        if (targetReminderType) {
+          reminderQuery = reminderQuery.eq('reminder_type', targetReminderType);
+        }
+        
+        const { data: nextReminder, error: reminderError } = await reminderQuery.single();
         
         if (reminderError) {
           if (reminderError.code === 'PGRST116') {
@@ -77,7 +106,7 @@ export async function POST(request: Request) {
     
     console.log(`📊 Total recordatorios a enviar: ${recordatoriosAEnviar.length}`);
     
-    // 3. Enviar recordatorios en paralelo (cada agencia usa su token)
+    // 4. Enviar recordatorios en paralelo (cada agencia usa su token)
     const resultados = await Promise.allSettled(
       recordatoriosAEnviar.map(async (reminder) => {
         try {
@@ -135,13 +164,13 @@ export async function POST(request: Request) {
       })
     );
     
-    // 4. Procesar resultados
+    // 5. Procesar resultados
     const exitosos = resultados.filter(r => r.status === 'fulfilled' && r.value.status === 'sent').length;
     const fallidos = resultados.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.status === 'failed')).length;
     
     console.log(`📊 Resumen: ${exitosos} enviados, ${fallidos} fallidos`);
     
-    // 5. Log detallado de resultados
+    // 6. Log detallado de resultados
     resultados.forEach((resultado, index) => {
       const reminder = recordatoriosAEnviar[index];
       if (resultado.status === 'fulfilled') {
@@ -162,6 +191,10 @@ export async function POST(request: Request) {
       failed: fallidos,
       agencies_processed: agenciasUnicas.length,
       date: today,
+      filters: {
+        dealership_id: targetDealershipId || 'todos',
+        reminder_type: targetReminderType || 'todos'
+      },
       details: resultados.map((r, i) => ({
         reminder_id: recordatoriosAEnviar[i].reminder_id,
         dealership_id: recordatoriosAEnviar[i].dealership_id,
