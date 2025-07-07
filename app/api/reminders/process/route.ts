@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 
-export async function POST(request: Request) {
+// Función común que contiene toda la lógica de procesamiento
+async function processReminders(request: Request) {
   try {
     const supabase = createRouteHandlerClient({ cookies });
     const today = new Date().toISOString().split('T')[0];
@@ -210,4 +211,14 @@ export async function POST(request: Request) {
       processed: 0
     }, { status: 500 });
   }
+}
+
+// Método GET (nuevo)
+export async function GET(request: Request) {
+  return await processReminders(request);
+}
+
+// Método POST (existente, modificado para usar la función común)
+export async function POST(request: Request) {
+  return await processReminders(request);
 } 
