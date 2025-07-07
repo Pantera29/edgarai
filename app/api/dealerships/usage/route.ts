@@ -3,6 +3,16 @@ import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { getDealershipId } from "@/lib/config";
 
+// Cache in-memory para mejorar performance
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+  dealershipId: string;
+}
+
+const usageCache = new Map<string, CacheEntry>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutos en milisegundos
+
 /**
  * GET endpoint para obtener el uso mensual de conversaciones por agencia
  * Combina datos de chat_conversations (llamadas) y historial_chat (WhatsApp)
@@ -68,6 +78,23 @@ export async function GET(request: Request) {
       months
     });
 
+    // Verificar cache antes de hacer queries costosas
+    const cacheKey = `usage-${dealershipId}-${months}-${startDate || 'default'}`;
+    const cached = usageCache.get(cacheKey);
+    
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      console.log('🚀 Cache hit for', cacheKey);
+      console.log('📊 Cache stats - Tamaño:', usageCache.size, 'entries');
+      return NextResponse.json(cached.data);
+    }
+    
+    if (cached && Date.now() - cached.timestamp >= CACHE_TTL) {
+      console.log('⏰ Cache expired for', cacheKey);
+      usageCache.delete(cacheKey);
+    }
+    
+    console.log('💾 Cache miss, computing fresh data for', cacheKey);
+
     // Query SQL optimizada para obtener uso mensual usando la función RPC
     console.log('🔄 Ejecutando función RPC...');
     
@@ -100,7 +127,8 @@ export async function GET(request: Request) {
       recordsCount: usageData?.length || 0
     });
 
-    return NextResponse.json({
+    // Preparar respuesta
+    const result = {
       dealership_id: dealershipId,
       usage_data: usageData || [],
       query_params: {
@@ -108,7 +136,23 @@ export async function GET(request: Request) {
         months: months
       },
       method: 'rpc_function'
-    });
+    };
+
+    // Guardar en cache solo si la query fue exitosa
+    try {
+      usageCache.set(cacheKey, {
+        data: result,
+        timestamp: Date.now(),
+        dealershipId
+      });
+      console.log('💾 Cache updated for', cacheKey);
+      console.log('📊 Cache stats - Tamaño:', usageCache.size, 'entries');
+    } catch (cacheError) {
+      console.error('⚠️ Error al guardar en cache:', cacheError);
+      // No fallar la respuesta por errores de cache
+    }
+
+    return NextResponse.json(result);
 
   } catch (error) {
     console.error('💥 Error inesperado:', {
