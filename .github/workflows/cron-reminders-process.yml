@@ -12,4 +12,4 @@ jobs:
     steps:
       - name: Call reminders process endpoint
         run: |
-          curl -v "https://edgarai.vercel.app/api/reminders/process?dealership_id=534e6d39-7cea-4182-b9ad-15b0f4997484&reminder_type=follow_up" 
+          curl -v "https://edgarai.vercel.app/api/reminders/process/?dealership_id=534e6d39-7cea-4182-b9ad-15b0f4997484&reminder_type=follow_up" 
