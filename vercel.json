@@ -1,12 +1,2 @@
 {
-    "crons": [
-      {
-        "path": "/api/reminders/process?dealership_id=534e6d39-7cea-4182-b9ad-15b0f4997484&reminder_type=follow_up",
-        "schedule": "0 16 * * *"
-      },
-      {
-        "path": "/api/cron-test/",
-        "schedule": "0 20 * * *"
-      }
-    ]
-  }
+}
