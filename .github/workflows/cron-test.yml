@@ -1,0 +1,15 @@
+name: EdgarAI Cron Test
+
+on:
+  schedule:
+    # Ejecuta cada 30 minutos (en los minutos 0 y 30 de cada hora)
+    - cron: '0,30 * * * *'
+  workflow_dispatch:
+
+jobs:
+  call-cron-test-endpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call cron-test endpoint
+        run: |
+          curl -v "https://edgarai.vercel.app/api/cron-test" 
