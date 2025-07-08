@@ -12,4 +12,4 @@ jobs:
     steps:
       - name: Call cron-test endpoint
         run: |
-          curl -v "https://edgarai.vercel.app/api/cron-test" 
+          curl -v "https://edgarai.vercel.app/api/cron-test/" 
