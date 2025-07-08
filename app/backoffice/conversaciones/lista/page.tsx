@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Eye, Search, MessageSquare, Phone } from "lucide-react";
-import { formatDistanceToNow } from "date-fns";
+import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 
 interface ConversacionItem {
@@ -44,7 +44,8 @@ interface ConversacionItem {
 
 const ITEMS_PER_PAGE = 10;
 
-// Componente de icono de WhatsApp (SVG)
+// Eliminar el componente WhatsAppIcon duplicado (si existe)
+// Usar el mismo WhatsAppIcon que en los KPIs
 const WhatsAppIcon = ({ className }: { className?: string }) => {
   return (
     <svg 
@@ -57,6 +58,10 @@ const WhatsAppIcon = ({ className }: { className?: string }) => {
     </svg>
   );
 };
+
+// Cache simple en memoria - solo para queries sin filtros (fuera del componente)
+const conversationsCache = new Map<string, { data: any, timestamp: number }>();
+const CACHE_TTL = 2 * 60 * 1000; // 2 minutos
 
 export default function ConversacionesListaPage() {
   const router = useRouter();
@@ -112,6 +117,30 @@ export default function ConversacionesListaPage() {
   const cargarConversaciones = async () => {
     setLoading(true);
     try {
+      // Detectar si hay filtros aplicados
+      const sinFiltros = !busqueda && 
+                         filtroEstado === 'todos' && 
+                         filtroCanal === 'todos' && 
+                         filtroRazonFinalizacion === 'todas';
+      
+      // Cache key simple - solo para queries sin filtros
+      const cacheKey = `conversations-${dataToken.dealership_id}-base`;
+      
+      // 🚀 VERIFICAR CACHE solo si no hay filtros
+      if (sinFiltros) {
+        const cached = conversationsCache.get(cacheKey);
+        if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+          console.log('🚀 Cache hit - conversaciones sin filtros');
+          setConversaciones(cached.data);
+          setTotalConversaciones(cached.data.length);
+          setLoading(false);
+          return; // ¡Salir temprano con cache!
+        }
+      }
+      
+      // 💾 Si no hay cache O hay filtros → usar RPC normal
+      console.log(sinFiltros ? '💾 Cache miss - calculando datos frescos' : '🔍 Query con filtros - no cacheable');
+      
       const rpcParams = {
         dealership_id_param: dataToken.dealership_id,
         search_query: busqueda || null,
@@ -122,6 +151,7 @@ export default function ConversacionesListaPage() {
 
       console.log('🚀 Llamando a la función RPC get_filtered_conversations con los parámetros:', rpcParams);
       
+      // ✅ MANTENER RPC existente - no cambiar nada aquí
       const { data, error } = await supabase.rpc('get_filtered_conversations', rpcParams);
       
       if (error) {
@@ -140,12 +170,28 @@ export default function ConversacionesListaPage() {
       
       setConversaciones(data || []);
       setTotalConversaciones(data?.length || 0);
+      
+      // 💾 GUARDAR EN CACHE solo si no hay filtros
+      if (sinFiltros && data) {
+        conversationsCache.set(cacheKey, {
+          data: data,
+          timestamp: Date.now()
+        });
+        console.log('💾 Conversaciones guardadas en cache (sin filtros)');
+      }
 
     } catch (error) {
       console.error("❌ Error fatal en cargarConversaciones:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Función para invalidar cache cuando sea necesario
+  const invalidarCache = () => {
+    const cacheKey = `conversations-${dataToken.dealership_id}-base`;
+    conversationsCache.delete(cacheKey);
+    console.log('🗑️ Cache de conversaciones invalidado');
   };
 
   const getStatusBadge = (status: string) => {
@@ -163,12 +209,12 @@ export default function ConversacionesListaPage() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDateTime = (dateString: string) => {
     try {
-      return formatDistanceToNow(new Date(dateString), {
-        addSuffix: true,
-        locale: es
-      });
+      const fecha = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
+      const fechaFormateada = format(fecha, "yyyy-MM-dd HH:mm", { locale: es });
+      console.log('📅 Formateando fecha:', dateString, '→', fechaFormateada);
+      return fechaFormateada;
     } catch (error) {
       return "Fecha inválida";
     }
@@ -189,6 +235,8 @@ export default function ConversacionesListaPage() {
       case 'phone':
         return <Phone className="h-4 w-4 mr-1 text-blue-500" />;
       case 'whatsapp':
+        console.log('�� Renderizando icono WhatsApp en lista de conversaciones');
+        return <WhatsAppIcon className="h-4 w-4 mr-1 text-green-500" />;
       default:
         return <MessageSquare className="h-4 w-4 mr-1 text-green-500" />;
     }
@@ -319,7 +367,7 @@ export default function ConversacionesListaPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {formatDate(conversacion.updated_at)}
+                    {formatDateTime(conversacion.updated_at)}
                   </TableCell>
                   <TableCell>
                     {getStatusBadge(conversacion.status)}
