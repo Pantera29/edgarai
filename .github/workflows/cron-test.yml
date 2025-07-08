@@ -2,8 +2,8 @@ name: EdgarAI Cron Test
 
 on:
   schedule:
-    # Ejecuta cada 30 minutos (en los minutos 0 y 30 de cada hora)
-    - cron: '0,30 * * * *'
+    # Ejecuta cada 2 horas
+    - cron: '0 */2 * * *'
   workflow_dispatch:
 
 jobs:
