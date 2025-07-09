@@ -100,6 +100,7 @@ export default function WorkshopConfiguration() {
         .from('operating_hours')
         .select('*')
         .eq('dealership_id', dealershipId)
+        .eq('workshop_id', defaultWorkshopId)
         .order('day_of_week');
 
       if (schedulesError) {
@@ -120,6 +121,7 @@ export default function WorkshopConfiguration() {
         const defaultSchedules = DAYS.map((_, index) => ({
           schedule_id: crypto.randomUUID(),
           dealership_id: dealershipId,
+          workshop_id: defaultWorkshopId,
           day_of_week: index + 1,
           is_working_day: index !== 0,
           opening_time: '09:00:00',
@@ -188,23 +190,25 @@ export default function WorkshopConfiguration() {
         throw configError;
       }
 
-      // Asegurar que todos los horarios tengan el dealership_id correcto
+      // Asegurar que todos los horarios tengan el dealership_id y workshop_id correcto
       const updatedSchedules = schedules.map(schedule => ({
         ...schedule,
-        dealership_id: dealershipId
+        dealership_id: dealershipId,
+        workshop_id: selectedWorkshop
       }));
 
       console.log('Guardando horarios:', {
         schedules: updatedSchedules,
         dealershipId,
-        conflictKey: 'dealership_id,day_of_week'
+        workshopId: selectedWorkshop,
+        conflictKey: 'dealership_id,workshop_id,day_of_week'
       });
 
       // Guardar horarios con condición específica
       const { error: scheduleError } = await supabase
         .from('operating_hours')
         .upsert(updatedSchedules, {
-          onConflict: 'dealership_id,day_of_week'
+          onConflict: 'dealership_id,workshop_id,day_of_week'
         });
 
       if (scheduleError) {
@@ -231,17 +235,15 @@ export default function WorkshopConfiguration() {
     );
   };
 
+  // En handleWorkshopChange, recargar horarios del taller seleccionado
   const handleWorkshopChange = async (workshopId: string) => {
     setSelectedWorkshop(workshopId);
-    
     // Obtener el dealership_id del token
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     if (!token) return;
-    
     const verifiedData = verifyToken(token);
     if (!verifiedData?.dealership_id) return;
-    
     // Cargar configuración del taller seleccionado
     const { data: configData } = await supabase
       .from('dealership_configuration')
@@ -249,7 +251,6 @@ export default function WorkshopConfiguration() {
       .eq('dealership_id', verifiedData.dealership_id)
       .eq('workshop_id', workshopId)
       .maybeSingle();
-    
     if (configData) {
       setConfig(configData);
     } else {
@@ -261,6 +262,35 @@ export default function WorkshopConfiguration() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
+    }
+    // Cargar horarios del taller seleccionado
+    const { data: schedulesData, error: schedulesError } = await supabase
+      .from('operating_hours')
+      .select('*')
+      .eq('dealership_id', verifiedData.dealership_id)
+      .eq('workshop_id', workshopId)
+      .order('day_of_week');
+    if (schedulesError) {
+      console.error('Error al cargar horarios:', schedulesError);
+      toast.error('Error al cargar los horarios');
+      return;
+    }
+    if (schedulesData && schedulesData.length > 0) {
+      setSchedules(schedulesData);
+    } else {
+      // Crear horarios por defecto con day_of_week de 1 a 7
+      const defaultSchedules = DAYS.map((_, index) => ({
+        schedule_id: crypto.randomUUID(),
+        dealership_id: verifiedData.dealership_id,
+        workshop_id: workshopId,
+        day_of_week: index + 1,
+        is_working_day: index !== 0,
+        opening_time: '09:00:00',
+        closing_time: '18:00:00',
+        max_simultaneous_services: 3,
+        max_arrivals_per_slot: null
+      }));
+      setSchedules(defaultSchedules);
     }
   };
 

@@ -10,7 +10,7 @@ export async function PATCH(request: Request) {
     console.log('📱 Actualizando NPS por WhatsApp:', {
       phone_number,
       score,
-      comments: comments ? 'presente' : 'ausente',
+      comments: comments ?? null,
       dealership_id: dealership_id || 'no proporcionado'
     });
 
