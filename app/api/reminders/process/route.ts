@@ -118,6 +118,28 @@ async function processReminders(request: Request) {
       try {
         console.log(`🔍 [Reminder Process] Procesando agencia: ${agencyId}`);
         
+        // NUEVO: Obtener configuración de recordatorios para esta agencia
+        console.log(`⚙️ [Reminder Process] Verificando configuración para agencia: ${agencyId}`);
+        const { data: settings, error: settingsError } = await supabase
+          .from('dealership_reminder_settings')
+          .select('confirmation_enabled, follow_up_enabled, nps_enabled')
+          .eq('dealership_id', agencyId)
+          .single();
+
+        if (settingsError && settingsError.code !== 'PGRST116') {
+          console.error(`❌ [Reminder Process] Error obteniendo configuración para agencia ${agencyId}:`, settingsError);
+          continue;
+        }
+
+        // Si no hay configuración, usar valores por defecto (todos habilitados)
+        const reminderSettings = settings || {
+          confirmation_enabled: true,
+          follow_up_enabled: true,
+          nps_enabled: true
+        };
+
+        console.log(`⚙️ [Reminder Process] Configuración para agencia ${agencyId}:`, reminderSettings);
+        
         let reminderQuery = supabase
           .from('reminders')
           .select('reminder_id, reminder_type, dealership_id, created_at')
@@ -143,11 +165,24 @@ async function processReminders(request: Request) {
         }
         
         if (nextReminder) {
-          recordatoriosAEnviar.push(nextReminder);
-          console.log(`📤 [Reminder Process] Recordatorio a enviar para agencia ${agencyId}:`);
-          console.log(`   ID: ${nextReminder.reminder_id}`);
-          console.log(`   Tipo: ${nextReminder.reminder_type}`);
-          console.log(`   Creado: ${nextReminder.created_at}`);
+          // NUEVO: Verificar si el tipo de recordatorio está habilitado
+          const reminderTypeKey = `${nextReminder.reminder_type}_enabled` as keyof typeof reminderSettings;
+          const isEnabled = reminderSettings[reminderTypeKey] ?? true;
+          
+          if (isEnabled) {
+            recordatoriosAEnviar.push(nextReminder);
+            console.log(`📤 [Reminder Process] Recordatorio a enviar para agencia ${agencyId}:`);
+            console.log(`   ID: ${nextReminder.reminder_id}`);
+            console.log(`   Tipo: ${nextReminder.reminder_type}`);
+            console.log(`   Creado: ${nextReminder.created_at}`);
+            console.log(`   ✅ Habilitado: ${isEnabled}`);
+          } else {
+            console.log(`🚫 [Reminder Process] Recordatorio omitido para agencia ${agencyId}:`);
+            console.log(`   ID: ${nextReminder.reminder_id}`);
+            console.log(`   Tipo: ${nextReminder.reminder_type}`);
+            console.log(`   🚫 Deshabilitado: ${isEnabled}`);
+            console.log(`   📝 Razón: ${nextReminder.reminder_type} deshabilitado para esta agencia`);
+          }
         }
       } catch (error) {
         console.error(`💥 [Reminder Process] Error procesando agencia ${agencyId}:`, error);
@@ -354,4 +389,4 @@ export async function GET(request: Request) {
 // Método POST (existente, modificado para usar la función común)
 export async function POST(request: Request) {
   return await processReminders(request);
-} 
+}
