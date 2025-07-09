@@ -189,6 +189,7 @@ export async function GET(request: Request) {
       address: workshop.address,
       city: workshop.city,
       phone: workshop.phone,
+      location_url: workshop.location_url,
       is_active: workshop.is_active
     })) || [];
 
