@@ -16,6 +16,7 @@ PATCH /api/nps/update-by-phone
 
 ### Opcionales
 - `comments` (string): Comentarios del cliente
+- `dealership_id` (string): ID del dealership para búsquedas más precisas (recomendado cuando hay múltiples clientes con el mismo número)
 
 ## 🔄 Lógica de Negocio
 
@@ -25,11 +26,13 @@ PATCH /api/nps/update-by-phone
 
 ### 2. Búsqueda de Cliente
 - Normaliza el número de teléfono (quita caracteres no numéricos)
+- Si se proporciona `dealership_id`, filtra la búsqueda por ese dealership específico
 - Busca el cliente probando múltiples variaciones del número:
   - Número normalizado
   - Número original
   - Con prefijo +52
   - Sin prefijo +52
+- **Manejo de múltiples clientes**: Si hay múltiples clientes con el mismo número, usa el primero encontrado (o el del dealership especificado)
 
 ### 3. Búsqueda de NPS Pendiente
 - Busca en la tabla `nps` donde `customer_id` = cliente encontrado
@@ -87,6 +90,18 @@ PATCH /api/nps/update-by-phone
 {
   "message": "Cliente no encontrado con el número de teléfono proporcionado",
   "phone_number": "5512345678",
+  "dealership_id": null,
+  "tried_variations": ["5512345678", "+525512345678", "+525512345678", "5512345678"],
+  "suggestion": "Considere proporcionar dealership_id para búsquedas más precisas"
+}
+```
+
+**Con dealership_id especificado:**
+```json
+{
+  "message": "Cliente no encontrado con el número de teléfono proporcionado en el dealership especificado",
+  "phone_number": "5512345678",
+  "dealership_id": "dealership_123",
   "tried_variations": ["5512345678", "+525512345678", "+525512345678", "5512345678"]
 }
 ```
@@ -111,6 +126,7 @@ PATCH /api/nps/update-by-phone
 
 ### cURL
 ```bash
+# Sin dealership_id (búsqueda general)
 curl -X PATCH http://localhost:3000/api/nps/update-by-phone \
   -H "Content-Type: application/json" \
   -d '{
@@ -118,10 +134,21 @@ curl -X PATCH http://localhost:3000/api/nps/update-by-phone \
     "score": 9,
     "comments": "Excelente servicio, muy recomendado"
   }'
+
+# Con dealership_id (búsqueda específica - recomendado)
+curl -X PATCH http://localhost:3000/api/nps/update-by-phone \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone_number": "+525512345678",
+    "score": 9,
+    "comments": "Excelente servicio, muy recomendado",
+    "dealership_id": "dealership_123"
+  }'
 ```
 
 ### JavaScript/Node.js
 ```javascript
+// Sin dealership_id (búsqueda general)
 const response = await fetch('/api/nps/update-by-phone', {
   method: 'PATCH',
   headers: {
@@ -131,6 +158,20 @@ const response = await fetch('/api/nps/update-by-phone', {
     phone_number: '+525512345678',
     score: 9,
     comments: 'Excelente servicio, muy recomendado'
+  })
+});
+
+// Con dealership_id (búsqueda específica - recomendado)
+const response = await fetch('/api/nps/update-by-phone', {
+  method: 'PATCH',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify({
+    phone_number: '+525512345678',
+    score: 9,
+    comments: 'Excelente servicio, muy recomendado',
+    dealership_id: 'dealership_123'
   })
 });
 
@@ -187,6 +228,21 @@ El endpoint incluye logs detallados con emojis para facilitar el debugging:
 
 ### Integración con WhatsApp
 Este endpoint está diseñado específicamente para recibir respuestas de encuestas NPS a través de WhatsApp, donde el cliente responde con un número del 0 al 10.
+
+### Mejores Prácticas
+
+#### 1. **Usar dealership_id cuando sea posible**
+- **Recomendado**: Incluir `dealership_id` para búsquedas más precisas
+- **Beneficio**: Evita conflictos cuando múltiples clientes tienen el mismo número
+- **Ejemplo**: En sistemas multi-dealership, siempre incluir el ID del taller
+
+#### 2. **Manejo de múltiples clientes**
+- Si no se proporciona `dealership_id`, el sistema toma el primer cliente encontrado
+- Para mayor precisión, siempre incluir el `dealership_id` en el contexto del mensaje NPS
+
+#### 3. **Logs y debugging**
+- El endpoint incluye logs detallados para facilitar el debugging
+- Revisar logs cuando hay errores de "múltiples filas encontradas"
 
 ### Flujo Típico
 1. Cliente recibe mensaje de WhatsApp con encuesta NPS

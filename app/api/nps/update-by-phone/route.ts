@@ -5,12 +5,13 @@ import { cookies } from "next/headers";
 export async function PATCH(request: Request) {
   try {
     const supabase = createServerComponentClient({ cookies });
-    const { phone_number, score, comments } = await request.json();
+    const { phone_number, score, comments, dealership_id } = await request.json();
 
     console.log('📱 Actualizando NPS por WhatsApp:', {
       phone_number,
       score,
-      comments: comments ? 'presente' : 'ausente'
+      comments: comments ? 'presente' : 'ausente',
+      dealership_id: dealership_id || 'no proporcionado'
     });
 
     // Validar parámetros requeridos
@@ -49,11 +50,20 @@ export async function PATCH(request: Request) {
 
     for (const phoneVar of phoneVariations) {
       console.log('🔍 Probando variación:', phoneVar);
-      const { data, error } = await supabase
+      
+      // Construir query base
+      let query = supabase
         .from('client')
         .select('id, names, phone_number, dealership_id')
-        .eq('phone_number', phoneVar)
-        .maybeSingle();
+        .eq('phone_number', phoneVar);
+      
+      // Si se proporciona dealership_id, filtrar por él
+      if (dealership_id) {
+        query = query.eq('dealership_id', dealership_id);
+        console.log('🔍 Filtrando por dealership_id:', dealership_id);
+      }
+      
+      const { data, error } = await query.limit(1).maybeSingle();
 
       if (error) {
         console.error('❌ Error buscando cliente con variación:', phoneVar, error);
@@ -70,11 +80,17 @@ export async function PATCH(request: Request) {
 
     if (!client) {
       console.log('❌ Cliente no encontrado con ninguna variación del número');
+      const errorMessage = dealership_id 
+        ? `Cliente no encontrado con el número de teléfono proporcionado en el dealership especificado`
+        : `Cliente no encontrado con el número de teléfono proporcionado`;
+      
       return NextResponse.json(
         { 
-          message: 'Cliente no encontrado con el número de teléfono proporcionado',
+          message: errorMessage,
           phone_number: normalizedPhone,
-          tried_variations: phoneVariations
+          dealership_id: dealership_id || null,
+          tried_variations: phoneVariations,
+          suggestion: dealership_id ? null : 'Considere proporcionar dealership_id para búsquedas más precisas'
         },
         { status: 404 }
       );
