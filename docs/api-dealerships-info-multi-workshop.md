@@ -42,9 +42,11 @@ GET /api/dealerships/info?dealership_id=dealership_123
       "workshop_id": "workshop_primary_uuid",
       "name": "Taller Principal",
       "is_primary": true,
-      "shift_duration": 30,
-      "timezone": "America/Mexico_City",
-      "reception_end_time": "18:00"
+      "address": "Av. Principal 123",
+      "city": "CDMX",
+      "phone": "555-1234",
+      "location_url": "https://maps.google.com/?q=Av.+Principal+123,+CDMX",
+      "is_active": true
     }
   ]
 }
@@ -76,25 +78,31 @@ GET /api/dealerships/info?dealership_id=dealership_123&workshop_id=workshop_2_uu
       "workshop_id": "workshop_primary_uuid",
       "name": "Taller Principal",
       "is_primary": true,
-      "shift_duration": 30,
-      "timezone": "America/Mexico_City",
-      "reception_end_time": "18:00"
+      "address": "Av. Principal 123",
+      "city": "CDMX",
+      "phone": "555-1234",
+      "location_url": "https://maps.google.com/?q=Av.+Principal+123,+CDMX",
+      "is_active": true
     },
     {
       "workshop_id": "workshop_2_uuid",
       "name": "Taller Norte",
       "is_primary": false,
-      "shift_duration": 45,
-      "timezone": "America/Mexico_City",
-      "reception_end_time": "19:00"
+      "address": "Calle Norte 456",
+      "city": "CDMX",
+      "phone": "555-5678",
+      "location_url": "https://maps.google.com/?q=Calle+Norte+456,+CDMX",
+      "is_active": true
     },
     {
       "workshop_id": "workshop_3_uuid",
       "name": "Taller Sur",
       "is_primary": false,
-      "shift_duration": 60,
-      "timezone": "America/Mexico_City",
-      "reception_end_time": "17:00"
+      "address": "Blvd. Sur 789",
+      "city": "CDMX",
+      "phone": "555-9012",
+      "location_url": "https://maps.google.com/?q=Blvd.+Sur+789,+CDMX",
+      "is_active": true
     }
   ]
 }
@@ -193,6 +201,7 @@ curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_invali
 ### Campos Nuevos
 - **`is_multi_workshop`**: Boolean que indica si la agencia tiene múltiples talleres
 - **`all_workshops`**: Array con información de todos los talleres de la agencia
+- **`location_url`**: URL de Google Maps para la ubicación del taller (nuevo campo agregado en v1.2.0)
 
 ### Campos Mantenidos
 - **`dealership`**: Información básica de la agencia
@@ -208,17 +217,21 @@ curl "http://localhost:3000/api/dealerships/info?dealership_id=dealership_invali
     "workshop_id": "workshop_primary_uuid",
     "name": "Taller Principal",
     "is_primary": true,
-    "shift_duration": 30,
-    "timezone": "America/Mexico_City",
-    "reception_end_time": "18:00"
+    "address": "Av. Principal 123",
+    "city": "CDMX",
+    "phone": "555-1234",
+    "location_url": "https://maps.google.com/?q=Av.+Principal+123,+CDMX",
+    "is_active": true
   },
   {
     "workshop_id": "workshop_2_uuid",
     "name": "Taller Norte",
     "is_primary": false,
-    "shift_duration": 45,
-    "timezone": "America/Mexico_City",
-    "reception_end_time": "19:00"
+    "address": "Calle Norte 456",
+    "city": "CDMX",
+    "phone": "555-5678",
+    "location_url": "https://maps.google.com/?q=Calle+Norte+456,+CDMX",
+    "is_active": true
   }
 ]
 ```
@@ -308,5 +321,5 @@ if (is_multi_workshop) {
 ---
 
 **Estado**: ✅ Implementado y documentado
-**Versión**: 1.1.0
+**Versión**: 1.2.0
 **Compatibilidad**: ✅ Backward compatible 
