@@ -1,0 +1,16 @@
+name: EdgarAI Reminders Expire Cron
+
+on:
+  schedule:
+    # Ejecutar todos los días a las 10:00 AM hora de México (UTC-6)
+    # En UTC sería las 16:00 (4:00 PM)
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  call-reminders-expire-endpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call reminders expire endpoint
+        run: |
+          curl -v "https://edgarai.vercel.app/api/reminders/expire" 
