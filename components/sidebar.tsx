@@ -119,6 +119,11 @@ const menuItems: MenuItem[] = [
         icon: CalendarX
       },
       {
+        title: "Configuración recordatorios",
+        href: "/backoffice/admin/recordatorios-automaticos",
+        icon: Bell
+      },
+      {
         title: "Servicios",
         href: "/backoffice/servicios",
         icon: Wrench
