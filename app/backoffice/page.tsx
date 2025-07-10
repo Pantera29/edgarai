@@ -285,10 +285,11 @@ export default function DashboardPage() {
 
       const { data: citasMesData, error: citasMesError } = await supabase
         .from('appointment')
-        .select('channel')
+        .select('channel, status')
         .gte('appointment_date', primerDiaMes)
         .lte('appointment_date', ultimoDiaMes)
-        .eq('dealership_id', dealershipId || '');
+        .eq('dealership_id', dealershipId || '')
+        .neq('status', 'cancelled'); // Excluir canceladas
 
       if (citasMesError) throw citasMesError;
 
@@ -306,13 +307,15 @@ export default function DashboardPage() {
         .from('appointment')
         .select(`
           service_id,
+          status,
           services:service_id (
             service_name
           )
         `)
         .gte('appointment_date', primerDiaMes)
         .lte('appointment_date', ultimoDiaMes)
-        .eq('dealership_id', dealershipId || '');
+        .eq('dealership_id', dealershipId || '')
+        .neq('status', 'cancelled'); // Excluir canceladas
 
       if (citasServiciosError) throw citasServiciosError;
 
