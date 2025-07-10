@@ -38,25 +38,26 @@ export const useClientSearch = (dealershipId: string) => {
     setError(null);
 
     try {
-      console.log('Buscando clientes con query:', query, 'para dealership:', dealershipId);
+      console.log('🔍 Buscando clientes con query:', query, 'para dealership:', dealershipId);
       
+      // MEJORA: Búsqueda por nombre Y teléfono
       const { data, error } = await supabase
         .from('client')
         .select('id, names, phone_number, dealership_id')
-        .ilike('names', `%${query}%`)
+        .or(`names.ilike.%${query}%,phone_number.ilike.%${query}%`)
         .eq('dealership_id', dealershipId)
         .limit(10)
         .order('names');
 
       if (error) {
-        console.error('Error en búsqueda de clientes:', error);
+        console.error('❌ Error en búsqueda de clientes:', error);
         setError('Error al buscar clientes');
         setClients([]);
         return;
       }
 
-      console.log('Resultados de búsqueda:', data?.length || 0, 'clientes encontrados');
-      console.log('Resultados completos:', data);
+      console.log('✅ Resultados de búsqueda:', data?.length || 0, 'clientes encontrados');
+      console.log('📊 Resultados completos:', data);
 
       // Combinar resultados de búsqueda con clientes seleccionados previamente
       const searchResults = data || [];
@@ -69,10 +70,10 @@ export const useClientSearch = (dealershipId: string) => {
         }
       });
 
-      console.log('Resultados combinados finales:', combinedResults.length, 'clientes');
+      console.log('📋 Resultados combinados finales:', combinedResults.length, 'clientes');
       setClients(combinedResults);
     } catch (err) {
-      console.error('Error inesperado en búsqueda de clientes:', err);
+      console.error('💥 Error inesperado en búsqueda de clientes:', err);
       setError('Error inesperado al buscar clientes');
       setClients([]);
     } finally {
@@ -81,7 +82,7 @@ export const useClientSearch = (dealershipId: string) => {
   }, 300);
 
   const addSelectedClient = useCallback((client: ExtendedClient) => {
-    console.log('Agregando cliente seleccionado:', client);
+    console.log('➕ Agregando cliente seleccionado:', client);
     setSelectedClients(prev => {
       // Evitar duplicados
       if (prev.find(c => c.id === client.id)) {

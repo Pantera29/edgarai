@@ -161,7 +161,7 @@ function ClienteComboBox({
           <input
             type="text"
             className="w-full px-3 py-2 border-b outline-none bg-white text-black"
-            placeholder="Buscar cliente por nombre..."
+            placeholder="Buscar cliente por nombre o teléfono..."
             value={search}
             onChange={e => handleSearchChange(e.target.value)}
             autoFocus
