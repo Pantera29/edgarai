@@ -240,6 +240,7 @@ export async function GET(request: Request) {
     });
 
     // Obtener citas filtradas por dealership_id y workshop_id específico
+    // Excluir citas canceladas para no afectar la disponibilidad de slots
     const { data: appointments, error: appointmentsError } = await supabase
       .from('appointment')
       .select(`
@@ -254,7 +255,8 @@ export async function GET(request: Request) {
       `)
       .eq('appointment_date', date)
       .eq('dealership_id', dealershipId)
-      .eq('workshop_id', finalWorkshopId);
+      .eq('workshop_id', finalWorkshopId)
+      .neq('status', 'cancelled');
 
     if (appointmentsError) {
       console.error('Error fetching appointments:', {
