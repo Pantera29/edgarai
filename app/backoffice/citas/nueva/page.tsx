@@ -69,6 +69,7 @@ const traducirEstado = (estado: string | null): string => {
   
   const traducciones: Record<string, string> = {
     'pending': 'Pendiente',
+    'confirmed': 'Confirmada',
     'in_progress': 'En proceso',
     'completed': 'Completada',
     'cancelled': 'Cancelada',
@@ -334,7 +335,7 @@ export default function NuevaReservaPage() {
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [filteredVehicles, setFilteredVehicles] = useState<ExtendedVehicle[]>([]);
   const [selectedService, setSelectedService] = useState('');
-  const [estado, setEstado] = useState<'pending' | 'in_progress' | 'completed' | 'cancelled'>('pending');
+  const [estado, setEstado] = useState<'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('pending');
   const [notas, setNotas] = useState('');
   const [servicios, setServicios] = useState<ExtendedService[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -1036,13 +1037,14 @@ export default function NuevaReservaPage() {
             <div className="col-span-11">
               <Select 
                 value={estado} 
-                onValueChange={(value: string) => setEstado(value as 'pending' | 'in_progress' | 'completed' | 'cancelled')}
+                onValueChange={(value: string) => setEstado(value as 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled')}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Seleccione un estado" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="pending">Pendiente</SelectItem>
+                  <SelectItem value="confirmed">Confirmada</SelectItem>
                   <SelectItem value="in_progress">En Proceso</SelectItem>
                   <SelectItem value="completed">Completada</SelectItem>
                   <SelectItem value="cancelled">Cancelada</SelectItem>
@@ -1094,10 +1096,10 @@ export default function NuevaReservaPage() {
                 <span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     estado === 'pending' ? 'bg-blue-100 text-blue-800' :
+                    estado === 'confirmed' ? 'bg-green-100 text-green-800' :
                     estado === 'in_progress' ? 'bg-yellow-100 text-yellow-800' :
                     estado === 'completed' ? 'bg-green-100 text-green-800' :
                     estado === 'cancelled' ? 'bg-red-100 text-red-800' :
-                    estado === 'rescheduled' ? 'bg-purple-100 text-purple-800' :
                     'bg-gray-100 text-gray-800'
                   }`}>
                     {traducirEstado(estado)}
