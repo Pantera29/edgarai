@@ -719,6 +719,7 @@ export default function LandingPage() {
       </section>
 
       {/* Sección de llamada demo Edgar */}
+      {/*
       <section className="py-16 bg-blue-50">
         <div className="max-w-xl mx-auto text-center">
           <h2 className="text-3xl font-bold mb-4">¿Quieres ver a Edgar en acción?</h2>
@@ -746,6 +747,7 @@ export default function LandingPage() {
           {error && <div className="mt-4 text-red-600">{error}</div>}
         </div>
       </section>
+      */}
 
       {/* Sección de FAQs */}
       <section className="py-20 bg-white">
