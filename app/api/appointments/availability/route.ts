@@ -97,6 +97,14 @@ export async function GET(request: Request) {
     const now = utcToZonedTime(new Date(), timezone);
     const selectedDate = utcToZonedTime(new Date(date + 'T00:00:00'), timezone);
     const isToday = selectedDate.toDateString() === now.toDateString();
+    // Log detallado de comparación de fechas
+    console.log('🕒 Comparación de fechas:', {
+      now: now.toISOString(),
+      selectedDate: selectedDate.toISOString(),
+      nowDateString: now.toDateString(),
+      selectedDateString: selectedDate.toDateString(),
+      isToday
+    });
     const jsDay = selectedDate.getDay(); // 0-6 (Domingo-Sábado)
     const dayOfWeek = jsDay === 0 ? 1 : jsDay + 1; // Convertir a 1-7 (Domingo-Sábado)
 
