@@ -38,6 +38,25 @@ import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, EyeOff } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+
+interface Workshop {
+  id: string
+  name: string
+  is_main: boolean
+  dealership_id: string
+}
+
+interface WorkshopService {
+  id: string
+  workshop_id: string
+  service_id: string
+  is_available: boolean
+  workshop: {
+    name: string
+  }
+}
 
 interface Servicio {
   id_uuid: string
@@ -55,6 +74,7 @@ interface Servicio {
   available_friday?: boolean
   available_saturday?: boolean
   available_sunday?: boolean
+  workshop_services?: WorkshopService[]
 }
 
 export default function ServiciosPage() {
@@ -95,6 +115,7 @@ export default function ServiciosPage() {
         // Si hay un dealership_id en el token, cargar los servicios de esa agencia
         if (verifiedDataToken?.dealership_id) {
           cargarServicios(verifiedDataToken.dealership_id);
+          cargarTalleres(verifiedDataToken.dealership_id);
         } else {
           cargarServicios();
         }
@@ -104,6 +125,7 @@ export default function ServiciosPage() {
 
   const { toast } = useToast()
   const [servicios, setServicios] = useState<Servicio[]>([])
+  const [talleres, setTalleres] = useState<Workshop[]>([])
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<Omit<Servicio, 'id_uuid'>>({
@@ -121,6 +143,7 @@ export default function ServiciosPage() {
     available_saturday: true,
     available_sunday: true
   })
+  const [selectedWorkshops, setSelectedWorkshops] = useState<string[]>([])
   const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null)
   const [editando, setEditando] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -140,13 +163,50 @@ export default function ServiciosPage() {
 
       const { data, error } = await supabase
         .from('services')
-        .select('id_uuid, service_name, description, duration_minutes, price, daily_limit, dealership_id, client_visible, available_monday, available_tuesday, available_wednesday, available_thursday, available_friday, available_saturday, available_sunday')
+        .select(`
+          id_uuid,
+          service_name,
+          description,
+          duration_minutes,
+          price,
+          daily_limit,
+          dealership_id,
+          client_visible,
+          available_monday,
+          available_tuesday,
+          available_wednesday,
+          available_thursday,
+          available_friday,
+          available_saturday,
+          available_sunday,
+          workshop_services (
+            id,
+            workshop_id,
+            service_id,
+            is_available,
+            workshop:workshops!workshop_services_workshop_id_fkey (
+              name
+            )
+          )
+        `)
         .eq('dealership_id', dealershipIdFromToken)
         .order('service_name')
 
       if (error) throw error
       
-      setServicios(data || [])
+      if (data) {
+        // Normalizar workshop_services para que workshop sea un objeto, no un array
+        const normalizados = data.map((servicio: any) => ({
+          ...servicio,
+          workshop_services: (servicio.workshop_services || []).map((ws: any) => ({
+            ...ws,
+            workshop: Array.isArray(ws.workshop) ? ws.workshop[0] : ws.workshop
+          }))
+        }))
+        setServicios(normalizados)
+      } else {
+        setServicios([])
+      }
     } catch (error) {
       console.error('Error al cargar servicios:', error)
       toast({
@@ -156,6 +216,33 @@ export default function ServiciosPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function cargarTalleres(dealershipIdFromToken?: string) {
+    try {
+      if (!dealershipIdFromToken) {
+        setTalleres([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('workshops')
+        .select('id, name, is_main, dealership_id')
+        .eq('dealership_id', dealershipIdFromToken)
+        .order('is_main', { ascending: false })
+        .order('name')
+
+      if (error) throw error
+      
+      setTalleres(data || [])
+    } catch (error) {
+      console.error('Error al cargar talleres:', error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los talleres",
+        variant: "destructive",
+      })
     }
   }
 
@@ -197,6 +284,40 @@ export default function ServiciosPage() {
     }
   }
 
+  // Función helper para obtener talleres asignados a un servicio
+  const getAssignedWorkshops = async (serviceId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('workshop_services')
+        .select(`
+          id,
+          workshop_id,
+          service_id,
+          is_available,
+          workshops!workshop_services_workshop_id_fkey (
+            name
+          )
+        `)
+        .eq('service_id', serviceId)
+        .eq('is_available', true)
+
+      if (error) throw error
+      
+      return data || []
+    } catch (error) {
+      console.error('Error al obtener talleres asignados:', error)
+      return []
+    }
+  }
+
+  // Función helper para mostrar talleres asignados en la tabla
+  const getAssignedWorkshopsDisplay = (servicio: Servicio) => {
+    if (!servicio.workshop_services || servicio.workshop_services.length === 0) {
+      return 'Ningún taller asignado';
+    }
+    return servicio.workshop_services.map(ws => ws.workshop.name).join(', ');
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.service_name || !formData.duration_minutes) {
@@ -213,7 +334,8 @@ export default function ServiciosPage() {
       // Obtener el dealership_id del token JWT si existe
       const dealershipId = (dataToken as any)?.dealership_id;
       
-      const { error } = await supabase
+      // 1. Crear el servicio
+      const { data: newService, error: serviceError } = await supabase
         .from('services')
         .insert([
           {
@@ -230,11 +352,31 @@ export default function ServiciosPage() {
             available_friday: formData.available_friday,
             available_saturday: formData.available_saturday,
             available_sunday: formData.available_sunday,
-            dealership_id: dealershipId // Añadir el dealership_id del token
+            dealership_id: dealershipId
           }
         ])
+        .select()
+        .single()
 
-      if (error) throw error
+      if (serviceError) throw serviceError
+
+      // 2. Asignar el servicio a los talleres seleccionados
+      if (selectedWorkshops.length > 0 && newService) {
+        const workshopServicesData = selectedWorkshops.map(workshopId => ({
+          workshop_id: workshopId,
+          service_id: newService.id_uuid,
+          is_available: true
+        }))
+
+        const { error: workshopServiceError } = await supabase
+          .from('workshop_services')
+          .insert(workshopServicesData)
+
+        if (workshopServiceError) {
+          console.error('Error al asignar talleres:', workshopServiceError)
+          // No lanzar error aquí, solo log
+        }
+      }
 
       setMostrarFormulario(false)
       setFormData({
@@ -252,11 +394,13 @@ export default function ServiciosPage() {
         available_saturday: true,
         available_sunday: true
       })
+      setSelectedWorkshops([])
+      
       toast({
         title: "Éxito",
         description: "Servicio agregado correctamente",
       })
-      cargarServicios(dealershipId) // Pasar el dealership_id al recargar
+      cargarServicios(dealershipId)
     } catch (error) {
       console.error('Error al crear servicio:', error)
       toast({
@@ -284,6 +428,7 @@ export default function ServiciosPage() {
 
     setIsSubmitting(true)
     try {
+      // 1. Actualizar el servicio
       const { error } = await supabase
         .from('services')
         .update({
@@ -305,15 +450,38 @@ export default function ServiciosPage() {
 
       if (error) throw error
 
+      // 2. Actualizar asignaciones de talleres si se seleccionaron
+      if (selectedWorkshops.length > 0) {
+        // Eliminar asignaciones existentes
+        await supabase
+          .from('workshop_services')
+          .delete()
+          .eq('service_id', servicioSeleccionado.id_uuid)
+
+        // Crear nuevas asignaciones
+        const workshopServicesData = selectedWorkshops.map(workshopId => ({
+          workshop_id: workshopId,
+          service_id: servicioSeleccionado.id_uuid,
+          is_available: true
+        }))
+
+        await supabase
+          .from('workshop_services')
+          .insert(workshopServicesData)
+      }
+
       setEditando(false)
       setServicioSeleccionado(null)
+      setSelectedWorkshops([])
+      
       toast({
         title: "Éxito",
         description: "Servicio actualizado correctamente",
       })
+      
       // Obtener el dealership_id del token JWT
       const dealershipId = (dataToken as any)?.dealership_id;
-      cargarServicios(dealershipId) // Pasar el dealership_id al recargar
+      cargarServicios(dealershipId)
     } catch (error) {
       console.error('Error al actualizar servicio:', error)
       toast({
@@ -353,6 +521,22 @@ export default function ServiciosPage() {
     }
   }
 
+  const handleEdit = async (servicio: Servicio) => {
+    setServicioSeleccionado(servicio)
+    
+    // Cargar talleres asignados al servicio
+    try {
+      const assignedWorkshops = await getAssignedWorkshops(servicio.id_uuid)
+      const assignedWorkshopIds = assignedWorkshops.map(ws => ws.workshop_id)
+      setSelectedWorkshops(assignedWorkshopIds)
+    } catch (error) {
+      console.error('Error al cargar talleres asignados:', error)
+      setSelectedWorkshops([])
+    }
+    
+    setEditando(true)
+  }
+
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-2xl font-bold mb-4">Servicios</h1>
@@ -372,6 +556,7 @@ export default function ServiciosPage() {
             <TableHead>Duración (min)</TableHead>
             <TableHead>Límite Diario</TableHead>
             <TableHead>Días Disponibles</TableHead>
+            <TableHead>Talleres Asignados</TableHead>
             <TableHead>Visible para clientes</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -387,6 +572,11 @@ export default function ServiciosPage() {
                 <span className="text-sm font-medium text-gray-700">
                   {getAvailableDaysSummary(servicio)}
                 </span>
+              </TableCell>
+              <TableCell>
+                <Badge variant="secondary">
+                  {getAssignedWorkshopsDisplay(servicio)}
+                </Badge>
               </TableCell>
               <TableCell>
                 {servicio.client_visible ? (
@@ -405,10 +595,7 @@ export default function ServiciosPage() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                    <DropdownMenuItem onClick={() => {
-                      setServicioSeleccionado(servicio)
-                      setEditando(true)
-                    }}>
+                    <DropdownMenuItem onClick={() => handleEdit(servicio)}>
                       Editar servicio
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
@@ -494,6 +681,53 @@ export default function ServiciosPage() {
                   Dejar vacío para permitir servicios ilimitados por día
                 </p>
               </div>
+              
+              {/* Nueva sección: Selección de talleres */}
+              <div className="space-y-1">
+                <Label htmlFor="talleres">Talleres donde estará disponible</Label>
+                <Select
+                  onValueChange={(value) => {
+                    if (!selectedWorkshops.includes(value)) {
+                      setSelectedWorkshops([...selectedWorkshops, value])
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar talleres" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {talleres.map((taller) => (
+                      <SelectItem key={taller.id} value={taller.id}>
+                        {taller.name} {taller.is_main && '(Principal)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {/* Mostrar talleres seleccionados */}
+                {selectedWorkshops.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedWorkshops.map((workshopId) => {
+                      const taller = talleres.find(t => t.id === workshopId)
+                      return (
+                        <Badge 
+                          key={workshopId} 
+                          variant="secondary"
+                          className="cursor-pointer"
+                          onClick={() => setSelectedWorkshops(prev => prev.filter(id => id !== workshopId))}
+                        >
+                          {taller?.name} {taller?.is_main && '(Principal)'} ×
+                        </Badge>
+                      )
+                    })}
+                  </div>
+                )}
+                
+                <p className="text-xs text-muted-foreground">
+                  Selecciona los talleres donde este servicio estará disponible
+                </p>
+              </div>
+              
               <div className="flex items-center space-x-2">
                 <Switch
                   id="client-visible"
@@ -657,6 +891,53 @@ export default function ServiciosPage() {
                   Dejar vacío para permitir servicios ilimitados por día
                 </p>
               </div>
+              
+              {/* Sección de talleres para editar */}
+              <div className="space-y-1">
+                <Label htmlFor="edit-talleres">Talleres donde estará disponible</Label>
+                <Select
+                  onValueChange={(value) => {
+                    if (!selectedWorkshops.includes(value)) {
+                      setSelectedWorkshops([...selectedWorkshops, value])
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar talleres" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {talleres.map((taller) => (
+                      <SelectItem key={taller.id} value={taller.id}>
+                        {taller.name} {taller.is_main && '(Principal)'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                {/* Mostrar talleres seleccionados */}
+                {selectedWorkshops.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {selectedWorkshops.map((workshopId) => {
+                      const taller = talleres.find(t => t.id === workshopId)
+                      return (
+                        <Badge 
+                          key={workshopId} 
+                          variant="secondary"
+                          className="cursor-pointer"
+                          onClick={() => setSelectedWorkshops(prev => prev.filter(id => id !== workshopId))}
+                        >
+                          {taller?.name} {taller?.is_main && '(Principal)'} ×
+                        </Badge>
+                      )
+                    })}
+                  </div>
+                )}
+                
+                <p className="text-xs text-muted-foreground">
+                  Selecciona los talleres donde este servicio estará disponible
+                </p>
+              </div>
+              
               <div className="flex items-center space-x-2">
                 <Switch
                   id="edit-client-visible"
