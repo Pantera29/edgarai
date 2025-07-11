@@ -210,32 +210,32 @@ export async function POST(request: Request) {
     console.log('✅ [N8N Send] Respuesta de N8N:', responseData);
 
     // Guardar mensaje en el historial de chat
-    console.log('📝 [N8N Send] Guardando mensaje en historial_chat...');
-    try {
-      const chatId = get10DigitPhoneNumber(recordatorio.client?.phone_number || '');
-      const n8nMessageId = responseData.id || responseData.message_id || null;
+    // console.log('📝 [N8N Send] Guardando mensaje en historial_chat...');
+    // try {
+    //   const chatId = get10DigitPhoneNumber(recordatorio.client?.phone_number || '');
+    //   const n8nMessageId = responseData.id || responseData.message_id || null;
 
-      const { error: historyError } = await supabase
-        .from('historial_chat')
-        .insert({
-          chat_id: parseInt(chatId, 10),
-          message_id: n8nMessageId,
-          message: processedMessage,
-          processed: true,
-          status: 'active',
-          agente: true,
-          dealership_id: dealership_id
-        });
+    //   const { error: historyError } = await supabase
+    //     .from('historial_chat')
+    //     .insert({
+    //       chat_id: parseInt(chatId, 10),
+    //       message_id: n8nMessageId,
+    //       message: processedMessage,
+    //       processed: true,
+    //       status: 'active',
+    //       agente: true,
+    //       dealership_id: dealership_id
+    //     });
 
-      if (historyError) {
-        console.error('❌ [N8N Send] Error al guardar en historial_chat:', historyError);
-        // No se falla la petición, solo se loguea el error
-      } else {
-        console.log('✅ [N8N Send] Mensaje guardado en historial_chat');
-      }
-    } catch (e) {
-      console.error('💥 [N8N Send] Error inesperado al procesar para historial_chat:', e);
-    }
+    //   if (historyError) {
+    //     console.error('❌ [N8N Send] Error al guardar en historial_chat:', historyError);
+    //     // No se falla la petición, solo se loguea el error
+    //   } else {
+    //     console.log('✅ [N8N Send] Mensaje guardado en historial_chat');
+    //   }
+    // } catch (e) {
+    //   console.error('💥 [N8N Send] Error inesperado al procesar para historial_chat:', e);
+    // }
 
     // 9. Actualizar estado del recordatorio
     console.log('📝 [N8N Send] Actualizando estado del recordatorio a "sent"');
