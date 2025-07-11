@@ -42,6 +42,19 @@ interface ExtendedService extends Service {
   duration_minutes: number;
 }
 
+// Interfaz para workshop
+interface Workshop {
+  id: string;
+  name: string;
+  is_main: boolean;
+  dealership_id: string;
+  address?: string;
+  city?: string;
+  phone?: string;
+  location_url?: string;
+  is_active: boolean;
+}
+
 // Interfaz para el tipo de appointment
 interface Appointment {
   id: string;
@@ -334,10 +347,13 @@ export default function NuevaReservaPage() {
   const [selectedClient, setSelectedClient] = useState<string>('');
   const [selectedVehicle, setSelectedVehicle] = useState<string>('');
   const [filteredVehicles, setFilteredVehicles] = useState<ExtendedVehicle[]>([]);
+  const [selectedWorkshop, setSelectedWorkshop] = useState<string>('');
+  const [workshops, setWorkshops] = useState<Workshop[]>([]);
   const [selectedService, setSelectedService] = useState('');
   const [estado, setEstado] = useState<'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'>('pending');
   const [notas, setNotas] = useState('');
   const [servicios, setServicios] = useState<ExtendedService[]>([]);
+  const [filteredServices, setFilteredServices] = useState<ExtendedService[]>([]);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -394,15 +410,25 @@ export default function NuevaReservaPage() {
     return `${vehicle.make} ${vehicle.model}${vehicle.license_plate ? ` (${vehicle.license_plate})` : ''}`;
   }, [selectedVehicle, filteredVehicles]);
 
+  // Obtener el texto del taller seleccionado
+  const selectedWorkshopText = React.useMemo(() => {
+    if (!selectedWorkshop) return "";
+    
+    const workshop = workshops.find(w => w.id === selectedWorkshop);
+    if (!workshop) return "";
+    
+    return `${workshop.name}${workshop.is_main ? ' (Principal)' : ''}`;
+  }, [selectedWorkshop, workshops]);
+
   // Obtener el texto del servicio seleccionado
   const selectedServiceText = React.useMemo(() => {
     console.log('Recalculando selectedServiceText. selectedService:', selectedService);
-    console.log('Servicios disponibles:', servicios);
+    console.log('Servicios disponibles:', filteredServices);
     
     if (!selectedService) return "";
     
     // Intentar encontrar el servicio tanto por id como por id_uuid
-    const service = servicios.find(s => 
+    const service = filteredServices.find(s => 
       s.id === selectedService || 
       s.id_uuid === selectedService
     );
@@ -414,7 +440,7 @@ export default function NuevaReservaPage() {
     const text = `${service.service_name} (${service.duration_minutes} min)`;
     console.log('Texto del servicio seleccionado:', text);
     return text;
-  }, [selectedService, servicios]);
+  }, [selectedService, filteredServices]);
 
   const handleSelectDate = (date: Date | undefined) => {
     if (date) {
@@ -458,10 +484,12 @@ export default function NuevaReservaPage() {
 
       const [
         { data: vehiculosData, error: vehiculosError },
-        { data: serviciosData, error: serviciosError }
+        { data: serviciosData, error: serviciosError },
+        { data: workshopsData, error: workshopsError }
       ] = await Promise.all([
         supabase.from('vehicles').select('*').order('make, model').limit(100000), // Límite muy alto para prácticamente sin límite
-        supabase.from('services').select('*').eq('dealership_id', verifiedDataToken.dealership_id).order('service_name')
+        supabase.from('services').select('*').eq('dealership_id', verifiedDataToken.dealership_id).order('service_name'),
+        supabase.from('workshops').select('*').eq('dealership_id', verifiedDataToken.dealership_id).eq('is_active', true).order('is_main', { ascending: false }).order('name')
       ]);
 
       if (vehiculosError) {
@@ -470,12 +498,24 @@ export default function NuevaReservaPage() {
       if (serviciosError){
         throw serviciosError;
       } 
+      if (workshopsError) {
+        throw workshopsError;
+      }
       
       console.log('Vehículos cargados:', vehiculosData?.length || 0);
-      console.log('Un ejemplo de vehículo:', vehiculosData?.[0]);
+      console.log('Servicios cargados:', serviciosData?.length || 0);
+      console.log('Talleres cargados:', workshopsData?.length || 0);
       
       setVehiculos(vehiculosData || []);
       setServicios(serviciosData || []);
+      setWorkshops(workshopsData || []);
+
+      // Seleccionar taller principal por defecto si existe
+      const mainWorkshop = workshopsData?.find(w => w.is_main);
+      if (mainWorkshop) {
+        setSelectedWorkshop(mainWorkshop.id);
+        console.log('Taller principal seleccionado por defecto:', mainWorkshop.name);
+      }
     } catch (error) {
       console.error('Error cargando datos:', error);
       toast({
@@ -541,7 +581,7 @@ export default function NuevaReservaPage() {
       });
       
       const response = await fetch(
-        `/api/appointments/availability?date=${date}&service_id=${selectedService}&dealership_id=${verifiedDataToken?.dealership_id}`,
+        `/api/appointments/availability?date=${date}&service_id=${selectedService}&dealership_id=${verifiedDataToken?.dealership_id}&workshop_id=${selectedWorkshop}`,
         {
           headers: {
             'x-request-source': 'backoffice'
@@ -583,21 +623,8 @@ export default function NuevaReservaPage() {
 
   const loadConfig = async () => {
     try {
-      if (!verifiedDataToken?.dealership_id) {
-        console.error('No se encontró dealership_id en el token');
-        return;
-      }
-
-      // Buscar taller principal por defecto
-      const { data: mainWorkshop } = await supabase
-        .from('workshops')
-        .select('id')
-        .eq('dealership_id', verifiedDataToken.dealership_id)
-        .eq('is_main', true)
-        .single();
-
-      if (!mainWorkshop) {
-        console.error('No se encontró taller principal');
+      if (!verifiedDataToken?.dealership_id || !selectedWorkshop) {
+        console.error('No se encontró dealership_id o workshop_id');
         return;
       }
 
@@ -605,7 +632,7 @@ export default function NuevaReservaPage() {
         .from('dealership_configuration')
         .select('*')
         .eq('dealership_id', verifiedDataToken.dealership_id)
-        .eq('workshop_id', mainWorkshop.id)
+        .eq('workshop_id', selectedWorkshop)
         .maybeSingle();
 
       if (error) {
@@ -615,7 +642,7 @@ export default function NuevaReservaPage() {
 
       setTallerConfig(data || {
         dealership_id: verifiedDataToken.dealership_id,
-        workshop_id: mainWorkshop.id,
+        workshop_id: selectedWorkshop,
         shift_duration: 30,
         timezone: 'America/Mexico_City'
       });
@@ -623,6 +650,68 @@ export default function NuevaReservaPage() {
       console.error('Error al cargar la configuración:', error);
     }
   };
+
+  // Efecto para cargar configuración cuando cambia el taller seleccionado
+  useEffect(() => {
+    if (selectedWorkshop) {
+      loadConfig();
+    }
+  }, [selectedWorkshop]);
+
+  // Efecto para filtrar servicios cuando cambia el taller seleccionado
+  useEffect(() => {
+    if (!selectedWorkshop) {
+      setFilteredServices([]);
+      setSelectedService('');
+      return;
+    }
+
+    // Filtrar servicios que están disponibles en el taller seleccionado
+    const filterServicesByWorkshop = async () => {
+      try {
+        const { data: workshopServices, error } = await supabase
+          .from('workshop_services')
+          .select('service_id, is_available')
+          .eq('workshop_id', selectedWorkshop)
+          .eq('is_available', true);
+
+        if (error) {
+          console.error('Error al cargar servicios del taller:', error);
+          // Si hay error, mostrar todos los servicios como fallback
+          setFilteredServices(servicios);
+          return;
+        }
+
+        if (workshopServices && workshopServices.length > 0) {
+          const availableServiceIds = workshopServices.map(ws => ws.service_id);
+          const filtered = servicios.filter(service => 
+            availableServiceIds.includes(service.id_uuid || service.id)
+          );
+          setFilteredServices(filtered);
+          console.log(`Servicios disponibles para el taller: ${filtered.length}`);
+        } else {
+          // Si no hay servicios asignados específicamente, mostrar todos los servicios
+          setFilteredServices(servicios);
+          console.log('No hay servicios específicos asignados al taller, mostrando todos');
+        }
+
+        // Resetear servicio seleccionado si no está disponible en el nuevo taller
+        if (selectedService) {
+          const isServiceAvailable = filteredServices.some(service => 
+            (service.id_uuid || service.id) === selectedService
+          );
+          if (!isServiceAvailable) {
+            setSelectedService('');
+          }
+        }
+      } catch (error) {
+        console.error('Error al filtrar servicios por taller:', error);
+        setFilteredServices(servicios);
+      }
+    };
+
+    filterServicesByWorkshop();
+  }, [selectedWorkshop, servicios]);
 
   useEffect(() => {
     if (verifiedDataToken?.dealership_id) {
@@ -645,19 +734,19 @@ export default function NuevaReservaPage() {
     console.log('selectedService cambió a:', selectedService);
     // Forzar la actualización del texto cuando cambia el servicio seleccionado
     if (selectedService) {
-      const service = servicios.find(s => s.id === selectedService);
+      const service = filteredServices.find(s => s.id === selectedService);
       if (service) {
         console.log('Servicio encontrado por id:', service);
       } else {
         // Intentar buscar por otras propiedades si existe alguna confusión con los campos
         console.log('Buscando servicio por otras propiedades...');
-        const serviceById = servicios.find(s => String(s.id) === String(selectedService));
-        const serviceByUuid = servicios.find(s => s.id_uuid === selectedService);
+        const serviceById = filteredServices.find(s => String(s.id) === String(selectedService));
+        const serviceByUuid = filteredServices.find(s => s.id_uuid === selectedService);
         console.log('Por id convertido a string:', serviceById);
         console.log('Por id_uuid:', serviceByUuid);
       }
     }
-  }, [selectedService, servicios]);
+  }, [selectedService, filteredServices]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -665,6 +754,7 @@ export default function NuevaReservaPage() {
     console.log("Valores al enviar:", {
       cliente: selectedClient,
       vehiculo: selectedVehicle,
+      taller: selectedWorkshop,
       servicio: selectedService,
       fecha: selectedDate,
       hora: selectedSlot,
@@ -677,6 +767,7 @@ export default function NuevaReservaPage() {
     const camposFaltantes = {
       cliente: !selectedClient,
       vehiculo: !selectedVehicle,
+      taller: !selectedWorkshop,
       servicio: !selectedService,
       fecha: !selectedDate,
       hora: !selectedSlot
@@ -736,6 +827,7 @@ export default function NuevaReservaPage() {
         service_id: selectedService,
         appointment_date: selectedDate,
         dealership_id: verifiedDataToken?.dealership_id || '6b58f82d-baa6-44ce-9941-1a61975d20b5',
+        workshop_id: selectedWorkshop,
         appointment_time: selectedSlot,
         status: estado,
         notes: notas,
@@ -969,10 +1061,46 @@ export default function NuevaReservaPage() {
           </div>
 
           <div className="grid grid-cols-12 items-center gap-4">
+            <Label htmlFor="taller" className="text-right col-span-1">Taller</Label>
+            <div className="col-span-11">
+              <Select 
+                value={selectedWorkshop || ''} 
+                onValueChange={(value) => {
+                  console.log("Taller seleccionado:", value);
+                  setSelectedWorkshop(value);
+                  setSelectedService(''); // Resetear servicio al cambiar taller
+                }}
+                disabled={!selectedVehicle}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder={
+                    !selectedVehicle 
+                      ? "Primero seleccione un vehículo" 
+                      : "Seleccione un taller"
+                  } />
+                </SelectTrigger>
+                <SelectContent>
+                  {workshops.length > 0 ? (
+                    workshops.map((workshop) => (
+                      <SelectItem key={workshop.id} value={workshop.id}>
+                        {workshop.name} {workshop.is_main && '(Principal)'}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                      No hay talleres disponibles
+                    </div>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-12 items-center gap-4">
             <Label htmlFor="servicio" className="text-right col-span-1">Servicio</Label>
             <div className="col-span-11">
               <ServiceComboBox
-                servicios={servicios}
+                servicios={filteredServices}
                 onSelect={setSelectedService}
                 value={selectedService}
               />
@@ -1003,7 +1131,7 @@ export default function NuevaReservaPage() {
                     start_time: date.start_time || undefined,
                     end_time: date.end_time || undefined
                   }))}
-                  operatingHours={operatingHours}
+                  operatingHours={operatingHours.filter(h => h.workshop_id === selectedWorkshop)}
                   turnDuration={tallerConfig?.shift_duration || 30}
                   appointments={appointments}
                   onTimeSlotSelect={(slot) => {
@@ -1012,16 +1140,17 @@ export default function NuevaReservaPage() {
                   }}
                   selectedService={selectedService ? {
                     id: selectedService,
-                    service_name: servicios.find(s => 
+                    service_name: filteredServices.find(s => 
                       s.id === selectedService || 
                       s.id_uuid === selectedService
                     )?.service_name || '',
-                    duration_minutes: servicios.find(s => 
+                    duration_minutes: filteredServices.find(s => 
                       s.id === selectedService || 
                       s.id_uuid === selectedService
                     )?.duration_minutes || tallerConfig?.shift_duration || 30
                   } : undefined}
                   dealershipId={verifiedDataToken?.dealership_id}
+                  workshopId={selectedWorkshop}
                 />
                 {selectedSlot && (
                   <div className="mt-4 p-2 bg-green-50 border border-green-200 rounded-md text-center">
@@ -1078,6 +1207,10 @@ export default function NuevaReservaPage() {
               <div className="grid grid-cols-2">
                 <span className="font-medium">Vehículo:</span>
                 <span>{selectedVehicleText || 'No seleccionado'}</span>
+              </div>
+              <div className="grid grid-cols-2">
+                <span className="font-medium">Taller:</span>
+                <span>{selectedWorkshopText || 'No seleccionado'}</span>
               </div>
               <div className="grid grid-cols-2">
                 <span className="font-medium">Servicio:</span>
