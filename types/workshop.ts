@@ -12,6 +12,7 @@ export interface TallerConfig {
 export interface HorarioOperacion {
   id: string;
   dealership_id: string;
+  workshop_id?: string;
   day_of_week: number;
   opening_time: string;
   closing_time: string;

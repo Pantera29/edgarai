@@ -102,6 +102,7 @@ interface AppointmentCalendarProps {
   className?: string;
   dealershipId?: string;
   allowPastDates?: boolean;
+  workshopId?: string;
 }
 
 // Agregar este helper para agrupar slots por hora
@@ -333,7 +334,8 @@ export function AppointmentCalendar({
   selectedService,
   className,
   dealershipId,
-  allowPastDates = false
+  allowPastDates = false,
+  workshopId
 }: AppointmentCalendarProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [monthYear, setMonthYear] = useState<Date>(new Date());
@@ -527,6 +529,7 @@ export function AppointmentCalendar({
             date: dateStr,
             service_id: selectedService.id,
             dealership_id: dealershipId,
+            workshop_id: workshopId
           },
           headers: {
             'x-request-source': 'backoffice'
