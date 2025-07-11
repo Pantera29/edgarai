@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     // 1. Obtener la duración del servicio y la configuración del taller
     const { data: service, error: serviceError } = await supabase
       .from('services')
-      .select('duration_minutes, daily_limit, dealership_id')
+      .select('duration_minutes, daily_limit, dealership_id, service_name, available_monday, available_tuesday, available_wednesday, available_thursday, available_friday, available_saturday, available_sunday')
       .eq('id_uuid', serviceId)
       .single();
 
@@ -73,15 +73,6 @@ export async function GET(request: Request) {
         { status: 404 }
       );
     }
-
-    const serviceDuration = service.duration_minutes;
-
-    console.log('📊 Información del servicio obtenida:', {
-      serviceId,
-      duration_minutes: service.duration_minutes,
-      daily_limit: service.daily_limit,
-      dealership_id: service.dealership_id
-    });
 
     // Resolver workshop_id automáticamente si no se proporciona
     console.log('🔍 Resolviendo workshop_id:', {
@@ -161,10 +152,55 @@ export async function GET(request: Request) {
     const slotDuration = dealershipConfig?.shift_duration || 30;
     const timezone = dealershipConfig?.timezone || 'America/Mexico_City';
 
-    // 2. Obtener el día de la semana (1-7, donde 1 es Domingo)
-    // CORRECCIÓN FINAL: Construir y comparar fechas en la zona horaria del concesionario
+    // 🔄 Validar disponibilidad del servicio según el día de la semana
+    // Obtener el día de la semana de la fecha solicitada (0=Domingo, 1=Lunes, ..., 6=Sábado)
     const selectedDateUtc = zonedTimeToUtc(`${date}T00:00:00`, timezone);
     const selectedDate = utcToZonedTime(selectedDateUtc, timezone);
+    const jsDay = selectedDate.getDay();
+    const dayMap = [
+      'available_sunday',
+      'available_monday',
+      'available_tuesday',
+      'available_wednesday',
+      'available_thursday',
+      'available_friday',
+      'available_saturday'
+    ];
+    const availableField = dayMap[jsDay];
+    if (!service[availableField as keyof typeof service]) {
+      console.log('❌ Servicio no disponible este día:', { serviceId, availableField });
+      
+      // Obtener el nombre del día en inglés
+      const dayNames = [
+        'Sunday',
+        'Monday', 
+        'Tuesday',
+        'Wednesday',
+        'Thursday',
+        'Friday',
+        'Saturday'
+      ];
+      const dayName = dayNames[jsDay];
+      
+      return NextResponse.json({
+        availableSlots: [],
+        message: `The service "${service.service_name}" is not available on ${dayName}s. Please select another day of the week or contact the workshop to verify service availability.`,
+        error_code: 'SERVICE_NOT_AVAILABLE_ON_DAY',
+        details: {
+          service_id: serviceId,
+          service_name: service.service_name,
+          requested_date: date,
+          day_of_week: dayName,
+          suggestion: 'Try another day of the week or contact the workshop for more information.'
+        }
+      });
+    }
+
+    const serviceDuration = service.duration_minutes;
+
+    // 2. Obtener el día de la semana (1-7, donde 1 es Domingo)
+    // CORRECCIÓN FINAL: Construir y comparar fechas en la zona horaria del concesionario
+    // (ya hecho arriba)
     const now = utcToZonedTime(new Date(), timezone);
     const isToday = selectedDate.getFullYear() === now.getFullYear() &&
                     selectedDate.getMonth() === now.getMonth() &&
@@ -177,7 +213,6 @@ export async function GET(request: Request) {
       selectedDateString: selectedDate.toDateString(),
       isToday
     });
-    const jsDay = selectedDate.getDay(); // 0-6 (Domingo-Sábado)
     const dayOfWeek = jsDay === 0 ? 1 : jsDay + 1; // Convertir a 1-7 (Domingo-Sábado)
 
     console.log('Verificando disponibilidad:', {

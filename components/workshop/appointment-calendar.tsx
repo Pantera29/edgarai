@@ -340,6 +340,7 @@ export function AppointmentCalendar({
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const slotsRef = useRef<HTMLDivElement>(null);
   const [backendSlots, setBackendSlots] = useState<TimeSlot[] | null>(null);
+  const [backendMessage, setBackendMessage] = useState<string | null>(null);
 
   // Log de los props recibidos para depuración
   console.log('AppointmentCalendar props:', { selectedDate, selectedService, dealershipId });
@@ -516,6 +517,7 @@ export function AppointmentCalendar({
     const fetchBackendSlots = async () => {
       if (!selectedDate || !selectedService || !dealershipId) {
         setBackendSlots(null);
+        setBackendMessage(null);
         return;
       }
       try {
@@ -541,13 +543,32 @@ export function AppointmentCalendar({
             }))
           : [];
         setBackendSlots(slots);
-      } catch (error) {
+        // Guardar el mensaje si existe
+        setBackendMessage(response.data.message || null);
+      } catch (error: any) {
         console.error('Error consultando disponibilidad al backend:', error);
         setBackendSlots(null);
+        setBackendMessage('Error consultando disponibilidad.');
       }
     };
     fetchBackendSlots();
   }, [selectedDate, selectedService, dealershipId]);
+
+  // Función para traducir mensajes conocidos
+  const traducirMensajeDisponibilidad = (msg: string | null): string => {
+    if (!msg) return 'No hay horarios disponibles';
+    // Mapeo de mensajes conocidos del endpoint
+    if (msg.includes('is not available on')) return 'El servicio no está disponible en el día seleccionado. Por favor, elige otro día o consulta con el taller.';
+    if (msg.includes('Daily limit reached')) return 'Se alcanzó el límite diario de citas para este servicio.';
+    if (msg.includes('not a working day')) return 'El concesionario no opera en el día seleccionado.';
+    if (msg.includes('blocked')) return 'El día está bloqueado para agendar citas.';
+    if (msg.includes('No operating hours configured')) return 'No hay horarios configurados para este concesionario.';
+    if (msg.includes('Service not available for this workshop')) return 'El servicio no está disponible para este taller.';
+    if (msg.includes('Error fetching')) return 'Error al consultar la disponibilidad. Intenta nuevamente.';
+    if (msg.includes('parameters are required')) return 'Faltan datos obligatorios para consultar la disponibilidad.';
+    // Mensaje por defecto
+    return msg;
+  };
 
   const renderTimeSlots = () => {
     if (!selectedDate) return null;
@@ -575,7 +596,9 @@ export function AppointmentCalendar({
         <div className="p-6">
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {processedSlots.length === 0 ? (
-              <div className="col-span-full text-center text-muted-foreground">No hay horarios disponibles</div>
+              <div className="col-span-full text-center text-muted-foreground">
+                {traducirMensajeDisponibilidad(backendMessage)}
+              </div>
             ) : (
               processedSlots.map((slot, index) => (
                 <Button
