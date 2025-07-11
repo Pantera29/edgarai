@@ -587,95 +587,59 @@ function generateTimeSlots(
   // Verificar disponibilidad para cada slot
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
-    if (slot.available === 0) continue;
-
-    // Si es el día actual, verificar si el horario ya pasó
-    if (isToday) {
-      const slotMinutes = timeToMinutes(slot.time);
-      const currentMinutes = timeToMinutes(currentTimeStr);
-      
-      console.log('Comparando slot:', {
-        slot: slot.time,
-        slotMinutes,
-        currentTime: currentTimeStr,
-        currentMinutes,
-        isPast: slotMinutes <= currentMinutes
-      });
-
-      if (slotMinutes <= currentMinutes) {
-        continue; // Saltar slots que ya pasaron
-      }
-    }
-
-    // Si hay un horario de recepción configurado, verificar que el slot no esté después
-    if (receptionEndTime) {
-      const slotTime = timeToMinutes(slot.time);
-      const receptionEndMinutes = timeToMinutes(receptionEndTime);
-      
-      // Si el slot está después del horario de recepción, saltarlo
-      if (slotTime > receptionEndMinutes) continue;
-    }
-
-    // Verificar si el servicio cabe en el horario de cierre
-    const slotStartTime = parse(slot.time, 'HH:mm:ss', new Date());
-    const slotEndTime = addMinutes(slotStartTime, serviceDuration);
-    const closingTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
-    
-    if (!isBefore(slotEndTime, closingTime)) {
-      continue; // No cabe en el horario de operación
-    }
-    
-    // NUEVO: Validar política de llegadas antes de verificar capacidad
+    let exactSlotAppointments = [];
     if (maxArrivalsPerSlot !== null) {
-      const exactSlotAppointments = appointments.filter(app => 
+      exactSlotAppointments = appointments.filter(app => 
         app.appointment_time === slot.time
       );
-      
-      if (exactSlotAppointments.length >= maxArrivalsPerSlot) {
-        console.log('Slot regular lleno por política de llegadas:', {
-          slot: slot.time,
-          exactAppointments: exactSlotAppointments.length,
-          maxArrivalsPerSlot
-        });
-        continue;
-      }
     }
-    
-    // Verificar solapamiento con citas existentes
     const slotStartMinutes = timeToMinutes(slot.time);
     const slotEndMinutes = slotStartMinutes + serviceDuration;
-    
     const overlappingAppointments = appointments.filter(app => {
       const appStart = timeToMinutes(app.appointment_time);
       const appEnd = appStart + (app.services?.duration_minutes || 60);
       return appStart < slotEndMinutes && appEnd > slotStartMinutes;
     });
-
-    // LÓGICA MODIFICADA: Verificación de capacidad considerando tiempo total
-    let hasEnoughCapacity = true;
-    
-    if (overlappingAppointments.length >= maxSimultaneous) {
-      // Si hay suficiente tiempo total disponible en el día, permitir el slot
-      // aunque parezca haber conflicto de simultaneidad
-      if (remainingMinutesAvailable >= serviceDuration) {
-        console.log('Permitiendo slot con solapamiento debido a capacidad total disponible:', {
-          slot: slot.time,
-          overlappingAppointments: overlappingAppointments.length,
-          remainingMinutesAvailable,
-          serviceDuration
-        });
-        // Se permite el slot dentro del horario de recepción
-        hasEnoughCapacity = true;
-      } else {
-        // No hay suficiente tiempo total disponible
-        hasEnoughCapacity = false;
+    // LOG DETALLADO DE SLOT
+    console.log('🟦 Slot:', {
+      slot: slot.time,
+      citasSolapadas: overlappingAppointments.length,
+      maxSimultaneous,
+      exactAppointments: exactSlotAppointments.length,
+      maxArrivalsPerSlot,
+      descartadoPorLlegadas: maxArrivalsPerSlot !== null ? exactSlotAppointments.length >= maxArrivalsPerSlot : false,
+      descartadoPorCapacidad: overlappingAppointments.length >= maxSimultaneous
+    });
+    if (slot.available === 0) continue;
+    // Si es el día actual, verificar si el horario ya pasó
+    if (isToday) {
+      const slotMinutes = timeToMinutes(slot.time);
+      const currentMinutes = timeToMinutes(currentTimeStr);
+      if (slotMinutes <= currentMinutes) {
+        continue; // Saltar slots que ya pasaron
       }
     }
-    
-    // Si hay capacidad disponible, agregar a los slots disponibles
-    if (hasEnoughCapacity) {
-      availableSlots.push(slot.time);
+    // Si hay un horario de recepción configurado, verificar que el slot no esté después
+    if (receptionEndTime) {
+      const slotTime = timeToMinutes(slot.time);
+      const receptionEndMinutes = timeToMinutes(receptionEndTime);
+      if (slotTime > receptionEndMinutes) continue;
     }
+    const slotStartTime = parse(slot.time, 'HH:mm:ss', new Date());
+    const slotEndTime = addMinutes(slotStartTime, serviceDuration);
+    const closingTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
+    if (!isBefore(slotEndTime, closingTime)) {
+      continue; // No cabe en el horario de operación
+    }
+    if (maxArrivalsPerSlot !== null) {
+      if (exactSlotAppointments.length >= maxArrivalsPerSlot) {
+        continue;
+      }
+    }
+    if (overlappingAppointments.length >= maxSimultaneous) {
+      continue;
+    }
+    availableSlots.push(slot.time);
   }
 
   // NUEVO: Si después de verificar todos los slots, no hay ninguno disponible pero hay capacidad total
