@@ -36,6 +36,7 @@ import { useRouter } from "next/navigation"
 import { verifyToken } from "@/app/jwt/token"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, EyeOff } from 'lucide-react'
 
 interface Servicio {
@@ -47,6 +48,13 @@ interface Servicio {
   daily_limit: number | null
   dealership_id?: string
   client_visible?: boolean
+  available_monday?: boolean
+  available_tuesday?: boolean
+  available_wednesday?: boolean
+  available_thursday?: boolean
+  available_friday?: boolean
+  available_saturday?: boolean
+  available_sunday?: boolean
 }
 
 export default function ServiciosPage() {
@@ -104,7 +112,14 @@ export default function ServiciosPage() {
     duration_minutes: 0,
     price: 0,
     daily_limit: null,
-    client_visible: true
+    client_visible: true,
+    available_monday: true,
+    available_tuesday: true,
+    available_wednesday: true,
+    available_thursday: true,
+    available_friday: true,
+    available_saturday: true,
+    available_sunday: true
   })
   const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null)
   const [editando, setEditando] = useState(false)
@@ -125,7 +140,7 @@ export default function ServiciosPage() {
 
       const { data, error } = await supabase
         .from('services')
-        .select('id_uuid, service_name, description, duration_minutes, price, daily_limit, dealership_id, client_visible')
+        .select('id_uuid, service_name, description, duration_minutes, price, daily_limit, dealership_id, client_visible, available_monday, available_tuesday, available_wednesday, available_thursday, available_friday, available_saturday, available_sunday')
         .eq('dealership_id', dealershipIdFromToken)
         .order('service_name')
 
@@ -149,6 +164,37 @@ export default function ServiciosPage() {
       style: 'currency',
       currency: 'ARS'
     }).format(price)
+  }
+
+  // Función helper para generar resumen de días disponibles
+  const getAvailableDaysSummary = (servicio: Servicio) => {
+    const days = [
+      { key: 'available_monday', short: 'Lun' },
+      { key: 'available_tuesday', short: 'Mar' },
+      { key: 'available_wednesday', short: 'Mié' },
+      { key: 'available_thursday', short: 'Jue' },
+      { key: 'available_friday', short: 'Vie' },
+      { key: 'available_saturday', short: 'Sáb' },
+      { key: 'available_sunday', short: 'Dom' }
+    ];
+
+    const availableDays = days.filter(day => servicio[day.key as keyof Servicio] === true);
+    
+    if (availableDays.length === 7) {
+      return 'Todos los días';
+    } else if (availableDays.length === 0) {
+      return 'Ninguno';
+    } else if (availableDays.length === 5 && 
+               servicio.available_monday && servicio.available_tuesday && 
+               servicio.available_wednesday && servicio.available_thursday && 
+               servicio.available_friday) {
+      return 'Lun-Vie';
+    } else if (availableDays.length === 2 && 
+               servicio.available_saturday && servicio.available_sunday) {
+      return 'Fines de semana';
+    } else {
+      return availableDays.map(day => day.short).join(', ');
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -177,6 +223,13 @@ export default function ServiciosPage() {
             price: formData.price,
             daily_limit: formData.daily_limit,
             client_visible: formData.client_visible,
+            available_monday: formData.available_monday,
+            available_tuesday: formData.available_tuesday,
+            available_wednesday: formData.available_wednesday,
+            available_thursday: formData.available_thursday,
+            available_friday: formData.available_friday,
+            available_saturday: formData.available_saturday,
+            available_sunday: formData.available_sunday,
             dealership_id: dealershipId // Añadir el dealership_id del token
           }
         ])
@@ -190,7 +243,14 @@ export default function ServiciosPage() {
         duration_minutes: 30,
         price: 0,
         daily_limit: null,
-        client_visible: true
+        client_visible: true,
+        available_monday: true,
+        available_tuesday: true,
+        available_wednesday: true,
+        available_thursday: true,
+        available_friday: true,
+        available_saturday: true,
+        available_sunday: true
       })
       toast({
         title: "Éxito",
@@ -232,7 +292,14 @@ export default function ServiciosPage() {
           duration_minutes: servicioSeleccionado.duration_minutes,
           price: servicioSeleccionado.price,
           daily_limit: servicioSeleccionado.daily_limit,
-          client_visible: servicioSeleccionado.client_visible
+          client_visible: servicioSeleccionado.client_visible,
+          available_monday: servicioSeleccionado.available_monday,
+          available_tuesday: servicioSeleccionado.available_tuesday,
+          available_wednesday: servicioSeleccionado.available_wednesday,
+          available_thursday: servicioSeleccionado.available_thursday,
+          available_friday: servicioSeleccionado.available_friday,
+          available_saturday: servicioSeleccionado.available_saturday,
+          available_sunday: servicioSeleccionado.available_sunday
         })
         .eq('id_uuid', servicioSeleccionado.id_uuid)
 
@@ -303,8 +370,8 @@ export default function ServiciosPage() {
             <TableHead>Nombre</TableHead>
             <TableHead>Descripción</TableHead>
             <TableHead>Duración (min)</TableHead>
-            <TableHead>Precio</TableHead>
             <TableHead>Límite Diario</TableHead>
+            <TableHead>Días Disponibles</TableHead>
             <TableHead>Visible para clientes</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -315,8 +382,12 @@ export default function ServiciosPage() {
               <TableCell className="font-medium">{servicio.service_name}</TableCell>
               <TableCell>{servicio.description || '-'}</TableCell>
               <TableCell>{servicio.duration_minutes}</TableCell>
-              <TableCell>{formatPrice(servicio.price || 0)}</TableCell>
               <TableCell>{servicio.daily_limit ? `${servicio.daily_limit} por día` : 'Ilimitado'}</TableCell>
+              <TableCell>
+                <span className="text-sm font-medium text-gray-700">
+                  {getAvailableDaysSummary(servicio)}
+                </span>
+              </TableCell>
               <TableCell>
                 {servicio.client_visible ? (
                   <Eye className="h-4 w-4 text-green-600" />
@@ -434,6 +505,72 @@ export default function ServiciosPage() {
               <p className="text-sm text-muted-foreground">
                 Los servicios visibles pueden ser agendados por los clientes. Los servicios internos solo son visibles para la agencia.
               </p>
+              
+              {/* Disponibilidad por días */}
+              <div className="space-y-3">
+                <Label>Disponibilidad por días</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="monday"
+                      checked={formData.available_monday ?? true}
+                      onCheckedChange={(checked) => setFormData({ ...formData, available_monday: checked })}
+                    />
+                    <Label htmlFor="monday">Lunes</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="tuesday"
+                      checked={formData.available_tuesday ?? true}
+                      onCheckedChange={(checked) => setFormData({ ...formData, available_tuesday: checked })}
+                    />
+                    <Label htmlFor="tuesday">Martes</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="wednesday"
+                      checked={formData.available_wednesday ?? true}
+                      onCheckedChange={(checked) => setFormData({ ...formData, available_wednesday: checked })}
+                    />
+                    <Label htmlFor="wednesday">Miércoles</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="thursday"
+                      checked={formData.available_thursday ?? true}
+                      onCheckedChange={(checked) => setFormData({ ...formData, available_thursday: checked })}
+                    />
+                    <Label htmlFor="thursday">Jueves</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="friday"
+                      checked={formData.available_friday ?? true}
+                      onCheckedChange={(checked) => setFormData({ ...formData, available_friday: checked })}
+                    />
+                    <Label htmlFor="friday">Viernes</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="saturday"
+                      checked={formData.available_saturday ?? true}
+                      onCheckedChange={(checked) => setFormData({ ...formData, available_saturday: checked })}
+                    />
+                    <Label htmlFor="saturday">Sábado</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="sunday"
+                      checked={formData.available_sunday ?? true}
+                      onCheckedChange={(checked) => setFormData({ ...formData, available_sunday: checked })}
+                    />
+                    <Label htmlFor="sunday">Domingo</Label>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Selecciona los días en que este servicio estará disponible para agendar.
+                </p>
+              </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={loading}>
@@ -533,6 +670,86 @@ export default function ServiciosPage() {
               <p className="text-sm text-muted-foreground">
                 Los servicios visibles pueden ser agendados por los clientes. Los servicios internos solo son visibles para la agencia.
               </p>
+              
+              {/* Disponibilidad por días */}
+              <div className="space-y-3">
+                <Label>Disponibilidad por días</Label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="edit-monday"
+                      checked={servicioSeleccionado?.available_monday ?? true}
+                      onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                        prev ? {...prev, available_monday: checked} : prev
+                      )}
+                    />
+                    <Label htmlFor="edit-monday">Lunes</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="edit-tuesday"
+                      checked={servicioSeleccionado?.available_tuesday ?? true}
+                      onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                        prev ? {...prev, available_tuesday: checked} : prev
+                      )}
+                    />
+                    <Label htmlFor="edit-tuesday">Martes</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="edit-wednesday"
+                      checked={servicioSeleccionado?.available_wednesday ?? true}
+                      onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                        prev ? {...prev, available_wednesday: checked} : prev
+                      )}
+                    />
+                    <Label htmlFor="edit-wednesday">Miércoles</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="edit-thursday"
+                      checked={servicioSeleccionado?.available_thursday ?? true}
+                      onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                        prev ? {...prev, available_thursday: checked} : prev
+                      )}
+                    />
+                    <Label htmlFor="edit-thursday">Jueves</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="edit-friday"
+                      checked={servicioSeleccionado?.available_friday ?? true}
+                      onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                        prev ? {...prev, available_friday: checked} : prev
+                      )}
+                    />
+                    <Label htmlFor="edit-friday">Viernes</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="edit-saturday"
+                      checked={servicioSeleccionado?.available_saturday ?? true}
+                      onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                        prev ? {...prev, available_saturday: checked} : prev
+                      )}
+                    />
+                    <Label htmlFor="edit-saturday">Sábado</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="edit-sunday"
+                      checked={servicioSeleccionado?.available_sunday ?? true}
+                      onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                        prev ? {...prev, available_sunday: checked} : prev
+                      )}
+                    />
+                    <Label htmlFor="edit-sunday">Domingo</Label>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Selecciona los días en que este servicio estará disponible para agendar.
+                </p>
+              </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={loading}>
