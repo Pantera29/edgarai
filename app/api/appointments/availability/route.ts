@@ -41,7 +41,7 @@ export async function GET(request: Request) {
     // 1. Obtener la duración del servicio y la configuración del taller
     const { data: service, error: serviceError } = await supabase
       .from('services')
-      .select('duration_minutes, daily_limit')
+      .select('duration_minutes, daily_limit, dealership_id')
       .eq('id_uuid', serviceId)
       .single();
 
@@ -53,12 +53,34 @@ export async function GET(request: Request) {
       );
     }
 
+    // VALIDACIÓN DE SEGURIDAD: Verificar que el servicio pertenece al concesionario
+    if (service.dealership_id !== dealershipId) {
+      console.error('❌ Service does not belong to dealership:', {
+        serviceId,
+        serviceDealershipId: service.dealership_id,
+        requestedDealershipId: dealershipId
+      });
+      return NextResponse.json(
+        { 
+          message: 'Service not found or not available for this dealership. Please verify the dealership ID is correct and that this service is configured for the specified dealership.',
+          error_code: 'DEALERSHIP_SERVICE_MISMATCH',
+          details: {
+            service_id: serviceId,
+            service_dealership_id: service.dealership_id,
+            requested_dealership_id: dealershipId
+          }
+        },
+        { status: 404 }
+      );
+    }
+
     const serviceDuration = service.duration_minutes;
 
     console.log('📊 Información del servicio obtenida:', {
       serviceId,
       duration_minutes: service.duration_minutes,
-      daily_limit: service.daily_limit
+      daily_limit: service.daily_limit,
+      dealership_id: service.dealership_id
     });
 
     // Resolver workshop_id automáticamente si no se proporciona
@@ -72,6 +94,53 @@ export async function GET(request: Request) {
     console.log('✅ Workshop_id resuelto:', {
       finalWorkshopId,
       dealershipId
+    });
+
+    // VALIDACIÓN DE SEGURIDAD: Verificar que el servicio está disponible para el taller específico
+    const { data: workshopService, error: workshopServiceError } = await supabase
+      .from('workshop_services')
+      .select('is_available')
+      .eq('workshop_id', finalWorkshopId)
+      .eq('service_id', serviceId)
+      .eq('is_available', true)
+      .maybeSingle();
+
+    if (workshopServiceError) {
+      console.error('❌ Error checking workshop service availability:', {
+        error: workshopServiceError.message,
+        workshopId: finalWorkshopId,
+        serviceId
+      });
+      return NextResponse.json(
+        { message: 'Error checking service availability for workshop' },
+        { status: 500 }
+      );
+    }
+
+    if (!workshopService) {
+      console.error('❌ Service not available for workshop:', {
+        serviceId,
+        workshopId: finalWorkshopId,
+        dealershipId
+      });
+      return NextResponse.json(
+        { 
+          message: 'Service not available for this workshop. Please verify the workshop ID is correct and that this service is enabled for the selected workshop. Contact the client to confirm their preferred workshop location.',
+          error_code: 'WORKSHOP_SERVICE_NOT_AVAILABLE',
+          details: {
+            service_id: serviceId,
+            workshop_id: finalWorkshopId,
+            dealership_id: dealershipId
+          }
+        },
+        { status: 404 }
+      );
+    }
+
+    console.log('✅ Servicio validado para el taller:', {
+      serviceId,
+      workshopId: finalWorkshopId,
+      isAvailable: workshopService.is_available
     });
 
     // Obtener configuración específica del taller
