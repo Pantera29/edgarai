@@ -50,12 +50,21 @@ export async function GET(request: Request) {
     // Extraer y unificar todos los tags únicos
     const allTags = new Set<string>();
     data?.forEach(evaluation => {
-      if (evaluation.evaluation_tags && Array.isArray(evaluation.evaluation_tags)) {
-        evaluation.evaluation_tags.forEach(tag => {
-          if (tag && typeof tag === 'string') {
-            allTags.add(tag.trim());
-          }
-        });
+      if (evaluation.evaluation_tags) {
+        // Manejar tanto arrays como JSONB
+        const tags = Array.isArray(evaluation.evaluation_tags) 
+          ? evaluation.evaluation_tags 
+          : (typeof evaluation.evaluation_tags === 'string' 
+              ? JSON.parse(evaluation.evaluation_tags) 
+              : evaluation.evaluation_tags);
+        
+        if (Array.isArray(tags)) {
+          tags.forEach(tag => {
+            if (tag && typeof tag === 'string') {
+              allTags.add(tag.trim());
+            }
+          });
+        }
       }
     });
 

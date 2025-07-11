@@ -95,7 +95,8 @@ export async function PUT(
       updateData.evaluation_status = evaluation_status;
     }
     if (evaluation_tags !== undefined) {
-      updateData.evaluation_tags = evaluation_tags;
+      // Asegurar que evaluation_tags sea un array válido para JSONB
+      updateData.evaluation_tags = Array.isArray(evaluation_tags) ? evaluation_tags : [];
     }
     if (admin_comments !== undefined) {
       updateData.admin_comments = admin_comments;

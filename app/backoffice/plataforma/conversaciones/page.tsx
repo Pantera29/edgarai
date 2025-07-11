@@ -71,6 +71,8 @@ export default function PlataformaConversacionesPage() {
   const [filtroCanal, setFiltroCanal] = useState("todos");
   const [filtroEvaluacion, setFiltroEvaluacion] = useState("todas");
 
+  const [availableTags, setAvailableTags] = useState<string[]>([]);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -129,6 +131,24 @@ export default function PlataformaConversacionesPage() {
       console.log('❌ dataToken no válido, no se cargan datos');
     }
   }, [dataToken, busqueda, filtroAgencia, filtroCanal, filtroEvaluacion, pagina]);
+
+  useEffect(() => {
+    if (!token) return;
+    const fetchTags = async () => {
+      try {
+        const response = await fetch('/api/backoffice/plataforma/evaluations/tags', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setAvailableTags(Array.isArray(data.tags) ? data.tags.filter((t: any) => typeof t === "string") : []);
+        }
+      } catch (error) {
+        console.error('Error cargando tags disponibles:', error);
+      }
+    };
+    fetchTags();
+  }, [token]);
 
   const cargarAgencias = async () => {
     try {
@@ -389,6 +409,7 @@ export default function PlataformaConversacionesPage() {
                       conversationId={conversacion.id}
                       currentTags={conversacion.evaluation_tags}
                       token={token}
+                      availableTags={availableTags}
                       onTagsChange={(newTags) => handleTagsChange(conversacion.id, newTags)}
                     />
                   </TableCell>

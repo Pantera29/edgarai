@@ -77,6 +77,57 @@ export interface Database {
           kilometraje_programado?: number
         }
       }
+      conversation_evaluations: {
+        Row: {
+          id: string
+          conversation_id: string
+          evaluation_status: 'pending' | 'successful' | 'unsuccessful'
+          evaluation_tags: any
+          admin_comments: string | null
+          evaluated_by: string | null
+          evaluated_at: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          conversation_id: string
+          evaluation_status?: 'pending' | 'successful' | 'unsuccessful'
+          evaluation_tags?: any
+          admin_comments?: string | null
+          evaluated_by?: string | null
+          evaluated_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          conversation_id?: string
+          evaluation_status?: 'pending' | 'successful' | 'unsuccessful'
+          evaluation_tags?: any
+          admin_comments?: string | null
+          evaluated_by?: string | null
+          evaluated_at?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+    }
+    Functions: {
+      get_admin_conversations_with_evaluations: {
+        Args: {
+          search_query?: string
+          dealership_filter?: string
+          channel_filter?: string
+          evaluation_status_filter?: string
+          limit_rows?: number
+          offset_rows?: number
+        }
+        Returns: {
+          conversations: unknown
+          total_count: number
+        }[]
+      }
     }
   }
 } 
