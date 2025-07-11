@@ -13,4 +13,4 @@ jobs:
     steps:
       - name: Call reminders expire endpoint
         run: |
-          curl -v "https://edgarai.vercel.app/api/reminders/expire" 
+          curl -v "https://edgarai.vercel.app/api/reminders/expire/" 
