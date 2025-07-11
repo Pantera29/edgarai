@@ -388,14 +388,11 @@ function generateTimeSlots(
 
   // Convertir la hora actual a la zona horaria del concesionario
   const now = new Date();
+  // Obtener la hora local real en la zona horaria del concesionario
   const currentTimeInDealershipTz = utcToZonedTime(now, timezone);
-  const currentTimeStr = currentTimeInDealershipTz.toLocaleTimeString('es-MX', {
-    hour12: false,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    timeZone: timezone
-  });
+  // Formatear correctamente la hora local
+  const { format } = require('date-fns-tz');
+  const currentTimeStr = format(currentTimeInDealershipTz, 'HH:mm:ss', { timeZone: timezone });
 
   console.log('Tiempo actual en zona horaria del concesionario:', {
     currentTimeStr,
@@ -621,17 +618,7 @@ function generateTimeSlots(
       const appEnd = appStart + (app.services?.duration_minutes || 60);
       return appStart < slotEndMinutes && appEnd > slotStartMinutes;
     });
-    // LOG DETALLADO DE SLOT
-    console.log('🟦 Slot:', {
-      slot: slot.time,
-      citasSolapadas: overlappingAppointments.length,
-      maxSimultaneous,
-      exactAppointments: exactSlotAppointments.length,
-      maxArrivalsPerSlot,
-      descartadoPorLlegadas: maxArrivalsPerSlot !== null ? exactSlotAppointments.length >= maxArrivalsPerSlot : false,
-      descartadoPorCapacidad: overlappingAppointments.length >= maxSimultaneous
-    });
-    if (slot.available === 0) continue;
+
     // Si es el día actual, verificar si el horario ya pasó
     if (isToday) {
       const slotMinutes = timeToMinutes(slot.time);
@@ -640,26 +627,33 @@ function generateTimeSlots(
         continue; // Saltar slots que ya pasaron
       }
     }
+
     // Si hay un horario de recepción configurado, verificar que el slot no esté después
     if (receptionEndTime) {
       const slotTime = timeToMinutes(slot.time);
       const receptionEndMinutes = timeToMinutes(receptionEndTime);
       if (slotTime > receptionEndMinutes) continue;
     }
+
     const slotStartTime = parse(slot.time, 'HH:mm:ss', new Date());
     const slotEndTime = addMinutes(slotStartTime, serviceDuration);
     const closingTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
     if (!isBefore(slotEndTime, closingTime)) {
       continue; // No cabe en el horario de operación
     }
+
+    // Verificar política de llegadas por slot
     if (maxArrivalsPerSlot !== null) {
       if (exactSlotAppointments.length >= maxArrivalsPerSlot) {
         continue;
       }
     }
+
+    // Verificar capacidad simultánea
     if (overlappingAppointments.length >= maxSimultaneous) {
       continue;
     }
+
     availableSlots.push(slot.time);
   }
 
