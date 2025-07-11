@@ -346,7 +346,8 @@ export async function GET(request: Request) {
       timezone,
       dealershipConfig?.custom_morning_slots,
       dealershipConfig?.regular_slots_start_time,
-      schedule.max_arrivals_per_slot
+      schedule.max_arrivals_per_slot,
+      isToday
     );
 
     // Justo antes del return final, loguear los slots generados y el valor de isToday
@@ -377,14 +378,16 @@ function generateTimeSlots(
   timezone: string,
   customMorningSlots: string[] | null = null,
   regularSlotsStartTime: string | null = null,
-  maxArrivalsPerSlot: number | null = null
+  maxArrivalsPerSlot: number | null = null,
+  isToday: boolean
 ) {
-  // Verificar si es el día actual
-  const now = new Date();
-  const selectedDate = new Date(date + 'T00:00:00');
-  const isToday = selectedDate.toDateString() === now.toDateString();
+  // Eliminar cálculo interno de isToday
+  // const now = new Date();
+  // const selectedDate = new Date(date + 'T00:00:00');
+  // const isToday = selectedDate.toDateString() === now.toDateString();
 
   // Convertir la hora actual a la zona horaria del concesionario
+  const now = new Date();
   const currentTimeInDealershipTz = utcToZonedTime(now, timezone);
   const currentTimeStr = currentTimeInDealershipTz.toLocaleTimeString('es-MX', {
     hour12: false,
