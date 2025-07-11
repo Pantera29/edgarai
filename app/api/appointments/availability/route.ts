@@ -93,10 +93,13 @@ export async function GET(request: Request) {
     const timezone = dealershipConfig?.timezone || 'America/Mexico_City';
 
     // 2. Obtener el día de la semana (1-7, donde 1 es Domingo)
-    // CORRECCIÓN: Comparar fechas en la zona horaria del concesionario
+    // CORRECCIÓN FINAL: Construir y comparar fechas en la zona horaria del concesionario
+    const selectedDateUtc = zonedTimeToUtc(`${date}T00:00:00`, timezone);
+    const selectedDate = utcToZonedTime(selectedDateUtc, timezone);
     const now = utcToZonedTime(new Date(), timezone);
-    const selectedDate = utcToZonedTime(new Date(date + 'T00:00:00'), timezone);
-    const isToday = selectedDate.toDateString() === now.toDateString();
+    const isToday = selectedDate.getFullYear() === now.getFullYear() &&
+                    selectedDate.getMonth() === now.getMonth() &&
+                    selectedDate.getDate() === now.getDate();
     // Log detallado de comparación de fechas
     console.log('🕒 Comparación de fechas:', {
       now: now.toISOString(),
