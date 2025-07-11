@@ -180,22 +180,29 @@ export default function PlataformaConversacionesPage() {
       }
 
       console.log('✅ RPC exitosa.');
-      console.log('📊 Total de conversaciones recibidas:', data?.length ?? 'undefined');
-      console.log('📋 Tipo de datos recibidos:', typeof data);
-      console.log('📋 Es un array?', Array.isArray(data));
+      console.log('📋 Respuesta completa:', data);
       
-      if (data && data.length > 0) {
-        console.log('📋 Primeras 5 conversaciones recibidas:', data.slice(0, 5));
-        console.log('📋 Estructura de la primera conversación:', Object.keys(data[0]));
+      // Extraer conversaciones y total del resultado JSON
+      const conversaciones = data?.conversations || [];
+      const totalCount = data?.total_count || 0;
+      
+      console.log('📊 Conversaciones recibidas:', conversaciones.length);
+      console.log('📊 Total de conversaciones:', totalCount);
+      console.log('📋 Tipo de datos recibidos:', typeof data);
+      console.log('📋 Es un objeto?', typeof data === 'object');
+      
+      if (conversaciones && conversaciones.length > 0) {
+        console.log('📋 Primeras 3 conversaciones recibidas:', conversaciones.slice(0, 3));
+        console.log('📋 Estructura de la primera conversación:', Object.keys(conversaciones[0]));
       } else {
-        console.log('📋 No se recibieron datos o la lista está vacía.');
-        console.log('📋 Valor exacto de data:', data);
+        console.log('📋 No se recibieron conversaciones o la lista está vacía.');
+        console.log('📋 Valor exacto de conversaciones:', conversaciones);
       }
       
-      setConversaciones(data || []);
-      setTotalConversaciones(data?.length || 0);
+      setConversaciones(conversaciones);
+      setTotalConversaciones(totalCount);
       
-      console.log('✅ Estado actualizado con', data?.length || 0, 'conversaciones');
+      console.log('✅ Estado actualizado con', conversaciones.length, 'conversaciones de', totalCount, 'total');
 
     } catch (error) {
       console.error("❌ Error fatal en cargarConversaciones:", error);
