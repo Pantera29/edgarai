@@ -23,49 +23,46 @@ interface AdminConversationTagsInputProps {
   conversationId: string;
   currentTags: string[];
   token: string;
+  availableTags: string[];
   onTagsChange: (newTags: string[]) => void;
+}
+
+// Normalizar siempre a array de strings
+function normalizeTags(tags: any): string[] {
+  if (!Array.isArray(tags)) return [];
+  return tags.filter((t) => typeof t === "string");
 }
 
 export default function AdminConversationTagsInput({
   conversationId,
   currentTags,
   token,
+  availableTags,
   onTagsChange
 }: AdminConversationTagsInputProps) {
   const [isUpdating, setIsUpdating] = useState(false);
-  const [localTags, setLocalTags] = useState<string[]>(currentTags);
+  const [localTags, setLocalTags] = useState<string[]>(normalizeTags(currentTags));
   const [newTag, setNewTag] = useState("");
-  const [availableTags, setAvailableTags] = useState<string[]>([]);
-  const [isLoadingTags, setIsLoadingTags] = useState(false);
   const [open, setOpen] = useState(false);
 
-  // Cargar tags disponibles
+  // Actualizar tags locales cuando cambien los props
   useEffect(() => {
-    const loadAvailableTags = async () => {
-      setIsLoadingTags(true);
-      try {
-        const response = await fetch('/api/backoffice/plataforma/evaluations/tags', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+    setLocalTags(normalizeTags(currentTags));
+  }, [currentTags]);
 
-        if (response.ok) {
-          const data = await response.json();
-          setAvailableTags(data.tags || []);
-        }
-      } catch (error) {
-        console.error('Error cargando tags disponibles:', error);
-      } finally {
-        setIsLoadingTags(false);
-      }
-    };
+  // LOGS para depuración
+  console.log("localTags:", localTags);
+  console.log("availableTags:", availableTags);
+  console.log("currentTags:", currentTags);
 
-    loadAvailableTags();
-  }, [token]);
+  const filteredAvailableTags = availableTags
+    .filter((tag) => typeof tag === "string" && tag.trim() !== "" && !localTags.includes(tag))
+    .filter((tag) => tag.toLowerCase().includes(newTag.toLowerCase()));
+
+  console.log("filteredAvailableTags:", filteredAvailableTags);
 
   const handleAddTag = async (tag: string) => {
-    if (!tag.trim() || localTags.includes(tag.trim())) return;
+    if (typeof tag !== "string" || !tag.trim() || localTags.includes(tag.trim())) return;
 
     const newTags = [...localTags, tag.trim()];
     setLocalTags(newTags);
@@ -96,7 +93,8 @@ export default function AdminConversationTagsInput({
       });
 
       if (!response.ok) {
-        throw new Error('Error al actualizar tags');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Error al actualizar tags');
       }
 
       onTagsChange(tags);
@@ -104,21 +102,17 @@ export default function AdminConversationTagsInput({
     } catch (error) {
       console.error('❌ Error actualizando tags:', error);
       // Revertir cambio local en caso de error
-      setLocalTags(currentTags);
+      const normalizedCurrentTags = Array.isArray(currentTags) ? currentTags : [];
+      setLocalTags(normalizedCurrentTags);
     } finally {
       setIsUpdating(false);
     }
   };
 
-  const filteredAvailableTags = availableTags.filter(tag => 
-    !localTags.includes(tag) && 
-    tag.toLowerCase().includes(newTag.toLowerCase())
-  );
-
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1">
-        {localTags.map((tag) => (
+        {localTags.filter((tag) => typeof tag === "string" && tag.trim() !== "").map((tag) => (
           <Badge key={tag} variant="secondary" className="flex items-center gap-1">
             {tag}
             <button
@@ -151,37 +145,64 @@ export default function AdminConversationTagsInput({
               <CommandInput 
                 placeholder="Buscar o crear tag..." 
                 value={newTag}
-                onValueChange={setNewTag}
+                onValueChange={(val) => {
+                  if (typeof val === "string") {
+                    setNewTag(val);
+                  } else {
+                    console.error('❌ Valor no string recibido en CommandInput.onValueChange:', val);
+                  }
+                }}
               />
               <CommandList>
-                <CommandEmpty>
-                  {newTag.trim() && (
-                    <CommandItem
-                      onSelect={() => handleAddTag(newTag)}
-                      className="text-blue-600"
-                    >
-                      <Plus className="h-3 w-3 mr-2" />
-                      Crear "{newTag}"
-                    </CommandItem>
-                  )}
-                </CommandEmpty>
-                <CommandGroup>
-                  {isLoadingTags ? (
-                    <div className="flex items-center justify-center p-4">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="ml-2 text-sm">Cargando tags...</span>
-                    </div>
-                  ) : (
-                    filteredAvailableTags.map((tag) => (
-                      <CommandItem
-                        key={tag}
-                        onSelect={() => handleAddTag(tag)}
+                {(() => {
+                  const validTags = filteredAvailableTags.filter(
+                    (tag) => typeof tag === "string" && tag.trim() !== ""
+                  );
+                  if (validTags.length === 0 && newTag.trim() !== "") {
+                    // Workaround: div clickable
+                    return (
+                      <div
+                        onClick={() => handleAddTag(newTag.trim())}
+                        className="flex items-center px-3 py-2 text-blue-600 cursor-pointer hover:bg-blue-50 rounded"
+                        style={{ userSelect: "none" }}
                       >
-                        {tag}
-                      </CommandItem>
-                    ))
-                  )}
-                </CommandGroup>
+                        <Plus className="h-3 w-3 mr-2" />
+                        Crear "{newTag}"
+                      </div>
+                    );
+                  }
+                  if (validTags.length === 0) {
+                    return (
+                      <CommandEmpty>
+                        Sin resultados
+                      </CommandEmpty>
+                    );
+                  }
+                  return (
+                    <CommandGroup>
+                      {validTags.map((tag) => (
+                        <CommandItem
+                          key={tag}
+                          onSelect={() => handleAddTag(tag)}
+                        >
+                          {tag}
+                        </CommandItem>
+                      ))}
+                      {newTag.trim() !== "" && !validTags.includes(newTag.trim()) && (
+                        <CommandItem
+                          disabled={false}
+                          aria-disabled={false}
+                          onSelect={() => handleAddTag(newTag.trim())}
+                          onClick={() => handleAddTag(newTag.trim())}
+                          className="text-blue-600 cursor-pointer"
+                        >
+                          <Plus className="h-3 w-3 mr-2" />
+                          Crear "{newTag}"
+                        </CommandItem>
+                      )}
+                    </CommandGroup>
+                  );
+                })()}
               </CommandList>
             </Command>
           </PopoverContent>
