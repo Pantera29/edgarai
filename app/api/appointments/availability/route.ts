@@ -93,8 +93,11 @@ export async function GET(request: Request) {
     const timezone = dealershipConfig?.timezone || 'America/Mexico_City';
 
     // 2. Obtener el día de la semana (1-7, donde 1 es Domingo)
-    const jsDate = new Date(date + 'T00:00:00'); // Forzar hora local
-    const jsDay = jsDate.getDay(); // 0-6 (Domingo-Sábado)
+    // CORRECCIÓN: Comparar fechas en la zona horaria del concesionario
+    const now = utcToZonedTime(new Date(), timezone);
+    const selectedDate = utcToZonedTime(new Date(date + 'T00:00:00'), timezone);
+    const isToday = selectedDate.toDateString() === now.toDateString();
+    const jsDay = selectedDate.getDay(); // 0-6 (Domingo-Sábado)
     const dayOfWeek = jsDay === 0 ? 1 : jsDay + 1; // Convertir a 1-7 (Domingo-Sábado)
 
     console.log('Verificando disponibilidad:', {
@@ -102,8 +105,10 @@ export async function GET(request: Request) {
       jsDay,
       dayOfWeek,
       dealershipId,
-      jsDate: jsDate.toISOString(),
-      localDate: jsDate.toLocaleString()
+      jsDate: selectedDate.toISOString(),
+      localDate: selectedDate.toLocaleString(),
+      now: now.toISOString(),
+      isToday
     });
 
     // 3. Obtener el horario de operación para ese día
