@@ -338,6 +338,8 @@ export async function GET(request: Request) {
       schedule.max_arrivals_per_slot
     );
 
+    // Justo antes del return final, loguear los slots generados y el valor de isToday
+    console.log('✅ Slots a retornar:', { availableSlots, isToday });
     return NextResponse.json({ 
       availableSlots,
       totalSlots: availableSlots.length
