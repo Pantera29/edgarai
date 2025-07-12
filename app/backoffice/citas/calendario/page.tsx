@@ -484,7 +484,7 @@ export default function CalendarioCitasPage() {
               height="auto"
               allDaySlot={false}
               slotMinTime="08:00:00"
-              slotMaxTime="20:00:00"
+              slotMaxTime="17:00:00"
               slotDuration="00:30:00"
               nowIndicator={true}
               editable={true}
