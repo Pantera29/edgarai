@@ -37,24 +37,63 @@ export interface Database {
       services: {
         Row: {
           'id_uuid': string
-          service_name: string
-          description: string | null
-          duration_minutes: number
-          price: number
-          created_at: string
+          'service_name': string
+          'description': string | null
+          'duration_minutes': number
+          'price': number
+          'daily_limit': number | null
+          'dealership_id': string
+          'client_visible': boolean
+          'available_monday': boolean
+          'available_tuesday': boolean
+          'available_wednesday': boolean
+          'available_thursday': boolean
+          'available_friday': boolean
+          'available_saturday': boolean
+          'available_sunday': boolean
+          'time_restriction_enabled': boolean
+          'time_restriction_start_time': string | null
+          'time_restriction_end_time': string | null
+          'created_at': string
         }
         Insert: {
           'id_uuid'?: string
-          service_name: string
-          description?: string | null
-          duration_minutes: number
-          price?: number
+          'service_name': string
+          'description'?: string | null
+          'duration_minutes': number
+          'price'?: number
+          'daily_limit'?: number | null
+          'dealership_id'?: string
+          'client_visible'?: boolean
+          'available_monday'?: boolean
+          'available_tuesday'?: boolean
+          'available_wednesday'?: boolean
+          'available_thursday'?: boolean
+          'available_friday'?: boolean
+          'available_saturday'?: boolean
+          'available_sunday'?: boolean
+          'time_restriction_enabled'?: boolean
+          'time_restriction_start_time'?: string | null
+          'time_restriction_end_time'?: string | null
         }
         Update: {
-          service_name?: string
-          description?: string | null
-          duration_minutes?: number
-          price?: number
+          'service_name'?: string
+          'description'?: string | null
+          'duration_minutes'?: number
+          'price'?: number
+          'daily_limit'?: number | null
+          'dealership_id'?: string
+          'client_visible'?: boolean
+          'available_monday'?: boolean
+          'available_tuesday'?: boolean
+          'available_wednesday'?: boolean
+          'available_thursday'?: boolean
+          'available_friday'?: boolean
+          'available_saturday'?: boolean
+          'available_sunday'?: boolean
+          'time_restriction_enabled'?: boolean
+          'time_restriction_start_time'?: string | null
+          'time_restriction_end_time'?: string | null
         }
       }
       recordatorios_mantenimiento: {

@@ -41,7 +41,22 @@ export async function GET(request: Request) {
     // 1. Obtener la duración del servicio y la configuración del taller
     const { data: service, error: serviceError } = await supabase
       .from('services')
-      .select('duration_minutes, daily_limit, dealership_id, service_name, available_monday, available_tuesday, available_wednesday, available_thursday, available_friday, available_saturday, available_sunday')
+      .select(`
+        duration_minutes, 
+        daily_limit, 
+        dealership_id, 
+        service_name, 
+        available_monday, 
+        available_tuesday, 
+        available_wednesday, 
+        available_thursday, 
+        available_friday, 
+        available_saturday, 
+        available_sunday,
+        time_restriction_enabled,
+        time_restriction_start_time,
+        time_restriction_end_time
+      `)
       .eq('id_uuid', serviceId)
       .single();
 
@@ -451,7 +466,8 @@ export async function GET(request: Request) {
       dealershipConfig?.custom_morning_slots,
       dealershipConfig?.regular_slots_start_time,
       schedule.max_arrivals_per_slot,
-      isToday
+      isToday,
+      service // Pasar el servicio completo para validar restricciones
     );
 
     // Justo antes del return final, loguear los slots generados y el valor de isToday
@@ -483,7 +499,8 @@ function generateTimeSlots(
   customMorningSlots: string[] | null = null,
   regularSlotsStartTime: string | null = null,
   maxArrivalsPerSlot: number | null = null,
-  isToday: boolean
+  isToday: boolean,
+  service: any = null // Nuevo parámetro para el servicio
 ) {
   // Eliminar cálculo interno de isToday
   // const now = new Date();
@@ -660,7 +677,29 @@ function generateTimeSlots(
     const occupiedSpaces = overlappingAppointments.length;
     const availableSpaces = Math.max(0, maxSimultaneous - occupiedSpaces);
 
-    if (availableSpaces > 0) {
+    // 🔄 NUEVO: Validar restricciones de horario específicas del servicio para slots custom
+    let shouldAddSlot = availableSpaces > 0;
+    if (shouldAddSlot && service?.time_restriction_enabled) {
+      const slotTimeMinutes = timeToMinutes(customSlot);
+      const restrictionStartMinutes = timeToMinutes(service.time_restriction_start_time);
+      const restrictionEndMinutes = timeToMinutes(service.time_restriction_end_time);
+      
+      // Verificar si el slot está dentro del rango permitido
+      if (slotTimeMinutes < restrictionStartMinutes || slotTimeMinutes > restrictionEndMinutes) {
+        console.log('Slot custom descartado por restricción de horario:', {
+          slot: customSlot,
+          serviceName: service.service_name,
+          restrictionStart: service.time_restriction_start_time,
+          restrictionEnd: service.time_restriction_end_time,
+          slotMinutes: slotTimeMinutes,
+          restrictionStartMinutes,
+          restrictionEndMinutes
+        });
+        shouldAddSlot = false;
+      }
+    }
+
+    if (shouldAddSlot) {
       availableSlots.push(customSlot);
       console.log('Slot custom agregado:', {
         slot: customSlot,
@@ -668,13 +707,15 @@ function generateTimeSlots(
         availableSpaces,
         maxSimultaneous,
         maxArrivalsPerSlot,
-        exactSlotAppointments: maxArrivalsPerSlot !== null ? exactSlotAppointments.length : 'N/A'
+        exactSlotAppointments: maxArrivalsPerSlot !== null ? exactSlotAppointments.length : 'N/A',
+        hasTimeRestrictions: service?.time_restriction_enabled || false
       });
     } else {
-      console.log('Slot custom OCUPADO por capacidad del taller:', {
+      console.log('Slot custom OCUPADO por capacidad del taller o restricciones:', {
         slot: customSlot,
         occupiedSpaces,
-        maxSimultaneous
+        maxSimultaneous,
+        hasTimeRestrictions: service?.time_restriction_enabled || false
       });
     }
   }
@@ -756,6 +797,27 @@ function generateTimeSlots(
     // Verificar capacidad simultánea
     if (overlappingAppointments.length >= maxSimultaneous) {
       continue;
+    }
+
+    // 🔄 NUEVO: Validar restricciones de horario específicas del servicio
+    if (service?.time_restriction_enabled) {
+      const slotTimeMinutes = timeToMinutes(slot.time);
+      const restrictionStartMinutes = timeToMinutes(service.time_restriction_start_time);
+      const restrictionEndMinutes = timeToMinutes(service.time_restriction_end_time);
+      
+      // Verificar si el slot está dentro del rango permitido
+      if (slotTimeMinutes < restrictionStartMinutes || slotTimeMinutes > restrictionEndMinutes) {
+        console.log('Slot descartado por restricción de horario:', {
+          slot: slot.time,
+          serviceName: service.service_name,
+          restrictionStart: service.time_restriction_start_time,
+          restrictionEnd: service.time_restriction_end_time,
+          slotMinutes: slotTimeMinutes,
+          restrictionStartMinutes,
+          restrictionEndMinutes
+        });
+        continue; // Saltar este slot
+      }
     }
 
     availableSlots.push(slot.time);

@@ -74,6 +74,9 @@ interface Servicio {
   available_friday?: boolean
   available_saturday?: boolean
   available_sunday?: boolean
+  time_restriction_enabled?: boolean
+  time_restriction_start_time?: string | null
+  time_restriction_end_time?: string | null
   workshop_services?: WorkshopService[]
 }
 
@@ -141,7 +144,10 @@ export default function ServiciosPage() {
     available_thursday: true,
     available_friday: true,
     available_saturday: true,
-    available_sunday: true
+    available_sunday: true,
+    time_restriction_enabled: false,
+    time_restriction_start_time: null,
+    time_restriction_end_time: null
   })
   const [selectedWorkshops, setSelectedWorkshops] = useState<string[]>([])
   const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null)
@@ -179,6 +185,9 @@ export default function ServiciosPage() {
           available_friday,
           available_saturday,
           available_sunday,
+          time_restriction_enabled,
+          time_restriction_start_time,
+          time_restriction_end_time,
           workshop_services (
             id,
             workshop_id,
@@ -318,7 +327,17 @@ export default function ServiciosPage() {
     return servicio.workshop_services.map(ws => ws.workshop.name).join(', ');
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Función helper para mostrar restricciones de horario
+  const getTimeRestrictionDisplay = (servicio: Servicio) => {
+    if (!servicio.time_restriction_enabled) {
+      return 'Sin restricciones';
+    }
+
+    const timeRange = `${servicio.time_restriction_start_time?.substring(0, 5)} - ${servicio.time_restriction_end_time?.substring(0, 5)}`;
+    return `${timeRange} (todos los días)`;
+  };
+
+      const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!formData.service_name || !formData.duration_minutes) {
       toast({
@@ -327,6 +346,27 @@ export default function ServiciosPage() {
         variant: "destructive",
       })
       return
+    }
+
+    // Validar restricciones de horario si están habilitadas
+    if (formData.time_restriction_enabled) {
+      if (!formData.time_restriction_start_time || !formData.time_restriction_end_time) {
+        toast({
+          title: "Error",
+          description: "Debe especificar horario de inicio y fin para las restricciones",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      if (formData.time_restriction_start_time >= formData.time_restriction_end_time) {
+        toast({
+          title: "Error",
+          description: "El horario de inicio debe ser anterior al horario de fin",
+          variant: "destructive",
+        })
+        return
+      }
     }
 
     setIsSubmitting(true)
@@ -352,6 +392,9 @@ export default function ServiciosPage() {
             available_friday: formData.available_friday,
             available_saturday: formData.available_saturday,
             available_sunday: formData.available_sunday,
+            time_restriction_enabled: formData.time_restriction_enabled,
+            time_restriction_start_time: formData.time_restriction_enabled ? formData.time_restriction_start_time : null,
+            time_restriction_end_time: formData.time_restriction_enabled ? formData.time_restriction_end_time : null,
             dealership_id: dealershipId
           }
         ])
@@ -392,7 +435,10 @@ export default function ServiciosPage() {
         available_thursday: true,
         available_friday: true,
         available_saturday: true,
-        available_sunday: true
+        available_sunday: true,
+        time_restriction_enabled: false,
+        time_restriction_start_time: null,
+        time_restriction_end_time: null
       })
       setSelectedWorkshops([])
       
@@ -426,6 +472,27 @@ export default function ServiciosPage() {
       return
     }
 
+    // Validar restricciones de horario si están habilitadas
+    if (servicioSeleccionado.time_restriction_enabled) {
+      if (!servicioSeleccionado.time_restriction_start_time || !servicioSeleccionado.time_restriction_end_time) {
+        toast({
+          title: "Error",
+          description: "Debe especificar horario de inicio y fin para las restricciones",
+          variant: "destructive",
+        })
+        return
+      }
+      
+      if (servicioSeleccionado.time_restriction_start_time >= servicioSeleccionado.time_restriction_end_time) {
+        toast({
+          title: "Error",
+          description: "El horario de inicio debe ser anterior al horario de fin",
+          variant: "destructive",
+        })
+        return
+      }
+    }
+
     setIsSubmitting(true)
     try {
       // 1. Actualizar el servicio
@@ -444,7 +511,10 @@ export default function ServiciosPage() {
           available_thursday: servicioSeleccionado.available_thursday,
           available_friday: servicioSeleccionado.available_friday,
           available_saturday: servicioSeleccionado.available_saturday,
-          available_sunday: servicioSeleccionado.available_sunday
+          available_sunday: servicioSeleccionado.available_sunday,
+          time_restriction_enabled: servicioSeleccionado.time_restriction_enabled,
+          time_restriction_start_time: servicioSeleccionado.time_restriction_enabled ? servicioSeleccionado.time_restriction_start_time : null,
+          time_restriction_end_time: servicioSeleccionado.time_restriction_enabled ? servicioSeleccionado.time_restriction_end_time : null
         })
         .eq('id_uuid', servicioSeleccionado.id_uuid)
 
@@ -556,6 +626,7 @@ export default function ServiciosPage() {
             <TableHead>Duración (min)</TableHead>
             <TableHead>Límite Diario</TableHead>
             <TableHead>Días Disponibles</TableHead>
+            <TableHead>Restricciones de Horario</TableHead>
             <TableHead>Talleres Asignados</TableHead>
             <TableHead>Visible para clientes</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
@@ -572,6 +643,11 @@ export default function ServiciosPage() {
                 <span className="text-sm font-medium text-gray-700">
                   {getAvailableDaysSummary(servicio)}
                 </span>
+              </TableCell>
+              <TableCell>
+                <Badge variant={servicio.time_restriction_enabled ? "destructive" : "secondary"}>
+                  {getTimeRestrictionDisplay(servicio)}
+                </Badge>
               </TableCell>
               <TableCell>
                 <Badge variant="secondary">
@@ -805,6 +881,56 @@ export default function ServiciosPage() {
                   Selecciona los días en que este servicio estará disponible para agendar.
                 </p>
               </div>
+              
+              {/* Nueva sección: Restricciones de Horario */}
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="time-restriction-enabled">Restricciones de Horario</Label>
+                  <Switch
+                    id="time-restriction-enabled"
+                    checked={formData.time_restriction_enabled || false}
+                    onCheckedChange={(checked) => setFormData(prev => ({
+                      ...prev,
+                      time_restriction_enabled: checked
+                    }))}
+                  />
+                </div>
+                
+                {formData.time_restriction_enabled && (
+                  <div className="space-y-4 pl-4 border-l-2 border-gray-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="restriction-start-time">Hora de Inicio</Label>
+                        <Input
+                          id="restriction-start-time"
+                          type="time"
+                          value={formData.time_restriction_start_time || ''}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            time_restriction_start_time: e.target.value
+                          }))}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="restriction-end-time">Hora de Fin</Label>
+                        <Input
+                          id="restriction-end-time"
+                          type="time"
+                          value={formData.time_restriction_end_time || ''}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            time_restriction_end_time: e.target.value
+                          }))}
+                        />
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground">
+                      Ejemplo: Para diagnóstico solo entre 11:30 y 12:00 todos los días
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={loading}>
@@ -1030,6 +1156,53 @@ export default function ServiciosPage() {
                 <p className="text-xs text-muted-foreground">
                   Selecciona los días en que este servicio estará disponible para agendar.
                 </p>
+              </div>
+              
+              {/* Nueva sección: Restricciones de Horario */}
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="edit-time-restriction-enabled">Restricciones de Horario</Label>
+                  <Switch
+                    id="edit-time-restriction-enabled"
+                    checked={servicioSeleccionado?.time_restriction_enabled || false}
+                    onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                      prev ? {...prev, time_restriction_enabled: checked} : prev
+                    )}
+                  />
+                </div>
+                
+                {servicioSeleccionado?.time_restriction_enabled && (
+                  <div className="space-y-4 pl-4 border-l-2 border-gray-200">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <Label htmlFor="edit-restriction-start-time">Hora de Inicio</Label>
+                        <Input
+                          id="edit-restriction-start-time"
+                          type="time"
+                          value={servicioSeleccionado?.time_restriction_start_time || ''}
+                          onChange={(e) => setServicioSeleccionado(prev => 
+                            prev ? {...prev, time_restriction_start_time: e.target.value} : prev
+                          )}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="edit-restriction-end-time">Hora de Fin</Label>
+                        <Input
+                          id="edit-restriction-end-time"
+                          type="time"
+                          value={servicioSeleccionado?.time_restriction_end_time || ''}
+                          onChange={(e) => setServicioSeleccionado(prev => 
+                            prev ? {...prev, time_restriction_end_time: e.target.value} : prev
+                          )}
+                        />
+                      </div>
+                    </div>
+                    
+                    <p className="text-xs text-muted-foreground">
+                      Ejemplo: Para diagnóstico solo entre 11:30 y 12:00 todos los días
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>
