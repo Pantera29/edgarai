@@ -46,13 +46,13 @@ type ServiceWithIdUuid = {
 
 // Agregar service_id al tipo CalendarEvent localmente
 // Si CalendarEvent está importado, crear un tipo extendido
-type CalendarEventWithServiceId = CalendarEvent & { service_id: string };
+type CalendarEventWithServiceId = CalendarEvent & { service_id: string, workshop_id?: string };
 
 export default function CalendarioCitasPage() {
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null)
   const [token, setToken] = useState<string>("")
   const [dataToken, setDataToken] = useState<object>({})
-  const [events, setEvents] = useState<CalendarEvent[]>([])
+  const [events, setEvents] = useState<CalendarEventWithServiceId[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [currentView, setCurrentView] = useState<CalendarView>(calendarViews[1])
@@ -77,6 +77,10 @@ export default function CalendarioCitasPage() {
   const [cancelReason, setCancelReason] = useState("")
   const [dealershipReady, setDealershipReady] = useState(false)
   
+  // 1. Estados para talleres y filtro
+  const [workshops, setWorkshops] = useState<any[]>([]);
+  const [selectedWorkshop, setSelectedWorkshop] = useState<string>('all');
+
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
@@ -154,7 +158,8 @@ export default function CalendarioCitasPage() {
           service: appointment.service ? (appointment.service as ServiceWithIdUuid) : undefined,
           notes: appointment.notes,
           channel: appointment.channel,
-          dealership_id: appointment.dealership_id
+          dealership_id: appointment.dealership_id,
+          workshop_id: appointment.workshop_id // <-- NUEVO
         } as CalendarEventWithServiceId
       }).filter((e): e is CalendarEventWithServiceId => !!e)
 
@@ -282,6 +287,23 @@ export default function CalendarioCitasPage() {
     cargarConfiguracion()
   }, [])
 
+  // 2. Cargar talleres activos al montar la página (en useEffect)
+  useEffect(() => {
+    const cargarTalleres = async () => {
+      if (!dealershipReady || !dataToken || !(dataToken as any).dealership_id) return;
+      const supabase = createClientComponentClient();
+      const { data: talleres } = await supabase
+        .from('workshops')
+        .select('id, name')
+        .eq('dealership_id', (dataToken as any).dealership_id)
+        .eq('is_active', true)
+        .order('is_main', { ascending: false })
+        .order('name');
+      setWorkshops(talleres || []);
+    };
+    cargarTalleres();
+  }, [dealershipReady, dataToken]);
+
   useEffect(() => {
     if (selectedCita) {
       setRescheduleStatus(selectedCita.status || "pending")
@@ -368,6 +390,11 @@ export default function CalendarioCitasPage() {
     }
   }
 
+  // 4. Filtrar eventos según taller seleccionado
+  const filteredEvents = selectedWorkshop === 'all'
+    ? events
+    : events.filter(ev => ev.workshop_id === selectedWorkshop);
+
   return (
     <div className="container mx-auto p-4">
       {/* Título de la página */}
@@ -450,6 +477,22 @@ export default function CalendarioCitasPage() {
         </div>
       </div>
 
+      {/* 5. Agregar el Select arriba del calendario */}
+      <div className="mb-4 flex items-center gap-2">
+        <span className="text-sm">Filtrar por taller:</span>
+        <Select value={selectedWorkshop} onValueChange={setSelectedWorkshop}>
+          <SelectTrigger className="w-64">
+            <SelectValue placeholder="Todos los talleres" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Todos los talleres</SelectItem>
+            {workshops.map(w => (
+              <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       {/* Calendario con fuente de la app */}
       <div className="font-sans">
         <div className="bg-white rounded-lg shadow p-4 min-h-[500px]">
@@ -474,7 +517,7 @@ export default function CalendarioCitasPage() {
                 list: 'Lista'
               }}
               locale="es"
-              events={events.map(event => ({
+              events={filteredEvents.map(event => ({
                 ...event,
                 backgroundColor: statusColors[event.status],
                 borderColor: statusColors[event.status]
