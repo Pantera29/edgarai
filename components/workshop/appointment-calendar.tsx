@@ -343,6 +343,8 @@ export function AppointmentCalendar({
   const slotsRef = useRef<HTMLDivElement>(null);
   const [backendSlots, setBackendSlots] = useState<TimeSlot[] | null>(null);
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Log de los props recibidos para depuración
   console.log('AppointmentCalendar props:', { selectedDate, selectedService, dealershipId });
@@ -520,8 +522,18 @@ export function AppointmentCalendar({
       if (!selectedDate || !selectedService || !dealershipId) {
         setBackendSlots(null);
         setBackendMessage(null);
+        setIsLoadingSlots(false);
         return;
       }
+      
+      // Activar loading al cambiar fecha
+      setIsLoadingSlots(true);
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      const minLoadingPromise = new Promise(resolve => {
+        loadingTimeoutRef.current = setTimeout(resolve, 2000);
+      });
+      console.log('🔄 Cargando slots para fecha:', format(selectedDate, 'yyyy-MM-dd'));
+      
       try {
         const dateStr = format(selectedDate, 'yyyy-MM-dd');
         const response = await axios.get(`/api/appointments/availability`, {
@@ -536,7 +548,7 @@ export function AppointmentCalendar({
           }
         });
         // Log completo de la respuesta del endpoint
-        console.log('Respuesta completa del endpoint de disponibilidad:', response.data);
+        console.log('✅ Respuesta completa del endpoint de disponibilidad:', response.data);
         // El endpoint devuelve un array de strings (horarios disponibles)
         const slots = Array.isArray(response.data.availableSlots)
           ? response.data.availableSlots.map((time: string) => ({
@@ -548,14 +560,25 @@ export function AppointmentCalendar({
         setBackendSlots(slots);
         // Guardar el mensaje si existe
         setBackendMessage(response.data.message || null);
+        console.log('✅ Slots cargados exitosamente:', slots.length, 'horarios disponibles');
+        await minLoadingPromise;
       } catch (error: any) {
-        console.error('Error consultando disponibilidad al backend:', error);
+        console.error('❌ Error consultando disponibilidad al backend:', error);
         setBackendSlots(null);
         setBackendMessage('Error consultando disponibilidad.');
+        await minLoadingPromise;
+      } finally {
+        setIsLoadingSlots(false);
       }
     };
     fetchBackendSlots();
   }, [selectedDate, selectedService, dealershipId]);
+
+  useEffect(() => {
+    return () => {
+      if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+    };
+  }, []);
 
   // Función para traducir mensajes conocidos
   const traducirMensajeDisponibilidad = (msg: string | null): string => {
@@ -578,11 +601,26 @@ export function AppointmentCalendar({
 
     // Siempre usar los slots del backend
     if (selectedService && dealershipId) {
+      if (isLoadingSlots) {
+        return (
+          <div className="p-6">
+            <div className="text-center space-y-4">
+              <div className="flex justify-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+              <div className="text-muted-foreground">
+                Cargando horarios disponibles...
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       if (backendSlots === null) {
         return (
           <div className="p-6">
             <div className="text-center text-muted-foreground">
-              Cargando horarios disponibles...
+              Seleccione un servicio para ver los horarios disponibles
             </div>
           </div>
         );
