@@ -23,7 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, Search, MessageSquare, Phone, BarChart3, PieChart, Users, CheckCircle, Clock, AlertTriangle, ArrowUpIcon, ArrowDownIcon, TrendingUp, TrendingDown } from "lucide-react";
+import { Eye, Search, MessageSquare, Phone, BarChart3, PieChart, Users, CheckCircle, Clock, AlertTriangle, ArrowUpIcon, ArrowDownIcon, TrendingUp, TrendingDown, Calendar } from "lucide-react";
 import { formatDistanceToNow, format, subDays, startOfMonth } from "date-fns";
 import { es } from "date-fns/locale";
 import { 
@@ -95,6 +95,15 @@ export default function ConversacionesPage() {
     porFecha: [],
     porCanal: []
   });
+  
+  // NUEVO: Estado para métricas de crecimiento
+  const [growthMetrics, setGrowthMetrics] = useState<any>({
+    current_month: 0,
+    previous_month: 0,
+    growth_percentage: 0,
+    vs_previous_month: 0
+  });
+  
   const [duracionPromedio, setDuracionPromedio] = useState<number>(0);
   const [canalesVisibles, setCanalesVisibles] = useState<{[key: string]: boolean}>({
     'WhatsApp': true,
@@ -159,6 +168,7 @@ export default function ConversacionesPage() {
         dataType: typeof data,
         dataKeys: data ? Object.keys(data) : 'no data',
         metricasKeys: data?.metricas ? Object.keys(data.metricas) : 'no metricas',
+        growthKeys: data?.growth ? Object.keys(data.growth) : 'no growth',
         duracionPromedio: data?.duracionPromedio,
         metricasTotal: data?.metricas?.total,
         metricasActivas: data?.metricas?.activas
@@ -167,6 +177,11 @@ export default function ConversacionesPage() {
       // Data comes pre-processed from backend
       setMetricas(data.metricas);
       setDuracionPromedio(data.duracionPromedio);
+      
+      // NUEVO: Establecer métricas de crecimiento
+      if (data.growth) {
+        setGrowthMetrics(data.growth);
+      }
       
       const tiempoTotal = performance.now() - tiempoInicio;
       console.log(`✅ KPIs cargados en ${tiempoTotal.toFixed(2)}ms (optimizado)`);
@@ -189,43 +204,15 @@ export default function ConversacionesPage() {
     }));
   };
 
-  // Calcular métricas de crecimiento con memoización
-  const crecimiento = useMemo(() => {
-    if (!metricas.porFecha?.length) {
-      return { porcentaje: 0, creciendo: false };
-    }
-    
-    const hoy = new Date();
-    const inicioMesActual = startOfMonth(hoy);
-    const inicioMesAnterior = startOfMonth(subDays(inicioMesActual, 1));
-
-    const conversacionesMesActual = metricas.porFecha.filter((item: any) => {
-      const [day, month] = item.fecha.split('/').map(Number);
-      const fechaItem = new Date(hoy.getFullYear(), month-1, day);
-      return fechaItem >= inicioMesActual;
-    }).reduce((sum: number, item: any) => sum + (item.WhatsApp || 0) + (item.Teléfono || 0), 0);
-
-    const conversacionesMesAnterior = metricas.porFecha.filter((item: any) => {
-      const [day, month] = item.fecha.split('/').map(Number);
-      const fechaItem = new Date(hoy.getFullYear(), month-1, day);
-      return fechaItem < inicioMesActual && fechaItem >= inicioMesAnterior;
-    }).reduce((sum: number, item: any) => sum + (item.WhatsApp || 0) + (item.Teléfono || 0), 0);
-
-    if (!conversacionesMesAnterior || isNaN(conversacionesMesAnterior)) {
-      return conversacionesMesActual > 0 
-        ? { porcentaje: 100, creciendo: true }
-        : { porcentaje: 0, creciendo: false };
-    }
-
-    const diferencia = conversacionesMesActual - conversacionesMesAnterior;
-    const porcentaje = Math.round((diferencia / conversacionesMesAnterior) * 100);
-
-    return {
-      porcentaje: Math.abs(porcentaje),
-      creciendo: porcentaje >= 0
-    };
-  }, [metricas.porFecha]); // Only recalculate when data changes
+  // ELIMINAR: Ya no necesitamos calcular crecimiento en el frontend
+  // const crecimiento = useMemo(() => { ... }, [metricas.porFecha]);
   
+  // NUEVO: Usar directamente los datos del backend
+  const crecimiento = {
+    porcentaje: Math.abs(growthMetrics.growth_percentage || 0),
+    creciendo: (growthMetrics.growth_percentage || 0) >= 0
+  };
+
   // Usar directamente los datos de métricas para el gráfico
   const datosGraficoArea = metricas.porFecha;
 
@@ -272,7 +259,7 @@ export default function ConversacionesPage() {
         {/* Total conversaciones */}
         <Card className="p-6">
           <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Total Conversaciones</h3>
+            <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Conversaciones del Mes</h3>
             <div className={`rounded-md p-1 flex items-center gap-1 ${crecimiento.creciendo ? 'bg-green-100' : 'bg-red-100'}`}>
               <span className={`text-xs font-medium ${crecimiento.creciendo ? 'text-green-600' : 'text-red-600'}`}>
                 {crecimiento.creciendo ? '+' : '-'}{crecimiento.porcentaje}%
@@ -292,17 +279,17 @@ export default function ConversacionesPage() {
                 <TrendingUp className="inline h-3 w-3 mr-1" /> : 
                 <TrendingDown className="inline h-3 w-3 mr-1" />
               }
-              {crecimiento.creciendo ? 'Creciendo' : 'Disminuyendo'} este mes
+              {crecimiento.creciendo ? 'Creciendo' : 'Disminuyendo'} vs mes anterior
             </p>
           </div>
         </Card>
         
-        {/* Activas */}
+        {/* Conversaciones de Hoy */}
         <Card className="p-6">
           <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Conversaciones Activas</h3>
-            <div className="rounded-md bg-green-100 p-1">
-              <CheckCircle className="h-4 w-4 text-green-600" />
+            <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Conversaciones de Hoy</h3>
+            <div className="rounded-md bg-blue-100 p-1">
+              <Clock className="h-4 w-4 text-blue-600" />
             </div>
           </div>
           <div className="flex items-center">
@@ -310,8 +297,8 @@ export default function ConversacionesPage() {
           </div>
           <div className="mt-3">
             <p className="text-xs text-muted-foreground">
-              <Users className="inline h-3 w-3 mr-1" />
-              Requieren atención inmediata
+              <Calendar className="inline h-3 w-3 mr-1" />
+              Actividad del día actual
             </p>
           </div>
         </Card>
@@ -353,7 +340,7 @@ export default function ConversacionesPage() {
           <div className="mt-3">
             <p className="text-xs text-muted-foreground">
               <Clock className="inline h-3 w-3 mr-1" />
-              Duración promedio: {duracionPromedio > 0 ? `${duracionPromedio} min` : 'Calculando...'}
+              Duración promedio: {duracionPromedio && duracionPromedio > 0 ? `${duracionPromedio} min` : 'Sin datos'}
             </p>
           </div>
         </Card>
