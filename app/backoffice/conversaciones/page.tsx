@@ -104,6 +104,18 @@ export default function ConversacionesPage() {
     vs_previous_month: 0
   });
   
+  // NUEVO: Estado para métricas de conversión
+  const [conversionMetrics, setConversionMetrics] = useState<any>({
+    tasa_conversion: 0,
+    show_up_rate: 0,
+    tasa_exito_whatsapp: 0,
+    tasa_exito_phone: 0,
+    conversaciones_con_citas: 0,
+    total_conversaciones: 0,
+    citas_agendadas: 0,
+    citas_completadas: 0
+  });
+  
   const [duracionPromedio, setDuracionPromedio] = useState<number>(0);
   const [canalesVisibles, setCanalesVisibles] = useState<{[key: string]: boolean}>({
     'WhatsApp': true,
@@ -181,6 +193,11 @@ export default function ConversacionesPage() {
       // NUEVO: Establecer métricas de crecimiento
       if (data.growth) {
         setGrowthMetrics(data.growth);
+      }
+
+      // NUEVO: Establecer métricas de conversión
+      if (data.conversion) {
+        setConversionMetrics(data.conversion);
       }
       
       const tiempoTotal = performance.now() - tiempoInicio;
@@ -344,6 +361,76 @@ export default function ConversacionesPage() {
             </p>
           </div>
         </Card>
+      </div>
+
+      {/* NUEVO: Métricas de Conversión */}
+      <div className="space-y-4">
+        <h2 className="text-xl font-semibold">📊 Métricas de Conversión - Agente AI</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Tasa de Conversión */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Tasa de Conversión</h3>
+              <div className="rounded-md bg-purple-100 p-1">
+                <BarChart3 className="h-4 w-4 text-purple-600" />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold">{conversionMetrics.tasa_conversion}%</div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <CheckCircle className="inline h-3 w-3 mr-1" />
+                {conversionMetrics.citas_agendadas} citas de {conversionMetrics.total_conversaciones} conversaciones
+              </p>
+            </div>
+          </Card>
+          
+          {/* Show-up Rate */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Show-up Rate</h3>
+              <div className="rounded-md bg-orange-100 p-1">
+                <Users className="h-4 w-4 text-orange-600" />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold">{conversionMetrics.show_up_rate}%</div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <CheckCircle className="inline h-3 w-3 mr-1" />
+                {conversionMetrics.citas_completadas} completadas de {conversionMetrics.citas_agendadas} agendadas
+              </p>
+            </div>
+          </Card>
+          
+          {/* Tasa de Éxito por Canal */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Éxito por Canal</h3>
+              <div className="rounded-md bg-indigo-100 p-1">
+                <PieChart className="h-4 w-4 text-indigo-600" />
+              </div>
+            </div>
+            <div className="flex items-center space-x-4">
+              <div className="text-center">
+                <div className="text-lg font-bold text-green-600">{conversionMetrics.tasa_exito_whatsapp}%</div>
+                <div className="text-xs text-muted-foreground">WhatsApp</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-blue-600">{conversionMetrics.tasa_exito_phone}%</div>
+                <div className="text-xs text-muted-foreground">Teléfono</div>
+              </div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <TrendingUp className="inline h-3 w-3 mr-1" />
+                Conversión por canal del mes
+              </p>
+            </div>
+          </Card>
+        </div>
       </div>
 
       {/* Gráfico principal */}
