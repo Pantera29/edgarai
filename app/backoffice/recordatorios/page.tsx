@@ -55,6 +55,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
+import { useClientSearch } from "@/hooks/useClientSearch"
 
 interface Recordatorio {
   reminder_id: string
@@ -122,21 +123,49 @@ interface WhatsAppTemplate {
   message_template: string;
 }
 
-// Componente mejorado para el combobox de clientes
-function ClienteComboBox({ clientes, onSelect, value }: { clientes: any[], onSelect: (id: string) => void, value: string }) {
+// Componente mejorado para el combobox de clientes con búsqueda server-side
+function ClienteComboBox({ 
+  dealershipId, 
+  onSelect, 
+  value 
+}: { 
+  dealershipId: string;
+  onSelect: (id: string) => void; 
+  value: string;
+}) {
   const [open, setOpen] = React.useState(false);
   const [search, setSearch] = React.useState('');
   const triggerRef = React.useRef<HTMLDivElement>(null);
+  
+  // Usar el hook personalizado para búsqueda de clientes
+  const { 
+    clients, 
+    loading, 
+    error, 
+    searchClients, 
+    addSelectedClient, 
+    getClientById 
+  } = useClientSearch(dealershipId);
 
   // Buscar el cliente seleccionado
-  const selectedClient = clientes.find(c => c.id === value);
+  const selectedClient = getClientById(value);
 
-  // Filtrar clientes por búsqueda de nombre
-  const filtered = search.trim() === ''
-    ? clientes
-    : clientes.filter(cliente =>
-        cliente.names.toLowerCase().includes(search.toLowerCase())
-      );
+  // Manejar cambios en la búsqueda
+  const handleSearchChange = (newSearch: string) => {
+    setSearch(newSearch);
+    searchClients(newSearch);
+  };
+
+  // Manejar selección de cliente
+  const handleClientSelect = (clientId: string) => {
+    const client = clients.find(c => c.id === clientId);
+    if (client) {
+      addSelectedClient(client);
+      onSelect(clientId);
+      setOpen(false);
+      setSearch('');
+    }
+  };
 
   // Cerrar el dropdown si se hace clic fuera
   React.useEffect(() => {
@@ -152,6 +181,13 @@ function ClienteComboBox({ clientes, onSelect, value }: { clientes: any[], onSel
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [open]);
+
+  // Cargar clientes seleccionados previamente al abrir
+  React.useEffect(() => {
+    if (open && selectedClient) {
+      addSelectedClient(selectedClient);
+    }
+  }, [open, selectedClient, addSelectedClient]);
 
   return (
     <div className="relative w-full" ref={triggerRef}>
@@ -169,28 +205,41 @@ function ClienteComboBox({ clientes, onSelect, value }: { clientes: any[], onSel
           <input
             type="text"
             className="w-full px-3 py-2 border-b outline-none bg-white text-black"
-            placeholder="Buscar cliente por nombre..."
+            placeholder="Buscar cliente por nombre o teléfono..."
             value={search}
-            onChange={e => setSearch(e.target.value)}
+            onChange={e => handleSearchChange(e.target.value)}
             autoFocus
           />
-          <ul className="max-h-60 overflow-y-auto bg-white text-black">
-            {filtered.length > 0 ? (
-              filtered.map((cliente) => (
+          <ul className="max-h-60 overflow-y-auto">
+            {loading ? (
+              <li className="px-3 py-2 text-gray-500 text-center">
+                <div className="flex items-center justify-center">
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-600 mr-2"></div>
+                  Buscando...
+                </div>
+              </li>
+            ) : error ? (
+              <li className="px-3 py-2 text-red-500 text-center">
+                Error: {error}
+              </li>
+            ) : clients.length > 0 ? (
+              clients.map((cliente) => (
                 <li
                   key={cliente.id}
                   className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${value === cliente.id ? 'bg-blue-50 font-semibold' : ''}`}
-                  onClick={() => {
-                    onSelect(cliente.id);
-                    setOpen(false);
-                    setSearch('');
-                  }}
+                  onClick={() => handleClientSelect(cliente.id)}
                 >
                   {cliente.names} ({cliente.phone_number})
                 </li>
               ))
+            ) : search.trim() ? (
+              <li className="px-3 py-2 text-gray-400 text-center">
+                No se encontraron clientes
+              </li>
             ) : (
-              <li className="px-3 py-2 text-gray-400">No se encontraron clientes</li>
+              <li className="px-3 py-2 text-gray-400 text-center">
+                Escribe para buscar clientes
+              </li>
             )}
           </ul>
         </div>
@@ -269,7 +318,7 @@ export default function RecordatoriosPage() {
   const [token, setToken] = useState<string>("");
   const [dataToken, setDataToken] = useState<object>({});
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
-  const [clientes, setClientes] = useState<any[]>([]);
+  // Variable clientes eliminada - ahora usa useClientSearch hook
   const [vehiculos, setVehiculos] = useState<any[]>([]);
   const [seleccionados, setSeleccionados] = useState<string[]>([]);
   const [isLlamando, setIsLlamando] = useState(false);
@@ -607,47 +656,7 @@ export default function RecordatoriosPage() {
     );
   }
 
-  const cargarClientes = async () => {
-    try {
-      console.log('Iniciando carga de clientes...');
-      
-      // Obtener el dealership_id del token si existe
-      const dealershipId = (dataToken as any)?.dealership_id;
-      console.log('Dealership ID:', dealershipId);
-
-      let query = supabase
-        .from('client')
-        .select('id, names, phone_number')
-        .order('names');
-
-      // Si hay un dealership_id, filtrar por él
-      if (dealershipId) {
-        query = query.eq('dealership_id', dealershipId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error al cargar clientes:', error);
-        toast({
-          title: "Error",
-          description: "No se pudieron cargar los clientes",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      console.log('Clientes cargados:', data);
-      setClientes(data || []);
-    } catch (error) {
-      console.error('Error en cargarClientes:', error);
-      toast({
-        title: "Error",
-        description: "Error al cargar los clientes",
-        variant: "destructive",
-      });
-    }
-  };
+  // Función cargarClientes eliminada - ahora usa useClientSearch hook
 
   const cargarVehiculos = async (clientId: string) => {
     try {
@@ -725,7 +734,6 @@ export default function RecordatoriosPage() {
 
   useEffect(() => {
     if (mostrarFormulario) {
-      cargarClientes();
       cargarServicios();
     }
   }, [mostrarFormulario]);
@@ -1808,7 +1816,6 @@ export default function RecordatoriosPage() {
                               notes: recordatorio.notes || ''
                             });
                             setMostrarFormularioEditar(true);
-                            cargarClientes();
                             cargarVehiculos(recordatorio.client_id_uuid);
                           }}
                         >
@@ -1897,7 +1904,7 @@ export default function RecordatoriosPage() {
               <div className="space-y-2">
                 <Label>Cliente *</Label>
                 <ClienteComboBox
-                  clientes={clientes}
+                  dealershipId={(dataToken as any)?.dealership_id}
                   onSelect={(value) => {
                     setFormData({ ...formData, client_id: value, vehicle_id: '' });
                     cargarVehiculos(value);
@@ -1995,7 +2002,7 @@ export default function RecordatoriosPage() {
               <div className="space-y-2">
                 <Label>Cliente *</Label>
                 <ClienteComboBox
-                  clientes={clientes}
+                  dealershipId={(dataToken as any)?.dealership_id}
                   onSelect={(value) => {
                     setFormDataEditar({ ...formDataEditar, client_id: value, vehicle_id: '' });
                     cargarVehiculos(value);
