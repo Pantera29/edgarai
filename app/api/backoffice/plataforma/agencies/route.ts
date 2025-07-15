@@ -118,7 +118,7 @@ export async function POST(request: Request) {
     }
 
     // Crear la nueva agencia
-    const { data, error } = await supabase
+    const { data: agency, error } = await supabase
       .from('dealerships')
       .insert({
         name: name.trim(),
@@ -136,11 +136,35 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('✅ Agencia creada exitosamente:', data);
+    console.log('✅ Agencia creada exitosamente:', agency);
+
+    // 🆕 Crear workshop principal automáticamente
+    console.log('🏭 Creando workshop principal para la nueva agencia...');
+    const workshopName = `${name.trim()} - Principal`;
+    const { data: workshop, error: workshopError } = await supabase
+      .from('workshops')
+      .insert({
+        name: workshopName,
+        dealership_id: agency.id,
+        is_main: true,
+        is_active: true,
+        address: address?.trim() || null
+      })
+      .select()
+      .single();
+
+    if (workshopError) {
+      console.error('❌ Error creando workshop principal:', workshopError);
+      // No fallar la creación de la agencia, solo log del error
+      console.log('⚠️ La agencia se creó pero no se pudo crear el workshop principal');
+    } else {
+      console.log('✅ Workshop principal creado exitosamente:', workshop);
+    }
 
     return NextResponse.json({
       message: 'Agencia creada exitosamente',
-      agency: data
+      agency: agency,
+      workshop: workshop || null
     }, { status: 201 });
 
   } catch (error) {
