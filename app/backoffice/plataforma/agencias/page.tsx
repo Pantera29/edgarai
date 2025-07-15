@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus, Edit, Loader2 } from "lucide-react";
+import { Search, Plus, Edit, Loader2, Wrench } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -59,6 +59,7 @@ export default function PlataformaAgenciasPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingAgency, setEditingAgency] = useState<Agency | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFixingWorkshops, setIsFixingWorkshops] = useState(false);
   
   // Filtros
   const [busqueda, setBusqueda] = useState("");
@@ -206,8 +207,8 @@ export default function PlataformaAgenciasPage() {
 
       // Limpiar formulario y cerrar modal
       setFormData({ name: "", address: "", is_active: true });
-      setEditingAgency(null);
       setIsEditDialogOpen(false);
+      setEditingAgency(null);
       
       // Recargar agencias
       await cargarAgencias();
@@ -239,75 +240,119 @@ export default function PlataformaAgenciasPage() {
     }
   };
 
+  const handleFixWorkshops = async () => {
+    setIsFixingWorkshops(true);
+    try {
+      const response = await fetch('/api/backoffice/plataforma/agencies/fix-workshops', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Error al corregir workshops');
+      }
+
+      const result = await response.json();
+      console.log('✅ Workshops corregidos:', result);
+      alert(`Corrección completada:\n- Procesadas: ${result.summary.total_processed}\n- Creados: ${result.summary.workshops_created}\n- Omitidas: ${result.summary.workshops_skipped}\n- Errores: ${result.summary.errors}`);
+    } catch (error) {
+      console.error('❌ Error corrigiendo workshops:', error);
+      alert(error instanceof Error ? error.message : 'Error al corregir workshops');
+    } finally {
+      setIsFixingWorkshops(false);
+    }
+  };
+
   return (
     <div className="px-4 py-6 space-y-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Administración - Agencias</h1>
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Nueva Agencia
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Crear Nueva Agencia</DialogTitle>
-              <DialogDescription>
-                Completa los datos para crear una nueva agencia en el sistema.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm font-medium">Nombre *</label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Nombre de la agencia"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Dirección</label>
-                <Input
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Dirección de la agencia"
-                />
-              </div>
-              <div>
-                <label className="text-sm font-medium">Estado</label>
-                <Select
-                  value={formData.is_active ? "activa" : "inactiva"}
-                  onValueChange={(value) => setFormData({ ...formData, is_active: value === "activa" })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="activa">Activa</SelectItem>
-                    <SelectItem value="inactiva">Inactiva</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isSubmitting}>
-                Cancelar
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={handleFixWorkshops}
+            disabled={isFixingWorkshops}
+          >
+            {isFixingWorkshops ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Corrigiendo...
+              </>
+            ) : (
+              <>
+                <Wrench className="h-4 w-4 mr-2" />
+                Corregir Workshops
+              </>
+            )}
+          </Button>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Nueva Agencia
               </Button>
-              <Button onClick={handleCreateAgency} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Creando...
-                  </>
-                ) : (
-                  'Crear Agencia'
-                )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Crear Nueva Agencia</DialogTitle>
+                <DialogDescription>
+                  Completa los datos para crear una nueva agencia en el sistema.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium">Nombre *</label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="Nombre de la agencia"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Dirección</label>
+                  <Input
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    placeholder="Dirección de la agencia"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Estado</label>
+                  <Select
+                    value={formData.is_active ? "activa" : "inactiva"}
+                    onValueChange={(value) => setFormData({ ...formData, is_active: value === "activa" })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="activa">Activa</SelectItem>
+                      <SelectItem value="inactiva">Inactiva</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isSubmitting}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleCreateAgency} disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creando...
+                    </>
+                  ) : (
+                    'Crear Agencia'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       <Card className="p-4 shadow-sm border-slate-200">
@@ -444,7 +489,6 @@ export default function PlataformaAgenciasPage() {
                 </SelectContent>
               </Select>
             </div>
-
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSubmitting}>
