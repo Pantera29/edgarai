@@ -121,6 +121,8 @@ export default function ConversacionesPage() {
     'WhatsApp': true,
     'Teléfono': true
   });
+  
+
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -211,6 +213,9 @@ export default function ConversacionesPage() {
     }
   };
 
+  // NUEVO: Función para cargar métricas de acción humana
+
+
 
 
   // Función para alternar la visibilidad de un canal en el gráfico
@@ -269,6 +274,22 @@ export default function ConversacionesPage() {
     <div className="px-4 py-6 space-y-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Dashboard de Conversaciones</h1>
+        <div className="flex space-x-2">
+          <Button 
+            variant="outline" 
+            onClick={() => router.push(`/backoffice/conversaciones/accion-humana?token=${token}`)}
+            className="flex items-center space-x-2"
+          >
+            <AlertTriangle className="h-4 w-4" />
+            <span>Acción Humana</span>
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => router.push(`/backoffice/conversaciones/lista?token=${token}`)}
+          >
+            Ver Lista
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
@@ -362,6 +383,8 @@ export default function ConversacionesPage() {
           </div>
         </Card>
       </div>
+
+
 
       {/* NUEVO: Métricas de Conversión */}
       <div className="space-y-4">

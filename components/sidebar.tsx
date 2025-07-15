@@ -24,7 +24,8 @@ import {
   MessageSquare,
   Target,
   Building2,
-  Monitor
+  Monitor,
+  AlertTriangle
 } from "lucide-react"
 import Image from "next/image"
 
@@ -83,6 +84,11 @@ const menuItems: MenuItem[] = [
         title: "Lista",
         href: "/backoffice/conversaciones/lista",
         icon: MessageSquare
+      },
+      {
+        title: "Acción Humana",
+        href: "/backoffice/conversaciones/accion-humana",
+        icon: AlertTriangle
       }
     ]
   },
