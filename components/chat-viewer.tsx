@@ -80,7 +80,7 @@ export function ChatViewer({
     <div 
       ref={chatContainerRef}
       className={cn(
-        "flex flex-col gap-4 p-4 overflow-y-auto h-[calc(100vh-200px)]",
+        "flex flex-col gap-4 p-4 overflow-y-auto h-full",
         className
       )}
     >

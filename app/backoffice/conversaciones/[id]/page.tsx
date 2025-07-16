@@ -25,7 +25,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -56,6 +58,7 @@ interface Conversation {
     names: string;
     email: string;
     phone_number: string;
+    agent_active?: boolean;
   } | null;
   // Campos adicionales para la versión actualizada de la tabla
   duration_seconds?: number;
@@ -97,6 +100,11 @@ export default function ConversacionDetallePage() {
     assistant: 0
   });
   const [expandedSummary, setExpandedSummary] = useState(false);
+  
+  // Estados para envío de WhatsApp
+  const [whatsappMessage, setWhatsappMessage] = useState("");
+  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const { toast } = useToast();
 
   const conversationId = params.id as string;
 
@@ -137,7 +145,7 @@ export default function ConversacionDetallePage() {
         .from("chat_conversations")
         .select(`
           *,
-          client(id, names, email, phone_number)
+          client(id, names, email, phone_number, agent_active)
         `)
         .eq("id", conversationId)
         .single();
@@ -155,6 +163,8 @@ export default function ConversacionDetallePage() {
         return;
       }
 
+
+      
       setConversacion(conversacionData);
       
       if (conversacionData) {
@@ -458,6 +468,61 @@ export default function ConversacionDetallePage() {
     return intents[intent as keyof typeof intents] || intent;
   };
 
+  const enviarWhatsApp = async () => {
+    if (!conversacion?.client?.phone_number || !whatsappMessage.trim() || !dataToken?.dealership_id) {
+      toast({
+        title: "Error",
+        description: "Faltan datos para enviar el mensaje",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingWhatsapp(true);
+    try {
+      console.log('🚀 [UI] Enviando mensaje WhatsApp...');
+      
+      const response = await fetch('/api/whatsapp/send-direct', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone_number: conversacion.client.phone_number,
+          message: whatsappMessage.trim(),
+          dealership_id: dataToken.dealership_id
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('✅ [UI] Mensaje enviado exitosamente');
+        toast({
+          title: "Mensaje enviado",
+          description: "El mensaje de WhatsApp se envió correctamente",
+        });
+        setWhatsappMessage("");
+      } else {
+        console.error('❌ [UI] Error al enviar mensaje:', result.error);
+        toast({
+          title: "Error al enviar",
+          description: result.error || "No se pudo enviar el mensaje",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('💥 [UI] Error inesperado:', error);
+      toast({
+        title: "Error",
+        description: "Error inesperado al enviar el mensaje",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingWhatsapp(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -548,7 +613,15 @@ export default function ConversacionDetallePage() {
             <>
               <div className="mb-4">
                 <p className="text-sm text-muted-foreground mb-1">Cliente</p>
-                <p className="font-medium">{conversacion.client.names}</p>
+                <div className="flex items-center gap-2">
+                  <p className="font-medium">{conversacion.client.names}</p>
+                  {conversacion.client.agent_active === false && (
+                    <Badge variant="destructive" className="text-xs">
+                      <AlertCircle className="h-3 w-3 mr-1" />
+                      Necesita acción
+                    </Badge>
+                  )}
+                </div>
               </div>
               
               <div className="mb-4">
@@ -556,6 +629,8 @@ export default function ConversacionDetallePage() {
                 <p>{conversacion.client.phone_number}</p>
                 {conversacion.client.email && <p>{conversacion.client.email}</p>}
               </div>
+
+
             </>
           )}
 
@@ -675,13 +750,13 @@ export default function ConversacionDetallePage() {
         </Card>
 
         {/* Visualizador de mensajes */}
-        <Card className="p-0 md:col-span-2 overflow-hidden">
-          <div className="bg-muted p-3 border-b">
+        <Card className="p-0 md:col-span-2 flex flex-col h-[calc(100vh-150px)]">
+          <div className="bg-muted p-3 border-b flex-shrink-0">
             <h2 className="font-semibold">Mensajes</h2>
           </div>
 
           {conversacion.channel === 'phone' && (conversacion.conversation_summary || conversacion.metadata?.summary) && (
-            <div className="p-4 border-b">
+            <div className="p-4 border-b flex-shrink-0">
               <Card className="bg-blue-50 p-4 rounded-lg shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div className="flex items-center text-blue-700 font-medium">
@@ -740,7 +815,54 @@ export default function ConversacionDetallePage() {
             </div>
           )}
 
-          <ChatViewer messages={mensajes} />
+          {/* ChatViewer con altura flexible */}
+          <div className="flex-1 overflow-hidden min-h-0">
+            <ChatViewer messages={mensajes} />
+          </div>
+          
+          {/* Formulario de WhatsApp - Solo mostrar si agent_active es false */}
+          {conversacion.client?.agent_active === false && (
+            <div className="p-4 border-t bg-muted/30 flex-shrink-0">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <MessageSquare className="h-4 w-4 mr-2 text-green-600" />
+                    <p className="text-sm font-medium text-green-700">Enviar WhatsApp</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Enviar a: {conversacion.client.phone_number}
+                  </p>
+                </div>
+                <Textarea
+                  placeholder="Escribe tu mensaje aquí..."
+                  value={whatsappMessage}
+                  onChange={(e) => setWhatsappMessage(e.target.value)}
+                  className="min-h-[80px] resize-none"
+                  disabled={sendingWhatsapp}
+                />
+                <div className="flex justify-end">
+                  <Button
+                    onClick={enviarWhatsApp}
+                    disabled={!whatsappMessage.trim() || sendingWhatsapp}
+                    size="sm"
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    {sendingWhatsapp ? (
+                      <>
+                        <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
+                        Enviando...
+                      </>
+                    ) : (
+                      <>
+                        <Send className="h-4 w-4 mr-2" />
+                        Enviar
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     </div>
