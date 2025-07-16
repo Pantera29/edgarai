@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MoreHorizontal, History, Edit, Trash2 } from "lucide-react"
+import { MoreHorizontal, History, Edit, Trash2, Eye } from "lucide-react"
 import Link from "next/link"
 import { Skeleton } from "@/components/ui/skeleton"
 import { supabase } from "@/lib/supabase"
@@ -143,15 +143,30 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
                 </Button>
               </TableCell>
               <TableCell className="text-right">
-                <Link href={`/backoffice/clientes/${cliente.id}/editar?token=${token}`}>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    type="button"
-                  >
-                    Editar
-                  </Button>
-                </Link>
+                <div className="flex items-center justify-end gap-2">
+                  <Link href={`/backoffice/clientes/${cliente.id}?token=${token}`}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      className="flex items-center gap-1"
+                    >
+                      <Eye className="h-4 w-4" />
+                      Ver
+                    </Button>
+                  </Link>
+                  <Link href={`/backoffice/clientes/${cliente.id}/editar?token=${token}`}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      className="flex items-center gap-1"
+                    >
+                      <Edit className="h-4 w-4" />
+                      Editar
+                    </Button>
+                  </Link>
+                </div>
               </TableCell>
             </TableRow>
           ))}
