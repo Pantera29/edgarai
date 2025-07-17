@@ -16,26 +16,39 @@ Mejorar el endpoint `/api/customers/[id]/active-appointments` para que además d
 
 ## 🚀 Implementación
 
-### Lógica de Filtrado por Fecha
+### Lógica de Filtrado por Fecha con Timezone del Dealership
 ```typescript
-// Obtener la fecha actual en formato YYYY-MM-DD
-const today = new Date();
-const todayString = today.toISOString().split('T')[0]; // Formato: YYYY-MM-DD
+// 1. Obtener dealership_id del cliente
+const { data: client } = await supabase
+  .from('client')
+  .select('id, dealership_id')
+  .eq('id', clientId)
+  .single();
 
-// Aplicar filtro en la consulta Supabase
+// 2. Obtener configuración del dealership (incluyendo timezone)
+const workshopId = await resolveWorkshopId(client.dealership_id, supabase);
+const dealershipConfig = await getWorkshopConfiguration(client.dealership_id, workshopId, supabase);
+const timezone = dealershipConfig?.timezone || 'America/Mexico_City';
+
+// 3. Calcular fecha actual en timezone del dealership
+const now = new Date();
+const localDate = utcToZonedTime(now, timezone);
+const todayString = format(localDate, 'yyyy-MM-dd');
+
+// 4. Aplicar filtro en la consulta Supabase
 let query = supabase
   .from('appointment')
   .select(/* campos */)
   .eq('client_id', clientId)
-  .in('status', ['pending', 'confirmed']) // Filtro por estado existente
-  .gte('appointment_date', todayString) // NUEVO: Filtro por fecha >= hoy
+  .in('status', ['pending', 'confirmed'])
+  .gte('appointment_date', todayString) // NUEVO: Filtro por fecha >= hoy (hora local)
   .order('appointment_date', { ascending: false });
 ```
 
 ### Filtros Aplicados Simultáneamente
 1. **Por Cliente**: `client_id = [id]`
 2. **Por Estado**: `status IN ('pending', 'confirmed')`  
-3. **Por Fecha**: `appointment_date >= YYYY-MM-DD` ✨ **NUEVO**
+3. **Por Fecha**: `appointment_date >= YYYY-MM-DD` ✨ **NUEVO** (calculada en timezone del dealership)
 
 ## 📊 Comportamiento Antes vs Después
 
@@ -128,8 +141,9 @@ curl "http://localhost:3000/api/customers/123/active-appointments"
 ## 🔧 Consideraciones Técnicas
 
 ### Zona Horaria
-- **Actual**: Usa `new Date().toISOString()` (UTC)
-- **Mejora futura**: Considerar zona horaria del dealership para mayor precisión
+- **Implementación actual**: Usa timezone configurado del dealership (ej: 'America/Mexico_City')
+- **Fallback**: Si falla la configuración, usa UTC
+- **Precisión**: La fecha "hoy" se calcula en la zona horaria local del dealership
 
 ### Rendimiento
 - **Impacto**: Mínimo - Supabase maneja el filtrado eficientemente
@@ -143,9 +157,13 @@ curl "http://localhost:3000/api/customers/123/active-appointments"
 
 ⚠️ **Solo filtra por fecha, NO por hora**: Una cita de hoy a las 8:00 AM se incluirá incluso si ya pasó esa hora
 
-⚠️ **Zona horaria**: Actualmente usa UTC. Para mayor precisión, considerar implementar zona horaria del dealership
+✅ **Zona horaria**: Usa la configuración del dealership (`dealership_configuration.timezone`)
+
+✅ **Fallback robusto**: Si falla la configuración, automáticamente usa UTC como respaldo
 
 ⚠️ **Formato de fecha**: Asume que `appointment_date` está en formato `YYYY-MM-DD` en la base de datos
+
+🔧 **Dependencias agregadas**: `date-fns`, `date-fns-tz`, `@/lib/workshop-resolver`
 
 ## 🎯 Impacto en Flujos de Trabajo
 

@@ -139,6 +139,9 @@ El sistema cuenta con **5 endpoints principales** para la gestión de citas de c
 ✅ Mismo join que el endpoint general
 ✅ Filtro automático `.in('status', ['pending', 'confirmed'])`
 ✅ Filtro automático `.gte('appointment_date', todayString)` (solo fechas futuras)
+✅ **Cálculo de fecha usando timezone del dealership** (no UTC)
+✅ Obtiene configuración del dealership para timezone preciso
+✅ Fallback automático a UTC si falla la configuración
 ✅ Ordenamiento por fecha descendente
 ✅ Logging con identificación específica del endpoint
 
