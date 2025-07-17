@@ -15,10 +15,15 @@ export async function GET(
     const supabase = createServerComponentClient({ cookies });
     const clientId = params.id;
 
+    // Obtener la fecha actual en formato YYYY-MM-DD para el filtrado
+    const today = new Date();
+    const todayString = today.toISOString().split('T')[0]; // Formato: YYYY-MM-DD
+
     console.log('🔍 Parámetros de búsqueda:', { 
       clientId,
       endpoint: 'active-appointments',
-      statusFilter: ['pending', 'confirmed']
+      statusFilter: ['pending', 'confirmed'],
+      dateFilter: `>= ${todayString}` // Solo citas de hoy en adelante
     });
 
     if (!clientId) {
@@ -57,6 +62,7 @@ export async function GET(
       `)
       .eq('client_id', clientId)
       .in('status', ['pending', 'confirmed']) // Filtrar solo citas pendientes y confirmadas
+      .gte('appointment_date', todayString) // Filtrar solo fechas de hoy en adelante
       .order('appointment_date', { ascending: false });
 
     console.log('⏳ Ejecutando consulta a Supabase...');
@@ -64,7 +70,8 @@ export async function GET(
       table: 'appointment',
       filters: {
         client_id: clientId,
-        status: ['pending', 'confirmed']
+        status: ['pending', 'confirmed'],
+        appointment_date: `>= ${todayString}`
       },
       order: 'appointment_date DESC'
     });
@@ -98,10 +105,11 @@ export async function GET(
     if (!data) {
       console.log('ℹ️ No se encontraron citas activas para el cliente:', {
         clientId,
+        dateFilter: `>= ${todayString}`,
         timestamp: new Date().toISOString()
       });
       return NextResponse.json(
-        { message: 'No se encontraron citas activas para este cliente' },
+        { message: 'No se encontraron citas activas (pendientes/confirmadas y fechas futuras) para este cliente' },
         { status: 404 }
       );
     }
@@ -110,6 +118,8 @@ export async function GET(
       count: data.length,
       clientId,
       statuses: data.map(app => app.status),
+      dates: data.map(app => app.appointment_date),
+      dateFilter: `>= ${todayString}`,
       timestamp: new Date().toISOString()
     });
 

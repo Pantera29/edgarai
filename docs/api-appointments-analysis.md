@@ -124,19 +124,21 @@ El sistema cuenta con **5 endpoints principales** para la gestión de citas de c
 ---
 
 ### 5. `/api/customers/[id]/active-appointments` - GET  
-**Propósito**: Obtener SOLO las citas activas de un cliente (pending y confirmed)
+**Propósito**: Obtener SOLO las citas activas de un cliente (pending/confirmed y fechas futuras)
 
 **Parámetros**:
 - `id` - ID del cliente (en URL)
 
 **Diferencias vs endpoint anterior**:
-❗ **Filtro automático**: Solo retorna citas con status 'pending' o 'confirmed'
+❗ **Filtro automático por estado**: Solo retorna citas con status 'pending' o 'confirmed'
+❗ **Filtro automático por fecha**: Solo retorna citas de hoy en adelante (excluye fechas pasadas)
 ❗ **Propósito específico**: Para mostrar citas próximas/pendientes en interfaces de usuario
 ❗ **Optimización**: Menos datos transferidos, consulta más específica
 
 **Lógica principal**:
 ✅ Mismo join que el endpoint general
 ✅ Filtro automático `.in('status', ['pending', 'confirmed'])`
+✅ Filtro automático `.gte('appointment_date', todayString)` (solo fechas futuras)
 ✅ Ordenamiento por fecha descendente
 ✅ Logging con identificación específica del endpoint
 
