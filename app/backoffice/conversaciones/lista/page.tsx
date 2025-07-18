@@ -144,7 +144,7 @@ export default function ConversacionesListaPage() {
       const rpcParams = {
         dealership_id_param: dataToken.dealership_id,
         search_query: busqueda || null,
-        status_filter: filtroEstado,
+        p_status_filter: filtroEstado,
         channel_filter: filtroCanal,
         ended_reason_filter: filtroRazonFinalizacion
       };
