@@ -52,6 +52,7 @@ import { DonutChart } from "@/components/ui/donut-chart"
 import { AppointmentTrendChart } from "@/components/dashboard/appointment-trend-chart"
 import { calculateWorkshopUtilization, calculateReingresoRate } from "@/lib/dashboard-metrics"
 import { UsageSummaryCard } from "@/components/usage-summary-card"
+import { AiPerformanceBarChart } from "@/components/dashboard/ai-performance-bar-chart"
 
 interface Servicio {
   nombre: string;
@@ -661,7 +662,7 @@ export default function DashboardPage() {
       {/* Gráfico de Tendencia de Citas */}
       <AppointmentTrendChart />
 
-      {/* Gráfico de Origen de Citas */}
+      {/* Gráfico de Citas por Origen */}
       <Card className="shadow-sm">
         <CardHeader>
           <CardTitle>Citas por Origen - {format(new Date(), 'MMMM yyyy', { locale: es })}</CardTitle>
@@ -738,6 +739,11 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Gráfico de Performance AI (AgenteAI vs Manual) */}
+      {dataToken?.dealership_id && (
+        <AiPerformanceBarChart dealershipId={dataToken.dealership_id} />
+      )}
 
       {/* Citas del Día */}
       <div>
