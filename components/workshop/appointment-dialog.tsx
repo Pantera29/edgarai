@@ -220,7 +220,7 @@ export default function AppointmentDialog({
       
       onOpenChange(false);
       onSave();
-      router.replace('/citas');
+      router.replace('/backoffice/citas/calendario');
       
     } catch (error) {
       console.error('Error:', error);

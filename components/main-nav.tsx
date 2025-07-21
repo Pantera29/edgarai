@@ -47,7 +47,7 @@ export const mainNavItems = [
   },
   {
     title: "Citas",
-    href: "/citas",
+    href: "/backoffice/citas/calendario",
     icon: Calendar
   },
   {
@@ -139,7 +139,7 @@ export function MainNav({ pendingAppointments = 0, unreadMessages = 0 }) {
             Productos
           </Link>
           <Link
-            href="/citas"
+            href="/backoffice/citas/calendario"
             className={cn(
               "text-sm font-medium transition-colors hover:text-primary relative flex items-center",
               pathname === "/citas"

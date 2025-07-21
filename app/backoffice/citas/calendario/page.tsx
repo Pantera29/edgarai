@@ -122,6 +122,7 @@ export default function CalendarioCitasPage() {
         .from('appointment')
         .select(`
           *,
+          removed_additional,
           client:client_id (names, phone_number, email),
           vehicle:vehicle_id (make, model, license_plate, year),
           service:service_id (service_name, duration_minutes, price)
@@ -574,6 +575,25 @@ export default function CalendarioCitasPage() {
                     {(selectedCita.channel || 'No especificado').toUpperCase()}
                   </span>
                 </div>
+                <div className="font-medium">Servicios adicionales:</div>
+                <div>
+                  {selectedCita.removed_additional ? (
+                    <span className="text-red-600">❌ Removidos por cliente</span>
+                  ) : (
+                    <span className="text-green-600">✅ Incluidos</span>
+                  )}
+                </div>
+                {selectedCita.notes && (
+                  <>
+                    <div className="font-medium">Nota:</div>
+                    <div className="col-span-1 text-sm text-gray-600 max-w-xs">
+                      {selectedCita.notes.length > 100 ?
+                        `${selectedCita.notes.substring(0, 100)}...` :
+                        selectedCita.notes
+                      }
+                    </div>
+                  </>
+                )}
                 <div className="font-medium">Estado:</div>
                 <div>
                   <Select value={rescheduleStatus} onValueChange={setRescheduleStatus}>
@@ -589,17 +609,6 @@ export default function CalendarioCitasPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                {selectedCita.notes && (
-                  <>
-                    <div className="font-medium">Nota:</div>
-                    <div className="col-span-1 text-sm text-gray-600 max-w-xs">
-                      {selectedCita.notes.length > 100 ?
-                        `${selectedCita.notes.substring(0, 100)}...` :
-                        selectedCita.notes
-                      }
-                    </div>
-                  </>
-                )}
               </div>
               <div className="flex-grow overflow-auto">
                 <AppointmentCalendar
