@@ -47,7 +47,7 @@ export const sidebarLinks = [
   },
   {
     title: "Citas",
-    href: "/citas",
+    href: "/backoffice/citas/calendario",
     icon: Calendar,
     description: "Gestión de citas y agenda"
   },
