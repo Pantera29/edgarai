@@ -232,6 +232,7 @@ export async function POST(request: Request) {
         client_id,
         vehicle_id,
         service_id: finalServiceId,          // ← Usar finalServiceId
+        specific_service_id: specific_service_id || null, // ← AGREGADO
         appointment_date,
         appointment_time,
         status: 'pending',

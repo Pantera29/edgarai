@@ -146,6 +146,7 @@ export interface Database {
           client_id: string
           vehicle_id: string
           service_id: string
+          specific_service_id: string | null
           appointment_date: string
           appointment_time: string
           status: string
@@ -161,6 +162,7 @@ export interface Database {
           client_id: string
           vehicle_id: string
           service_id: string
+          specific_service_id?: string | null
           appointment_date: string
           appointment_time: string
           status?: string
@@ -176,6 +178,7 @@ export interface Database {
           client_id?: string
           vehicle_id?: string
           service_id?: string
+          specific_service_id?: string | null
           appointment_date?: string
           appointment_time?: string
           status?: string

@@ -122,6 +122,7 @@ export default function CalendarioCitasPage() {
         .from('appointment')
         .select(`
           *,
+          specific_service_id,
           removed_additional,
           client:client_id (names, phone_number, email),
           vehicle:vehicle_id (make, model, license_plate, year),
@@ -160,7 +161,8 @@ export default function CalendarioCitasPage() {
           notes: appointment.notes,
           channel: appointment.channel,
           dealership_id: appointment.dealership_id,
-          workshop_id: appointment.workshop_id // <-- NUEVO
+          workshop_id: appointment.workshop_id, // <-- NUEVO
+          specific_service_id: appointment.specific_service_id // <-- NUEVO
         } as CalendarEventWithServiceId
       }).filter((e): e is CalendarEventWithServiceId => !!e)
 
@@ -396,6 +398,31 @@ export default function CalendarioCitasPage() {
     ? events
     : events.filter(ev => ev.workshop_id === selectedWorkshop);
 
+  const [specificServiceName, setSpecificServiceName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (rescheduleDialog && selectedCita && selectedCita.specific_service_id) {
+      const fetchSpecificService = async () => {
+        console.log('🔍 Buscando nombre del servicio específico:', selectedCita.specific_service_id);
+        const { data, error } = await supabase
+          .from('specific_services')
+          .select('service_name')
+          .eq('id', selectedCita.specific_service_id)
+          .single();
+        if (error) {
+          console.log('❌ Error al obtener servicio específico:', error.message);
+          setSpecificServiceName(null);
+        } else {
+          setSpecificServiceName(data?.service_name || null);
+          console.log('✅ Servicio específico encontrado:', data?.service_name);
+        }
+      };
+      fetchSpecificService();
+    } else {
+      setSpecificServiceName(null);
+    }
+  }, [rescheduleDialog, selectedCita, supabase]);
+
   return (
     <div className="container mx-auto p-4">
       {/* Título de la página */}
@@ -556,7 +583,12 @@ export default function CalendarioCitasPage() {
                 <div className="font-medium">Cliente:</div>
                 <div>{selectedCita.client?.names}</div>
                 <div className="font-medium">Servicio:</div>
-                <div>{selectedCita.service?.service_name}</div>
+                <div>
+                  {selectedCita.service?.service_name}
+                  {specificServiceName && (
+                    <div className="text-xs text-blue-700 mt-1">Servicio específico: {specificServiceName}</div>
+                  )}
+                </div>
                 <div className="font-medium">Vehículo:</div>
                 <div>{`${selectedCita.vehicle?.make} ${selectedCita.vehicle?.model}`}</div>
                 <div className="font-medium">Fecha y Hora Actual:</div>
