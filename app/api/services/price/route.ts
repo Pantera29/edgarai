@@ -21,6 +21,7 @@ export async function GET(request: Request) {
     const modelName = searchParams.get('model_name');
     const kilometers = searchParams.get('kilometers');
     const months = searchParams.get('months');
+    const dealership_id = searchParams.get('dealership_id'); // ← NUEVO PARÁMETRO
 
     console.log('🔍 [Price API] Parámetros recibidos:', {
       vehicleId,
@@ -28,6 +29,7 @@ export async function GET(request: Request) {
       modelName,
       kilometers,
       months,
+      dealership_id: dealership_id || 'no especificado',
       url: request.url,
       searchParams: Object.fromEntries(searchParams.entries())
     });
@@ -48,6 +50,13 @@ export async function GET(request: Request) {
         { message: 'Se requiere kilometers o months' },
         { status: 400 }
       );
+    }
+
+    // Logging condicional para dealership_id
+    if (dealership_id) {
+      console.log('🔍 [Price API] Filtrando por dealership_id:', dealership_id);
+    } else {
+      console.log('⚠️ [Price API] Sin filtro de dealership_id - búsqueda global');
     }
 
     let finalModelId: string | null = null;
@@ -169,9 +178,25 @@ export async function GET(request: Request) {
     console.log('🔍 [Price API] Construyendo consulta para modelo:', finalModelId);
     let query = supabase
       .from('specific_services')
-      .select('price, service_name, kilometers, months')
+      .select(`
+        id,
+        service_name,
+        price,
+        kilometers,
+        months,
+        service_id,
+        additional_price,
+        additional_description,
+        includes_additional
+      `)
       .eq('model_id', finalModelId)
       .eq('is_active', true);
+
+    // Agregar filtro de dealership_id solo si se proporciona
+    if (dealership_id) {
+      query = query.eq('dealership_id', dealership_id);
+      console.log('🔍 [Price API] Filtro de dealership_id aplicado:', dealership_id);
+    }
 
     // Agregar filtro por kilometers o months
     if (kilometers) {
@@ -199,6 +224,7 @@ export async function GET(request: Request) {
       console.error('❌ [Price API] Error al buscar servicio:', {
         error: serviceError.message,
         modelId: finalModelId,
+        dealership_id: dealership_id || 'no especificado',
         parameters: { kilometers, months }
       });
       return NextResponse.json(
@@ -210,29 +236,49 @@ export async function GET(request: Request) {
     if (!service) {
       console.log('❌ [Price API] No se encontró servicio para los parámetros:', {
         modelId: finalModelId,
+        dealership_id: dealership_id || 'no especificado',
         parameters: { kilometers, months }
       });
       return NextResponse.json(
-        { message: 'No se encontró un servicio específico para los parámetros proporcionados' },
+        { message: dealership_id 
+          ? 'No se encontró un servicio específico para los parámetros proporcionados en esta agencia'
+          : 'No se encontró un servicio específico para los parámetros proporcionados' },
         { status: 404 }
       );
     }
 
     console.log('✅ [Price API] Servicio encontrado:', {
+      specific_service_id: service.id,
       service_name: service.service_name,
-      price: service.price,
+      base_price: service.price,
+      additional_price: service.additional_price,
+      includes_additional: service.includes_additional,
+      total_price: service.price + (service.additional_price || 0),
+      service_id: service.service_id,
+      dealership_id: dealership_id || 'no especificado',
       model_id: finalModelId,
       kilometers: service.kilometers,
       months: service.months
     });
 
     return NextResponse.json({
+      // Campos existentes (MANTENER)
       price: service.price,
       service_name: service.service_name,
       model_id: finalModelId,
       parameters: {
         kilometers: service.kilometers,
         months: service.months
+      },
+      
+      // NUEVOS campos
+      service_id: service.service_id,
+      specific_service_id: service.id,           // ← NUEVO CAMPO
+      additional: {
+        price: service.additional_price || 0,
+        description: service.additional_description || '',
+        included_by_default: service.includes_additional || true,
+        total_price: service.price + (service.additional_price || 0)
       }
     });
 

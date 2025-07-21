@@ -96,6 +96,97 @@ export interface Database {
           'time_restriction_end_time'?: string | null
         }
       }
+      specific_services: {
+        Row: {
+          id: string
+          service_name: string
+          price: number
+          kilometers: number
+          months: number
+          model_id: string
+          is_active: boolean
+          created_at: string
+          service_id: string | null
+          additional_price: number
+          additional_description: string
+          includes_additional: boolean
+        }
+        Insert: {
+          id?: string
+          service_name: string
+          price: number
+          kilometers: number
+          months: number
+          model_id: string
+          is_active?: boolean
+          created_at?: string
+          service_id?: string | null
+          additional_price?: number
+          additional_description?: string
+          includes_additional?: boolean
+        }
+        Update: {
+          id?: string
+          service_name?: string
+          price?: number
+          kilometers?: number
+          months?: number
+          model_id?: string
+          is_active?: boolean
+          created_at?: string
+          service_id?: string | null
+          additional_price?: number
+          additional_description?: string
+          includes_additional?: boolean
+        }
+      }
+      appointment: {
+        Row: {
+          id: string
+          client_id: string
+          vehicle_id: string
+          service_id: string
+          appointment_date: string
+          appointment_time: string
+          status: string
+          dealership_id: string
+          workshop_id: string | null
+          notes: string | null
+          channel: string
+          created_at: string
+          removed_additional: boolean
+        }
+        Insert: {
+          id?: string
+          client_id: string
+          vehicle_id: string
+          service_id: string
+          appointment_date: string
+          appointment_time: string
+          status?: string
+          dealership_id: string
+          workshop_id?: string | null
+          notes?: string | null
+          channel?: string
+          created_at?: string
+          removed_additional?: boolean
+        }
+        Update: {
+          id?: string
+          client_id?: string
+          vehicle_id?: string
+          service_id?: string
+          appointment_date?: string
+          appointment_time?: string
+          status?: string
+          dealership_id?: string
+          workshop_id?: string | null
+          notes?: string | null
+          channel?: string
+          created_at?: string
+          removed_additional?: boolean
+        }
+      }
       recordatorios_mantenimiento: {
         Row: {
           id: string

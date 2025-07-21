@@ -68,6 +68,8 @@ export async function POST(request: Request) {
       client_id, 
       vehicle_id,
       service_id, 
+      specific_service_id,    // ← NUEVO
+      removed_additional,     // ← NUEVO
       appointment_date, 
       appointment_time,
       notes,
@@ -83,6 +85,8 @@ export async function POST(request: Request) {
       client_id,
       vehicle_id,
       service_id,
+      specific_service_id, // ← NUEVO
+      removed_additional,  // ← NUEVO
       appointment_date,
       appointment_time,
       channel,
@@ -92,10 +96,31 @@ export async function POST(request: Request) {
       workshop_id
     });
 
+    // Resolver service_id si viene specific_service_id
+    let finalServiceId = service_id;
+    if (specific_service_id && !service_id) {
+      console.log('🔍 Resolviendo service_id desde specific_service_id:', specific_service_id);
+      const { data: specificService, error } = await supabase
+        .from('specific_services')
+        .select('service_id')
+        .eq('id', specific_service_id)
+        .single();
+      if (specificService && specificService.service_id) {
+        finalServiceId = specificService.service_id;
+        console.log('✅ Service ID resuelto para crear cita:', finalServiceId);
+      } else {
+        console.log('❌ Specific service not found:', specific_service_id);
+        return NextResponse.json(
+          { message: 'Specific service not found' },
+          { status: 404 }
+        );
+      }
+    }
+
     // Validar campos requeridos
-    if (!client_id || !vehicle_id || !service_id || !appointment_date || !appointment_time) {
+    if (!client_id || !vehicle_id || !finalServiceId || !appointment_date || !appointment_time) {
       return NextResponse.json(
-        { message: 'Missing required parameters. Please provide: client_id, vehicle_id, service_id, appointment_date, appointment_time.' },
+        { message: 'Missing required parameters. Please provide: client_id, vehicle_id, service_id (or specific_service_id), appointment_date, appointment_time.' },
         { status: 400 }
       );
     }
@@ -142,7 +167,7 @@ export async function POST(request: Request) {
     const { data: service, error: serviceError } = await supabase
       .from('services')
       .select('id_uuid')
-      .eq('id_uuid', service_id)
+      .eq('id_uuid', finalServiceId)  // ← Usar finalServiceId
       .maybeSingle();
 
     if (serviceError || !service) {
@@ -191,7 +216,7 @@ export async function POST(request: Request) {
       .select('id')
       .eq('appointment_date', appointment_date)
       .eq('appointment_time', appointment_time)
-      .eq('service_id', service_id);
+      .eq('service_id', finalServiceId);  // ← Usar finalServiceId
 
     if (appointmentsError) {
       return NextResponse.json(
@@ -206,14 +231,15 @@ export async function POST(request: Request) {
       .insert([{
         client_id,
         vehicle_id,
-        service_id,
+        service_id: finalServiceId,          // ← Usar finalServiceId
         appointment_date,
         appointment_time,
         status: 'pending',
         dealership_id: finalDealershipId,
         workshop_id: finalWorkshopId,
         notes: notes || null,
-        channel: channel
+        channel: channel,
+        removed_additional: removed_additional || false  // ← NUEVO campo
       }])
       .select(`
         *,
@@ -231,6 +257,16 @@ export async function POST(request: Request) {
       );
     }
 
+    // Logging de parámetros resueltos
+    console.log('📅 Creando cita con parámetros resueltos:', {
+      original_service_id: service_id,
+      specific_service_id,
+      resolved_service_id: finalServiceId,
+      removed_additional: removed_additional || false,
+      dealership_id: finalDealershipId,
+      workshop_id: finalWorkshopId
+    });
+
     // 6. NUEVO: Crear recordatorio de confirmación automáticamente
     console.log('🔍 [DEBUG] Iniciando lógica de recordatorio de confirmación');
     console.log('🔍 [DEBUG] newAppointment existe:', !!newAppointment);
@@ -241,7 +277,7 @@ export async function POST(request: Request) {
         appointment_date: appointment_date,
         client_id: client_id,
         vehicle_id: vehicle_id,
-        service_id: service_id
+        service_id: finalServiceId
       });
       
       // Comparación simple de fechas usando strings
@@ -265,7 +301,7 @@ export async function POST(request: Request) {
             appointment_id: newAppointment.id.toString(),
             client_id: client_id,
             vehicle_id: vehicle_id,
-            service_id: service_id,
+            service_id: finalServiceId,
             appointment_date: appointment_date,
             dealership_id: finalDealershipId
           });

@@ -10,7 +10,8 @@ export async function GET(request: Request) {
     const supabase = createServerComponentClient({ cookies });
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
-    const serviceId = searchParams.get('service_id');
+    const service_id = searchParams.get('service_id');
+    const specific_service_id = searchParams.get('specific_service_id');
     const dealershipId = searchParams.get('dealership_id');
     const workshopId = searchParams.get('workshop_id');
 
@@ -31,9 +32,33 @@ export async function GET(request: Request) {
       }
     }
 
-    if (!date || !serviceId || !dealershipId) {
+    // Resolver service_id si viene specific_service_id
+    let finalServiceId = service_id;
+
+    if (specific_service_id && !service_id) {
+      console.log('🔍 Resolviendo service_id desde specific_service_id:', specific_service_id);
+      
+      const { data: specificService, error } = await supabase
+        .from('specific_services')
+        .select('service_id')
+        .eq('id', specific_service_id)
+        .single();
+        
+      if (specificService && specificService.service_id) {
+        finalServiceId = specificService.service_id;
+        console.log('✅ Service ID resuelto:', finalServiceId);
+      } else {
+        console.log('❌ Specific service not found:', specific_service_id);
+        return NextResponse.json(
+          { message: 'Specific service not found or service_id not configured' },
+          { status: 404 }
+        );
+      }
+    }
+
+    if (!date || !finalServiceId || !dealershipId) {
       return NextResponse.json(
-        { message: 'Date, service_id and dealership_id parameters are required' },
+        { message: 'Date, service_id (or specific_service_id) and dealership_id parameters are required' },
         { status: 400 }
       );
     }
@@ -57,7 +82,7 @@ export async function GET(request: Request) {
         time_restriction_start_time,
         time_restriction_end_time
       `)
-      .eq('id_uuid', serviceId)
+      .eq('id_uuid', finalServiceId)
       .single();
 
     if (serviceError || !service) {
@@ -71,22 +96,22 @@ export async function GET(request: Request) {
     // VALIDACIÓN DE SEGURIDAD: Verificar que el servicio pertenece al concesionario
     if (service.dealership_id !== dealershipId) {
       console.error('❌ Service does not belong to dealership:', {
-        serviceId,
+        serviceId: finalServiceId,
         serviceDealershipId: service.dealership_id,
         requestedDealershipId: dealershipId
       });
-      return NextResponse.json(
-        { 
-          message: 'Service not found or not available for this dealership. Please verify the dealership ID is correct and that this service is configured for the specified dealership.',
-          error_code: 'DEALERSHIP_SERVICE_MISMATCH',
-          details: {
-            service_id: serviceId,
-            service_dealership_id: service.dealership_id,
-            requested_dealership_id: dealershipId
-          }
-        },
-        { status: 404 }
-      );
+              return NextResponse.json(
+          { 
+            message: 'Service not found or not available for this dealership. Please verify the dealership ID is correct and that this service is configured for the specified dealership.',
+            error_code: 'DEALERSHIP_SERVICE_MISMATCH',
+            details: {
+              service_id: finalServiceId,
+              service_dealership_id: service.dealership_id,
+              requested_dealership_id: dealershipId
+            }
+          },
+          { status: 404 }
+        );
     }
 
     // Resolver workshop_id automáticamente si no se proporciona
@@ -107,7 +132,7 @@ export async function GET(request: Request) {
       .from('workshop_services')
       .select('is_available')
       .eq('workshop_id', finalWorkshopId)
-      .eq('service_id', serviceId)
+      .eq('service_id', finalServiceId)
       .eq('is_available', true)
       .maybeSingle();
 
@@ -115,7 +140,7 @@ export async function GET(request: Request) {
       console.error('❌ Error checking workshop service availability:', {
         error: workshopServiceError.message,
         workshopId: finalWorkshopId,
-        serviceId
+        serviceId: finalServiceId
       });
       return NextResponse.json(
         { message: 'Error checking service availability for workshop' },
@@ -125,7 +150,7 @@ export async function GET(request: Request) {
 
     if (!workshopService) {
       console.error('❌ Service not available for workshop:', {
-        serviceId,
+        serviceId: finalServiceId,
         workshopId: finalWorkshopId,
         dealershipId
       });
@@ -134,7 +159,7 @@ export async function GET(request: Request) {
           message: 'Service not available for this workshop. Please verify the workshop ID is correct and that this service is enabled for the selected workshop. Contact the client to confirm their preferred workshop location.',
           error_code: 'WORKSHOP_SERVICE_NOT_AVAILABLE',
           details: {
-            service_id: serviceId,
+            service_id: finalServiceId,
             workshop_id: finalWorkshopId,
             dealership_id: dealershipId
           }
@@ -144,7 +169,7 @@ export async function GET(request: Request) {
     }
 
     console.log('✅ Servicio validado para el taller:', {
-      serviceId,
+      serviceId: finalServiceId,
       workshopId: finalWorkshopId,
       isAvailable: workshopService.is_available
     });
@@ -183,7 +208,7 @@ export async function GET(request: Request) {
     ];
     const availableField = dayMap[jsDay];
     if (!service[availableField as keyof typeof service]) {
-      console.log('❌ Servicio no disponible este día:', { serviceId, availableField });
+      console.log('❌ Servicio no disponible este día:', { serviceId: finalServiceId, availableField });
       
       // Obtener el nombre del día en inglés
       const dayNames = [
@@ -202,11 +227,8 @@ export async function GET(request: Request) {
         message: `The service "${service.service_name}" is not available on ${dayName}s. Please select another day of the week or contact the workshop to verify service availability.`,
         error_code: 'SERVICE_NOT_AVAILABLE_ON_DAY',
         details: {
-          service_id: serviceId,
-          service_name: service.service_name,
-          requested_date: date,
-          day_of_week: dayName,
-          suggestion: 'Try another day of the week or contact the workshop for more information.'
+          service_id: finalServiceId,
+          day: dayName
         }
       });
     }
@@ -419,16 +441,16 @@ export async function GET(request: Request) {
     if (service.daily_limit) {
       console.log('🔍 Validando límite diario:', {
         dailyLimit: service.daily_limit,
-        serviceId,
+        serviceId: finalServiceId,
         totalAppointments: appointments?.length || 0
       });
       
       const sameServiceAppointments = appointments?.filter(app => 
-        app.service_id === serviceId
+        app.service_id === finalServiceId
       ) || [];
       
       console.log('📊 Citas del mismo servicio:', {
-        serviceId,
+        serviceId: finalServiceId,
         sameServiceAppointments: sameServiceAppointments.length,
         appointments: sameServiceAppointments.map(app => ({
           id: app.id,
@@ -440,7 +462,7 @@ export async function GET(request: Request) {
       
       if (sameServiceAppointments.length >= service.daily_limit) {
         console.log('❌ Límite diario alcanzado para el servicio:', {
-          serviceId,
+          serviceId: finalServiceId,
           dailyLimit: service.daily_limit,
           appointmentsCount: sameServiceAppointments.length
         });
