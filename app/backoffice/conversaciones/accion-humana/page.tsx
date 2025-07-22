@@ -248,7 +248,7 @@ export default function ConversacionesAccionHumanaPage() {
   };
 
   const verDetalle = (id: string) => {
-    router.push(`/backoffice/conversaciones/${id}?token=${token}`);
+    router.push(`/backoffice/conversaciones/${id}?token=${token}&from=accion-humana`);
   };
 
   const getCanalIcon = (channel?: string) => {

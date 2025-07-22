@@ -326,7 +326,14 @@ export default function ConversacionDetallePage() {
   };
 
   const volverALista = () => {
-    router.push(`/backoffice/conversaciones/lista?token=${token}`);
+    // Verificar si venimos de la página de acción humana
+    const fromParam = searchParams?.get('from');
+    
+    if (fromParam === 'accion-humana') {
+      router.push(`/backoffice/conversaciones/accion-humana?token=${token}`);
+    } else {
+      router.push(`/backoffice/conversaciones/lista?token=${token}`);
+    }
   };
 
   const verPerfilCliente = (clientId: string) => {
