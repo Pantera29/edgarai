@@ -13,13 +13,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { DatePickerWithRange } from "@/components/ui/date-range-picker"
 import { Badge } from "@/components/ui/badge"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Search } from "lucide-react"
 import Link from "next/link"
-import { DateRange } from "react-day-picker"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "../../jwt/token"
 import { ArrowUp, ArrowDown, Clock, MessageSquare } from "lucide-react"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
+import { ChevronsLeft, ChevronsRight } from "lucide-react"
+
+const ITEMS_PER_PAGE = 10;
 
 const columns = [
   {
@@ -37,7 +49,7 @@ const columns = [
     header: "Estado",
     cell: ({ row }: { row: any }) => (
       <Badge variant={row.getValue("status") === "completed" ? "success" : "secondary"}>
-        {row.getValue("status") === "completed" ? "completado" : "pendiente"}
+        {row.getValue("status") === "completed" ? "Completado" : "Pendiente"}
       </Badge>
     )
   },
@@ -56,9 +68,9 @@ const columns = [
       
       let displayText = "";
       switch(classification) {
-        case "promoter": displayText = "promotor"; break;
-        case "neutral": displayText = "neutral"; break;
-        case "detractor": displayText = "detractor"; break;
+        case "promoter": displayText = "Promotor"; break;
+        case "neutral": displayText = "Neutral"; break;
+        case "detractor": displayText = "Detractor"; break;
         default: displayText = classification;
       }
       
@@ -73,24 +85,13 @@ const columns = [
       )
     }
   },
-  {
-    accessorKey: "transaction_id",
-    header: "Transacción",
-    cell: ({ row }: { row: any }) => (
-      <Link 
-        href={`/transacciones?id=${row.getValue("transaction_id")}`}
-        className="text-primary hover:underline"
-      >
-        Ver transacción
-      </Link>
-    )
-  }
+
 ]
 
 interface Filters {
   status: string
-  dateRange: DateRange | undefined
   classification: string
+  search: string
 }
 
 export default function FeedbackPage() {
@@ -138,7 +139,6 @@ export default function FeedbackPage() {
     }
   }, [searchParams, router]); 
 
-
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [npsData, setNpsData] = useState({
@@ -149,9 +149,11 @@ export default function FeedbackPage() {
   })
   const [filters, setFilters] = useState<Filters>({
     status: "todos",
-    dateRange: undefined,
-    classification: "todas"
+    classification: "todas",
+    search: ""
   })
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalItems, setTotalItems] = useState(0)
 
   // Función para calcular el NPS
   const calculateNPS = (responses: any[]) => {
@@ -181,6 +183,45 @@ export default function FeedbackPage() {
   const fetchData = async (dealershipIdFromToken?: string) => {
     setLoading(true)
     try {
+      // Primero obtener el conteo total para la paginación
+      let countQuery = supabase
+        .from('nps')
+        .select(`
+          *,
+          client (
+            names,
+            dealership_id
+          )
+        `, { count: 'exact', head: true })
+
+      // Filtrar por dealership_id si está disponible
+      if (dealershipIdFromToken) {
+        countQuery = countQuery.eq('client.dealership_id', dealershipIdFromToken);
+      }
+
+      if (filters.status !== "todos") {
+        const statusValue = filters.status === "pendiente" ? "pending" : "completed";
+        countQuery = countQuery.eq('status', statusValue);
+      }
+
+      if (filters.classification !== "todas") {
+        let classificationValue;
+        switch (filters.classification) {
+          case "promotor": classificationValue = "promoter"; break;
+          case "neutral": classificationValue = "neutral"; break;
+          case "detractor": classificationValue = "detractor"; break;
+          default: classificationValue = filters.classification;
+        }
+        countQuery = countQuery.eq('classification', classificationValue);
+      }
+
+      if (filters.search) {
+        countQuery = countQuery.ilike('client.names', `%${filters.search}%`);
+      }
+
+      const { count: totalCount } = await countQuery;
+
+      // Ahora obtener los datos paginados
       let query = supabase
         .from('nps')
         .select(`
@@ -191,6 +232,7 @@ export default function FeedbackPage() {
           )
         `)
         .order('created_at', { ascending: false })
+        .range((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE - 1)
 
       // Filtrar por dealership_id si está disponible
       if (dealershipIdFromToken) {
@@ -212,6 +254,10 @@ export default function FeedbackPage() {
           default: classificationValue = filters.classification;
         }
         query = query.eq('classification', classificationValue);
+      }
+
+      if (filters.search) {
+        query = query.ilike('client.names', `%${filters.search}%`);
       }
 
       const { data: allData, error } = await query
@@ -257,6 +303,7 @@ export default function FeedbackPage() {
       });
 
       setData(formattedData)
+      setTotalItems(totalCount || 0)
     } catch (error) {
       console.error('Error:', error)
     } finally {
@@ -271,7 +318,29 @@ export default function FeedbackPage() {
     } else {
       fetchData();
     }
-  }, [filters, dataToken])
+  }, [filters, dataToken, currentPage])
+
+  // Resetear página cuando cambien los filtros
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filters.status, filters.classification, filters.search]);
+
+  // Lógica de paginación
+  const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+
+  const getPageRange = () => {
+    const range = [];
+    const maxPagesToShow = 5;
+    let start = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2));
+    let end = Math.min(totalPages, start + maxPagesToShow - 1);
+    if (end - start + 1 < maxPagesToShow) {
+      start = Math.max(1, end - maxPagesToShow + 1);
+    }
+    for (let i = start; i <= end; i++) {
+      range.push(i);
+    }
+    return range;
+  };
 
   return (
     <div className="container mx-auto py-10">
@@ -352,6 +421,16 @@ export default function FeedbackPage() {
       </div>
 
       <div className="flex gap-4 mb-6">
+        <div className="flex flex-1 items-center space-x-2">
+          <Input
+            placeholder="Buscar por nombre de cliente..."
+            className="w-[250px]"
+            value={filters.search}
+            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+          />
+          <Search className="h-4 w-4 text-muted-foreground" />
+        </div>
+
         <Select
           value={filters.status}
           onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
@@ -381,10 +460,7 @@ export default function FeedbackPage() {
           </SelectContent>
         </Select>
 
-        <DatePickerWithRange
-          value={filters.dateRange}
-          onChange={(value) => setFilters(prev => ({ ...prev, dateRange: value }))}
-        />
+
       </div>
 
       <div className="space-y-4">
@@ -393,10 +469,69 @@ export default function FeedbackPage() {
             <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
           </div>
         ) : (
-          <DataTable 
-            columns={columns}
-            data={data}
-          />
+          <>
+            <DataTable 
+              columns={columns}
+              data={data}
+            />
+            
+            {/* Información de paginación - siempre visible */}
+            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center border-t pt-4">
+              <div className="text-sm text-muted-foreground order-2 sm:order-1">
+                Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} -{" "}
+                {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} de {totalItems}{" "}
+                respuestas
+              </div>
+              
+              {/* Controles de paginación - solo si hay más de una página */}
+              {totalPages > 1 && (
+                <div className="order-1 sm:order-2">
+                  <Pagination>
+                    <PaginationContent>
+                      <PaginationItem>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(1)}
+                          disabled={currentPage === 1}
+                        >
+                          <ChevronsLeft className="h-4 w-4" />
+                        </PaginationLink>
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationPrevious
+                          onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
+                          disabled={currentPage === 1}
+                        />
+                      </PaginationItem>
+                      {getPageRange().map((page) => (
+                        <PaginationItem key={page}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page)}
+                            isActive={currentPage === page}
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      ))}
+                      <PaginationItem>
+                        <PaginationNext
+                          onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
+                          disabled={currentPage === totalPages}
+                        />
+                      </PaginationItem>
+                      <PaginationItem>
+                        <PaginationLink
+                          onClick={() => setCurrentPage(totalPages)}
+                          disabled={currentPage === totalPages}
+                        >
+                          <ChevronsRight className="h-4 w-4" />
+                        </PaginationLink>
+                      </PaginationItem>
+                    </PaginationContent>
+                  </Pagination>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

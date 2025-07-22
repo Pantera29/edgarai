@@ -98,7 +98,6 @@ interface DashboardData {
   estadoCitas: {
     pendientes: number;
     confirmadas: number;
-    enCurso: number;
     finalizadas: number;
   };
   satisfaccionCliente: {
@@ -276,7 +275,6 @@ export default function DashboardPage() {
       const estadoCitas = {
         pendientes: estadoCitasData?.filter(cita => cita.status === 'pending').length || 0,
         confirmadas: estadoCitasData?.filter(cita => cita.status === 'confirmed').length || 0,
-        enCurso: estadoCitasData?.filter(cita => cita.status === 'in_progress').length || 0,
         finalizadas: estadoCitasData?.filter(cita => cita.status === 'completed').length || 0
       };
 
@@ -390,11 +388,79 @@ export default function DashboardPage() {
         };
       }) || [];
       
-      // 3. Satisfacción del cliente (NPS) - Por ahora usamos valores por defecto
-      // TODO: Implementar cuando se tenga la tabla de feedback
+      // 3. Satisfacción del cliente (NPS) - Calcular desde la tabla nps
+      console.log('📊 Calculando NPS para dealership:', dealershipId);
+      
+      // Obtener datos NPS del mes actual
+      const { data: npsData, error: npsError } = await supabase
+        .from('nps')
+        .select(`
+          score,
+          status,
+          created_at,
+          client!inner (
+            dealership_id
+          )
+        `)
+        .gte('created_at', primerDiaMes)
+        .lte('created_at', ultimoDiaMes)
+        .eq('client.dealership_id', dealershipId || '')
+        .eq('status', 'completed')
+        .not('score', 'is', null);
+
+      if (npsError) {
+        console.error('❌ Error al obtener datos NPS:', npsError);
+      }
+
+      // Obtener datos NPS del mes anterior para calcular tendencia
+      const primerDiaMesAnterior = format(new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1), 'yyyy-MM-dd');
+      const ultimoDiaMesAnterior = format(new Date(new Date().getFullYear(), new Date().getMonth(), 0), 'yyyy-MM-dd');
+
+      const { data: npsDataAnterior, error: npsErrorAnterior } = await supabase
+        .from('nps')
+        .select(`
+          score,
+          status,
+          created_at,
+          client!inner (
+            dealership_id
+          )
+        `)
+        .gte('created_at', primerDiaMesAnterior)
+        .lte('created_at', ultimoDiaMesAnterior)
+        .eq('client.dealership_id', dealershipId || '')
+        .eq('status', 'completed')
+        .not('score', 'is', null);
+
+      if (npsErrorAnterior) {
+        console.error('❌ Error al obtener datos NPS del mes anterior:', npsErrorAnterior);
+      }
+
+      // Calcular NPS actual
+      const calcularNPS = (datos: any[]) => {
+        if (!datos || datos.length === 0) return 0;
+        
+        const promoters = datos.filter(item => item.score >= 9).length;
+        const detractors = datos.filter(item => item.score <= 6).length;
+        const total = datos.length;
+        
+        return Math.round(((promoters - detractors) / total) * 100);
+      };
+
+      const npsActual = calcularNPS(npsData || []);
+      const npsAnterior = calcularNPS(npsDataAnterior || []);
+      const tendencia = npsActual - npsAnterior;
+
+      console.log('📊 NPS calculado:', {
+        actual: npsActual,
+        anterior: npsAnterior,
+        tendencia: tendencia,
+        totalRespuestas: npsData?.length || 0
+      });
+
       const satisfaccionCliente = {
-        nps: 0,
-        tendencia: 0
+        nps: npsActual,
+        tendencia: tendencia
       };
       
       // Construir el objeto de datos del dashboard
@@ -453,8 +519,7 @@ export default function DashboardPage() {
     switch (tabActivo) {
       case "pendientes":
         return citas.filter(cita => cita.status === "pending")
-      case "enCurso":
-        return citas.filter(cita => cita.status === "in_progress")
+
       case "finalizadas":
         return citas.filter(cita => cita.status === "completed")
       case "canceladas":
@@ -547,7 +612,7 @@ export default function DashboardPage() {
                 <CalendarLucideIcon className="h-4 w-4 text-green-600" />
               </div>
             </div>
-            <div className="grid grid-cols-4 gap-2 mt-2">
+            <div className="grid grid-cols-3 gap-2 mt-2">
               <div className="flex flex-col items-center">
                 <div className="bg-gray-200 rounded-full h-10 w-10 flex items-center justify-center mb-2">
                   <span className="text-sm font-bold text-gray-700">{data.estadoCitas.pendientes}</span>
@@ -560,12 +625,7 @@ export default function DashboardPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">Confirmadas</p>
               </div>
-              <div className="flex flex-col items-center">
-                <div className="bg-amber-100 rounded-full h-10 w-10 flex items-center justify-center mb-2">
-                  <span className="text-sm font-bold text-amber-600">{data.estadoCitas.enCurso}</span>
-                </div>
-                <p className="text-xs text-muted-foreground">En Curso</p>
-              </div>
+
               <div className="flex flex-col items-center">
                 <div className="bg-green-100 rounded-full h-10 w-10 flex items-center justify-center mb-2">
                   <span className="text-sm font-bold text-green-600">{data.estadoCitas.finalizadas}</span>
@@ -814,10 +874,10 @@ export default function DashboardPage() {
               </Button>
             </div>
             <Tabs value={tabActivo} onValueChange={setTabActivo} className="mt-2">
-              <TabsList className="grid grid-cols-5 w-full max-w-md">
+              <TabsList className="grid grid-cols-4 w-full max-w-md">
                 <TabsTrigger value="todas">Todas</TabsTrigger>
                 <TabsTrigger value="pendientes">Pendientes</TabsTrigger>
-                <TabsTrigger value="enCurso">En Curso</TabsTrigger>
+
                 <TabsTrigger value="finalizadas">Finalizadas</TabsTrigger>
                 <TabsTrigger value="canceladas">Canceladas</TabsTrigger>
               </TabsList>
