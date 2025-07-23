@@ -1,0 +1,11 @@
+name: LRF Frequency Full (Weekly)
+on:
+  schedule:
+    - cron: '0 8 * * 1' # 2am hora de México (UTC-6)
+jobs:
+  frequency_full:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call LRF Frequency Full Endpoint
+        run: |
+          curl -X GET "https://edgarai.vercel.app/api/lrf/calculate?type=frequency_full" 

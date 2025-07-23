@@ -1,0 +1,11 @@
+name: LRF Recency Update (Daily)
+on:
+  schedule:
+    - cron: '0 7 * * *' # 1am hora de México (UTC-6)
+jobs:
+  recency_update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call LRF Recency Update Endpoint
+        run: |
+          curl -X GET "https://edgarai.vercel.app/api/lrf/calculate?type=recency_update" 

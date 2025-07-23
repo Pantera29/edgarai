@@ -1,0 +1,11 @@
+name: LRF Full Recalculation (Monthly)
+on:
+  schedule:
+    - cron: '0 9 1 * *' # 3am hora de México (UTC-6)
+jobs:
+  full_recalculation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call LRF Full Recalculation Endpoint
+        run: |
+          curl -X GET "https://edgarai.vercel.app/api/lrf/calculate?type=full_recalculation" 
