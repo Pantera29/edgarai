@@ -162,7 +162,8 @@ export default function CalendarioCitasPage() {
           channel: appointment.channel,
           dealership_id: appointment.dealership_id,
           workshop_id: appointment.workshop_id, // <-- NUEVO
-          specific_service_id: appointment.specific_service_id // <-- NUEVO
+          specific_service_id: appointment.specific_service_id, // <-- NUEVO
+          removed_additional: appointment.removed_additional // <-- AGREGADO
         } as CalendarEventWithServiceId
       }).filter((e): e is CalendarEventWithServiceId => !!e)
 
