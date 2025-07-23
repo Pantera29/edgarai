@@ -23,10 +23,13 @@ El endpoint `/api/services/price` estaba fallando con el error:
 ### Causa Raíz
 1. **El código del endpoint** intentaba filtrar por `dealership_id` en la tabla `specific_services`
 2. **Los tipos TypeScript** no incluían el campo `dealership_id` en la definición de `specific_services`
-3. **Esto causaba** que la consulta no filtrara correctamente y devolviera múltiples filas
-4. **El uso de `.single()`** fallaba al recibir múltiples resultados
+3. **La lógica de filtrado** tenía problemas con parámetros `null` (como `months: null`)
+4. **El uso de `.single()`** fallaba al recibir múltiples resultados o ninguno
+5. **Código duplicado** en el manejo de errores causaba confusión
 
 ### Solución Aplicada
+
+#### 1. Actualización de Tipos TypeScript
 Agregado el campo `dealership_id` a la tabla `specific_services` en los tipos TypeScript:
 
 ```typescript
@@ -46,19 +49,41 @@ specific_services: {
 }
 ```
 
+#### 2. Mejora de la Lógica de Filtrado
+- **Eliminado `.single()`** y reemplazado por `.limit(10)` para debugging
+- **Agregado logging detallado** de servicios encontrados
+- **Eliminado código duplicado** en manejo de errores
+- **Mejorado el manejo** de parámetros `null` (como `months: null`)
+- **Simplificada la lógica** de selección del servicio más apropiado
+
+#### 3. Lógica Inteligente de Búsqueda Cruzada
+- **Búsqueda en agencia específica** primero
+- **Búsqueda automática en otras agencias** si no se encuentra en la específica
+- **Retorno de precio de otra agencia** con indicador de origen
+- **Derivación a humano** solo si no se encuentra en ninguna agencia
+- **Mensajes de error en inglés** para mejor integración con MCP y agentes de AI
+
 ## 🧪 Testing
-- **Antes**: El endpoint fallaba con múltiples filas retornadas
-- **Después**: El endpoint debería filtrar correctamente por `dealership_id` y retornar una sola fila
+- **Antes**: El endpoint fallaba con múltiples filas retornadas o parámetros `null`
+- **Después**: El endpoint debería manejar correctamente todos los casos y retornar el servicio más apropiado
 
 ### Casos de Prueba
 1. **Con dealership_id**: Debería filtrar servicios específicos del concesionario
 2. **Sin dealership_id**: Debería buscar servicios globales (sin filtro de concesionario)
-3. **Múltiples servicios**: Debería retornar el más apropiado según kilometers/months
+3. **Con kilometers pero sin months**: Debería funcionar correctamente con `months: null`
+4. **Con months pero sin kilometers**: Debería funcionar correctamente con `kilometers: null`
+5. **Múltiples servicios**: Debería retornar el más apropiado según el ordenamiento
+6. **Modelo sin servicios en agencia específica**: Debería buscar en otras agencias y retornar precio
+7. **Modelo sin servicios en ninguna agencia**: Debería retornar error descriptivo en inglés
 
 ## 📈 Impacto
 - **Resuelve el error** del endpoint de precios
 - **Mantiene la funcionalidad** de filtrado por concesionario
 - **Mejora la precisión** de búsqueda de servicios específicos
+- **Implementa búsqueda inteligente** cruzada entre agencias
+- **Optimiza la experiencia del usuario** al encontrar precios de modelos similares
+- **Facilita la integración con MCP y agentes de AI** con mensajes en inglés
+- **Reduce la necesidad de intervención humana** en casos comunes
 - **No afecta** otros endpoints que ya usaban este campo
 
 ## 🔍 Evidencia del Problema
