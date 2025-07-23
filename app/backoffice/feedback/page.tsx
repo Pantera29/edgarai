@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/pagination"
 import { ChevronsLeft, ChevronsRight } from "lucide-react"
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 25;
 
 const columns = [
   {
@@ -85,7 +85,6 @@ const columns = [
       )
     }
   },
-
 ]
 
 interface Filters {
@@ -94,11 +93,30 @@ interface Filters {
   search: string
 }
 
-export default function FeedbackPage() {
+interface NpsMetrics {
+  current_month: {
+    nps_score: number
+    promoters: number
+    detractors: number
+    total_responses: number
+  }
+  previous_month: {
+    nps_score: number
+    promoters: number
+    detractors: number
+    total_responses: number
+  }
+  trend: number
+  pending_responses: number
+  last_response: {
+    date: string
+    customer_name: string
+    score: number
+  } | null
+}
 
-  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(
-    null
-  );
+export default function FeedbackPage() {
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
   const [token, setToken] = useState<string>("");
   const [dataToken, setDataToken] = useState<object>({});
 
@@ -107,17 +125,16 @@ export default function FeedbackPage() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      setSearchParams(params); // Guarda los query params en el estado
+      setSearchParams(params);
     }
   }, []);
 
   useEffect(() => {
     if (searchParams) {
-      const tokenValue = searchParams.get("token"); // Obtiene el token de los query params
+      const tokenValue = searchParams.get("token");
       if (tokenValue) {
-        setToken(tokenValue); // Usa setToken para actualizar el estado
-        const verifiedDataToken = verifyToken(tokenValue); // Verifica el token
-        // Mejor validación: redirigir si el token es null, vacío, no es objeto o no tiene dealership_id
+        setToken(tokenValue);
+        const verifiedDataToken = verifyToken(tokenValue);
         if (
           !verifiedDataToken ||
           typeof verifiedDataToken !== "object" ||
@@ -127,12 +144,13 @@ export default function FeedbackPage() {
           router.push("/login");
           return;
         }
-        setDataToken(verifiedDataToken || {}); // Actualiza el estado de dataToken
+        setDataToken(verifiedDataToken || {});
 
-        // Si hay un dealership_id en el token, cargar los datos de esa agencia
         if (verifiedDataToken?.dealership_id) {
+          fetchMetrics(verifiedDataToken.dealership_id);
           fetchData(verifiedDataToken.dealership_id);
         } else {
+          fetchMetrics();
           fetchData();
         }
       }
@@ -141,12 +159,8 @@ export default function FeedbackPage() {
 
   const [data, setData] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [npsData, setNpsData] = useState({
-    currentScore: 0,
-    trend: 0, // positivo significa mejora, negativo significa deterioro
-    promoters: 0,
-    detractors: 0
-  })
+  const [metricsLoading, setMetricsLoading] = useState(true)
+  const [npsMetrics, setNpsMetrics] = useState<NpsMetrics | null>(null)
   const [filters, setFilters] = useState<Filters>({
     status: "todos",
     classification: "todas",
@@ -155,94 +169,72 @@ export default function FeedbackPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
 
-  // Función para calcular el NPS
-  const calculateNPS = (responses: any[]) => {
-    // Filtrar solo respuestas completadas
-    const completedResponses = responses.filter(r => r.status === 'completed' && r.score !== null);
-    if (!completedResponses.length) return { score: 0, promoters: 0, detractors: 0 };
-    
-    const promoters = completedResponses.filter(r => r.score >= 9).length;
-    const detractors = completedResponses.filter(r => r.score <= 6).length;
-    const total = completedResponses.length;
-    
-    const score = Math.round(((promoters - detractors) / total) * 100);
-    
-    return { score, promoters, detractors };
-  }
 
-  // Función para calcular la tendencia del NPS
-  const calculateNPSTrend = (currentData: any[], previousData: any[]) => {
-    const currentCompleted = currentData.filter(item => item.status === 'completed' && item.score !== null);
-    const previousCompleted = previousData.filter(item => item.status === 'completed' && item.score !== null);
+
+  const fetchMetrics = async (dealershipIdFromToken?: string) => {
+    if (!dealershipIdFromToken) {
+      console.log('❌ No hay dealership_id, no se pueden cargar métricas');
+      setMetricsLoading(false);
+      return;
+    }
     
-    const currentNPS = calculateNPS(currentCompleted).score;
-    const previousNPS = calculateNPS(previousCompleted).score;
-    return currentNPS - previousNPS;
+    setMetricsLoading(true);
+    try {
+
+      
+      const rpcParams = {
+        p_dealership_id: dealershipIdFromToken,
+        p_status_filter: null, // Métricas siempre sobre todos los datos
+        p_classification_filter: null, // Métricas siempre sobre todos los datos
+        p_search_query: null // Métricas siempre sobre todos los datos
+      };
+      
+      const { data: metricsData, error } = await supabase.rpc('get_nps_metrics', rpcParams);
+
+      if (error) {
+        console.error('❌ Error obteniendo métricas:', error);
+        throw error;
+      }
+
+      setNpsMetrics(metricsData);
+      
+    } catch (error) {
+      console.error('❌ Error fatal obteniendo métricas:', error);
+      setNpsMetrics(null);
+    } finally {
+      setMetricsLoading(false);
+    }
   }
 
   const fetchData = async (dealershipIdFromToken?: string) => {
+    if (!dealershipIdFromToken) {
+      setLoading(false);
+      return;
+    }
+
     setLoading(true)
     try {
-      // Primero obtener el conteo total para la paginación
-      let countQuery = supabase
-        .from('nps')
-        .select(`
-          *,
-          client (
-            names,
-            dealership_id
-          )
-        `, { count: 'exact', head: true })
-
-      // Filtrar por dealership_id si está disponible
-      if (dealershipIdFromToken) {
-        countQuery = countQuery.eq('client.dealership_id', dealershipIdFromToken);
-      }
-
-      if (filters.status !== "todos") {
-        const statusValue = filters.status === "pendiente" ? "pending" : "completed";
-        countQuery = countQuery.eq('status', statusValue);
-      }
-
-      if (filters.classification !== "todas") {
-        let classificationValue;
-        switch (filters.classification) {
-          case "promotor": classificationValue = "promoter"; break;
-          case "neutral": classificationValue = "neutral"; break;
-          case "detractor": classificationValue = "detractor"; break;
-          default: classificationValue = filters.classification;
-        }
-        countQuery = countQuery.eq('classification', classificationValue);
-      }
-
-      if (filters.search) {
-        countQuery = countQuery.ilike('client.names', `%${filters.search}%`);
-      }
-
-      const { count: totalCount } = await countQuery;
-
-      // Ahora obtener los datos paginados
+      console.log('🔄 Cargando datos de tabla para página:', currentPage);
+      console.log('🔍 [DEBUG] Filtros actuales:', filters);
+      
+      // Construir query base con inner join para asegurar que solo traiga registros válidos
       let query = supabase
         .from('nps')
         .select(`
           *,
-          client (
+          client!inner (
             names,
             dealership_id
           )
         `)
-        .order('created_at', { ascending: false })
-        .range((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE - 1)
 
-      // Filtrar por dealership_id si está disponible
-      if (dealershipIdFromToken) {
-        console.log("Filtrando NPS por dealership_id:", dealershipIdFromToken);
-        query = query.eq('client.dealership_id', dealershipIdFromToken);
-      }
+      // Aplicar filtros ANTES del range
+      query = query.eq('client.dealership_id', dealershipIdFromToken);
 
       if (filters.status !== "todos") {
         const statusValue = filters.status === "pendiente" ? "pending" : "completed";
         query = query.eq('status', statusValue);
+        console.log('🔍 [DEBUG] Aplicando filtro de status:', statusValue);
       }
 
       if (filters.classification !== "todas") {
@@ -254,69 +246,81 @@ export default function FeedbackPage() {
           default: classificationValue = filters.classification;
         }
         query = query.eq('classification', classificationValue);
+        console.log('🔍 [DEBUG] Aplicando filtro de clasificación:', classificationValue);
       }
 
       if (filters.search) {
         query = query.ilike('client.names', `%${filters.search}%`);
+        console.log('🔍 [DEBUG] Aplicando filtro de búsqueda:', filters.search);
       }
 
-      const { data: allData, error } = await query
+      // Obtener el total de registros con la misma lógica que debug
+      const { data: totalData, error: totalError } = await query;
+      const totalCount = totalData?.length || 0;
+      
+      console.log('🔍 [DEBUG] Total de registros filtrados:', totalCount);
 
-      if (error) throw error
+      // Aplicar ordenamiento y paginación DESPUÉS de los filtros
+      query = query
+        .order('created_at', { ascending: false })
+        .range((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE - 1);
 
-      let filteredData = allData;
-      if (dealershipIdFromToken) {
-        filteredData = allData.filter(item => 
-          item.client && item.client.dealership_id === dealershipIdFromToken
-        );
-      }
-
-      const formattedData = filteredData.map(item => ({
-        ...item,
-        customer_name: item.client?.names || '-'
-      }))
-
-      // Calcular NPS actual y tendencia
-      const today = new Date();
-      const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-      const firstDayOfPrevMonth = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-      const lastDayOfPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-
-      const currentMonthData = formattedData.filter(item => 
-        new Date(item.created_at) >= firstDayOfMonth && 
-        new Date(item.created_at) <= today
-      );
-
-      const previousMonthData = formattedData.filter(item => 
-        new Date(item.created_at) >= firstDayOfPrevMonth && 
-        new Date(item.created_at) <= lastDayOfPrevMonth
-      );
-
-      const { score: currentScore, promoters, detractors } = calculateNPS(currentMonthData);
-      const trend = calculateNPSTrend(currentMonthData, previousMonthData);
-
-      setNpsData({
-        currentScore,
-        trend,
-        promoters,
-        detractors
+      console.log('🚀 Query final:', {
+        page: currentPage,
+        itemsPerPage: ITEMS_PER_PAGE,
+        range: [(currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE - 1],
+        filters
       });
 
-      setData(formattedData)
-      setTotalItems(totalCount || 0)
+      const { data: allData, error } = await query;
+
+      if (error) {
+        console.error('❌ Error en query:', error);
+        throw error;
+      }
+
+      console.log('✅ Datos obtenidos:', {
+        totalCount,
+        dataLength: allData?.length || 0,
+        currentPage,
+        itemsPerPage: ITEMS_PER_PAGE,
+        filters: filters
+      });
+
+      // Debug: Ver los primeros 3 registros para entender la estructura
+      if (allData && allData.length > 0) {
+        console.log('🔍 [DEBUG] Primeros 3 registros de la tabla:', allData.slice(0, 3));
+      }
+
+      const formattedData = (allData || []).map(item => ({
+        ...item,
+        customer_name: item.client?.names || '-'
+      }));
+
+      setData(formattedData);
+      setTotalItems(totalCount);
+      
     } catch (error) {
-      console.error('Error:', error)
+      console.error('❌ Error fatal cargando datos:', error);
+      setData([]);
+      setTotalItems(0);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
+  // Cargar métricas solo cuando cambie el dealership_id
   useEffect(() => {
-    // Si hay un dealership_id en el token, usarlo al recargar los datos
+    if (dataToken && (dataToken as any).dealership_id) {
+      console.log('🔄 Cargando métricas para dealership:', (dataToken as any).dealership_id);
+      fetchMetrics((dataToken as any).dealership_id);
+    }
+  }, [dataToken])
+
+  // Cargar datos de tabla cuando cambien filtros o página
+  useEffect(() => {
     if (dataToken && (dataToken as any).dealership_id) {
       fetchData((dataToken as any).dealership_id);
-    } else {
-      fetchData();
     }
   }, [filters, dataToken, currentPage])
 
@@ -346,77 +350,93 @@ export default function FeedbackPage() {
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-8">Feedback NPS</h1>
 
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">NPS Score</CardTitle>
-            {npsData.trend >= 0 ? (
-              <ArrowUp className="h-4 w-4 text-green-500" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        {/* NPS Score Card */}
+        <Card className="p-6">
+          <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <h3 className="tracking-tight text-sm font-medium text-muted-foreground">NPS Score</h3>
+            {npsMetrics && npsMetrics.trend >= 0 ? (
+              <div className="rounded-md bg-green-100 p-1">
+                <ArrowUp className="h-4 w-4 text-green-600" />
+              </div>
+            ) : npsMetrics && npsMetrics.trend < 0 ? (
+              <div className="rounded-md bg-red-100 p-1">
+                <ArrowDown className="h-4 w-4 text-red-600" />
+              </div>
             ) : (
-              <ArrowDown className="h-4 w-4 text-red-500" />
+              <div className="rounded-md bg-gray-100 p-1">
+                <ArrowUp className="h-4 w-4 text-gray-400" />
+              </div>
             )}
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-1">
-              <div className="text-2xl font-bold">{npsData.currentScore}%</div>
-              <div className="flex items-center gap-2">
-                {Math.abs(npsData.trend)}%
-                <p className="text-xs text-muted-foreground">
-                  vs. mes anterior
-                </p>
-              </div>
-              <div className="text-xs text-muted-foreground mt-2">
-                {npsData.promoters} promotores · {npsData.detractors} detractores
-              </div>
+          </div>
+          <div className="flex items-center">
+            <div className="text-3xl font-bold">
+              {metricsLoading ? "..." : (npsMetrics?.current_month.nps_score ?? 0)}%
             </div>
-          </CardContent>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs text-muted-foreground">
+              {metricsLoading ? (
+                "Cargando métricas..."
+              ) : npsMetrics ? (
+                <>
+                  {Math.abs(npsMetrics.trend)}% vs. mes anterior
+                  <br />
+                  {npsMetrics.current_month.promoters} promotores · {npsMetrics.current_month.detractors} detractores
+                </>
+              ) : (
+                "Sin datos disponibles"
+              )}
+            </p>
+          </div>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Respuestas Pendientes</CardTitle>
-            <Clock className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-1">
-              <div className="text-2xl font-bold">
-                {data.filter(item => item.status === 'pending').length || 0}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Esperando feedback de clientes
-              </p>
+        {/* Respuestas Pendientes Card */}
+        <Card className="p-6">
+          <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Respuestas Pendientes</h3>
+            <div className="rounded-md bg-blue-100 p-1">
+              <Clock className="h-4 w-4 text-blue-600" />
             </div>
-          </CardContent>
+          </div>
+          <div className="flex items-center">
+            <div className="text-3xl font-bold">
+              {metricsLoading ? "..." : (npsMetrics?.pending_responses ?? 0)}
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs text-muted-foreground">
+              {metricsLoading ? "Cargando..." : "Esperando feedback de clientes"}
+            </p>
+          </div>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Última Respuesta</CardTitle>
-            <MessageSquare className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col gap-1">
-              {(() => {
-                const lastResponse = data.find(item => item.status === 'completed' && item.score !== null);
-                return (
-                  <>
-                    <div className="text-2xl font-bold">
-                      {lastResponse 
-                        ? format(new Date(lastResponse.created_at), "dd MMM", { locale: es })
-                        : "Sin datos"
-                      }
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      {lastResponse 
-                        ? `${lastResponse.customer_name || 'Cliente'} - ${lastResponse.score}/10`
-                        : "No hay respuestas registradas"
-                      }
-                    </p>
-                  </>
-                );
-              })()}
+        {/* Última Respuesta Card */}
+        <Card className="p-6">
+          <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Última Respuesta</h3>
+            <div className="rounded-md bg-green-100 p-1">
+              <MessageSquare className="h-4 w-4 text-green-600" />
             </div>
-          </CardContent>
+          </div>
+          <div className="flex items-center">
+            <div className="text-3xl font-bold">
+              {metricsLoading ? "..." : (
+                npsMetrics?.last_response 
+                  ? format(new Date(npsMetrics.last_response.date), "dd MMM", { locale: es })
+                  : "Sin datos"
+              )}
+            </div>
+          </div>
+          <div className="mt-3">
+            <p className="text-xs text-muted-foreground">
+              {metricsLoading ? "Cargando..." : (
+                npsMetrics?.last_response 
+                  ? `${npsMetrics.last_response.customer_name} - ${npsMetrics.last_response.score}/10`
+                  : "No hay respuestas registradas"
+              )}
+            </p>
+          </div>
         </Card>
       </div>
 
@@ -459,8 +479,6 @@ export default function FeedbackPage() {
             <SelectItem value="detractor">Detractor</SelectItem>
           </SelectContent>
         </Select>
-
-
       </div>
 
       <div className="space-y-4">
@@ -478,9 +496,15 @@ export default function FeedbackPage() {
             {/* Información de paginación - siempre visible */}
             <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center border-t pt-4">
               <div className="text-sm text-muted-foreground order-2 sm:order-1">
-                Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} -{" "}
-                {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} de {totalItems}{" "}
-                respuestas
+                {totalItems > 0 ? (
+                  <>
+                    Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} -{" "}
+                    {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} de {totalItems}{" "}
+                    respuestas ({data.length} en esta página)
+                  </>
+                ) : (
+                  "No hay respuestas para mostrar"
+                )}
               </div>
               
               {/* Controles de paginación - solo si hay más de una página */}
