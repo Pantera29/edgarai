@@ -110,6 +110,7 @@ export interface Database {
           additional_price: number
           additional_description: string
           includes_additional: boolean
+          dealership_id: string
         }
         Insert: {
           id?: string
@@ -124,6 +125,7 @@ export interface Database {
           additional_price?: number
           additional_description?: string
           includes_additional?: boolean
+          dealership_id?: string
         }
         Update: {
           id?: string
@@ -138,6 +140,7 @@ export interface Database {
           additional_price?: number
           additional_description?: string
           includes_additional?: boolean
+          dealership_id?: string
         }
       }
       appointment: {
