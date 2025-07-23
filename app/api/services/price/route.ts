@@ -204,21 +204,19 @@ export async function GET(request: Request) {
       const kmValue = parseInt(kilometers);
       query = query
         .gte('kilometers', kmValue)  // Buscar servicios con kilómetros mayores o iguales
-        .order('kilometers', { ascending: true })  // Ordenar de menor a mayor
-        .limit(1);  // Tomar el más cercano
+        .order('kilometers', { ascending: true });  // Ordenar de menor a mayor
     }
     if (months) {
       console.log('🔍 [Price API] Aplicando filtro por months:', months);
       const monthsValue = parseInt(months);
       query = query
         .gte('months', monthsValue)  // Buscar servicios con meses mayores o iguales
-        .order('months', { ascending: true })  // Ordenar de menor a mayor
-        .limit(1);  // Tomar el más cercano
+        .order('months', { ascending: true });  // Ordenar de menor a mayor
     }
 
     // Ejecutar la consulta
     console.log('⏳ [Price API] Ejecutando consulta a Supabase...');
-    const { data: service, error: serviceError } = await query.single();
+    const { data: services, error: serviceError } = await query.limit(10); // Obtener hasta 10 resultados para debugging
 
     if (serviceError) {
       console.error('❌ [Price API] Error al buscar servicio:', {
@@ -233,19 +231,159 @@ export async function GET(request: Request) {
       );
     }
 
-    if (!service) {
-      console.log('❌ [Price API] No se encontró servicio para los parámetros:', {
+    console.log('📊 [Price API] Servicios encontrados:', {
+      count: services?.length || 0,
+      services: services?.map(s => ({
+        id: s.id,
+        kilometers: s.kilometers,
+        months: s.months,
+        price: s.price
+      }))
+    });
+
+    // Si no hay servicios en la agencia específica, buscar en otras agencias
+    if (!services || services.length === 0) {
+      console.log('❌ [Price API] No se encontró servicio en la agencia específica:', {
         modelId: finalModelId,
         dealership_id: dealership_id || 'no especificado',
         parameters: { kilometers, months }
       });
-      return NextResponse.json(
-        { message: dealership_id 
-          ? 'No se encontró un servicio específico para los parámetros proporcionados en esta agencia'
-          : 'No se encontró un servicio específico para los parámetros proporcionados' },
-        { status: 404 }
-      );
+
+      // Obtener información del modelo para el mensaje de error
+      let modelName = 'Unknown model';
+      try {
+        const { data: modelInfo } = await supabase
+          .from('vehicle_models')
+          .select('name')
+          .eq('id', finalModelId)
+          .single();
+        if (modelInfo) {
+          modelName = modelInfo.name;
+        }
+      } catch (error) {
+        console.log('⚠️ [Price API] Could not get model name:', error);
+      }
+
+      // Buscar el mismo modelo en otras agencias
+      console.log('🔍 [Price API] Searching for same model in other dealerships...');
+      let crossDealershipQuery = supabase
+        .from('specific_services')
+        .select(`
+          id,
+          service_name,
+          price,
+          kilometers,
+          months,
+          service_id,
+          additional_price,
+          additional_description,
+          includes_additional,
+          dealership_id
+        `)
+        .eq('model_id', finalModelId)
+        .eq('is_active', true);
+
+      // Aplicar filtros de kilometers/months si se proporcionan
+      if (kilometers) {
+        const kmValue = parseInt(kilometers);
+        crossDealershipQuery = crossDealershipQuery
+          .gte('kilometers', kmValue)
+          .order('kilometers', { ascending: true });
+      }
+      if (months) {
+        const monthsValue = parseInt(months);
+        crossDealershipQuery = crossDealershipQuery
+          .gte('months', monthsValue)
+          .order('months', { ascending: true });
+      }
+
+      const { data: crossDealershipServices, error: crossDealershipError } = await crossDealershipQuery.limit(5);
+
+      if (crossDealershipError) {
+        console.error('❌ [Price API] Error searching other dealerships:', crossDealershipError);
+      }
+
+      console.log('📊 [Price API] Services found in other dealerships:', {
+        count: crossDealershipServices?.length || 0,
+        services: crossDealershipServices?.map(s => ({
+          id: s.id,
+          kilometers: s.kilometers,
+          months: s.months,
+          price: s.price,
+          dealership_id: s.dealership_id
+        }))
+      });
+
+      // Si encontramos servicios en otras agencias, retornar el primero
+      if (crossDealershipServices && crossDealershipServices.length > 0) {
+        const crossDealershipService = crossDealershipServices[0];
+        
+        console.log('✅ [Price API] Using service from other dealership:', {
+          specific_service_id: crossDealershipService.id,
+          service_name: crossDealershipService.service_name,
+          price: crossDealershipService.price,
+          dealership_id: crossDealershipService.dealership_id,
+          original_dealership_id: dealership_id
+        });
+
+        return NextResponse.json({
+          price: crossDealershipService.price,
+          service_name: crossDealershipService.service_name,
+          model_id: finalModelId,
+          parameters: {
+            kilometers: crossDealershipService.kilometers,
+            months: crossDealershipService.months
+          },
+          service_id: crossDealershipService.service_id,
+          specific_service_id: crossDealershipService.id,
+          additional: {
+            price: crossDealershipService.additional_price || 0,
+            description: crossDealershipService.additional_description || '',
+            included_by_default: crossDealershipService.includes_additional || true,
+            total_price: crossDealershipService.price + (crossDealershipService.additional_price || 0)
+          },
+          // Indicar que el precio viene de otra agencia
+          cross_dealership_price: {
+            original_dealership_id: dealership_id,
+            source_dealership_id: crossDealershipService.dealership_id,
+            note: "Price obtained from another dealership as this model has no specific services in the requested dealership"
+          }
+        });
+      }
+
+      // Si no hay servicios en ninguna agencia, retornar error descriptivo
+      const errorMessage = {
+        message: `No specific services found for model "${modelName}" in any dealership`,
+        details: {
+          model_id: finalModelId,
+          model_name: modelName,
+          requested_dealership_id: dealership_id || 'not specified',
+          requested_parameters: {
+            kilometers: kilometers || 'not specified',
+            months: months || 'not specified'
+          },
+          search_scope: 'All dealerships',
+          possible_reasons: [
+            'The model does not have specific services configured in any dealership',
+            'All specific services for this model are inactive',
+            'The kilometers or months parameters are outside the available range',
+            'The model requires specific service configuration'
+          ],
+          recommended_actions: [
+            'Contact an administrator to configure specific services for this model',
+            'Refer the client to a human agent for manual service configuration',
+            'Use a different model that has specific services available'
+          ]
+        },
+        error_code: 'NO_SPECIFIC_SERVICES_FOUND_ANYWHERE',
+        status: 'requires_human_intervention'
+      };
+
+      return NextResponse.json(errorMessage, { status: 404 });
     }
+
+    // Tomar el primer servicio (el más cercano según el ordenamiento)
+    const service = services[0];
 
     console.log('✅ [Price API] Servicio encontrado:', {
       specific_service_id: service.id,
