@@ -19,6 +19,7 @@ export interface HorarioOperacion {
   is_working_day: boolean;
   max_simultaneous_services: number;
   max_arrivals_per_slot?: number | null;
+  reception_end_time?: string | null; // ← NUEVO: Horario límite de recepción por día
   created_at?: string;
   updated_at?: string;
 }

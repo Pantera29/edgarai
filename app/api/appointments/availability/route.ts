@@ -475,6 +475,7 @@ export async function GET(request: Request) {
     }
 
     // 6. Generar slots de tiempo disponibles
+    // Generar slots disponibles usando reception_end_time específico por día
     const availableSlots = generateTimeSlots(
       date,
       schedule,
@@ -483,7 +484,7 @@ export async function GET(request: Request) {
       serviceDuration,
       schedule.max_simultaneous_services,
       slotDuration,
-      dealershipConfig?.reception_end_time,
+      schedule.reception_end_time, // ← NUEVO: Usar reception_end_time específico del día
       timezone,
       dealershipConfig?.custom_morning_slots,
       dealershipConfig?.regular_slots_start_time,

@@ -31,7 +31,7 @@ GET /api/dealerships/info?dealership_id=dealership_123
     "workshop_id": "workshop_primary_uuid",
     "shift_duration": 30,
     "timezone": "America/Mexico_City",
-    "reception_end_time": "18:00",
+    "shift_duration": 30,
     "custom_morning_slots": [...]
   },
   "blocked_dates": [ ... ],
@@ -67,7 +67,7 @@ GET /api/dealerships/info?dealership_id=dealership_123&workshop_id=workshop_2_uu
     "workshop_id": "workshop_2_uuid",
     "shift_duration": 45,
     "timezone": "America/Mexico_City",
-    "reception_end_time": "19:00",
+    "shift_duration": 45,
     "custom_morning_slots": [...]
   },
   "blocked_dates": [ ... ],
