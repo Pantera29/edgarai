@@ -27,6 +27,7 @@ interface ExtendedVehicle extends Vehicle {
     id: string;
     names?: string;
   };
+  model_id?: string; // <-- Agregado para que TypeScript acepte el campo
 }
 
 // Interfaz para clientes extendida
@@ -300,6 +301,92 @@ function ServiceComboBox({ servicios, onSelect, value }: { servicios: ExtendedSe
               ))
             ) : (
               <li className="px-3 py-2 text-gray-400">No se encontraron servicios</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Componente para seleccionar servicios específicos de forma similar al ServiceComboBox
+function SpecificServiceComboBox({ specificServices, onSelect, value }: { specificServices: any[], onSelect: (id: string) => void, value: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+
+  // Buscar el servicio específico seleccionado
+  const selectedSpecific = specificServices.find(s => s.id === value);
+
+  // Filtrar servicios específicos por búsqueda de nombre
+  const filtered = search.trim() === ''
+    ? specificServices
+    : specificServices.filter(ss =>
+        ss.service_name.toLowerCase().includes(search.toLowerCase())
+      );
+
+  // Cerrar el dropdown si se hace clic fuera
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative w-full" ref={triggerRef}>
+      <button
+        type="button"
+        className="w-full border rounded-md px-3 py-2 text-left bg-white"
+        onClick={() => setOpen((prev) => !prev)}
+      >
+        {selectedSpecific ? (
+          <span className="font-medium">
+            {selectedSpecific.service_name}
+            {selectedSpecific.kilometers ? ` - ${selectedSpecific.kilometers} km` : ''}
+            {selectedSpecific.months ? ` - ${selectedSpecific.months} meses` : ''}
+          </span>
+        ) : (
+          "Seleccione un servicio específico (opcional)"
+        )}
+      </button>
+      {open && (
+        <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
+          <input
+            type="text"
+            className="w-full px-3 py-2 border-b outline-none bg-white text-black"
+            placeholder="Buscar servicio específico..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <ul className="max-h-60 overflow-y-auto">
+            {filtered.length > 0 ? (
+              filtered.map((ss) => (
+                <li
+                  key={ss.id}
+                  className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${value === ss.id ? 'bg-blue-50 font-semibold' : ''}`}
+                  onClick={() => {
+                    onSelect(ss.id);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                >
+                  <span className="font-medium">
+                    {ss.service_name}
+                    {ss.kilometers ? ` - ${ss.kilometers} km` : ''}
+                    {ss.months ? ` - ${ss.months} meses` : ''}
+                  </span>
+                </li>
+              ))
+            ) : (
+              <li className="px-3 py-2 text-gray-400">No se encontraron servicios específicos</li>
             )}
           </ul>
         </div>
@@ -748,6 +835,53 @@ export default function NuevaReservaPage() {
     }
   }, [selectedService, filteredServices]);
 
+  // Estado para specific services
+  const [specificServices, setSpecificServices] = useState<any[]>([]);
+  const [selectedSpecificService, setSelectedSpecificService] = useState<string>('');
+  const [loadingSpecificServices, setLoadingSpecificServices] = useState(false);
+
+  // Efecto para cargar specific services cuando cambia vehículo
+  useEffect(() => {
+    const fetchSpecificServices = async () => {
+      setSpecificServices([]);
+      setSelectedSpecificService('');
+      if (!selectedVehicle || !verifiedDataToken?.dealership_id) return;
+      // Buscar el vehículo seleccionado para obtener el model_id
+      const vehiculo = filteredVehicles.find(v => v.id === selectedVehicle || v.id_uuid === selectedVehicle);
+      if (!vehiculo || !vehiculo.model_id) return;
+      setLoadingSpecificServices(true);
+      try {
+        const res = await fetch(`/api/services/specific-by-model?model_id=${vehiculo.model_id}&dealership_id=${verifiedDataToken.dealership_id}`);
+        const data = await res.json();
+        if (data && Array.isArray(data.specific_services)) {
+          setSpecificServices(data.specific_services);
+        } else {
+          setSpecificServices([]);
+        }
+      } catch (error) {
+        console.log('❌ Error al cargar specific services:', error);
+        setSpecificServices([]);
+      } finally {
+        setLoadingSpecificServices(false);
+      }
+    };
+    fetchSpecificServices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedVehicle, verifiedDataToken?.dealership_id]);
+
+  // Estado para removed_additional
+  const [removedAdditional, setRemovedAdditional] = useState(false);
+
+  // Resetear removedAdditional cuando cambia el specific service seleccionado
+  useEffect(() => {
+    const ss = specificServices.find(s => s.id === selectedSpecificService);
+    if (ss && ss.includes_additional) {
+      setRemovedAdditional(false); // Por default, incluir adicionales
+    } else {
+      setRemovedAdditional(false); // Oculto o no aplica, default false
+    }
+  }, [selectedSpecificService, specificServices]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -831,7 +965,11 @@ export default function NuevaReservaPage() {
         appointment_time: selectedSlot,
         status: estado,
         notes: notas,
-        channel: 'manual'
+        channel: 'manual',
+        ...(selectedSpecificService ? { specific_service_id: selectedSpecificService } : {}),
+        // Solo enviar removed_additional si el servicio tiene adicionales
+        ...((selectedSpecificService && specificServices.find(s => s.id === selectedSpecificService)?.includes_additional)
+          ? { removed_additional: removedAdditional } : {})
       };
       
       console.log("Datos finales a enviar al endpoint:", appointmentData);
@@ -1108,6 +1246,41 @@ export default function NuevaReservaPage() {
           </div>
 
           <div className="grid grid-cols-12 items-center gap-4">
+            <Label htmlFor="specificService" className="text-right col-span-1">Servicio Específico</Label>
+            <div className="col-span-11">
+              {loadingSpecificServices ? (
+                <div className="text-sm text-muted-foreground">Cargando servicios específicos...</div>
+              ) : specificServices.length > 0 ? (
+                <SpecificServiceComboBox
+                  specificServices={specificServices}
+                  onSelect={setSelectedSpecificService}
+                  value={selectedSpecificService}
+                />
+              ) : (
+                <div className="text-sm text-muted-foreground">No hay servicios específicos para este modelo</div>
+              )}
+            </div>
+          </div>
+
+          {selectedSpecificService && (() => {
+            const ss = specificServices.find(s => s.id === selectedSpecificService);
+            if (!ss || !ss.includes_additional) return null;
+            return (
+              <div className="grid grid-cols-12 items-center gap-4 mt-2">
+                <Label htmlFor="switchAdicionales" className="text-right col-span-1">¿Incluir adicionales?</Label>
+                <div className="col-span-11">
+                  <Switch
+                    id="switchAdicionales"
+                    checked={!removedAdditional}
+                    onCheckedChange={v => setRemovedAdditional(!v ? true : false)}
+                  />
+                  <span className="ml-2 text-sm text-muted-foreground">{!removedAdditional ? 'Sí, incluir adicionales' : 'No, quitar adicionales'}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          <div className="grid grid-cols-12 items-center gap-4">
             <Label htmlFor="allowPastDates" className="text-right col-span-1">Permitir fechas pasadas</Label>
             <div className="col-span-11">
               <Switch
@@ -1245,6 +1418,28 @@ export default function NuevaReservaPage() {
                   <span className="break-words">{notas}</span>
                 </div>
               )}
+              {selectedSpecificService && specificServices.length > 0 && (() => {
+                const ss = specificServices.find(s => s.id === selectedSpecificService);
+                if (!ss) return null;
+                return (
+                  <>
+                    <div className="grid grid-cols-2">
+                      <span className="font-medium">Servicio Específico:</span>
+                      <span>
+                        {ss.service_name}
+                        {ss.kilometers ? ` - ${ss.kilometers} km` : ''}
+                        {ss.months ? ` - ${ss.months} meses` : ''}
+                      </span>
+                    </div>
+                    {ss.includes_additional && (
+                      <div className="grid grid-cols-2">
+                        <span className="font-medium">Adicionales seleccionados:</span>
+                        <span>{!removedAdditional ? 'Sí, incluir adicionales' : 'No, quitar adicionales'}</span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
