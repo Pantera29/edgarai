@@ -204,7 +204,7 @@ services (id_uuid, service_name, description, duration_minutes, price, daily_lim
 
 -- Appointments & Scheduling
 appointment (id, client_id, vehicle_id, service_id, appointment_date, appointment_time, status, dealership_id)
-dealership_configuration (dealership_id, shift_duration, timezone, reception_end_time, custom_morning_slots)
+dealership_configuration (dealership_id, shift_duration, timezone, custom_morning_slots)
 operating_hours (dealership_id, day_of_week, start_time, end_time, is_active)
 blocked_dates (dealership_id, blocked_date, reason)
 

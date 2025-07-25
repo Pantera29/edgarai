@@ -115,7 +115,7 @@ const menuItems: MenuItem[] = [
     isSection: true,
     items: [
       {
-        title: "Configuración",
+        title: "Horarios",
         href: "/backoffice/admin/configuracion",
         icon: Settings
       },

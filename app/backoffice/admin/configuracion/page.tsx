@@ -127,7 +127,8 @@ export default function WorkshopConfiguration() {
           opening_time: '09:00:00',
           closing_time: '18:00:00',
           max_simultaneous_services: 3,
-          max_arrivals_per_slot: null
+          max_arrivals_per_slot: null,
+          reception_end_time: '12:00:00' // ← NUEVO: Valor por defecto
         }));
         console.log('Creando horarios por defecto:', defaultSchedules);
         setSchedules(defaultSchedules);
@@ -301,10 +302,10 @@ export default function WorkshopConfiguration() {
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Configuración del Taller</h1>
+        <h1 className="text-3xl font-bold">Horarios del Taller</h1>
         {!isEditing && (
           <Button onClick={() => setIsEditing(true)}>
-            Modificar Configuración
+            Modificar Horarios
           </Button>
         )}
       </div>
@@ -385,12 +386,7 @@ export default function WorkshopConfiguration() {
         <Card>
           <CardHeader>
             <CardTitle>Horarios de Operación</CardTitle>
-            <CardDescription>
-              <div className="text-sm text-gray-600 space-y-1">
-                <div><strong>Capacidad:</strong> Número máximo de servicios que pueden ejecutarse en paralelo</div>
-                <div><strong>Llegadas:</strong> Número máximo de clientes que pueden llegar al mismo horario exacto</div>
-              </div>
-            </CardDescription>
+
           </CardHeader>
           <CardContent className="space-y-4">
             {DAYS.map((day, index) => {
@@ -399,11 +395,12 @@ export default function WorkshopConfiguration() {
 
               return (
                 <div key={index} className={cn(
-                  "p-4 border rounded-lg",
-                  schedule.is_working_day ? "bg-card" : "bg-muted"
+                  "p-6 border rounded-lg",
+                  schedule.is_working_day ? "bg-card border-gray-200" : "bg-muted border-gray-100"
                 )}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
+                  {/* Header del día */}
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
                       <Switch
                         checked={schedule.is_working_day}
                         onCheckedChange={(checked) => 
@@ -411,40 +408,77 @@ export default function WorkshopConfiguration() {
                         }
                         disabled={!isEditing}
                       />
-                      <Label>{day}</Label>
+                      <Label className="text-lg font-medium">{day}</Label>
                     </div>
+                    
+                    {!schedule.is_working_day && (
+                      <div className="text-sm text-gray-500 italic">
+                        Día no laborable
+                      </div>
+                    )}
+                  </div>
 
-                    {schedule.is_working_day && (
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <Clock className="h-4 w-4" />
-                          <Input
-                            type="time"
-                            value={schedule.opening_time.slice(0, 5)}
-                            onChange={(e) => 
-                              updateSchedule(index, { 
-                                opening_time: e.target.value + ':00' 
-                              })
-                            }
-                            disabled={!isEditing}
-                            className="w-32"
-                          />
-                          <span>-</span>
-                          <Input
-                            type="time"
-                            value={schedule.closing_time.slice(0, 5)}
-                            onChange={(e) => 
-                              updateSchedule(index, { 
-                                closing_time: e.target.value + ':00' 
-                              })
-                            }
-                            disabled={!isEditing}
-                            className="w-32"
-                          />
+                  {schedule.is_working_day && (
+                    <div className="space-y-4">
+                      {/* Horarios de operación */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-gray-700">Horario de Operación</Label>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <Input
+                                type="time"
+                                value={schedule.opening_time.slice(0, 5)}
+                                onChange={(e) => 
+                                  updateSchedule(index, { 
+                                    opening_time: e.target.value + ':00' 
+                                  })
+                                }
+                                disabled={!isEditing}
+                                className="w-full"
+                              />
+                            </div>
+                            <span className="text-gray-500">a</span>
+                            <div className="flex-1">
+                              <Input
+                                type="time"
+                                value={schedule.closing_time.slice(0, 5)}
+                                onChange={(e) => 
+                                  updateSchedule(index, { 
+                                    closing_time: e.target.value + ':00' 
+                                  })
+                                }
+                                disabled={!isEditing}
+                                className="w-full"
+                              />
+                            </div>
+                          </div>
                         </div>
-                        
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm text-gray-600">Capacidad:</Label>
+
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-gray-700">Horario de Recepción</Label>
+                          <Input
+                            type="time"
+                            value={schedule.reception_end_time ? schedule.reception_end_time.slice(0, 5) : ''}
+                            onChange={(e) => 
+                              updateSchedule(index, { 
+                                reception_end_time: e.target.value ? e.target.value + ':00' : null 
+                              })
+                            }
+                            disabled={!isEditing}
+                            className="w-full"
+                            placeholder="12:00"
+                          />
+                          <div className="text-xs text-gray-500">
+                            Límite para recibir nuevas citas
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Capacidad y llegadas */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-gray-700">Capacidad Simultánea</Label>
                           <Input
                             type="number"
                             min="1"
@@ -456,13 +490,19 @@ export default function WorkshopConfiguration() {
                               })
                             }
                             disabled={!isEditing}
-                            className="w-20"
+                            className="w-full"
                           />
+                          <div className="text-xs text-gray-500">
+                            Servicios que pueden ejecutarse en paralelo
+                          </div>
                         </div>
                         
-                        <div className="flex items-center gap-2">
-                          <Label className="text-sm text-gray-600">Llegadas:</Label>
-                          <select
+                        <div className="space-y-2">
+                          <Label className="text-sm font-medium text-gray-700">Límite de Llegadas</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            max="10"
                             value={schedule.max_arrivals_per_slot || ''}
                             onChange={(e) => 
                               updateSchedule(index, { 
@@ -470,23 +510,16 @@ export default function WorkshopConfiguration() {
                               })
                             }
                             disabled={!isEditing}
-                            className="w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm bg-white text-black"
-                          >
-                            <option value="">Sin límite</option>
-                            <option value="1">1 cliente</option>
-                            <option value="2">2 clientes</option>
-                            <option value="3">3 clientes</option>
-                            <option value="4">4 clientes</option>
-                            <option value="5">5 clientes</option>
-                          </select>
+                            className="w-full"
+                            placeholder="Sin límite"
+                          />
+                          <div className="text-xs text-gray-500">
+                            Máximo clientes por horario exacto (0 = sin límite)
+                          </div>
                         </div>
                       </div>
-                    )}
-                  </div>
-                  
-                  {schedule.is_working_day && schedule.max_arrivals_per_slot && (
-                    <div className="mt-2 text-xs text-gray-500">
-                      Máximo {schedule.max_arrivals_per_slot} cliente(s) pueden llegar al mismo horario
+
+
                     </div>
                   )}
                 </div>
