@@ -15,8 +15,24 @@ export async function GET(
     const clientId = params.id;
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
+    const limitParam = searchParams.get('limit');
 
-    console.log('🔍 Parámetros de búsqueda:', { clientId, status });
+    // Validar y convertir el parámetro limit
+    let limit: number | null = null;
+    if (limitParam) {
+      const parsedLimit = parseInt(limitParam);
+      if (!isNaN(parsedLimit) && parsedLimit > 0 && parsedLimit <= 100) {
+        limit = parsedLimit;
+      } else {
+        console.log('⚠️ Parámetro limit inválido:', limitParam);
+        return NextResponse.json(
+          { message: 'Invalid limit parameter. Must be a number between 1 and 100.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    console.log('🔍 Parámetros de búsqueda:', { clientId, status, limit });
 
     if (!clientId) {
       console.log('❌ Error: ID de cliente no proporcionado');
@@ -61,6 +77,12 @@ export async function GET(
       query = query.eq('status', status);
     }
 
+    // Aplicar límite si se proporciona
+    if (limit) {
+      console.log('🔍 Aplicando límite de resultados:', limit);
+      query = query.limit(limit);
+    }
+
     console.log('⏳ Ejecutando consulta a Supabase...');
     const { data, error } = await query;
     console.log('✅ Consulta completada');
@@ -96,7 +118,11 @@ export async function GET(
     }
 
     console.log('✅ Citas encontradas:', data.length);
-    return NextResponse.json({ appointments: data });
+    return NextResponse.json({ 
+      appointments: data,
+      total: data.length,
+      limit: limit || 'unlimited'
+    });
   } catch (error) {
     console.error('💥 Error inesperado:', {
       error: error instanceof Error ? {

@@ -14,11 +14,29 @@ export async function GET(
     console.log('🔑 Inicializando cliente Supabase...');
     const supabase = createServerComponentClient({ cookies });
     const clientId = params.id;
+    const { searchParams } = new URL(request.url);
+    const limitParam = searchParams.get('limit');
+
+    // Validar y convertir el parámetro limit
+    let limit: number | null = null;
+    if (limitParam) {
+      const parsedLimit = parseInt(limitParam);
+      if (!isNaN(parsedLimit) && parsedLimit > 0 && parsedLimit <= 100) {
+        limit = parsedLimit;
+      } else {
+        console.log('⚠️ Parámetro limit inválido:', limitParam);
+        return NextResponse.json(
+          { message: 'Invalid limit parameter. Must be a number between 1 and 100.' },
+          { status: 400 }
+        );
+      }
+    }
 
     console.log('🔍 Parámetros de búsqueda:', { 
       clientId,
       endpoint: 'active-appointments',
-      statusFilter: ['pending', 'confirmed']
+      statusFilter: ['pending', 'confirmed'],
+      limit
     });
 
     if (!clientId) {
@@ -59,6 +77,12 @@ export async function GET(
       .in('status', ['pending', 'confirmed']) // Filtrar solo citas pendientes y confirmadas
       .order('appointment_date', { ascending: false });
 
+    // Aplicar límite si se proporciona
+    if (limit) {
+      console.log('🔍 Aplicando límite de resultados:', limit);
+      query = query.limit(limit);
+    }
+
     console.log('⏳ Ejecutando consulta a Supabase...');
     console.log('🔍 Query construida:', {
       table: 'appointment',
@@ -66,7 +90,8 @@ export async function GET(
         client_id: clientId,
         status: ['pending', 'confirmed']
       },
-      order: 'appointment_date DESC'
+      order: 'appointment_date DESC',
+      limit: limit || 'unlimited'
     });
 
     const { data, error } = await query;
@@ -113,7 +138,11 @@ export async function GET(
       timestamp: new Date().toISOString()
     });
 
-    return NextResponse.json({ appointments: data });
+    return NextResponse.json({ 
+      appointments: data,
+      total: data.length,
+      limit: limit || 'unlimited'
+    });
   } catch (error) {
     console.error('💥 Error inesperado:', {
       error: error instanceof Error ? {
