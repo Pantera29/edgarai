@@ -248,6 +248,68 @@ export interface Database {
           updated_at?: string
         }
       }
+      client_lrf_scores: {
+        Row: {
+          client_id: string
+          dealership_id: string
+          length_score: number
+          recency_score: number
+          frequency_score: number
+          lrf_composite_score: number
+          current_segment: 'champions' | 'loyal_customers' | 'potential_loyalists' | 'at_risk' | 'cannot_lose' | 'new_customers' | 'lost_customers'
+          previous_segment: string | null
+          segment_changed_at: string | null
+          calculated_at: string
+          data_as_of_date: string
+          updated_at: string
+          first_appointment_date: string | null
+          last_appointment_date: string | null
+          total_appointments_12m: number
+          vehicle_age_years: number | null
+          expected_interval_days: number
+          days_since_last_appointment: number
+        }
+        Insert: {
+          client_id: string
+          dealership_id: string
+          length_score?: number
+          recency_score?: number
+          frequency_score?: number
+          lrf_composite_score?: number
+          current_segment?: 'champions' | 'loyal_customers' | 'potential_loyalists' | 'at_risk' | 'cannot_lose' | 'new_customers' | 'lost_customers'
+          previous_segment?: string | null
+          segment_changed_at?: string | null
+          calculated_at?: string
+          data_as_of_date: string
+          updated_at?: string
+          first_appointment_date?: string | null
+          last_appointment_date?: string | null
+          total_appointments_12m?: number
+          vehicle_age_years?: number | null
+          expected_interval_days?: number
+          days_since_last_appointment?: number
+        }
+        Update: {
+          client_id?: string
+          dealership_id?: string
+          length_score?: number
+          recency_score?: number
+          frequency_score?: number
+          lrf_composite_score?: number
+          current_segment?: 'champions' | 'loyal_customers' | 'potential_loyalists' | 'at_risk' | 'cannot_lose' | 'new_customers' | 'lost_customers'
+          previous_segment?: string | null
+          segment_changed_at?: string | null
+          calculated_at?: string
+          data_as_of_date?: string
+          updated_at?: string
+          first_appointment_date?: string | null
+          last_appointment_date?: string | null
+          total_appointments_12m?: number
+          vehicle_age_years?: number | null
+          expected_interval_days?: number
+          days_since_last_appointment?: number
+        }
+      }
     }
     Functions: {
       get_admin_conversations_with_evaluations: {
