@@ -8,7 +8,7 @@ const supabase = createClient<Database>(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const BATCH_SIZE = 500;
+const BATCH_SIZE = 50;
 const SEGMENTS = [
   'champions',
   'loyal_customers',
