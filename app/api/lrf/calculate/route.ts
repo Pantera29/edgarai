@@ -86,25 +86,113 @@ function determineSegment(L: number, R: number, F: number): string {
 }
 
 async function getAllClients(dealership_id?: string) {
-  const PAGE_SIZE = 1000;
-  let allClients: any[] = [];
-  let from = 0;
-  let to = PAGE_SIZE - 1;
-  while (true) {
-    let query = supabase
-      .from('client')
-      .select('id, dealership_id, names')
-      .range(from, to);
-    if (dealership_id) query = query.eq('dealership_id', dealership_id);
-    const { data, error } = await query;
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    allClients = allClients.concat(data);
-    if (data.length < PAGE_SIZE) break; // última página
-    from += PAGE_SIZE;
-    to += PAGE_SIZE;
+  try {
+    console.log(`🔍 [LRF] Obteniendo TODOS los clientes con paginación para dealership: ${dealership_id || 'todos'}`);
+    
+    let allAppointments: any[] = [];
+    let page = 0;
+    const pageSize = 1000;
+    let hasMore = true;
+    
+    // PASO 1: Obtener TODAS las citas con paginación
+    while (hasMore) {
+      console.log(`📄 [LRF] Obteniendo página ${page + 1} de citas...`);
+      
+      let appointmentQuery = supabase
+        .from('appointment')
+        .select('client_id')
+        .neq('status', 'cancelled')
+        .range(page * pageSize, (page + 1) * pageSize - 1);
+      
+      if (dealership_id) {
+        appointmentQuery = appointmentQuery.eq('dealership_id', dealership_id);
+      }
+      
+      const { data: pageData, error: pageError } = await appointmentQuery;
+      
+      if (pageError) throw pageError;
+      
+      if (pageData && pageData.length > 0) {
+        allAppointments = allAppointments.concat(pageData);
+        console.log(`   ✅ Página ${page + 1}: ${pageData.length} citas obtenidas (total acumulado: ${allAppointments.length})`);
+        
+        // Si obtuvimos menos del pageSize, no hay más páginas
+        hasMore = pageData.length === pageSize;
+        page++;
+      } else {
+        hasMore = false;
+      }
+      
+      // Evitar rate limiting
+      if (hasMore) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    // PASO 2: Extraer client_ids únicos
+    const uniqueClientIds = [...new Set(allAppointments.map(a => a.client_id))];
+    console.log(`📊 [LRF] Total citas procesadas: ${allAppointments.length}`);
+    console.log(`📊 [LRF] IDs únicos extraídos: ${uniqueClientIds.length}`);
+    
+    if (uniqueClientIds.length === 0) {
+      console.log(`⚠️ [LRF] No se encontraron clientes con citas válidas`);
+      return [];
+    }
+    
+    // PASO 3: Obtener datos de clientes en batches
+    const BATCH_SIZE = 100;
+    let allClients: any[] = [];
+    
+    for (let i = 0; i < uniqueClientIds.length; i += BATCH_SIZE) {
+      const batchIds = uniqueClientIds.slice(i, i + BATCH_SIZE);
+      const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
+      const totalBatches = Math.ceil(uniqueClientIds.length / BATCH_SIZE);
+      
+      console.log(`🔄 [LRF] Batch ${batchNumber}/${totalBatches} - ${batchIds.length} IDs`);
+      
+      try {
+        let clientQuery = supabase
+          .from('client')
+          .select('id, dealership_id, names')
+          .in('id', batchIds);
+        
+        if (dealership_id) {
+          clientQuery = clientQuery.eq('dealership_id', dealership_id);
+        }
+        
+        const { data: batchClients, error: clientError } = await clientQuery;
+        
+        if (clientError) {
+          console.error(`❌ [LRF] Error en batch ${batchNumber}:`, clientError);
+          continue;
+        }
+        
+        if (batchClients) {
+          console.log(`   ✅ Batch ${batchNumber}: ${batchClients.length}/${batchIds.length} clientes obtenidos`);
+          allClients = allClients.concat(batchClients);
+        }
+      } catch (batchError) {
+        console.error(`❌ [LRF] Error procesando batch ${batchNumber}:`, batchError);
+      }
+      
+      // Delay entre batches
+      if (i + BATCH_SIZE < uniqueClientIds.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
+    }
+    
+    console.log(`✅ [LRF] RESUMEN getAllClients:`);
+    console.log(`   - Total citas procesadas: ${allAppointments.length}`);
+    console.log(`   - IDs únicos esperados: ${uniqueClientIds.length}`);
+    console.log(`   - Clientes recuperados: ${allClients.length}`);
+    console.log(`   - Diferencia: ${uniqueClientIds.length - allClients.length}`);
+    
+    return allClients;
+    
+  } catch (error) {
+    console.error('❌ [LRF] Error en getAllClients:', error);
+    throw error;
   }
-  return allClients;
 }
 
 async function getVehicles(dealership_id?: string) {
@@ -122,17 +210,17 @@ async function getAppointmentsData(dealership_id?: string) {
   let first = supabase
     .from('appointment')
     .select('client_id, min:appointment_date')
-    .in('status', ['pending', 'confirmed', 'completed', 'in_progress']);
+    .neq('status', 'cancelled');
   // Última cita válida
   let last = supabase
     .from('appointment')
     .select('client_id, max:appointment_date')
-    .in('status', ['pending', 'confirmed', 'completed', 'in_progress']);
+    .neq('status', 'cancelled');
   // Citas últimos 12 meses
   let freq = supabase
     .from('appointment')
     .select('client_id, count:id')
-    .in('status', ['pending', 'confirmed', 'completed', 'in_progress'])
+    .neq('status', 'cancelled')
     .gte('appointment_date', new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
   if (dealership_id) {
     first = first.eq('dealership_id', dealership_id);
@@ -292,13 +380,18 @@ export async function GET(req: NextRequest) {
               }, { onConflict: 'client_id,dealership_id' });
           }
         } catch (err) {
-          console.log(`❌ Error procesando cliente:`, err);
+          console.error(`❌ Error procesando cliente ${client.id} (${client.names}):`, err instanceof Error ? err.message : String(err));
+          // Incrementar contador de errores pero continuar
           continue;
         }
       }
       // Delay opcional entre batches para evitar rate limit
       if (clients.length > BATCH_SIZE) await new Promise(res => setTimeout(res, 200));
     }
+    console.log(`📊 [LRF] RESUMEN DE PROCESAMIENTO:`);
+    console.log(`   - Clientes obtenidos por getAllClients: ${clients.length}`);
+    console.log(`   - Clientes procesados exitosamente: ${totalProcessed}`);
+    console.log(`   - Diferencia (errores): ${clients.length - totalProcessed}`);
     console.log(`📈 Resumen de segmentos:`, segmentSummary);
     console.log(`🔀 Total de cambios de segmento: ${segmentsChanged}`);
     console.log(`✅ Procesamiento completado en ${Date.now() - startTime}ms`);
