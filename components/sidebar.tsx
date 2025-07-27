@@ -152,6 +152,11 @@ const menuItems: MenuItem[] = [
         title: "Performance Taller",
         href: "/backoffice/analytics/performance",
         icon: Activity
+      },
+      {
+        title: "Lealtad",
+        href: "/backoffice/analytics/lealtad",
+        icon: Target
       }
     ]
   },
