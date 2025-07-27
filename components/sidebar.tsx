@@ -25,7 +25,9 @@ import {
   Target,
   Building2,
   Monitor,
-  AlertTriangle
+  AlertTriangle,
+  TrendingUp,
+  Activity
 } from "lucide-react"
 import Image from "next/image"
 
@@ -133,6 +135,23 @@ const menuItems: MenuItem[] = [
         title: "Servicios",
         href: "/backoffice/servicios",
         icon: Wrench
+      }
+    ]
+  },
+  {
+    title: "Analytics",
+    icon: TrendingUp,
+    isSection: true,
+    items: [
+      {
+        title: "Retención",
+        href: "/backoffice/analytics/retencion",
+        icon: TrendingUp
+      },
+      {
+        title: "Performance Taller",
+        href: "/backoffice/analytics/performance",
+        icon: Activity
       }
     ]
   },
