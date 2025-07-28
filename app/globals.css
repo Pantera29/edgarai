@@ -26,6 +26,8 @@
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
     --font-outfit: 'Outfit', sans-serif;
+    --font-work-sans: 'Work Sans', sans-serif;
+               --font-moranga: 'Fraunces', serif;
   }
 }
 
@@ -130,6 +132,14 @@
 
 .font-outfit {
   font-family: var(--font-outfit);
+}
+
+.font-work-sans {
+  font-family: var(--font-work-sans);
+}
+
+.font-moranga {
+  font-family: var(--font-moranga);
 }
 
 @keyframes slideDown {

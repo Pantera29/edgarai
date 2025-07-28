@@ -1,15 +1,28 @@
 import "@/app/globals.css"
-import { Inter, Outfit } from "next/font/google"
+import { Outfit, Work_Sans, Fraunces } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Analytics } from "@vercel/analytics/react"
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { Toaster } from "@/components/ui/toaster"
 
-const inter = Inter({ subsets: ["latin"] })
+
 const outfit = Outfit({ 
   subsets: ["latin"],
   variable: '--font-outfit'
+})
+
+// Configurar Work Sans para el contenido
+const workSans = Work_Sans({ 
+  subsets: ["latin"],
+  variable: '--font-work-sans'
+})
+
+// Configurar Fraunces para los títulos
+const fraunces = Fraunces({ 
+  subsets: ["latin"],
+  variable: '--font-moranga',
+  weight: ['400', '500', '600', '700']
 })
 
 export const metadata = {
@@ -24,7 +37,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${inter.className} ${outfit.variable}`}>
+      <body className={`${outfit.variable} ${workSans.variable} ${fraunces.variable}`}>
         <ThemeProvider>
           <TooltipProvider>
             {children}
