@@ -86,6 +86,38 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
     }
   };
 
+  const toggleAgentStatus = async (cliente: Cliente) => {
+    try {
+      console.log('🔄 Actualizando estado del agente para cliente:', cliente.id);
+      
+      const { error } = await supabase
+        .from('client')
+        .update({ agent_active: !cliente.agent_active })
+        .eq('id', cliente.id);
+      
+      if (error) throw error;
+      
+      console.log('✅ Estado del agente actualizado correctamente');
+      
+      toast({
+        title: "Estado actualizado",
+        description: `El agente está ahora ${!cliente.agent_active ? 'activo' : 'inactivo'} para este cliente.`
+      });
+      
+      // Recargar los datos para reflejar el cambio en la UI
+      if (onClienteDeleted) {
+        onClienteDeleted();
+      }
+    } catch (error) {
+      console.error("❌ Error actualizando estado del agente:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo actualizar el estado del agente."
+      });
+    }
+  };
+
   if (loading) {
     return <Skeleton className="h-[400px]" />
   }
@@ -114,30 +146,7 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
                 <Button
                   variant={cliente.agent_active ? "default" : "destructive"}
                   size="sm"
-                  onClick={async () => {
-                    try {
-                      const { error } = await supabase
-                        .from('client')
-                        .update({ agent_active: !cliente.agent_active })
-                        .eq('id', cliente.id);
-                      
-                      if (error) throw error;
-                      
-                      toast({
-                        title: "Estado actualizado",
-                        description: `El agente está ahora ${!cliente.agent_active ? 'activo' : 'inactivo'} para este cliente.`
-                      });
-                      
-                      if (onClienteDeleted) onClienteDeleted();
-                    } catch (error) {
-                      console.error("Error actualizando estado del agente:", error);
-                      toast({
-                        variant: "destructive",
-                        title: "Error",
-                        description: "No se pudo actualizar el estado del agente."
-                      });
-                    }
-                  }}
+                  onClick={() => toggleAgentStatus(cliente)}
                 >
                   {cliente.agent_active ? 'Activo' : 'Inactivo'}
                 </Button>
