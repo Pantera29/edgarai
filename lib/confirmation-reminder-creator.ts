@@ -48,7 +48,7 @@ export async function createConfirmationReminder(params: CreateConfirmationRemin
     // Usar el endpoint existente de reminders
     // En producción, usar la URL del servidor actual
     const baseUrl = process.env.NODE_ENV === 'production' 
-      ? new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://www.muviai.com.mx')
+      ? new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://muvi.mx')
       : new URL('http://localhost:3000');
     const remindersUrl = `${baseUrl.origin}/api/reminders`;
     
