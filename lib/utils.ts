@@ -7,7 +7,7 @@ export function cn(...inputs: ClassValue[]) {
 
 export function getBaseUrl() {
   if (process.env.NODE_ENV === 'production') {
-    return '/edgarai'
+    return '/muviai'
   }
   return ''
 }
