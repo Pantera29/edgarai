@@ -466,11 +466,34 @@ export async function GET(request: Request) {
           dailyLimit: service.daily_limit,
           appointmentsCount: sameServiceAppointments.length
         });
-        return NextResponse.json({ 
-          availableSlots: [],
-          totalSlots: 0,
-          message: `Daily limit reached for this service (${service.daily_limit} appointments per day)`
-        });
+        
+        // Buscar próximas fechas disponibles cuando se alcanza el límite diario
+        console.log('🔍 Límite diario alcanzado, buscando próximas fechas...');
+        
+        try {
+          const nextAvailableDates = await findNextAvailableDatesSmart(
+            date, finalServiceId, dealershipId, finalWorkshopId, supabase
+          );
+          
+          return NextResponse.json({
+            availableSlots: [],
+            totalSlots: 0,
+            message: getUnavailabilityMessage('DAILY_LIMIT_REACHED'),
+            nextAvailableDates,
+            reason: 'DAILY_LIMIT_REACHED',
+            searchInfo: {
+              daysChecked: Math.min(7, nextAvailableDates.length + 3),
+              maxSearchDays: 7
+            }
+          });
+        } catch (error) {
+          console.error('❌ Error buscando próximas fechas:', error);
+          return NextResponse.json({ 
+            availableSlots: [],
+            totalSlots: 0,
+            message: `Daily limit reached for this service (${service.daily_limit} appointments per day)`
+          });
+        }
       }
     }
 
@@ -495,6 +518,54 @@ export async function GET(request: Request) {
 
     // Justo antes del return final, loguear los slots generados y el valor de isToday
     console.log('✅ Slots a retornar:', { availableSlots, isToday });
+    
+    // Si no hay slots disponibles, buscar próximas fechas disponibles
+    if (availableSlots.length === 0) {
+      console.log('🔍 No hay disponibilidad, buscando próximas fechas...');
+      
+      try {
+        const nextAvailableDates = await findNextAvailableDatesSmart(
+          date, finalServiceId, dealershipId, finalWorkshopId, supabase
+        );
+        
+        // Determinar el motivo de la indisponibilidad
+        let reason = 'CAPACITY_FULL';
+        if (!schedule || !schedule.is_working_day) {
+          reason = 'NO_OPERATING_HOURS';
+        } else if (blockedDate?.full_day) {
+          reason = 'DAY_BLOCKED';
+        } else if (service.daily_limit) {
+          // Verificar límite diario
+          const sameServiceAppointments = appointments?.filter(app => 
+            app.service_id === finalServiceId
+          ) || [];
+          if (sameServiceAppointments.length >= service.daily_limit) {
+            reason = 'DAILY_LIMIT_REACHED';
+          }
+        }
+        
+        return NextResponse.json({
+          availableSlots: [],
+          totalSlots: 0,
+          message: getUnavailabilityMessage(reason),
+          nextAvailableDates,
+          reason,
+          searchInfo: {
+            daysChecked: Math.min(7, nextAvailableDates.length + 3), // Estimación
+            maxSearchDays: 7
+          }
+        });
+      } catch (error) {
+        console.error('❌ Error buscando próximas fechas:', error);
+        // Si falla la búsqueda de próximas fechas, retornar respuesta básica
+        return NextResponse.json({
+          availableSlots: [],
+          totalSlots: 0,
+          message: 'No hay disponibilidad para el día seleccionado'
+        });
+      }
+    }
+    
     return NextResponse.json({ 
       availableSlots,
       totalSlots: availableSlots.length
@@ -927,4 +998,497 @@ function canFitService(
 ) {
   const serviceEndTime = addMinutes(startTime, serviceDuration);
   return isBefore(serviceEndTime, endTime);
+}
+
+// ============================================================================
+// FUNCIONES AUXILIARES PARA BÚSQUEDA INTELIGENTE DE FECHAS DISPONIBLES
+// ============================================================================
+
+interface AvailabilitySearchOptions {
+  maxDays: number;      // Máximo días a buscar (ej: 7)
+  minDates: number;     // Mínimo fechas a encontrar (ej: 3)
+  maxDates: number;     // Máximo fechas a retornar (ej: 5)
+  includeToday?: boolean; // Incluir el día actual si es futuro
+}
+
+interface NextAvailableDate {
+  date: string;
+  availableSlots: number;
+  timeSlots: string[];
+  dayName: string;
+  isWeekend: boolean;
+}
+
+async function findNextAvailableDatesSmart(
+  currentDate: string,
+  serviceId: string,
+  dealershipId: string,
+  workshopId: string,
+  supabase: any,
+  options: AvailabilitySearchOptions = {
+    maxDays: 7,
+    minDates: 3,
+    maxDates: 5,
+    includeToday: false
+  }
+): Promise<NextAvailableDate[]> {
+  const nextDates: NextAvailableDate[] = [];
+  let current = new Date(currentDate);
+  let daysChecked = 0;
+  
+  console.log('🔍 Iniciando búsqueda inteligente de fechas disponibles:', {
+    startDate: currentDate,
+    maxDays: options.maxDays,
+    minDates: options.minDates,
+    serviceId,
+    dealershipId,
+    workshopId
+  });
+
+  // Si no incluir hoy, empezar desde mañana
+  if (!options.includeToday) {
+    current.setDate(current.getDate() + 1);
+  }
+
+  while (daysChecked < options.maxDays && nextDates.length < options.maxDates) {
+    const dateStr = format(current, 'yyyy-MM-dd');
+    
+    console.log(`🔍 Verificando fecha ${dateStr} (día ${daysChecked + 1}/${options.maxDays})`);
+    
+    try {
+      // Verificar disponibilidad para esta fecha
+      const availability = await checkAvailabilityForDate(
+        dateStr, serviceId, dealershipId, workshopId, supabase
+      );
+      
+      if (availability.availableSlots.length > 0) {
+        const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+        const dayName = dayNames[current.getDay()];
+        
+        nextDates.push({
+          date: dateStr,
+          availableSlots: availability.availableSlots.length,
+          timeSlots: availability.availableSlots.slice(0, 3), // Primeros 3 horarios
+          dayName: dayName,
+          isWeekend: current.getDay() === 0 || current.getDay() === 6
+        });
+        
+        console.log(`✅ Fecha disponible encontrada: ${dateStr} (${availability.availableSlots.length} slots) - ${dayName}`);
+      } else {
+        console.log(`❌ Fecha sin disponibilidad: ${dateStr}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error verificando fecha ${dateStr}:`, error);
+    }
+    
+    current.setDate(current.getDate() + 1);
+    daysChecked++;
+  }
+
+  console.log('📊 Resultado de búsqueda:', {
+    fechasEncontradas: nextDates.length,
+    diasVerificados: daysChecked,
+    fechas: nextDates.map(d => `${d.date} (${d.availableSlots} slots) - ${d.dayName}`)
+  });
+
+  return nextDates;
+}
+
+// Función auxiliar para verificar disponibilidad de una fecha específica
+async function checkAvailabilityForDate(
+  date: string,
+  serviceId: string,
+  dealershipId: string,
+  workshopId: string,
+  supabase: any
+): Promise<{ availableSlots: string[] }> {
+  console.log('🔍 Verificando disponibilidad para fecha:', { date, serviceId, dealershipId, workshopId });
+  
+  // 🔄 NUEVO: Verificar si la fecha es pasada
+  const selectedDate = new Date(date + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  if (selectedDate < today) {
+    console.log('❌ Fecha pasada:', { date, today: today.toISOString() });
+    return { availableSlots: [] };
+  }
+  
+  // 1. Verificar si el servicio está disponible ese día
+  const { data: service, error: serviceError } = await supabase
+    .from('services')
+    .select('available_monday, available_tuesday, available_wednesday, available_thursday, available_friday, available_saturday, available_sunday, duration_minutes, daily_limit, time_restriction_enabled, time_restriction_start_time, time_restriction_end_time, service_name')
+    .eq('id_uuid', serviceId)
+    .single();
+
+  if (serviceError || !service) {
+    console.log('❌ Servicio no encontrado:', serviceError?.message);
+    return { availableSlots: [] };
+  }
+
+  // 2. Verificar disponibilidad del día de la semana
+  const dayOfWeek = selectedDate.getDay();
+  const dayMap = ['available_sunday', 'available_monday', 'available_tuesday', 'available_wednesday', 'available_thursday', 'available_friday', 'available_saturday'];
+  const availableField = dayMap[dayOfWeek];
+  
+  if (!service[availableField as keyof typeof service]) {
+    console.log('❌ Servicio no disponible este día de la semana:', { dayOfWeek, availableField });
+    return { availableSlots: [] };
+  }
+
+  // 3. Verificar si el día está bloqueado
+  const { data: blockedDate, error: blockedError } = await supabase
+    .from('blocked_dates')
+    .select('*')
+    .eq('date', date)
+    .eq('dealership_id', dealershipId)
+    .maybeSingle();
+
+  if (blockedError) {
+    console.error('❌ Error verificando fechas bloqueadas:', blockedError.message);
+    return { availableSlots: [] };
+  }
+
+  if (blockedDate?.full_day) {
+    console.log('❌ Día completamente bloqueado:', { date, reason: blockedDate.reason });
+    return { availableSlots: [] };
+  }
+
+  // 4. Verificar horario de operación
+  const { data: schedule, error: scheduleError } = await supabase
+    .from('operating_hours')
+    .select('opening_time, closing_time, max_simultaneous_services, is_working_day, max_arrivals_per_slot, reception_end_time')
+    .eq('dealership_id', dealershipId)
+    .eq('workshop_id', workshopId)
+    .eq('day_of_week', dayOfWeek === 0 ? 1 : dayOfWeek + 1) // Convertir a formato 1-7
+    .maybeSingle();
+
+  if (scheduleError) {
+    console.error('❌ Error verificando horario de operación:', scheduleError.message);
+    return { availableSlots: [] };
+  }
+
+  if (!schedule || !schedule.is_working_day) {
+    console.log('❌ Día no laborable:', { date, schedule });
+    return { availableSlots: [] };
+  }
+
+  // 5. Verificar citas existentes
+  const { data: appointments, error: appointmentsError } = await supabase
+    .from('appointment')
+    .select('appointment_time, service_id, services(duration_minutes)')
+    .eq('appointment_date', date)
+    .eq('dealership_id', dealershipId)
+    .eq('workshop_id', workshopId)
+    .neq('status', 'cancelled');
+
+  if (appointmentsError) {
+    console.error('❌ Error verificando citas existentes:', appointmentsError.message);
+    return { availableSlots: [] };
+  }
+
+  // 6. Verificar límite diario del servicio
+  if (service.daily_limit) {
+    const sameServiceAppointments = appointments?.filter((app: any) => 
+      app.service_id === serviceId
+    ) || [];
+    
+    console.log('🔍 Verificando límite diario en búsqueda:', {
+      date,
+      serviceId,
+      dailyLimit: service.daily_limit,
+      sameServiceAppointments: sameServiceAppointments.length
+    });
+    
+    if (sameServiceAppointments.length >= service.daily_limit) {
+      console.log('❌ Límite diario alcanzado en búsqueda:', {
+        date,
+        serviceId,
+        dailyLimit: service.daily_limit,
+        appointmentsCount: sameServiceAppointments.length
+      });
+      return { availableSlots: [] };
+    }
+  }
+
+  // 7. Calcular slots disponibles (versión simplificada)
+  const availableSlots = await calculateAvailableSlotsSimplified(
+    date, appointments || [], serviceId, dealershipId, workshopId, supabase, schedule, service
+  );
+
+  console.log('✅ Slots disponibles calculados:', { date, availableSlots: availableSlots.length });
+  return { availableSlots };
+}
+
+// Versión simplificada del cálculo de slots (más rápida)
+async function calculateAvailableSlotsSimplified(
+  date: string,
+  appointments: any[],
+  serviceId: string,
+  dealershipId: string,
+  workshopId: string,
+  supabase: any,
+  schedule: any,
+  service: any
+): Promise<string[]> {
+  // Obtener configuración del taller
+  const { data: config, error: configError } = await supabase
+    .from('dealership_configuration')
+    .select('shift_duration, timezone, custom_morning_slots, regular_slots_start_time')
+    .eq('dealership_id', dealershipId)
+    .eq('workshop_id', workshopId)
+    .maybeSingle();
+
+  if (configError) {
+    console.error('❌ Error obteniendo configuración del taller:', configError.message);
+    return [];
+  }
+
+  const slotDuration = config?.shift_duration || 30;
+  const maxSimultaneous = schedule.max_simultaneous_services || 1;
+  const serviceDuration = service.duration_minutes || 60;
+  
+  // 🔄 NUEVO: Verificar si es el día actual
+  const now = new Date();
+  const selectedDate = new Date(date + 'T00:00:00');
+  const isToday = selectedDate.getFullYear() === now.getFullYear() &&
+                  selectedDate.getMonth() === now.getMonth() &&
+                  selectedDate.getDate() === now.getDate();
+  
+  // 🔄 NUEVO: Obtener hora actual en zona horaria del concesionario
+  const timezone = config?.timezone || 'America/Mexico_City';
+  const currentTimeInDealershipTz = utcToZonedTime(now, timezone);
+  const { format } = require('date-fns-tz');
+  const currentTimeStr = format(currentTimeInDealershipTz, 'HH:mm:ss', { timeZone: timezone });
+  
+  // 🔄 NUEVO: Obtener fecha bloqueada para verificar slots específicos
+  const { data: blockedDate, error: blockedError } = await supabase
+    .from('blocked_dates')
+    .select('*')
+    .eq('date', date)
+    .eq('dealership_id', dealershipId)
+    .maybeSingle();
+
+  if (blockedError) {
+    console.error('❌ Error verificando slots bloqueados:', blockedError.message);
+  }
+  
+  console.log('📊 Configuración para cálculo:', {
+    slotDuration,
+    maxSimultaneous,
+    serviceDuration,
+    openingTime: schedule.opening_time,
+    closingTime: schedule.closing_time
+  });
+
+  // Generar slots básicos
+  const allSlots = generateBasicTimeSlots(
+    schedule.opening_time,
+    schedule.closing_time,
+    slotDuration,
+    config?.custom_morning_slots,
+    config?.regular_slots_start_time
+  );
+
+  // Filtrar slots disponibles
+  const availableSlots = allSlots.filter(slot => {
+    // 🔄 NUEVO: Verificar si el slot está bloqueado por rango de tiempo
+    if (blockedDate && !blockedDate.full_day && blockedDate.start_time && blockedDate.end_time) {
+      const slotTime = timeToMinutes(slot);
+      const startTime = timeToMinutes(blockedDate.start_time);
+      const endTime = timeToMinutes(blockedDate.end_time);
+      
+      if (slotTime >= startTime && slotTime <= endTime) {
+        console.log('Slot descartado por bloqueo de rango:', { 
+          slot, 
+          startTime: blockedDate.start_time, 
+          endTime: blockedDate.end_time,
+          reason: blockedDate.reason 
+        });
+        return false;
+      }
+    }
+    
+    // 🔄 NUEVO: Si es el día actual, verificar si el slot ya pasó
+    if (isToday) {
+      const slotMinutes = timeToMinutes(slot);
+      const currentMinutes = timeToMinutes(currentTimeStr);
+      if (slotMinutes <= currentMinutes) {
+        console.log('Slot descartado por ya haber pasado:', { slot, currentTime: currentTimeStr });
+        return false;
+      }
+    }
+    
+    // 🔄 NUEVO: Verificar que el servicio cabe antes del cierre
+    const slotStartTime = parse(slot, 'HH:mm:ss', new Date());
+    const slotEndTime = addMinutes(slotStartTime, serviceDuration);
+    const closingTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
+    if (!isBefore(slotEndTime, closingTime)) {
+      console.log('Slot descartado por no caber en horario:', { slot, serviceDuration, closingTime: schedule.closing_time });
+      return false;
+    }
+    
+    // 🔄 NUEVO: Verificar horario de recepción
+    if (schedule.reception_end_time) {
+      const slotTime = timeToMinutes(slot);
+      const receptionEndMinutes = timeToMinutes(schedule.reception_end_time);
+      if (slotTime > receptionEndMinutes) {
+        console.log('Slot descartado por horario de recepción:', { slot, receptionEndTime: schedule.reception_end_time });
+        return false;
+      }
+    }
+    
+
+    
+    // 🔄 NUEVO: Validar restricciones de horario específicas del servicio
+    if (service?.time_restriction_enabled) {
+      const slotTimeMinutes = timeToMinutes(slot);
+      const restrictionStartMinutes = timeToMinutes(service.time_restriction_start_time);
+      const restrictionEndMinutes = timeToMinutes(service.time_restriction_end_time);
+      
+      // Verificar si el slot está dentro del rango permitido
+      if (slotTimeMinutes < restrictionStartMinutes || slotTimeMinutes > restrictionEndMinutes) {
+        console.log('Slot descartado por restricción de horario:', {
+          slot,
+          serviceName: service.service_name,
+          restrictionStart: service.time_restriction_start_time,
+          restrictionEnd: service.time_restriction_end_time,
+          slotMinutes: slotTimeMinutes,
+          restrictionStartMinutes,
+          restrictionEndMinutes
+        });
+        return false; // Excluir este slot
+      }
+    }
+
+    // 🔄 NUEVO: Verificar política de llegadas por slot (DESPUÉS de restricciones)
+    if (schedule.max_arrivals_per_slot !== null) {
+      const exactSlotAppointments = appointments.filter(app => 
+        app.appointment_time === slot
+      );
+      
+
+      
+      if (exactSlotAppointments.length >= schedule.max_arrivals_per_slot) {
+        console.log('Slot descartado por política de llegadas:', { 
+          slot, 
+          exactAppointments: exactSlotAppointments.length, 
+          maxArrivals: schedule.max_arrivals_per_slot,
+          appointments: exactSlotAppointments.map(app => ({
+            time: app.appointment_time,
+            serviceId: app.service_id,
+            duration: app.services?.duration_minutes || 60
+          }))
+        });
+        return false;
+      }
+    }
+
+    // Verificar si hay espacio en este slot
+    // 🔄 CORRECCIÓN: Considerar TODAS las citas de la agencia para calcular capacidad del taller
+    const overlappingAppointments = appointments.filter(app => {
+      const appStart = timeToMinutes(app.appointment_time);
+      const appEnd = appStart + (app.services?.duration_minutes || 60);
+      const slotStart = timeToMinutes(slot);
+      const slotEnd = slotStart + serviceDuration; // Usar duración del servicio
+      
+      return appStart < slotEnd && appEnd > slotStart;
+    });
+
+    const availableSpaces = Math.max(0, maxSimultaneous - overlappingAppointments.length);
+    
+    // 🔄 NUEVO: Logging detallado para debugging
+    if (overlappingAppointments.length > 0) {
+      console.log('Slot con citas solapadas:', {
+        slot,
+        overlappingAppointments: overlappingAppointments.map(app => ({
+          time: app.appointment_time,
+          duration: app.services?.duration_minutes || 60,
+          serviceId: app.service_id
+        })),
+        availableSpaces,
+        maxSimultaneous
+      });
+    }
+    
+    return availableSpaces > 0;
+  });
+
+  console.log('📊 Slots filtrados:', {
+    totalSlots: allSlots.length,
+    availableSlots: availableSlots.length,
+    appointmentsCount: appointments.length,
+    appointments: appointments.map(app => ({
+      time: app.appointment_time,
+      serviceId: app.service_id,
+      duration: app.services?.duration_minutes || 60
+    }))
+  });
+
+  return availableSlots;
+}
+
+// Generar slots básicos de tiempo
+function generateBasicTimeSlots(
+  openingTime: string,
+  closingTime: string,
+  slotDuration: number,
+  customMorningSlots?: string[] | null,
+  regularSlotsStartTime?: string | null
+): string[] {
+  const slots: string[] = [];
+  
+  // Procesar slots custom de mañana si existen
+  if (customMorningSlots && Array.isArray(customMorningSlots)) {
+    const openingMinutes = timeToMinutes(openingTime);
+    
+    for (const customSlot of customMorningSlots) {
+      const customSlotMinutes = timeToMinutes(customSlot);
+      
+      // Solo incluir si la agencia ya está abierta a esa hora
+      if (customSlotMinutes >= openingMinutes) {
+        slots.push(customSlot);
+      }
+    }
+  }
+
+  // Determinar desde dónde empezar la lógica regular
+  let regularStartTime;
+  if (customMorningSlots && customMorningSlots.length > 0 && regularSlotsStartTime) {
+    regularStartTime = parse(regularSlotsStartTime, 'HH:mm:ss', new Date());
+  } else {
+    regularStartTime = parse(openingTime, 'HH:mm:ss', new Date());
+  }
+  
+  const endTime = parse(closingTime, 'HH:mm:ss', new Date());
+  
+  // Generar slots regulares
+  let currentTime = regularStartTime;
+  while (currentTime < endTime) {
+    const timeStr = format(currentTime, 'HH:mm:ss');
+    
+    // Evitar duplicados con slots custom
+    if (!slots.includes(timeStr)) {
+      slots.push(timeStr);
+    }
+    
+    currentTime = addMinutes(currentTime, slotDuration);
+  }
+
+  return slots.sort();
+}
+
+// Función para obtener mensaje de indisponibilidad
+function getUnavailabilityMessage(reason: string): string {
+  const messages: { [key: string]: string } = {
+    'SERVICE_NOT_AVAILABLE_ON_DAY': 'El servicio no está disponible en el día seleccionado',
+    'DAILY_LIMIT_REACHED': 'Se alcanzó el límite diario de citas para este servicio. Te mostramos próximas fechas disponibles.',
+    'DAY_BLOCKED': 'El día está bloqueado para agendar citas',
+    'NO_OPERATING_HOURS': 'No hay horarios configurados para este concesionario',
+    'WORKSHOP_SERVICE_NOT_AVAILABLE': 'El servicio no está disponible para este taller',
+    'CAPACITY_FULL': 'No hay disponibilidad para el día seleccionado',
+    'DEFAULT': 'No hay horarios disponibles para el día seleccionado'
+  };
+
+  return messages[reason] || messages['DEFAULT'];
 }

@@ -343,6 +343,13 @@ export function AppointmentCalendar({
   const slotsRef = useRef<HTMLDivElement>(null);
   const [backendSlots, setBackendSlots] = useState<TimeSlot[] | null>(null);
   const [backendMessage, setBackendMessage] = useState<string | null>(null);
+  const [nextAvailableDates, setNextAvailableDates] = useState<Array<{
+    date: string;
+    availableSlots: number;
+    timeSlots: string[];
+    dayName: string;
+    isWeekend: boolean;
+  }> | null>(null);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -549,6 +556,7 @@ export function AppointmentCalendar({
         });
         // Log completo de la respuesta del endpoint
         console.log('✅ Respuesta completa del endpoint de disponibilidad:', response.data);
+        
         // El endpoint devuelve un array de strings (horarios disponibles)
         const slots = Array.isArray(response.data.availableSlots)
           ? response.data.availableSlots.map((time: string) => ({
@@ -558,8 +566,18 @@ export function AppointmentCalendar({
             }))
           : [];
         setBackendSlots(slots);
+        
         // Guardar el mensaje si existe
         setBackendMessage(response.data.message || null);
+        
+        // Guardar próximas fechas disponibles si existen
+        if (response.data.nextAvailableDates) {
+          console.log('📅 Próximas fechas disponibles:', response.data.nextAvailableDates);
+          setNextAvailableDates(response.data.nextAvailableDates);
+        } else {
+          setNextAvailableDates(null);
+        }
+        
         console.log('✅ Slots cargados exitosamente:', slots.length, 'horarios disponibles');
         await minLoadingPromise;
       } catch (error: any) {
@@ -637,8 +655,52 @@ export function AppointmentCalendar({
         <div className="p-6">
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {processedSlots.length === 0 ? (
-              <div className="col-span-full text-center text-muted-foreground">
-                {traducirMensajeDisponibilidad(backendMessage)}
+              <div className="col-span-full space-y-4">
+                <div className="text-center text-muted-foreground">
+                  {traducirMensajeDisponibilidad(backendMessage)}
+                </div>
+                
+                {/* Mostrar próximas fechas disponibles */}
+                {nextAvailableDates && nextAvailableDates.length > 0 && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <h4 className="text-sm font-medium text-blue-900 mb-3">
+                      📅 Próximas fechas disponibles:
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {nextAvailableDates.map((dateInfo, index) => (
+                        <Button
+                          key={index}
+                          variant="outline"
+                          size="sm"
+                          className={cn(
+                            "text-left h-auto py-2 px-3",
+                            dateInfo.isWeekend 
+                              ? "bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100" 
+                              : "bg-green-50 text-green-700 border-green-200 hover:bg-green-100"
+                          )}
+                          onClick={() => {
+                            const newDate = new Date(dateInfo.date);
+                            onSelect(newDate);
+                          }}
+                        >
+                          <div className="flex flex-col">
+                            <span className="text-xs font-medium">
+                              {dateInfo.dayName} {dateInfo.date.split('-').reverse().join('/')}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {dateInfo.availableSlots} horarios disponibles
+                            </span>
+                            {dateInfo.timeSlots.length > 0 && (
+                              <span className="text-xs text-muted-foreground">
+                                Desde {dateInfo.timeSlots[0].substring(0, 5)}
+                              </span>
+                            )}
+                          </div>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               processedSlots.map((slot, index) => (
