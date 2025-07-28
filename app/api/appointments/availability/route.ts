@@ -1026,7 +1026,7 @@ async function findNextAvailableDatesSmart(
   workshopId: string,
   supabase: any,
   options: AvailabilitySearchOptions = {
-    maxDays: 7,
+    maxDays: 15,
     minDates: 3,
     maxDates: 5,
     includeToday: false
