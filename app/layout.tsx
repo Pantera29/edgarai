@@ -13,7 +13,7 @@ const outfit = Outfit({
 })
 
 export const metadata = {
-  title: 'EdgarAI - Sistema Inteligente para Talleres',
+  title: 'MuviAI - Sistema Inteligente para Talleres',
   description: 'Sistema inteligente para la gestión de talleres mecánicos',
 }
 

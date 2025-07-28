@@ -88,7 +88,7 @@ export function MainNav({ pendingAppointments = 0, unreadMessages = 0 }) {
         {/* Logo */}
         <div className="flex items-center space-x-4">
           <Link href="/" className="font-bold text-xl">
-            EdgarAI
+            MuviAI
           </Link>
         </div>
 
