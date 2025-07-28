@@ -168,6 +168,14 @@ const router = useRouter();
     }
   };
 
+  // Función para recargar clientes cuando se actualiza el estado del agente
+  const handleClienteUpdated = () => {
+    console.log('🔄 Recargando clientes después de actualización...');
+    if (dataToken && (dataToken as any).dealership_id) {
+      cargarClientes((dataToken as any).dealership_id);
+    }
+  };
+
   // Solo mantener el filtro por clienteId cuando sea necesario
   const clientesAMostrar = clienteId 
     ? clientes.filter(cliente => cliente.id === clienteId)
@@ -288,7 +296,12 @@ const router = useRouter();
         </div>
       </div>
 
-      <ClientesTable clientes={clientesAMostrar} loading={loading} token ={token}/>
+      <ClientesTable 
+        clientes={clientesAMostrar} 
+        loading={loading} 
+        token={token}
+        onClienteDeleted={handleClienteUpdated}
+      />
 
       <div className="flex justify-between items-center">
         <div className="text-sm text-muted-foreground">
