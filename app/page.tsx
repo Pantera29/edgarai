@@ -249,13 +249,13 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <Image
               src="/favicon.ico"
-              alt="EdgarAI Logo"
+              alt="MuviAI Logo"
               width={32}
               height={32}
               className="rounded-sm"
             />
             <div className="text-2xl">
-              edgar<span className="font-medium">AI</span>
+              muvi<span className="font-medium">AI</span>
             </div>
           </div>
 
@@ -554,7 +554,7 @@ export default function LandingPage() {
                 <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
                   <Image
                     src="/favicon.ico"
-                    alt="EdgarAI Logo"
+                    alt="MuviAI Logo"
                     width={24}
                     height={24}
                     className="rounded-sm"
@@ -868,10 +868,10 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-2xl text-white">
-              edgar<span className="font-medium">AI</span>
+              muvi<span className="font-medium">AI</span>
             </div>
             <p className="text-gray-400">
-              © 2025 EdgarAI. Todos los derechos reservados.
+              © 2025 MuviAI. Todos los derechos reservados.
             </p>
           </div>
         </div>

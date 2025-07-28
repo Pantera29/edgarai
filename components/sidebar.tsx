@@ -266,14 +266,14 @@ export function Sidebar() {
             <div className="p-2">
               <Image
                 src="/favicon.ico"
-                alt="EdgarAI Logo"
+                alt="MuviAI Logo"
                 width={24}
                 height={24}
                 className="rounded-sm"
               />
             </div>
             {!isCollapsed && (
-              <h1 className="text-xl font-bold">EdgarAI</h1>
+              <h1 className="text-xl font-bold">MuviAI</h1>
             )}
           </div>
         </div>
