@@ -266,7 +266,7 @@ export default function BlockDateDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="w-[95vw] max-w-[900px] max-h-[90vh] overflow-y-auto">
         <form
           onSubmit={(e) => {
             console.log('Form submit iniciado');  // Debug
@@ -311,63 +311,74 @@ export default function BlockDateDialog({
             </div>
           )}
 
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label>Fecha</Label>
-              <Calendar
-                mode="single"
-                selected={date || undefined}
-                onSelect={(date: Date | undefined) => setDate(date || null)}
-                locale={es}
-                disabled={(date) => date < new Date()}
-                className="rounded-md border"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="motivo">Motivo</Label>
-              <Input
-                id="motivo"
-                value={motivo}
-                onChange={(e) => setMotivo(e.target.value)}
-                placeholder="Ej: Mantenimiento programado"
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <Switch
-                checked={diaCompleto}
-                onCheckedChange={setDiaCompleto}
-              />
-              <Label>Día completo</Label>
-            </div>
-            {!diaCompleto && (
-              <div className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="hora_inicio">Hora de inicio</Label>
-                  <Input
-                    id="hora_inicio"
-                    type="time"
-                    value={horaInicio}
-                    onChange={(e) => setHoraInicio(e.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="hora_fin">Hora de fin</Label>
-                  <Input
-                    id="hora_fin"
-                    type="time"
-                    value={horaFin}
-                    onChange={(e) => setHoraFin(e.target.value)}
-                  />
-                </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 py-4">
+            {/* Columna izquierda - Calendario */}
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <Label>Fecha</Label>
+                <Calendar
+                  mode="single"
+                  selected={date || undefined}
+                  onSelect={(date: Date | undefined) => setDate(date || null)}
+                  locale={es}
+                  disabled={(date) => date < new Date()}
+                  className="rounded-md border"
+                />
               </div>
-            )}
+            </div>
+
+            {/* Columna derecha - Formulario */}
+            <div className="space-y-4">
+              <div className="grid gap-2">
+                <Label htmlFor="motivo">Motivo</Label>
+                <Input
+                  id="motivo"
+                  value={motivo}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  placeholder="Ej: Mantenimiento programado"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={diaCompleto}
+                  onCheckedChange={setDiaCompleto}
+                />
+                <Label>Día completo</Label>
+              </div>
+              
+              {!diaCompleto && (
+                <div className="grid gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="hora_inicio">Hora de inicio</Label>
+                    <Input
+                      id="hora_inicio"
+                      type="time"
+                      value={horaInicio}
+                      onChange={(e) => setHoraInicio(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="hora_fin">Hora de fin</Label>
+                    <Input
+                      id="hora_fin"
+                      type="time"
+                      value={horaFin}
+                      onChange={(e) => setHoraFin(e.target.value)}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          <DialogFooter className="gap-2">
+          
+          <DialogFooter className="gap-2 flex-col sm:flex-row">
             <Button
               type="button"
               variant="outline"
               onClick={() => onOpenChange(false)}
               disabled={isLoading}
+              className="w-full sm:w-auto"
             >
               Cancelar
             </Button>
@@ -376,6 +387,7 @@ export default function BlockDateDialog({
               variant="default"
               disabled={isLoading}
               onClick={() => console.log('Click en botón submit')}  // Debug
+              className="w-full sm:w-auto"
             >
               {isLoading ? (
                 <>
