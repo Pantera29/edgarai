@@ -9,9 +9,10 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { getBaseUrl } from "@/lib/utils"
 import { verifyToken } from '../../../jwt/token'
-import { toast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { carBrands } from "@/lib/car-brands"
 import { useClientSearch } from '@/hooks/useClientSearch'
+import { ModelComboBox } from "@/components/ModelComboBox"
 import React from 'react'
 
 interface Cliente {
@@ -162,6 +163,7 @@ function ClienteComboBox({
 }
 
 export default function EditarVehiculoPage({ params }: PageProps) {
+  const { toast } = useToast();
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
   const [token, setToken] = useState<string>("");
   const [dataToken, setDataToken] = useState<{dealership_id?: string}>({});
@@ -510,7 +512,46 @@ export default function EditarVehiculoPage({ params }: PageProps) {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.message || 'Error al actualizar el vehículo');
+        console.error("Error del endpoint:", result);
+        
+        // Mensaje de error por defecto
+        let errorMessage = "Error al actualizar el vehículo";
+        
+        // Manejar errores específicos según el status code
+        if (response.status === 409) {
+          if (result.message.includes('VIN')) {
+            errorMessage = "Ya existe otro vehículo con este VIN. Por favor, verifique el número VIN ingresado.";
+          } else if (result.message.includes('license plate')) {
+            errorMessage = "Ya existe otro vehículo con esta placa. Por favor, verifique el número de placa ingresado.";
+          } else {
+            errorMessage = "Ya existe otro vehículo con estos datos. Por favor, verifique la información ingresada.";
+          }
+        } else if (response.status === 404) {
+          if (result.message.includes('Vehicle not found')) {
+            errorMessage = "El vehículo no se encontró. Por favor, verifique que el vehículo existe.";
+          } else if (result.message.includes('Client not found')) {
+            errorMessage = "El cliente seleccionado no existe. Por favor, seleccione un cliente válido.";
+          } else {
+            errorMessage = "No se encontró la información solicitada. Por favor, verifique los datos ingresados.";
+          }
+        } else if (response.status === 400) {
+          if (result.message.includes('No valid fields')) {
+            errorMessage = "No hay campos válidos para actualizar. Por favor, modifique al menos un campo.";
+          } else {
+            errorMessage = "Datos de entrada inválidos. Por favor, verifique el formato de los campos.";
+          }
+        } else if (result.message) {
+          errorMessage = result.message;
+        }
+        
+        // Mostrar el error en el frontend
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: errorMessage
+        });
+        
+        return;
       }
 
       console.log('✅ Vehículo actualizado:', result);
@@ -522,11 +563,11 @@ export default function EditarVehiculoPage({ params }: PageProps) {
 
       router.push(`/backoffice/vehiculos?token=${token}`);
     } catch (error: any) {
-      console.error('Error al actualizar vehículo:', error);
+      console.error('Error general:', error);
       toast({
-        title: "Error",
-        description: error.message || "No se pudo actualizar el vehículo",
-        variant: "destructive"
+        variant: "destructive",
+        title: "Error inesperado",
+        description: "Ocurrió un error inesperado al actualizar el vehículo. Por favor, intente nuevamente."
       });
     }
   };
@@ -573,9 +614,9 @@ export default function EditarVehiculoPage({ params }: PageProps) {
         </div>
         <div className="space-y-2">
           <Label htmlFor="model">Modelo</Label>
-          <Select
-            value={formData.model_id}
-            onValueChange={(value) => {
+          <ModelComboBox
+            modelos={modelosDisponibles}
+            onSelect={(value) => {
               const modeloSeleccionado = modelosDisponibles.find(m => m.id === value);
               setFormData({ 
                 ...formData, 
@@ -583,32 +624,16 @@ export default function EditarVehiculoPage({ params }: PageProps) {
                 model_name: modeloSeleccionado?.name || ''
               });
             }}
-            required
-            disabled={!formData.make} // Deshabilitado hasta seleccionar marca
-          >
-            <SelectTrigger>
-              <SelectValue placeholder={
-                !formData.make 
-                  ? "Seleccione una marca primero" 
-                  : modelosDisponibles.length === 0 
-                    ? "Cargando modelos..." 
-                    : "Seleccionar modelo"
-              } />
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px] overflow-y-auto">
-              {modelosDisponibles.length === 0 ? (
-                <SelectItem value="empty" disabled>
-                  {!formData.make ? "Seleccione una marca primero" : "No hay modelos disponibles"}
-                </SelectItem>
-              ) : (
-                modelosDisponibles.map((modelo) => (
-                  <SelectItem key={modelo.id} value={modelo.id}>
-                    {modelo.name}
-                  </SelectItem>
-                ))
-              )}
-            </SelectContent>
-          </Select>
+            value={formData.model_id}
+            disabled={!formData.make}
+            placeholder={
+              !formData.make 
+                ? "Seleccione una marca primero" 
+                : modelosDisponibles.length === 0 
+                  ? "Cargando modelos..." 
+                  : "Seleccionar modelo"
+            }
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="year">Año</Label>
