@@ -31,6 +31,8 @@ import {
 } from 'recharts'
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { zonedTimeToUtc, utcToZonedTime, format as formatTz } from 'date-fns-tz'
 
 interface TokenData {
   dealership_id?: string
@@ -82,6 +84,10 @@ interface LRFData {
   calculated_at: string
 }
 
+interface DealershipConfig {
+  timezone?: string
+}
+
 export default function LealtadPage() {
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null)
   const [token, setToken] = useState<string>("")
@@ -89,7 +95,9 @@ export default function LealtadPage() {
   const [isLoading, setIsLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [lrfData, setLrfData] = useState<LRFData | null>(null)
+  const [dealershipConfig, setDealershipConfig] = useState<DealershipConfig>({})
   const router = useRouter()
+  const supabase = createClientComponentClient()
 
 
 
@@ -133,9 +141,39 @@ export default function LealtadPage() {
   // Cargar datos de lealtad
   useEffect(() => {
     if (dataToken.dealership_id) {
+      cargarConfiguracionDealership()
       cargarDatosLealtad()
     }
   }, [dataToken])
+
+  const cargarConfiguracionDealership = async () => {
+    try {
+      console.log('🔄 Cargando configuración del dealership...')
+      
+      const { data: config, error: configError } = await supabase
+        .from('dealership_configuration')
+        .select('timezone')
+        .eq('dealership_id', dataToken.dealership_id)
+        .maybeSingle()
+      
+      if (configError) {
+        console.error('❌ Error cargando configuración:', configError)
+        // Usar timezone por defecto
+        setDealershipConfig({ timezone: 'America/Mexico_City' })
+        return
+      }
+      
+      setDealershipConfig({
+        timezone: config?.timezone || 'America/Mexico_City'
+      })
+      
+      console.log('✅ Configuración cargada:', { timezone: config?.timezone || 'America/Mexico_City' })
+      
+    } catch (error) {
+      console.error('❌ Error cargando configuración:', error)
+      setDealershipConfig({ timezone: 'America/Mexico_City' })
+    }
+  }
 
   const cargarDatosLealtad = async () => {
     setIsLoading(true)
@@ -161,6 +199,7 @@ export default function LealtadPage() {
       setLrfData(data)
       
       console.log('✅ Datos de lealtad cargados exitosamente')
+      console.log('📅 [Debug] Fecha de última actualización del API:', data.summary.ultima_actualizacion)
       toast({
         title: "Datos actualizados",
         description: "Los datos de lealtad se han cargado correctamente.",
@@ -215,6 +254,58 @@ export default function LealtadPage() {
     
     // Usar la paleta azul para todos los segmentos
     return blueShades[index % blueShades.length];
+  }
+
+  const formatearFechaConTimezone = (fechaUTC: string) => {
+    if (!fechaUTC) return 'No disponible'
+    
+    try {
+      const timezone = dealershipConfig.timezone || 'America/Mexico_City'
+      
+      console.log('🕐 [Debug] Formateando fecha:', {
+        fechaUTC,
+        timezone,
+        dealershipConfig
+      })
+      
+      // Crear fecha UTC
+      const fecha = new Date(fechaUTC)
+      
+      // Para México (UTC-6), restar 6 horas
+      if (timezone === 'America/Mexico_City') {
+        const fechaMexico = new Date(fecha.getTime() - (6 * 60 * 60 * 1000))
+        
+        console.log('🕐 [Debug] Fecha UTC original:', fecha.toISOString())
+        console.log('🕐 [Debug] Fecha México ajustada:', fechaMexico.toISOString())
+        
+        const fechaFormateada = format(fechaMexico, "dd 'de' MMMM 'de' yyyy 'a las' HH:mm", { locale: es })
+        
+        console.log('✅ [Debug] Fecha formateada:', fechaFormateada)
+        
+        return fechaFormateada
+      } else {
+        // Para otros timezones, usar Intl.DateTimeFormat
+        const formatter = new Intl.DateTimeFormat('es-MX', {
+          timeZone: timezone,
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        })
+        
+        const fechaFormateada = formatter.format(fecha)
+        
+        console.log('✅ [Debug] Fecha formateada:', fechaFormateada)
+        
+        return fechaFormateada
+      }
+    } catch (error) {
+      console.error('❌ Error formateando fecha:', error)
+      // Fallback: mostrar fecha sin conversión de timezone
+      return format(new Date(fechaUTC), "dd 'de' MMMM 'de' yyyy 'a las' HH:mm", { locale: es })
+    }
   }
 
   if (isLoading) {
@@ -301,10 +392,7 @@ export default function LealtadPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Análisis de Lealtad de Clientes</h1>
           <p className="text-muted-foreground">
-            Última actualización: {lrfData.summary.ultima_actualizacion 
-              ? format(new Date(lrfData.summary.ultima_actualizacion), "dd 'de' MMMM 'de' yyyy 'a las' HH:mm", { locale: es })
-              : 'No disponible'
-            }
+            Última actualización: {formatearFechaConTimezone(lrfData.summary.ultima_actualizacion)}
           </p>
         </div>
         <Button onClick={handleRefresh} disabled={isLoading}>
