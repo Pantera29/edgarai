@@ -111,58 +111,91 @@ export async function GET(request: Request) {
         return NextResponse.json({ message: 'Nombre de modelo no es válido' }, { status: 400 });
       }
 
-      const orFilter = searchTerms.map(term => `name.ilike.%${term}%`).join(',');
-
-      const { data: candidateModels, error: modelError } = await supabase
+      // PRIMERO: Búsqueda exacta
+      const { data: exactMatch, error: exactError } = await supabase
         .from('vehicle_models')
         .select('id, name')
         .eq('is_active', true)
-        .or(orFilter);
+        .ilike('name', modelName)
+        .maybeSingle();
 
-      if (modelError) {
-        console.error('❌ [Price API] Error al buscar modelos candidatos:', {
-          error: modelError.message,
-          modelName,
-        });
-        return NextResponse.json({ message: 'Error al buscar modelo' }, { status: 500 });
-      }
-
-      if (!candidateModels || candidateModels.length === 0) {
-        console.log('❌ [Price API] No se encontraron modelos candidatos para:', modelName);
-        return NextResponse.json({ message: 'Modelo no encontrado' }, { status: 404 });
-      }
-
-      console.log(`✅ [Price API] Encontrados ${candidateModels.length} modelos candidatos. Analizando...`);
-      
-      const rankedModels = candidateModels.map(model => {
-        const modelNameLower = model.name.toLowerCase();
-        const score = searchTerms.reduce((acc, term) => {
-            if (modelNameLower.includes(term)) {
-                return acc + 1;
-            }
-            return acc;
-        }, 0);
-        return { ...model, score };
-      })
-      .filter(model => model.score > 0)
-      .sort((a, b) => {
-          if (b.score !== a.score) {
-              return b.score - a.score;
+      if (exactMatch) {
+        console.log('✅ [Price API] Coincidencia exacta encontrada:', exactMatch.name);
+        finalModelId = exactMatch.id;
+      } else {
+        console.log('🔍 [Price API] No hay coincidencia exacta, buscando con términos flexibles...');
+        
+        // SEGUNDO: Búsqueda flexible con múltiples .or()
+        let query = supabase
+          .from('vehicle_models')
+          .select('id, name')
+          .eq('is_active', true);
+        
+        // Agregar cada término como una condición OR separada
+        searchTerms.forEach((term, index) => {
+          if (index === 0) {
+            query = query.ilike('name', `%${term}%`);
+          } else {
+            query = query.or(`name.ilike.%${term}%`);
           }
-          return a.name.length - b.name.length;
-      });
+        });
 
-      console.log('📊 [Price API] Modelos clasificados:', rankedModels.map(m => ({name: m.name, score: m.score})));
+        const { data: candidateModels, error: modelError } = await query;
 
-      const bestMatch = rankedModels[0];
+        if (modelError) {
+          console.error('❌ [Price API] Error al buscar modelos candidatos:', {
+            error: modelError.message,
+            modelName,
+          });
+          return NextResponse.json({ message: 'Error al buscar modelo' }, { status: 500 });
+        }
 
-      if (!bestMatch) {
-          console.log('❌ [Price API] Ningún modelo candidato pasó el filtro de puntuación.');
-          return NextResponse.json({ message: 'Modelo no encontrado' }, { status: 404 });
+        console.log('🔍 [Price API] Modelos candidatos encontrados:', candidateModels?.map(m => m.name) || []);
+
+        if (!candidateModels || candidateModels.length === 0) {
+          console.log('❌ [Price API] No se encontraron modelos candidatos para:', modelName);
+          return NextResponse.json({ 
+            message: 'Modelo no encontrado',
+            searchedFor: modelName
+          }, { status: 404 });
+        }
+
+        console.log(`✅ [Price API] Encontrados ${candidateModels.length} modelos candidatos. Analizando...`);
+        
+        const rankedModels = candidateModels.map(model => {
+          const modelNameLower = model.name.toLowerCase();
+          const score = searchTerms.reduce((acc, term) => {
+              if (modelNameLower.includes(term)) {
+                  return acc + 1;
+              }
+              return acc;
+          }, 0);
+          return { ...model, score };
+        })
+        .filter(model => model.score > 0)
+        .sort((a, b) => {
+            if (b.score !== a.score) {
+                return b.score - a.score;
+            }
+            return a.name.length - b.name.length;
+        });
+
+        console.log('📊 [Price API] Modelos clasificados:', rankedModels.map(m => ({name: m.name, score: m.score})));
+
+        const bestMatch = rankedModels[0];
+
+        if (!bestMatch) {
+            console.log('❌ [Price API] Ningún modelo candidato pasó el filtro de puntuación.');
+            return NextResponse.json({ 
+              message: 'Modelo no encontrado',
+              suggestions: candidateModels.map(m => m.name),
+              searchedFor: modelName
+            }, { status: 404 });
+        }
+
+        finalModelId = bestMatch.id;
+        console.log(`✅ [Price API] Mejor coincidencia encontrada: ${bestMatch.name} (ID: ${finalModelId}) con puntaje de ${bestMatch.score}`);
       }
-
-      finalModelId = bestMatch.id;
-      console.log(`✅ [Price API] Mejor coincidencia encontrada: ${bestMatch.name} (ID: ${finalModelId}) con puntaje de ${bestMatch.score}`);
     }
 
     // Si no se pudo obtener el model_id, retornar error
