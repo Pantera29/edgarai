@@ -19,13 +19,41 @@ export async function createConfirmationReminder(params: CreateConfirmationRemin
     const supabase = createRouteHandlerClient({ cookies });
     console.log('🔍 [Confirmation Reminder] Cliente Supabase creado exitosamente');
     
-    // Calcular fecha del recordatorio (1 día antes de la cita)
+    // Obtener configuración de días de confirmación para esta agencia
+    console.log('⚙️ [Confirmation Reminder] Obteniendo configuración para agencia:', params.dealership_id);
+    const { data: reminderSettings, error: settingsError } = await supabase
+      .from('dealership_reminder_settings')
+      .select('confirmation_days_before, confirmation_enabled')
+      .eq('dealership_id', params.dealership_id)
+      .single();
+
+    if (settingsError && settingsError.code !== 'PGRST116') {
+      console.error('❌ [Confirmation Reminder] Error obteniendo configuración:', settingsError);
+    }
+
+    // Usar configuración personalizada o valores por defecto
+    const confirmationDaysBefore = reminderSettings?.confirmation_days_before ?? 1;
+    const confirmationEnabled = reminderSettings?.confirmation_enabled ?? true;
+
+    console.log('⚙️ [Confirmation Reminder] Configuración obtenida:', {
+      confirmation_days_before: confirmationDaysBefore,
+      confirmation_enabled: confirmationEnabled
+    });
+
+    // Solo crear recordatorio si está habilitado
+    if (!confirmationEnabled) {
+      console.log('🚫 [Confirmation Reminder] Recordatorio de confirmación deshabilitado para esta agencia');
+      return { success: true, skipped: true };
+    }
+
+    // Calcular fecha del recordatorio con configuración personalizada
     const appointmentDate = new Date(params.appointment_date);
     const reminderDate = new Date(appointmentDate);
-    reminderDate.setDate(reminderDate.getDate() - 1);
+    reminderDate.setDate(reminderDate.getDate() - confirmationDaysBefore);
     
     console.log('🔍 [Confirmation Reminder] Fechas calculadas:', {
       appointmentDate: appointmentDate.toISOString(),
+      confirmation_days_before: confirmationDaysBefore,
       reminderDate: reminderDate.toISOString(),
       reminderDateStr: reminderDate.toISOString().split('T')[0]
     });
@@ -37,7 +65,7 @@ export async function createConfirmationReminder(params: CreateConfirmationRemin
       appointment_id: params.appointment_id, // ← Para confirmación
       base_date: params.appointment_date,
       reminder_date: reminderDate.toISOString().split('T')[0],
-      notes: `Recordatorio de confirmación para cita del ${params.appointment_date}`,
+      notes: `Recordatorio de confirmación para cita del ${params.appointment_date} (${confirmationDaysBefore} día${confirmationDaysBefore > 1 ? 's' : ''} antes)`,
       status: 'pending' as const,
       reminder_type: 'confirmation' as const,
       dealership_id: params.dealership_id
