@@ -2,6 +2,9 @@
 
 import { Sidebar } from "@/components/sidebar"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { Toaster } from "@/components/ui/toaster"
+import { useToast } from "@/hooks/use-toast"
+import { Button } from "@/components/ui/button"
 // import { VoiceflowWidget } from "@/components/voiceflow-widget"
 
 export default function BackofficeLayout({
@@ -15,6 +18,7 @@ export default function BackofficeLayout({
       <main className="flex-1">
         {children}
       </main>
+      <Toaster />
       {/* <VoiceflowWidget /> */}
     </div>
   )
