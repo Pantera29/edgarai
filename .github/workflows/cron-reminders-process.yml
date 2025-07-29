@@ -2,8 +2,8 @@ name: EdgarAI Reminders Process Cron
 
 on:
   schedule:
-    # Ejecuta cada 10 minutos de 13:00 a 23:00 UTC (8am a 6pm México)
-    - cron: '*/10 13-23 * * *'
+    # Ejecuta cada 5 minutos de 13:00 a 23:00 UTC (8am a 8pm México)
+    - cron: '*/5 13-23,0-2 * * *'
   workflow_dispatch:
 
 jobs:
