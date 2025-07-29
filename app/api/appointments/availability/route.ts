@@ -491,7 +491,7 @@ export async function GET(request: Request) {
           return NextResponse.json({ 
             availableSlots: [],
             totalSlots: 0,
-            message: `Daily limit reached for this service (${service.daily_limit} appointments per day)`
+            message: `No availability for the requested date. The daily limit for this service has been reached (${service.daily_limit} appointments per day). Here are alternative dates with availability:`
           });
         }
       }
@@ -561,7 +561,7 @@ export async function GET(request: Request) {
         return NextResponse.json({
           availableSlots: [],
           totalSlots: 0,
-          message: 'No hay disponibilidad para el día seleccionado'
+          message: 'No availability for the selected date. Here are alternative dates with availability:'
         });
       }
     }
@@ -1481,13 +1481,13 @@ function generateBasicTimeSlots(
 // Función para obtener mensaje de indisponibilidad
 function getUnavailabilityMessage(reason: string): string {
   const messages: { [key: string]: string } = {
-    'SERVICE_NOT_AVAILABLE_ON_DAY': 'El servicio no está disponible en el día seleccionado',
-    'DAILY_LIMIT_REACHED': 'Se alcanzó el límite diario de citas para este servicio. Te mostramos próximas fechas disponibles.',
-    'DAY_BLOCKED': 'El día está bloqueado para agendar citas',
-    'NO_OPERATING_HOURS': 'No hay horarios configurados para este concesionario',
-    'WORKSHOP_SERVICE_NOT_AVAILABLE': 'El servicio no está disponible para este taller',
-    'CAPACITY_FULL': 'No hay disponibilidad para el día seleccionado',
-    'DEFAULT': 'No hay horarios disponibles para el día seleccionado'
+    'SERVICE_NOT_AVAILABLE_ON_DAY': 'This service is not available on the selected day. Please choose another day of the week.',
+    'DAILY_LIMIT_REACHED': 'No availability for the requested date. The daily limit for this service has been reached. Here are alternative dates with availability:',
+    'DAY_BLOCKED': 'The requested date is blocked for appointments. Please select another date.',
+    'NO_OPERATING_HOURS': 'No operating hours configured for this dealership. Please contact the workshop.',
+    'WORKSHOP_SERVICE_NOT_AVAILABLE': 'This service is not available at the selected workshop location. Please verify the workshop or contact the dealership.',
+    'CAPACITY_FULL': 'No availability for the requested date. All time slots are fully booked. Here are alternative dates with availability:',
+    'DEFAULT': 'No availability for the selected date. Here are alternative dates with availability:'
   };
 
   return messages[reason] || messages['DEFAULT'];
