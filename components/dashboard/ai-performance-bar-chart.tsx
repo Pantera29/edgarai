@@ -64,7 +64,7 @@ export function AiPerformanceBarChart({ dealershipId }: AiPerformanceBarChartPro
     async function fetchData() {
       setIsLoading(true)
       try {
-        const res = await fetch(`/api/ai-performance?dealership_id=${dealershipId}&months=3`)
+        const res = await fetch(`/api/ai-performance?dealership_id=${dealershipId}&months=2`)
         const json = await res.json()
         const weeks: ApiWeek[] = json.weeks || []
         const data: ChartDatum[] = weeks.map((w) => ({
@@ -77,13 +77,12 @@ export function AiPerformanceBarChart({ dealershipId }: AiPerformanceBarChartPro
         // Calcular stats
         const totalAI = weeks.reduce((acc, w) => acc + (w.agenteai_citas || 0), 0)
         const totalManual = weeks.reduce((acc, w) => acc + (w.manual_citas || 0), 0)
-        const avgAIPercentage = weeks.length
-          ? weeks.reduce((acc, w) => acc + parseFloat(w.agenteai_percentage || "0"), 0) / weeks.length
-          : 0
+        const totalCitas = totalAI + totalManual
+        const totalAIPercentage = totalCitas > 0 ? (totalAI / totalCitas) * 100 : 0
         setStats({
           totalAI,
           totalManual,
-          avgAIPercentage: Math.round(avgAIPercentage * 10) / 10,
+          avgAIPercentage: Math.round(totalAIPercentage * 10) / 10,
         })
       } catch (e) {
         setChartData([])
@@ -102,7 +101,7 @@ export function AiPerformanceBarChart({ dealershipId }: AiPerformanceBarChartPro
           <Bot className="w-6 h-6 text-blue-500" /> Performance semanal AI
         </CardTitle>
         <CardDescription>
-          Citas agendadas por Agente AI vs Manual (últimas 12 semanas)
+          Citas agendadas por Agente AI vs Manual (últimas 8 semanas)
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -146,7 +145,7 @@ export function AiPerformanceBarChart({ dealershipId }: AiPerformanceBarChartPro
         </div>
         <div className="flex flex-col items-center">
           <TrendingUp className="w-5 h-5 text-blue-700 mb-1" />
-          <span className="text-xs text-muted-foreground">% Promedio AI</span>
+          <span className="text-xs text-muted-foreground">% Total AI</span>
           <span className="text-lg font-bold text-blue-700">{stats.avgAIPercentage}%</span>
         </div>
       </CardFooter>
