@@ -20,6 +20,7 @@ import { Calendar, Clock, CheckCircle, XCircle, AlertCircle } from "lucide-react
 import { AppointmentCalendar, TimeSlot } from "@/components/workshop/appointment-calendar"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import CalendarShareWidget from "@/components/calendar-share-widget"
 
 const calendarViews: CalendarView[] = [
   { type: 'dayGridMonth', title: 'Mes' },
@@ -51,7 +52,7 @@ type CalendarEventWithServiceId = CalendarEvent & { service_id: string, workshop
 export default function CalendarioCitasPage() {
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null)
   const [token, setToken] = useState<string>("")
-  const [dataToken, setDataToken] = useState<object>({})
+  const [dataToken, setDataToken] = useState<{dealership_id?: string}>({})
   const [events, setEvents] = useState<CalendarEventWithServiceId[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
@@ -503,6 +504,7 @@ export default function CalendarioCitasPage() {
               {view.title}
             </Button>
           ))}
+          <CalendarShareWidget dealershipId={dataToken.dealership_id as string} />
         </div>
       </div>
 
