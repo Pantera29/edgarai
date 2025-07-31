@@ -104,6 +104,7 @@ export default function ConversacionDetallePage() {
   // Estados para envío de WhatsApp
   const [whatsappMessage, setWhatsappMessage] = useState("");
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const [showWhatsappForm, setShowWhatsappForm] = useState(false);
   const { toast } = useToast();
 
   const conversationId = params.id as string;
@@ -166,6 +167,14 @@ export default function ConversacionDetallePage() {
 
       
       setConversacion(conversacionData);
+      
+      // Debug: Log para verificar los datos del cliente
+      console.log('🔍 [DEBUG] Datos de la conversación:', {
+        hasClient: !!conversacionData?.client,
+        clientData: conversacionData?.client,
+        agentActive: conversacionData?.client?.agent_active,
+        phoneNumber: conversacionData?.client?.phone_number
+      });
       
       if (conversacionData) {
         setNuevoEstado(conversacionData.status);
@@ -476,7 +485,10 @@ export default function ConversacionDetallePage() {
   };
 
   const enviarWhatsApp = async () => {
-    if (!conversacion?.client?.phone_number || !whatsappMessage.trim() || !dataToken?.dealership_id) {
+    // Determinar el número de teléfono a usar
+    const phoneNumber = conversacion?.client?.phone_number || conversacion?.user_identifier;
+    
+    if (!phoneNumber || !whatsappMessage.trim() || !dataToken?.dealership_id) {
       toast({
         title: "Error",
         description: "Faltan datos para enviar el mensaje",
@@ -495,7 +507,7 @@ export default function ConversacionDetallePage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          phone_number: conversacion.client.phone_number,
+          phone_number: phoneNumber,
           message: whatsappMessage.trim(),
           dealership_id: dataToken.dealership_id
         }),
@@ -827,46 +839,81 @@ export default function ConversacionDetallePage() {
             <ChatViewer messages={mensajes} />
           </div>
           
-          {/* Formulario de WhatsApp - Solo mostrar si agent_active es false */}
-          {conversacion.client?.agent_active === false && (
+          {/* Formulario de WhatsApp - Siempre disponible con botón expandible */}
+          {conversacion.user_identifier ? (
             <div className="p-4 border-t bg-muted/30 flex-shrink-0">
               <div className="space-y-3">
+                {/* Header con botón expandible */}
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
                     <MessageSquare className="h-4 w-4 mr-2 text-green-600" />
                     <p className="text-sm font-medium text-green-700">Enviar WhatsApp</p>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Enviar a: {conversacion.client.phone_number}
-                  </p>
-                </div>
-                <Textarea
-                  placeholder="Escribe tu mensaje aquí..."
-                  value={whatsappMessage}
-                  onChange={(e) => setWhatsappMessage(e.target.value)}
-                  className="min-h-[80px] resize-none"
-                  disabled={sendingWhatsapp}
-                />
-                <div className="flex justify-end">
-                  <Button
-                    onClick={enviarWhatsApp}
-                    disabled={!whatsappMessage.trim() || sendingWhatsapp}
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    {sendingWhatsapp ? (
-                      <>
-                        <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
-                        Enviando...
-                      </>
-                    ) : (
-                      <>
-                        <Send className="h-4 w-4 mr-2" />
-                        Enviar
-                      </>
+                  
+                  <div className="flex items-center gap-2">
+                    {/* Badge de advertencia si necesita acción */}
+                    {conversacion.client?.agent_active === false && (
+                      <Badge variant="destructive" className="text-xs">
+                        <AlertCircle className="h-3 w-3 mr-1" />
+                        Necesita acción
+                      </Badge>
                     )}
-                  </Button>
+                    
+                    {/* Botón para expandir/contraer */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowWhatsappForm(!showWhatsappForm)}
+                      className="text-xs"
+                    >
+                      {showWhatsappForm ? "Ocultar" : "Mostrar"}
+                    </Button>
+                  </div>
                 </div>
+                
+                {/* Formulario que aparece/desaparece */}
+                {showWhatsappForm && (
+                  <>
+                    <p className="text-xs text-muted-foreground">
+                      Enviar a: {conversacion.client?.phone_number || conversacion.user_identifier}
+                    </p>
+                    <Textarea
+                      placeholder="Escribe tu mensaje aquí..."
+                      value={whatsappMessage}
+                      onChange={(e) => setWhatsappMessage(e.target.value)}
+                      className="min-h-[80px] resize-none"
+                      disabled={sendingWhatsapp}
+                    />
+                    <div className="flex justify-end">
+                      <Button
+                        onClick={enviarWhatsApp}
+                        disabled={!whatsappMessage.trim() || sendingWhatsapp}
+                        size="sm"
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        {sendingWhatsapp ? (
+                          <>
+                            <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
+                            Enviando...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="h-4 w-4 mr-2" />
+                            Enviar
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ) : (
+            // Mensaje cuando no hay user_identifier
+            <div className="p-4 border-t bg-muted/30 flex-shrink-0">
+              <div className="flex items-center justify-center text-muted-foreground text-sm">
+                <MessageSquare className="h-4 w-4 mr-2" />
+                No hay identificador de usuario disponible
               </div>
             </div>
           )}
