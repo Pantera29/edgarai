@@ -310,6 +310,41 @@ export interface Database {
           days_since_last_appointment?: number
         }
       }
+      calendar_tokens: {
+        Row: {
+          id: string
+          dealership_id: string
+          token_hash: string
+          created_at: string
+          expires_at: string | null
+          is_active: boolean
+          created_by: string | null
+          last_accessed_at: string | null
+          access_count: number
+        }
+        Insert: {
+          id?: string
+          dealership_id: string
+          token_hash: string
+          created_at?: string
+          expires_at?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          last_accessed_at?: string | null
+          access_count?: number
+        }
+        Update: {
+          id?: string
+          dealership_id?: string
+          token_hash?: string
+          created_at?: string
+          expires_at?: string | null
+          is_active?: boolean
+          created_by?: string | null
+          last_accessed_at?: string | null
+          access_count?: number
+        }
+      }
     }
     Functions: {
       get_admin_conversations_with_evaluations: {
