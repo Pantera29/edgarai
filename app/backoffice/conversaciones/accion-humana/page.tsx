@@ -34,7 +34,9 @@ import {
   TrendingUp,
   AlertCircle,
   CheckCircle,
-  XCircle
+  XCircle,
+  RotateCcw,
+  Loader2
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -103,6 +105,9 @@ export default function ConversacionesAccionHumanaPage() {
   const [busqueda, setBusqueda] = useState("");
   const [filtroCanal, setFiltroCanal] = useState("todos");
   const [filtroUrgencia, setFiltroUrgencia] = useState("todas");
+  
+  // Estado para reactivación de agentes
+  const [reactivatingAgents, setReactivatingAgents] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -249,6 +254,56 @@ export default function ConversacionesAccionHumanaPage() {
 
   const verDetalle = (id: string) => {
     router.push(`/backoffice/conversaciones/${id}?token=${token}&from=accion-humana`);
+  };
+
+  const reactivarAgente = async (clientId: string, clientName: string) => {
+    if (!clientId) {
+      console.log('❌ No se puede reactivar: client_id no disponible');
+      return;
+    }
+
+    console.log('🔄 Iniciando reactivación de agente para:', clientName);
+    
+    // Agregar a la lista de agentes siendo reactivados
+    setReactivatingAgents(prev => new Set(prev).add(clientId));
+
+    try {
+      const response = await fetch('/api/clients/reactivate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ client_id: clientId }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.log('❌ Error reactivando agente:', result.error);
+        // Aquí podrías mostrar un toast de error
+        alert(`Error reactivando agente: ${result.error}`);
+        return;
+      }
+
+      console.log('✅ Agente reactivado exitosamente:', result);
+      
+      // Mostrar toast de éxito
+      alert(`Agente reactivado exitosamente para ${clientName}`);
+      
+      // Recargar la lista de conversaciones
+      await cargarConversaciones();
+      
+    } catch (error) {
+      console.log('❌ Error inesperado reactivando agente:', error);
+      alert('Error inesperado reactivando agente');
+    } finally {
+      // Remover de la lista de agentes siendo reactivados
+      setReactivatingAgents(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(clientId);
+        return newSet;
+      });
+    }
   };
 
   const getCanalIcon = (channel?: string) => {
@@ -467,14 +522,31 @@ export default function ConversacionesAccionHumanaPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => verDetalle(conversacion.id)}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        Ver
-                      </Button>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => verDetalle(conversacion.id)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
+                        {conversacion.client_id && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => reactivarAgente(conversacion.client_id!, conversacion.client_names || 'Cliente')}
+                            disabled={reactivatingAgents.has(conversacion.client_id!)}
+                          >
+                            {reactivatingAgents.has(conversacion.client_id!) ? (
+                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-4 w-4 mr-1" />
+                            )}
+                            Reactivar
+                          </Button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
