@@ -392,21 +392,54 @@ export async function GET(request: Request) {
     // 4.5. Verificar bloqueos por modelo específico
     const vehicleMake = searchParams.get('vehicle_make');
     const vehicleModel = searchParams.get('vehicle_model');
+    const vehicleId = searchParams.get('vehicle_id');
     
-    if (vehicleMake && vehicleModel) {
+    // 🔄 NUEVO: Obtener datos del vehículo si se proporciona vehicle_id
+    let finalVehicleMake = vehicleMake;
+    let finalVehicleModel = vehicleModel;
+    
+    if (vehicleId && (!vehicleMake || !vehicleModel)) {
+      console.log('🔍 Obteniendo datos del vehículo desde vehicle_id:', vehicleId);
+      
+      const { data: vehicle, error: vehicleError } = await supabase
+        .from('vehicles')
+        .select('make, model')
+        .eq('id_uuid', vehicleId)
+        .single();
+        
+      if (vehicleError || !vehicle) {
+        console.error('❌ Error obteniendo datos del vehículo:', vehicleError?.message);
+        return NextResponse.json(
+          { message: 'Vehicle not found or error fetching vehicle details' },
+          { status: 404 }
+        );
+      }
+      
+      finalVehicleMake = vehicle.make;
+      finalVehicleModel = vehicle.model;
+      
+      console.log('✅ Datos del vehículo obtenidos:', {
+        vehicleId,
+        make: finalVehicleMake,
+        model: finalVehicleModel
+      });
+    }
+    
+    if (finalVehicleMake && finalVehicleModel) {
       console.log('🔄 Verificando bloqueos por modelo:', {
         date,
         dealershipId,
-        make: vehicleMake,
-        model: vehicleModel
+        make: finalVehicleMake,
+        model: finalVehicleModel,
+        source: vehicleId ? 'vehicle_id' : 'direct_params'
       });
 
       const { data: modelBlock, error: modelBlockError } = await supabase
         .from('model_blocked_dates')
         .select('*')
         .eq('dealership_id', dealershipId)
-        .eq('make', vehicleMake.trim())
-        .eq('model', vehicleModel.trim())
+        .eq('make', finalVehicleMake.trim())
+        .eq('model', finalVehicleModel.trim())
         .eq('is_active', true)
         .lte('start_date', date)
         .gte('end_date', date)
@@ -424,27 +457,30 @@ export async function GET(request: Request) {
         console.log('❌ Modelo bloqueado encontrado:', {
           date,
           dealershipId,
-          make: vehicleMake,
-          model: vehicleModel,
-          reason: modelBlock.reason
+          make: finalVehicleMake,
+          model: finalVehicleModel,
+          reason: modelBlock.reason,
+          vehicleId
         });
         return NextResponse.json({
           availableSlots: [],
-          message: `Vehicle model ${vehicleMake} ${vehicleModel} is not available for service on this date: ${modelBlock.reason}`,
+          message: `Vehicle model ${finalVehicleMake} ${finalVehicleModel} is not available for service on this date: ${modelBlock.reason}`,
           error_code: 'MODEL_BLOCKED',
           details: {
-            make: vehicleMake,
-            model: vehicleModel,
+            make: finalVehicleMake,
+            model: finalVehicleModel,
             reason: modelBlock.reason,
-            block_id: modelBlock.id
+            block_id: modelBlock.id,
+            vehicle_id: vehicleId
           }
         });
       }
 
       console.log('✅ Modelo disponible para la fecha:', {
         date,
-        make: vehicleMake,
-        model: vehicleModel
+        make: finalVehicleMake,
+        model: finalVehicleModel,
+        vehicleId
       });
     }
 
