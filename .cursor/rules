@@ -44,16 +44,24 @@ You are a senior engineer with deep experience building production-grade automot
 
 **Reminder**: You are not a co-pilot, assistant, or brainstorm partner. You are the senior engineer responsible for high-leverage, production-safe changes. Do not improvise. Do not over-engineer. Do not deviate.
 
-## Stack Tecnológico Principal
+## Stack Tecnológico Principal (ACTUALIZADO)
 - **Framework**: Next.js 14 con App Router
 - **Lenguaje**: TypeScript estricto
 - **Base de datos**: Supabase (PostgreSQL)
 - **Estilos**: Tailwind CSS
 - **Formularios**: React Hook Form + Zod validation
 - **UI Components**: shadcn/ui + Lucide React icons
-- **Estado**: useState para estado local (NO React Query - no está implementado)
+- **Estado**: useState para estado local (NO React Query - confirmado)
 - **Autenticación**: JWT tokens para dealerships
 - **Cliente Supabase**: `createClientComponentClient` desde `@supabase/auth-helpers-nextjs`
+- **NUEVO**: FullCalendar para calendarios (@fullcalendar/react, @fullcalendar/daygrid, etc.)
+- **NUEVO**: Recharts para gráficos (recharts)
+- **NUEVO**: Twilio/WhatsApp para comunicaciones (twilio)
+- **NUEVO**: OpenAI para AI features (openai)
+- **NUEVO**: React Big Calendar para calendarios avanzados (react-big-calendar)
+- **NUEVO**: Nivo para gráficos especializados (@nivo/pie)
+- **NUEVO**: Sonner para notificaciones (sonner)
+- **NUEVO**: Pino para logging (pino)
 
 ## Arquitectura del Proyecto
 
@@ -67,6 +75,9 @@ You are a senior engineer with deep experience building production-grade automot
     /vehiculos           # Gestión de vehículos
     /recordatorios       # Sistema de recordatorios
     /configuracion       # Configuración del taller
+    /analytics           # Analytics y métricas
+    /conversaciones      # Gestión de conversaciones AI
+    /plataforma          # Gestión administrador
   /page.tsx              # Landing page pública
 /components              # Componentes reutilizables
 /lib                    # Utilidades y configuraciones
@@ -192,7 +203,31 @@ const verifyToken = (token: string) => {
 - **Disponibilidad**: Verificación en tiempo real con overlaps
 - **Recordatorios**: Automáticos basados en reglas configurables
 
-### Estructura de Base de Datos
+### **CRITICAL: Multi-Workshop Architecture**
+- **Workshop ID**: Siempre incluir `workshop_id` en operaciones de citas
+- **Workshop Resolver**: Usar `@/lib/workshop-resolver` para resolver workshop_id
+- **Workshop Filtering**: Filtrar servicios y disponibilidad por workshop
+- **Workshop Configuration**: Cada workshop tiene su propia configuración
+
+### **Multi-Workshop Data Patterns**
+```typescript
+// ✅ CORRECTO: Incluir workshop_id en todas las operaciones
+const appointmentData = {
+  client_id,
+  vehicle_id,
+  service_id,
+  workshop_id, // ← CRÍTICO para multi-workshop
+  appointment_date,
+  appointment_time,
+  dealership_id
+};
+
+// ✅ CORRECTO: Usar workshop resolver
+import { resolveWorkshopId } from '@/lib/workshop-resolver';
+const workshopId = await resolveWorkshopId(dealershipId, workshopName);
+```
+
+### Estructura de Base de Datos (ACTUALIZADO)
 
 #### **Tablas Principales**
 ```sql
@@ -200,13 +235,14 @@ const verifyToken = (token: string) => {
 dealerships (id, name, phone, settings...)
 client (id, names, email, phone_number, dealership_id, external_id, estado, agent_active)
 vehicles (id_uuid, client_id, make, model, year, license_plate, vin, last_km, last_service_date)
-services (id_uuid, service_name, description, duration_minutes, price, daily_limit, dealership_id, client_visible)
+services (id_uuid, service_name, description, duration_minutes, price, daily_limit, dealership_id, client_visible, workshop_id)
 
--- Appointments & Scheduling
-appointment (id, client_id, vehicle_id, service_id, appointment_date, appointment_time, status, dealership_id)
+-- Appointments & Scheduling (ACTUALIZADO)
+appointment (id, client_id, vehicle_id, service_id, specific_service_id, appointment_date, appointment_time, status, dealership_id, workshop_id, channel, removed_additional, notes)
 dealership_configuration (dealership_id, shift_duration, timezone, custom_morning_slots)
 operating_hours (dealership_id, day_of_week, start_time, end_time, is_active)
 blocked_dates (dealership_id, blocked_date, reason)
+model_blocked_dates (id, dealership_id, model_id, blocked_date, reason)
 
 -- Reminders & Automation
 automatic_reminder_rules (rule_id, dealership_id, months_after, is_active)
@@ -215,11 +251,18 @@ recordatorios_mantenimiento (id, cliente_id, tipo, fecha_programada, descripcion
 -- Transactions & Services
 service_transactions (id, appointment_id, transaction_date, notes, dealership_id, specific_service_id)
 
--- Communication & Analytics  
+-- AI & Analytics (NUEVO)
 chat_conversations (id, dealership_id, user_identifier, channel, duration_seconds, created_at, metadata)
-historial_chat (id, dealership_id, chat_id, created_at)
+conversation_evaluations (id, conversation_id, evaluation_status, evaluation_tags, admin_comments, evaluated_by, evaluated_at)
+client_lrf_scores (client_id, dealership_id, length_score, recency_score, frequency_score, lrf_composite_score, current_segment, previous_segment, segment_changed_at)
 
--- Legacy Tables (avoid using)
+-- Calendar & Sharing (NUEVO)
+calendar_tokens (id, dealership_id, token_hash, created_at, expires_at, is_active, created_by, last_accessed_at, access_count)
+
+-- NPS & Feedback (NUEVO)
+nps_surveys (id, client_id, dealership_id, score, feedback, created_at, channel)
+
+-- Legacy Tables (DEPRECATED - NO USAR)
 citas, servicios (use 'appointment' and 'services' instead)
 ```
 
@@ -230,6 +273,7 @@ citas, servicios (use 'appointment' and 'services' instead)
 - `vehicles` → `appointment` (1:many via vehicle_id)
 - `services` → `appointment` (1:many via service_id)
 - `appointment` → `service_transactions` (1:many via appointment_id)
+- `chat_conversations` → `conversation_evaluations` (1:1 via conversation_id)
 
 ## Convenciones API
 
@@ -253,7 +297,7 @@ const { data, error } = await supabase
 - **Use direct Supabase when**: Simple reads, filtering, search functionality, no API endpoint exists
 - **Always check**: `/app/api/` directory for existing endpoints first
 
-### **Complete API Endpoints (Check these first)**
+### **Complete API Endpoints (ACTUALIZADO)**
 ```
 # Customers & Authentication
 /api/customers/create - Crear nuevos clientes
@@ -267,30 +311,63 @@ const { data, error } = await supabase
 /api/vehicles/find-by-plate?plate={license_plate} - Buscar vehículos por placa
 /api/vehicles/update/{vehicle_id} - Actualizar vehículos
 
-# Appointments System
-/api/appointments - CRUD de citas
-/api/appointments/availability - Verificar disponibilidad de citas
+# Appointments System (ACTUALIZADO)
+/api/appointments/create - Crear citas con workshop_id
+/api/appointments/availability - Verificar disponibilidad por workshop
 /api/appointments/update/{id} - Actualizar cita específica
+/api/appointments/auto-complete - Autocompletado de citas
 
-# Services & Pricing
+# Services & Pricing (ACTUALIZADO)
 /api/services/price - Obtener precios de servicios
-/api/services/... - Gestión de servicios
+/api/services/list - Listar servicios por workshop
+/api/services/specific-by-model - Servicios específicos por modelo
 
-# Transactions
-/api/transactions/create - Crear transacciones de servicio
-/api/transactions/update/{id} - Actualizar transacciones
+# AI & Analytics (NUEVO)
+/api/conversations/kpis - KPIs de conversaciones
+/api/ai-performance - Métricas de rendimiento AI
+/api/lrf/calculate - Calcular scores LRF
+/api/lrf/analytics - Analytics LRF
+
+# Calendar & Sharing (NUEVO)
+/api/calendar/token - Generar tokens de calendario compartido
+
+# NPS & Feedback (NUEVO)
+/api/nps/create - Crear encuestas NPS
+/api/nps/update/{id} - Actualizar encuestas NPS
+/api/nps/update-by-phone - Actualizar por teléfono
+
+# Multi-Workshop (NUEVO)
+/api/backoffice/plataforma/agencies - Gestión de agencias/talleres
+/api/backoffice/workers - Gestión de trabajadores por workshop
+
+# Communications (NUEVO)
+/api/whatsapp/send - Enviar mensajes WhatsApp
+/api/sms/send - Enviar SMS
+/api/n8n/send - Webhooks para automatización
+
+# Model Blocked Dates (NUEVO)
+/api/model-blocked-dates - Gestión de fechas bloqueadas por modelo
 
 # Analytics & Usage
 /api/dealerships/usage - Métricas de uso mensual de conversaciones
 /api/vapi/end-of-call - Webhook para finalización de llamadas
 
-# Additional APIs
-# (More endpoints discovered through project analysis)
+# Transactions
+/api/transactions/create - Crear transacciones de servicio
+/api/transactions/update/{id} - Actualizar transacciones
+
+# Reminders
+/api/reminders - Gestión de recordatorios
+/api/reminders/process - Procesar recordatorios automáticos
+/api/reminders/expire - Expirar recordatorios vencidos
+
+# Retention & Analytics
+/api/retention/cohort - Análisis de cohortes de retención
 ```
 
 ### Estructura de Endpoints
 ```typescript
-// GET /api/appointments?dealership_id=xxx
+// GET /api/appointments?dealership_id=xxx&workshop_id=xxx
 // POST /api/appointments
 // PUT /api/appointments/[id]
 // DELETE /api/appointments/[id]
@@ -306,13 +383,33 @@ const { data, error } = await supabase
 }
 ```
 
-### Logging y Debugging
+### **Enhanced Logging Patterns**
 ```typescript
-// Usar console.log con emojis para mejor debugging
-console.log('🔄 Iniciando proceso...');
-console.log('✅ Proceso completado');
-console.log('❌ Error encontrado:', error);
-console.log('📊 Datos obtenidos:', data);
+// ✅ MEJORADO: Logging con contexto específico
+console.log('🔄 [APPOINTMENTS] Iniciando creación de cita...', {
+  client_id,
+  workshop_id,
+  service_id,
+  dealership_id
+});
+
+console.log('✅ [AI] Conversación evaluada exitosamente', {
+  conversation_id,
+  evaluation_status,
+  evaluated_by
+});
+
+console.log('❌ [WORKSHOP] Error al resolver workshop', {
+  dealership_id,
+  workshop_name,
+  error: error.message
+});
+
+console.log('📊 [LRF] Scores calculados', {
+  client_id,
+  lrf_composite_score,
+  current_segment
+});
 ```
 
 ## Integración con Supabase
@@ -335,6 +432,109 @@ const { data, error } = await supabase
 ### RLS (Row Level Security)
 - Todas las tablas principales tienen RLS habilitado
 - Filtrado automático por dealership_id
+
+## **AI & Analytics Patterns**
+```typescript
+// ✅ CORRECTO: Conversation Evaluation
+const evaluation = {
+  conversation_id: string,
+  evaluation_status: 'pending' | 'successful' | 'unsuccessful',
+  evaluation_tags: {
+    satisfaction: number,
+    resolution: boolean,
+    politeness: number,
+    efficiency: number
+  },
+  admin_comments: string | null,
+  evaluated_by: string | null
+};
+
+// ✅ CORRECTO: LRF Analytics
+const lrfData = {
+  client_id: string,
+  dealership_id: string,
+  length_score: number,
+  recency_score: number,
+  frequency_score: number,
+  lrf_composite_score: number,
+  current_segment: 'champions' | 'loyal_customers' | 'potential_loyalists' | 'at_risk' | 'cannot_lose' | 'new_customers' | 'lost_customers'
+};
+
+// ✅ CORRECTO: AI Performance Metrics
+const aiMetrics = {
+  dealership_id: string,
+  conversation_count: number,
+  success_rate: number,
+  average_duration: number,
+  customer_satisfaction: number,
+  period: 'daily' | 'weekly' | 'monthly'
+};
+```
+
+## **Communication Patterns**
+```typescript
+// ✅ CORRECTO: WhatsApp Integration
+const whatsappData = {
+  to: string, // Número de teléfono
+  message: string,
+  dealership_id: string,
+  channel: 'whatsapp'
+};
+
+// ✅ CORRECTO: SMS via Twilio
+const smsData = {
+  to: string, // Formato E.164 (+52...)
+  message: string,
+  dealership_id: string,
+  channel: 'twilio'
+};
+
+// ✅ CORRECTO: Phone Number Formatting
+function formatPhoneNumber(phone: string): string {
+  const cleaned = phone.replace(/\D/g, '');
+  if (cleaned.startsWith('52')) return `+${cleaned}`;
+  if (cleaned.length === 10) return `+52${cleaned}`;
+  return phone;
+}
+```
+
+## **Calendar Sharing Patterns**
+```typescript
+// ✅ CORRECTO: Calendar Token Generation
+const calendarToken = {
+  dealership_id: string,
+  token_hash: string, // Hash seguro del token
+  expires_at: string | null,
+  is_active: boolean,
+  created_by: string | null,
+  access_count: number
+};
+
+// ✅ CORRECTO: Calendar URL Generation
+const calendarUrl = `/calendar/${dealership_id}?token=${tokenHash}`;
+```
+
+## **Testing & Validation Patterns**
+```typescript
+// ✅ CORRECTO: Workshop Validation
+const validateWorkshopAccess = (dealershipId: string, workshopId: string) => {
+  // Verificar que el workshop pertenece al dealership
+  return workshopId && dealershipId;
+};
+
+// ✅ CORRECTO: Phone Number Validation
+const validatePhoneNumber = (phone: string): boolean => {
+  const cleaned = phone.replace(/\D/g, '');
+  return cleaned.length >= 10 && cleaned.length <= 15;
+};
+
+// ✅ CORRECTO: Date Validation for Appointments
+const validateAppointmentDate = (date: string, time: string): boolean => {
+  const appointmentDateTime = new Date(`${date}T${time}`);
+  const now = new Date();
+  return appointmentDateTime > now;
+};
+```
 
 ## UI/UX Patterns
 
