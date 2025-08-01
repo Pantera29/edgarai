@@ -397,13 +397,14 @@ export async function GET(request: Request) {
     // 🔄 NUEVO: Obtener datos del vehículo si se proporciona vehicle_id
     let finalVehicleMake = vehicleMake;
     let finalVehicleModel = vehicleModel;
+    let finalVehicleModelId = null;
     
     if (vehicleId && (!vehicleMake || !vehicleModel)) {
       console.log('🔍 Obteniendo datos del vehículo desde vehicle_id:', vehicleId);
       
       const { data: vehicle, error: vehicleError } = await supabase
         .from('vehicles')
-        .select('make, model')
+        .select('make, model, model_id')
         .eq('id_uuid', vehicleId)
         .single();
         
@@ -417,11 +418,13 @@ export async function GET(request: Request) {
       
       finalVehicleMake = vehicle.make;
       finalVehicleModel = vehicle.model;
+      finalVehicleModelId = vehicle.model_id;
       
       console.log('✅ Datos del vehículo obtenidos:', {
         vehicleId,
         make: finalVehicleMake,
-        model: finalVehicleModel
+        model: finalVehicleModel,
+        modelId: finalVehicleModelId
       });
     }
     
@@ -431,26 +434,103 @@ export async function GET(request: Request) {
         dealershipId,
         make: finalVehicleMake,
         model: finalVehicleModel,
-        source: vehicleId ? 'vehicle_id' : 'direct_params'
+        modelId: finalVehicleModelId,
+        source: vehicleId ? 'vehicle_id' : 'direct_params',
+        comparisonMethod: finalVehicleModelId ? 'model_id' : 'text'
       });
 
-      const { data: modelBlock, error: modelBlockError } = await supabase
-        .from('model_blocked_dates')
-        .select('*')
-        .eq('dealership_id', dealershipId)
-        .eq('make', finalVehicleMake.trim())
-        .eq('model', finalVehicleModel.trim())
-        .eq('is_active', true)
-        .lte('start_date', date)
-        .gte('end_date', date)
-        .maybeSingle();
+      // 🔄 NUEVO: Lógica de prioridad con fallback - usar model_id si está disponible, sino texto
+      let modelBlock = null;
+      let modelBlockError = null;
+      let comparisonMethod = 'text';
 
-      if (modelBlockError) {
-        console.error('Error fetching model blocked dates:', modelBlockError.message);
-        return NextResponse.json(
-          { message: 'Error checking model availability' },
-          { status: 500 }
-        );
+      if (finalVehicleModelId) {
+        // 🔄 PRIORIDAD 1: Buscar por model_id (más preciso)
+        console.log('🎯 Buscando bloqueo por model_id:', finalVehicleModelId);
+        
+        const { data: modelIdBlock, error: modelIdError } = await supabase
+          .from('model_blocked_dates')
+          .select('*')
+          .eq('dealership_id', dealershipId)
+          .eq('model_id', finalVehicleModelId)
+          .eq('is_active', true)
+          .lte('start_date', date)
+          .gte('end_date', date)
+          .maybeSingle();
+
+        if (modelIdError) {
+          console.error('Error fetching model blocked dates by model_id:', modelIdError.message);
+          return NextResponse.json(
+            { message: 'Error checking model availability' },
+            { status: 500 }
+          );
+        }
+
+        if (modelIdBlock) {
+          modelBlock = modelIdBlock;
+          comparisonMethod = 'model_id';
+          console.log('✅ Bloqueo encontrado por model_id');
+        } else {
+          // 🔄 FALLBACK: Si no encuentra por model_id, buscar por texto
+          console.log('🔄 No se encontró bloqueo por model_id, intentando por texto...');
+          
+          const { data: textBlock, error: textError } = await supabase
+            .from('model_blocked_dates')
+            .select('*')
+            .eq('dealership_id', dealershipId)
+            .eq('make', finalVehicleMake.trim())
+            .eq('model', finalVehicleModel.trim())
+            .eq('is_active', true)
+            .lte('start_date', date)
+            .gte('end_date', date)
+            .maybeSingle();
+
+          if (textError) {
+            console.error('Error fetching model blocked dates by text:', textError.message);
+            return NextResponse.json(
+              { message: 'Error checking model availability' },
+              { status: 500 }
+            );
+          }
+
+          if (textBlock) {
+            modelBlock = textBlock;
+            comparisonMethod = 'text_fallback';
+            console.log('✅ Bloqueo encontrado por fallback de texto');
+          } else {
+            console.log('✅ No se encontró bloqueo ni por model_id ni por texto');
+          }
+        }
+      } else {
+        // 🔄 PRIORIDAD 2: Solo comparar por texto (compatibilidad)
+        console.log('📝 Buscando bloqueo por texto:', { make: finalVehicleMake, model: finalVehicleModel });
+        
+        const { data: textBlock, error: textError } = await supabase
+          .from('model_blocked_dates')
+          .select('*')
+          .eq('dealership_id', dealershipId)
+          .eq('make', finalVehicleMake.trim())
+          .eq('model', finalVehicleModel.trim())
+          .eq('is_active', true)
+          .lte('start_date', date)
+          .gte('end_date', date)
+          .maybeSingle();
+
+        if (textError) {
+          console.error('Error fetching model blocked dates by text:', textError.message);
+          return NextResponse.json(
+            { message: 'Error checking model availability' },
+            { status: 500 }
+          );
+        }
+
+        if (textBlock) {
+          modelBlock = textBlock;
+          comparisonMethod = 'text';
+          console.log('✅ Bloqueo encontrado por texto');
+        } else {
+          console.log('✅ No se encontró bloqueo por texto');
+        }
       }
 
       if (modelBlock) {
@@ -459,8 +539,10 @@ export async function GET(request: Request) {
           dealershipId,
           make: finalVehicleMake,
           model: finalVehicleModel,
+          modelId: finalVehicleModelId,
           reason: modelBlock.reason,
-          vehicleId
+          vehicleId,
+          comparisonMethod: comparisonMethod
         });
         return NextResponse.json({
           availableSlots: [],
@@ -469,9 +551,11 @@ export async function GET(request: Request) {
           details: {
             make: finalVehicleMake,
             model: finalVehicleModel,
+            model_id: finalVehicleModelId,
             reason: modelBlock.reason,
             block_id: modelBlock.id,
-            vehicle_id: vehicleId
+            vehicle_id: vehicleId,
+            comparison_method: comparisonMethod
           }
         });
       }
@@ -480,7 +564,9 @@ export async function GET(request: Request) {
         date,
         make: finalVehicleMake,
         model: finalVehicleModel,
-        vehicleId
+        modelId: finalVehicleModelId,
+        vehicleId,
+        comparisonMethod: comparisonMethod
       });
     }
 
