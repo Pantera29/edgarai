@@ -609,6 +609,16 @@ function generateTimeSlots(
   const { format } = require('date-fns-tz');
   const currentTimeStr = format(currentTimeInDealershipTz, 'HH:mm:ss', { timeZone: timezone });
 
+  console.log('📋 Información del servicio:', {
+    serviceId: service?.id_uuid,
+    serviceName: service?.service_name,
+    durationMinutes: service?.duration_minutes,
+    dailyLimit: service?.daily_limit,
+    hasTimeRestrictions: service?.time_restriction_enabled,
+    timeRestrictionStart: service?.time_restriction_start_time,
+    timeRestrictionEnd: service?.time_restriction_end_time
+  });
+
   console.log('Tiempo actual en zona horaria del concesionario:', {
     currentTimeStr,
     timezone,
@@ -815,25 +825,47 @@ function generateTimeSlots(
   }
   
   // Generamos slots desde la apertura hasta el cierre
+  console.log('🔄 Iniciando generación de slots regulares:', {
+    regularStartTime: format(regularStartTime, 'HH:mm:ss'),
+    endTime: format(endTime, 'HH:mm:ss'),
+    slotDuration,
+    maxSimultaneous,
+    serviceDuration
+  });
+  
   let currentTime = regularStartTime;
   while (currentTime < endTime) {
     const timeStr = format(currentTime, 'HH:mm:ss');
     
+    console.log('🔄 Generando slot regular:', {
+      timeStr,
+      currentTime: format(currentTime, 'HH:mm:ss'),
+      slotDuration,
+      endTime: format(endTime, 'HH:mm:ss')
+    });
+    
     // Verificar si el slot está bloqueado
     const isBlocked = blockedDate?.blocked_slots?.includes(timeStr);
     
-    // Contar citas existentes en este slot usando solapamiento real
-    const slotMinutes = timeToMinutes(timeStr);
-    const slotEndMinutes = slotMinutes + slotDuration;
-    const occupiedSpaces = appointments.filter(app => {
-      const appStart = timeToMinutes(app.appointment_time);
-      const appEnd = appStart + (app.services?.duration_minutes || 60);
-      // Solapamiento real
-      return appStart < slotEndMinutes && appEnd > slotMinutes;
-    }).length;
+    // Verificar capacidad total del día
+    const totalMinutesAvailable = (closingMinutes - openingMinutes) * maxSimultaneous;
+    const totalMinutesBooked = appointments.reduce((total, app) => {
+      return total + (app.services?.duration_minutes || 60);
+    }, 0);
+    const remainingMinutesAvailable = totalMinutesAvailable - totalMinutesBooked;
 
-    // Calcular disponibilidad considerando maxSimultaneous
-    const available = isBlocked ? 0 : Math.max(0, maxSimultaneous - occupiedSpaces);
+    console.log('📊 Análisis de capacidad total:', {
+      slot: timeStr,
+      totalMinutesAvailable,
+      totalMinutesBooked,
+      remainingMinutesAvailable,
+      serviceDuration,
+      hasCapacity: remainingMinutesAvailable >= serviceDuration
+    });
+
+    // Verificar si hay capacidad total disponible
+    const hasCapacity = remainingMinutesAvailable >= serviceDuration;
+    const available = isBlocked ? 0 : (hasCapacity ? 1 : 0);
     
     slots.push({ time: timeStr, available });
     
@@ -842,20 +874,43 @@ function generateTimeSlots(
   }
 
   // Verificar disponibilidad para cada slot
+  console.log('🔍 Iniciando validación de slots generados:', {
+    totalSlots: slots.length,
+    slots: slots.map(s => ({ time: s.time, available: s.available }))
+  });
+  
   for (let i = 0; i < slots.length; i++) {
     const slot = slots[i];
+    
+    console.log('✅ Validando slot:', {
+      slot: slot.time,
+      available: slot.available,
+      maxSimultaneous
+    });
+    
     let exactSlotAppointments = [];
     if (maxArrivalsPerSlot !== null) {
       exactSlotAppointments = appointments.filter(app => 
         app.appointment_time === slot.time
       );
     }
-    const slotStartMinutes = timeToMinutes(slot.time);
-    const slotEndMinutes = slotStartMinutes + serviceDuration;
-    const overlappingAppointments = appointments.filter(app => {
-      const appStart = timeToMinutes(app.appointment_time);
-      const appEnd = appStart + (app.services?.duration_minutes || 60);
-      return appStart < slotEndMinutes && appEnd > slotStartMinutes;
+    // Verificar capacidad total del día (ya calculada en la generación de slots)
+    const totalMinutesAvailable = (closingMinutes - openingMinutes) * maxSimultaneous;
+    const totalMinutesBooked = appointments.reduce((total, app) => {
+      return total + (app.services?.duration_minutes || 60);
+    }, 0);
+    const remainingMinutesAvailable = totalMinutesAvailable - totalMinutesBooked;
+    const hasCapacity = remainingMinutesAvailable >= serviceDuration;
+
+    console.log('🔍 Análisis detallado de slot:', {
+      slot: slot.time,
+      serviceDuration,
+      totalMinutesAvailable,
+      totalMinutesBooked,
+      remainingMinutesAvailable,
+      hasCapacity,
+      exactSlotAppointments: exactSlotAppointments.length,
+      maxArrivalsPerSlot
     });
 
     // Si es el día actual, verificar si el horario ya pasó
@@ -863,6 +918,12 @@ function generateTimeSlots(
       const slotMinutes = timeToMinutes(slot.time);
       const currentMinutes = timeToMinutes(currentTimeStr);
       if (slotMinutes <= currentMinutes) {
+        console.log('⏰ Slot descartado por ya haber pasado:', {
+          slot: slot.time,
+          slotMinutes,
+          currentMinutes,
+          currentTime: currentTimeStr
+        });
         continue; // Saltar slots que ya pasaron
       }
     }
@@ -871,25 +932,53 @@ function generateTimeSlots(
     if (receptionEndTime) {
       const slotTime = timeToMinutes(slot.time);
       const receptionEndMinutes = timeToMinutes(receptionEndTime);
-      if (slotTime > receptionEndMinutes) continue;
+      if (slotTime > receptionEndMinutes) {
+        console.log('🚫 Slot descartado por horario de recepción:', {
+          slot: slot.time,
+          slotTime,
+          receptionEndTime,
+          receptionEndMinutes
+        });
+        continue;
+      }
     }
 
     const slotStartTime = parse(slot.time, 'HH:mm:ss', new Date());
     const slotEndTime = addMinutes(slotStartTime, serviceDuration);
     const closingTime = parse(schedule.closing_time, 'HH:mm:ss', new Date());
     if (!isBefore(slotEndTime, closingTime)) {
+      console.log('⏰ Slot descartado por no caber en horario:', {
+        slot: slot.time,
+        slotEndTime: format(slotEndTime, 'HH:mm:ss'),
+        closingTime: format(closingTime, 'HH:mm:ss'),
+        serviceDuration
+      });
       continue; // No cabe en el horario de operación
     }
 
     // Verificar política de llegadas por slot
     if (maxArrivalsPerSlot !== null) {
       if (exactSlotAppointments.length >= maxArrivalsPerSlot) {
+        console.log('👥 Slot descartado por política de llegadas:', {
+          slot: slot.time,
+          exactSlotAppointments: exactSlotAppointments.length,
+          maxArrivalsPerSlot,
+          appointments: exactSlotAppointments.map(app => ({
+            time: app.appointment_time,
+            serviceId: app.service_id
+          }))
+        });
         continue;
       }
     }
 
-    // Verificar capacidad simultánea
-    if (overlappingAppointments.length >= maxSimultaneous) {
+    // Verificar capacidad total del día (ya calculada arriba)
+    if (!hasCapacity) {
+      console.log('🚫 Slot descartado por falta de capacidad total:', {
+        slot: slot.time,
+        remainingMinutesAvailable,
+        serviceDuration
+      });
       continue;
     }
 
@@ -901,7 +990,7 @@ function generateTimeSlots(
       
       // Verificar si el slot está dentro del rango permitido
       if (slotTimeMinutes < restrictionStartMinutes || slotTimeMinutes > restrictionEndMinutes) {
-        console.log('Slot descartado por restricción de horario:', {
+        console.log('🔒 Slot descartado por restricción de horario:', {
           slot: slot.time,
           serviceName: service.service_name,
           restrictionStart: service.time_restriction_start_time,
@@ -913,6 +1002,13 @@ function generateTimeSlots(
         continue; // Saltar este slot
       }
     }
+
+    console.log('✅ Slot agregado como disponible:', {
+      slot: slot.time,
+      hasCapacity,
+      remainingMinutesAvailable,
+      serviceDuration
+    });
 
     availableSlots.push(slot.time);
   }
@@ -1384,34 +1480,28 @@ async function calculateAvailableSlotsSimplified(
       }
     }
 
-    // Verificar si hay espacio en este slot
-    // 🔄 CORRECCIÓN: Considerar TODAS las citas de la agencia para calcular capacidad del taller
-    const overlappingAppointments = appointments.filter(app => {
-      const appStart = timeToMinutes(app.appointment_time);
-      const appEnd = appStart + (app.services?.duration_minutes || 60);
-      const slotStart = timeToMinutes(slot);
-      const slotEnd = slotStart + serviceDuration; // Usar duración del servicio
-      
-      return appStart < slotEnd && appEnd > slotStart;
-    });
-
-    const availableSpaces = Math.max(0, maxSimultaneous - overlappingAppointments.length);
+    // Verificar capacidad total del día
+    const openingMinutes = timeToMinutes(schedule.opening_time);
+    const closingMinutes = timeToMinutes(schedule.closing_time);
+    const totalMinutesAvailable = (closingMinutes - openingMinutes) * maxSimultaneous;
+    const totalMinutesBooked = appointments.reduce((total, app) => {
+      return total + (app.services?.duration_minutes || 60);
+    }, 0);
+    const remainingMinutesAvailable = totalMinutesAvailable - totalMinutesBooked;
+    const hasCapacity = remainingMinutesAvailable >= serviceDuration;
     
     // 🔄 NUEVO: Logging detallado para debugging
-    if (overlappingAppointments.length > 0) {
-      console.log('Slot con citas solapadas:', {
+    if (!hasCapacity) {
+      console.log('Slot descartado por falta de capacidad total:', {
         slot,
-        overlappingAppointments: overlappingAppointments.map(app => ({
-          time: app.appointment_time,
-          duration: app.services?.duration_minutes || 60,
-          serviceId: app.service_id
-        })),
-        availableSpaces,
-        maxSimultaneous
+        totalMinutesAvailable,
+        totalMinutesBooked,
+        remainingMinutesAvailable,
+        serviceDuration
       });
     }
     
-    return availableSpaces > 0;
+    return hasCapacity;
   });
 
   console.log('📊 Slots filtrados:', {
