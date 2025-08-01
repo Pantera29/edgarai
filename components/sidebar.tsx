@@ -127,6 +127,11 @@ const menuItems: MenuItem[] = [
         icon: CalendarX
       },
       {
+        title: "Bloqueos por Modelo",
+        href: "/backoffice/admin/bloqueos-modelos",
+        icon: Car
+      },
+      {
         title: "Configuración recordatorios",
         href: "/backoffice/admin/recordatorios-automaticos",
         icon: Bell

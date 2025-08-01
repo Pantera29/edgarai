@@ -389,6 +389,65 @@ export async function GET(request: Request) {
       });
     }
 
+    // 4.5. Verificar bloqueos por modelo específico
+    const vehicleMake = searchParams.get('vehicle_make');
+    const vehicleModel = searchParams.get('vehicle_model');
+    
+    if (vehicleMake && vehicleModel) {
+      console.log('🔄 Verificando bloqueos por modelo:', {
+        date,
+        dealershipId,
+        make: vehicleMake,
+        model: vehicleModel
+      });
+
+      const { data: modelBlock, error: modelBlockError } = await supabase
+        .from('model_blocked_dates')
+        .select('*')
+        .eq('dealership_id', dealershipId)
+        .eq('make', vehicleMake.trim())
+        .eq('model', vehicleModel.trim())
+        .eq('is_active', true)
+        .lte('start_date', date)
+        .gte('end_date', date)
+        .maybeSingle();
+
+      if (modelBlockError) {
+        console.error('Error fetching model blocked dates:', modelBlockError.message);
+        return NextResponse.json(
+          { message: 'Error checking model availability' },
+          { status: 500 }
+        );
+      }
+
+      if (modelBlock) {
+        console.log('❌ Modelo bloqueado encontrado:', {
+          date,
+          dealershipId,
+          make: vehicleMake,
+          model: vehicleModel,
+          reason: modelBlock.reason
+        });
+        return NextResponse.json({
+          availableSlots: [],
+          message: `Vehicle model ${vehicleMake} ${vehicleModel} is not available for service on this date: ${modelBlock.reason}`,
+          error_code: 'MODEL_BLOCKED',
+          details: {
+            make: vehicleMake,
+            model: vehicleModel,
+            reason: modelBlock.reason,
+            block_id: modelBlock.id
+          }
+        });
+      }
+
+      console.log('✅ Modelo disponible para la fecha:', {
+        date,
+        make: vehicleMake,
+        model: vehicleModel
+      });
+    }
+
     // 5. Obtener citas existentes para ese día y taller específico
     console.log('🔍 Consultando citas existentes:', {
       date,
