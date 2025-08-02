@@ -948,22 +948,15 @@ function generateTimeSlots(
       }
     }
     
-    // Verificar solapamiento con citas existentes (capacidad del taller)
-    const slotStartMinutes = timeToMinutes(customSlot);
-    const slotEndMinutes = slotStartMinutes + serviceDuration;
-    
-    const overlappingAppointments = appointments.filter(app => {
-      const appStart = timeToMinutes(app.appointment_time);
-      const appEnd = appStart + (app.services?.duration_minutes || 60);
-      return appStart < slotEndMinutes && appEnd > slotStartMinutes;
-    });
-    
-    // Verificar capacidad del taller
-    const occupiedSpaces = overlappingAppointments.length;
-    const availableSpaces = Math.max(0, maxSimultaneous - occupiedSpaces);
+    // Verificar capacidad total del día (sin solapamiento)
+    const totalMinutesAvailable = (closingMinutes - openingMinutes) * maxSimultaneous;
+    const totalMinutesBooked = appointments.reduce((total, app) => {
+      return total + (app.services?.duration_minutes || 60);
+    }, 0);
+    const remainingMinutesAvailable = totalMinutesAvailable - totalMinutesBooked;
 
     // 🔄 NUEVO: Validar restricciones de horario específicas del servicio para slots custom
-    let shouldAddSlot = availableSpaces > 0;
+    let shouldAddSlot = remainingMinutesAvailable >= serviceDuration;
     if (shouldAddSlot && service?.time_restriction_enabled) {
       const slotTimeMinutes = timeToMinutes(customSlot);
       const restrictionStartMinutes = timeToMinutes(service.time_restriction_start_time);
@@ -988,18 +981,21 @@ function generateTimeSlots(
       availableSlots.push(customSlot);
       console.log('Slot custom agregado:', {
         slot: customSlot,
-        occupiedSpaces,
-        availableSpaces,
-        maxSimultaneous,
+        totalMinutesAvailable,
+        totalMinutesBooked,
+        remainingMinutesAvailable,
+        serviceDuration,
         maxArrivalsPerSlot,
         exactSlotAppointments: maxArrivalsPerSlot !== null ? exactSlotAppointments.length : 'N/A',
         hasTimeRestrictions: service?.time_restriction_enabled || false
       });
     } else {
-      console.log('Slot custom OCUPADO por capacidad del taller o restricciones:', {
+      console.log('Slot custom OCUPADO por capacidad total del día o restricciones:', {
         slot: customSlot,
-        occupiedSpaces,
-        maxSimultaneous,
+        totalMinutesAvailable,
+        totalMinutesBooked,
+        remainingMinutesAvailable,
+        serviceDuration,
         hasTimeRestrictions: service?.time_restriction_enabled || false
       });
     }
@@ -1240,26 +1236,7 @@ function isTimeBlocked(time: string, blockedDate: any) {
   );
 }
 
-// Función para contar espacios ocupados en un slot de tiempo
-function countOccupiedSpaces(time: string, appointments: any[], slotDuration: number) {
-  return appointments.filter(app => {
-    const appTime = app.appointment_time;
-    const appDuration = app.services?.duration_minutes || 60;
-    
-    // Convertir a minutos desde medianoche para facilitar la comparación
-    const timeMinutes = timeToMinutes(time);
-    const appTimeMinutes = timeToMinutes(appTime);
-    const appEndMinutes = appTimeMinutes + appDuration;
-    
-    // El slot está ocupado si:
-    // 1. La cita comienza durante este slot, O
-    // 2. La cita está en progreso durante este slot
-    return (
-      (appTimeMinutes <= timeMinutes && appEndMinutes > timeMinutes) ||
-      (appTimeMinutes >= timeMinutes && appTimeMinutes < (timeMinutes + slotDuration))
-    );
-  }).length;
-}
+
 
 // Función auxiliar para convertir hora (HH:mm:ss) a minutos desde medianoche
 function timeToMinutes(timeStr: string) {
