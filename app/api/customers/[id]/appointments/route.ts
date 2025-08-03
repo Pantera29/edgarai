@@ -37,7 +37,14 @@ export async function GET(
     if (!clientId) {
       console.log('❌ Error: ID de cliente no proporcionado');
       return NextResponse.json(
-        { message: 'Client ID is required' },
+        { 
+          message: 'Client ID is required in URL path. Please provide a valid client UUID.',
+          error_code: 'MISSING_CLIENT_ID',
+          details: {
+            url_format: '/api/customers/{client_uuid}/appointments',
+            example: '/api/customers/123e4567-e89b-12d3-a456-426614174000/appointments'
+          }
+        },
         { status: 400 }
       );
     }
