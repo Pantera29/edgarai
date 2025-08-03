@@ -92,13 +92,15 @@ export async function GET(request: Request) {
       finalModelId = vehicle.model_id;
       console.log('✅ [Price API] Modelo encontrado por vehicle_id:', finalModelId);
     }
-    // Caso 2: Si se proporciona model_id
-    else if (modelId) {
+    
+    // Caso 2: Si se proporciona model_id (o si vehicle_id no tuvo model_id)
+    if (!finalModelId && modelId) {
       console.log('✅ [Price API] Usando model_id proporcionado:', modelId);
       finalModelId = modelId;
     }
-    // Caso 3: Si se proporciona model_name
-    else if (modelName) {
+    
+    // Caso 3: Si se proporciona model_name (o como fallback si vehicle_id no tuvo model_id)
+    if (!finalModelId && modelName) {
       console.log('🔍 [Price API] Buscando modelo por nombre con lógica flexible:', modelName);
 
       const normalizedModelName = normalizeString(modelName);
