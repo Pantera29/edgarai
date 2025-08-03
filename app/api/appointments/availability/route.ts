@@ -10,8 +10,8 @@ export async function GET(request: Request) {
     const supabase = createServerComponentClient({ cookies });
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
-    const service_id = searchParams.get('service_id');
-    const specific_service_id = searchParams.get('specific_service_id');
+    const service_id = searchParams.get('service_id') || '';
+    const specific_service_id = searchParams.get('specific_service_id') || '';
     const dealershipId = searchParams.get('dealership_id');
     const workshopId = searchParams.get('workshop_id');
 
@@ -48,9 +48,29 @@ export async function GET(request: Request) {
         finalServiceId = specificService.service_id;
         console.log('✅ Service ID resuelto:', finalServiceId);
       } else {
-        console.log('❌ Specific service not found:', specific_service_id);
+        console.error('❌ Specific service not found or service_id not configured:', {
+          specific_service_id,
+          service_id,
+          requestUrl: request.url,
+          searchParams: Object.fromEntries(searchParams.entries())
+        });
+        
         return NextResponse.json(
-          { message: 'Specific service not found or service_id not configured' },
+          { 
+            message: 'Specific service not found or service_id not configured. Please verify the specific_service_id exists and has a valid service_id configured.',
+            error_code: 'SPECIFIC_SERVICE_NOT_FOUND',
+            details: {
+              specific_service_id,
+              provided_service_id: service_id,
+              suggestion: 'Please verify that the specific_service_id exists in the specific_services table and has a valid service_id configured. If you have a service_id, use that parameter instead.',
+              troubleshooting: [
+                'Check if the specific_service_id exists in the specific_services table',
+                'Verify the specific_service_id has a valid service_id configured',
+                'If you have the service_id, use the service_id parameter instead of specific_service_id',
+                'Confirm the specific service belongs to the correct dealership'
+              ]
+            }
+          },
           { status: 404 }
         );
       }
@@ -86,10 +106,34 @@ export async function GET(request: Request) {
       .single();
 
     if (serviceError || !service) {
-      console.error('Error fetching service:', serviceError?.message);
+      console.error('❌ Service not found or error fetching service:', {
+        serviceId: finalServiceId,
+        provided_service_id: service_id,
+        provided_specific_service_id: specific_service_id,
+        error: serviceError?.message,
+        requestUrl: request.url,
+        searchParams: Object.fromEntries(searchParams.entries())
+      });
+      
       return NextResponse.json(
-        { message: 'Error fetching service details' },
-        { status: 500 }
+        { 
+          message: 'Service not found. The provided service_id does not exist in the database.',
+          error_code: 'SERVICE_NOT_FOUND',
+          details: {
+            service_id: finalServiceId,
+            provided_service_id: service_id,
+            provided_specific_service_id: specific_service_id,
+            error_type: 'SERVICE_NOT_FOUND',
+            suggestion: 'Please verify that the service_id is correct and exists in the database. If you are using specific_service_id, ensure it is properly configured with a valid service_id.',
+            troubleshooting: [
+              'Check if the service_id exists in the services table',
+              'Verify the service_id format (should be a valid UUID)',
+              'If using specific_service_id, ensure it has a valid service_id configured',
+              'Confirm the service belongs to the correct dealership'
+            ]
+          }
+        },
+        { status: 404 }
       );
     }
 
