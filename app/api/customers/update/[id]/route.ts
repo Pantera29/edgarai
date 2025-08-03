@@ -32,6 +32,48 @@ export async function PATCH(
       );
     }
 
+    // Validar formato del UUID antes de consultar la base de datos
+    const isUuidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId || '');
+
+    if (!isUuidFormat) {
+      console.log('❌ Formato de UUID inválido - posible error de MCP:', {
+        provided_id: clientId,
+        id_length: clientId?.length,
+        looks_like_phone: clientId?.length === 10 && /^\d+$/.test(clientId || ''),
+        looks_like_email: clientId?.includes('@'),
+        user_agent: request.headers.get('user-agent'),
+        timestamp: new Date().toISOString(),
+        error_type: 'INVALID_UUID_FORMAT'
+      });
+      
+      return NextResponse.json(
+        { 
+          message: 'ERROR: You provided a phone number instead of a client ID. The client ID must be a UUID, not a phone number.',
+          error_code: 'INVALID_UUID_FORMAT',
+          details: {
+            provided_id: clientId,
+            id_length: clientId?.length,
+            detected_type: clientId?.length === 10 && /^\d+$/.test(clientId || '') ? 'phone_number' : 
+                          clientId?.includes('@') ? 'email' : 'unknown',
+            correct_format: 'UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+          },
+          instructions: {
+            step_1: 'First, search for the client using the phone number to get the correct client ID',
+            step_2: 'Use the returned client ID (UUID) in the update request',
+            search_endpoint: 'GET /api/customers/verify?phone={phone_number}&dealership_id={dealership_id}',
+            update_endpoint: 'PATCH /api/customers/update/{client_uuid}',
+            note: 'The dealership_id parameter is optional but recommended to ensure you get the correct client from the right dealership.'
+          },
+          examples: {
+            wrong: '/api/customers/update/5575131257',
+            correct: '/api/customers/update/123e4567-e89b-12d3-a456-426614174000',
+            search_example: '/api/customers/verify?phone=5575131257&dealership_id=6fa78291-c16a-4c78-9fe2-9e3695d24d48'
+          }
+        },
+        { status: 400 }
+      );
+    }
+
     // Verificar si el cliente existe y obtener su dealership_id
     const { data: clientExists, error: checkError } = await supabase
       .from('client')
@@ -40,8 +82,22 @@ export async function PATCH(
       .maybeSingle();
 
     if (checkError) {
+      console.error('❌ Error de base de datos al verificar cliente:', {
+        client_id: clientId,
+        error: checkError.message,
+        details: checkError.details,
+        timestamp: new Date().toISOString()
+      });
+      
       return NextResponse.json(
-        { message: 'Error checking client existence in database.' },
+        { 
+          message: 'Database error while checking client. Please verify the client ID format and try again.',
+          error_code: 'DATABASE_ERROR',
+          details: {
+            provided_id: clientId,
+            error_type: 'client_existence_check_failed'
+          }
+        },
         { status: 500 }
       );
     }
