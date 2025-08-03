@@ -62,8 +62,9 @@ export async function GET(request: Request) {
             details: {
               specific_service_id,
               provided_service_id: service_id,
-              suggestion: 'Please verify that the specific_service_id exists in the specific_services table and has a valid service_id configured. If you have a service_id, use that parameter instead.',
+              suggestion: 'The provided specific_service_id does not exist or is not properly configured. You might be trying to use a service_id instead. Try using the service_id parameter if you have a service identifier, or verify the specific_service_id exists and has a valid service_id configured.',
               troubleshooting: [
+                'You might be using a service_id value with the specific_service_id parameter. Try using service_id instead.',
                 'Check if the specific_service_id exists in the specific_services table',
                 'Verify the specific_service_id has a valid service_id configured',
                 'If you have the service_id, use the service_id parameter instead of specific_service_id',
@@ -124,9 +125,13 @@ export async function GET(request: Request) {
             provided_service_id: service_id,
             provided_specific_service_id: specific_service_id,
             error_type: 'SERVICE_NOT_FOUND',
-            suggestion: 'Please verify that the service_id is correct and exists in the database. If you are using specific_service_id, ensure it is properly configured with a valid service_id.',
+            suggestion: service_id && !specific_service_id 
+              ? 'The provided service_id does not exist. You might be trying to use a specific_service_id instead. Try using the specific_service_id parameter if you have a specific service identifier, or verify the service_id exists in the database.'
+              : 'Please verify that the service_id is correct and exists in the database. If you are using specific_service_id, ensure it is properly configured with a valid service_id.',
             troubleshooting: [
-              'Check if the service_id exists in the services table',
+              service_id && !specific_service_id 
+                ? 'You might be using a specific_service_id value with the service_id parameter. Try using specific_service_id instead.'
+                : 'Check if the service_id exists in the services table',
               'Verify the service_id format (should be a valid UUID)',
               'If using specific_service_id, ensure it has a valid service_id configured',
               'Confirm the service belongs to the correct dealership'
