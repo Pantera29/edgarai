@@ -9,6 +9,14 @@ export async function PATCH(
   try {
     const supabase = createServerComponentClient({ cookies });
     const clientId = params.id;
+    
+    console.log('🔍 Iniciando actualización de cliente:', {
+      client_id: clientId,
+      id_length: clientId?.length,
+      is_uuid_format: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId || ''),
+      user_agent: request.headers.get('user-agent'),
+      timestamp: new Date().toISOString()
+    });
 
     if (!clientId) {
       return NextResponse.json(
@@ -39,15 +47,40 @@ export async function PATCH(
     }
 
     if (!clientExists) {
+      console.log('❌ Cliente no encontrado - posible error de MCP:', {
+        provided_id: clientId,
+        id_length: clientId?.length,
+        is_uuid_format: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId || ''),
+        looks_like_phone: clientId?.length === 10 && /^\d+$/.test(clientId || ''),
+        looks_like_email: clientId?.includes('@'),
+        user_agent: request.headers.get('user-agent'),
+        timestamp: new Date().toISOString(),
+        error_type: 'MCP_PHONE_NUMBER_INSTEAD_OF_UUID'
+      });
+      
       return NextResponse.json(
         { 
-          message: 'Client not found with the provided ID. Please ensure you are using the correct client UUID (not phone number or email). Use the client ID from the client record, not the phone number.',
+          message: 'ERROR: You provided a phone number instead of a client ID. The client ID must be a UUID, not a phone number.',
           error_code: 'CLIENT_NOT_FOUND',
           details: {
             provided_id: clientId,
             id_length: clientId?.length,
             is_uuid_format: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId || ''),
-            suggestion: 'If you have a phone number, first search for the client using the phone number to get the correct client ID, then use that ID for updates.'
+            detected_type: clientId?.length === 10 && /^\d+$/.test(clientId || '') ? 'phone_number' : 
+                          clientId?.includes('@') ? 'email' : 'unknown',
+            correct_format: 'UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx'
+          },
+          instructions: {
+            step_1: 'First, search for the client using the phone number to get the correct client ID',
+            step_2: 'Use the returned client ID (UUID) in the update request',
+            search_endpoint: 'GET /api/customers/verify?phone={phone_number}&dealership_id={dealership_id}',
+            update_endpoint: 'PATCH /api/customers/update/{client_uuid}',
+            note: 'The dealership_id parameter is optional but recommended to ensure you get the correct client from the right dealership.'
+          },
+          examples: {
+            wrong: '/api/customers/update/5575131257',
+            correct: '/api/customers/update/123e4567-e89b-12d3-a456-426614174000',
+            search_example: '/api/customers/verify?phone=5575131257&dealership_id=6fa78291-c16a-4c78-9fe2-9e3695d24d48'
           }
         },
         { status: 404 }
@@ -145,12 +178,25 @@ export async function PATCH(
       );
     }
 
+    console.log('✅ Cliente actualizado exitosamente:', {
+      client_id: clientId,
+      updated_fields: Object.keys(updateData),
+      timestamp: new Date().toISOString()
+    });
+    
     return NextResponse.json({
       message: 'Cliente actualizado exitosamente.',
       client: data
     });
 
   } catch (error) {
+    console.error('💥 Error inesperado al actualizar el cliente:', {
+      client_id: params?.id,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
+    
     return NextResponse.json(
       { message: 'Error inesperado al actualizar el cliente.' },
       { status: 500 }
