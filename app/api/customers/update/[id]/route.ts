@@ -12,7 +12,14 @@ export async function PATCH(
 
     if (!clientId) {
       return NextResponse.json(
-        { message: 'Client ID is required in URL path.' },
+        { 
+          message: 'Client ID is required in URL path. Please provide a valid client UUID in the URL path.',
+          error_code: 'MISSING_CLIENT_ID',
+          details: {
+            url_format: '/api/customers/update/{client_uuid}',
+            example: '/api/customers/update/123e4567-e89b-12d3-a456-426614174000'
+          }
+        },
         { status: 400 }
       );
     }
@@ -33,7 +40,16 @@ export async function PATCH(
 
     if (!clientExists) {
       return NextResponse.json(
-        { message: 'Client not found with the provided ID.' },
+        { 
+          message: 'Client not found with the provided ID. Please ensure you are using the correct client UUID (not phone number or email). Use the client ID from the client record, not the phone number.',
+          error_code: 'CLIENT_NOT_FOUND',
+          details: {
+            provided_id: clientId,
+            id_length: clientId?.length,
+            is_uuid_format: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(clientId || ''),
+            suggestion: 'If you have a phone number, first search for the client using the phone number to get the correct client ID, then use that ID for updates.'
+          }
+        },
         { status: 404 }
       );
     }
