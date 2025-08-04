@@ -49,6 +49,45 @@ function processTemplate(template: string, data: any): string {
   });
 }
 
+function processTemplateWithConditionals(template: string, data: any): string {
+  console.log('🔍 Debug - Template original:', template);
+  console.log('🔍 Debug - Data recibida:', data);
+  
+  // Primero procesar condicionales para VIN
+  let processed = template;
+  
+  // Buscar y procesar condicionales VIN
+  const vinRegex = /\{\{vin_if_exists\}\}([\s\S]*?)\{\{\/vin_if_exists\}\}/g;
+  let match;
+  
+  while ((match = vinRegex.exec(template)) !== null) {
+    console.log('🔍 Debug - Encontrado condicional VIN:', { 
+      fullMatch: match[0], 
+      content: match[1], 
+      hasVin: !!data.vehicle_vin,
+      vehicleVin: data.vehicle_vin,
+      vinLength: data.vehicle_vin?.length,
+      vinType: typeof data.vehicle_vin,
+      vinIsTruthy: !!data.vehicle_vin,
+      vinIsEmptyString: data.vehicle_vin === '',
+      vinIsNull: data.vehicle_vin === null,
+      vinIsUndefined: data.vehicle_vin === undefined
+    });
+    const shouldInclude = data.vehicle_vin && data.vehicle_vin.trim() !== '';
+    console.log('🔍 Debug - Decisión final:', { shouldInclude, finalContent: shouldInclude ? match[1] : '' });
+    processed = processed.replace(match[0], shouldInclude ? match[1] : '');
+  }
+  
+  console.log('🔍 Debug - Después de procesar condicionales:', processed);
+  
+  // Luego procesar las variables normales
+  processed = processTemplate(processed, data);
+  
+  console.log('🔍 Debug - Template final procesado:', processed);
+  
+  return processed;
+}
+
 export async function POST(request: Request) {
   try {
     console.log('🚀 [N8N Send] Iniciando envío via N8N...');
@@ -76,7 +115,7 @@ export async function POST(request: Request) {
       .select(`
         *,
         client:client_id_uuid (names, phone_number, dealership_id),
-        vehicles:vehicle_id (make, model, year, license_plate),
+        vehicles:vehicle_id (make, model, year, license_plate, vin),
         services:service_id (service_name),
         appointment:appointment_id (appointment_date, appointment_time)
       `)
@@ -100,7 +139,11 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('✅ [N8N Send] Recordatorio obtenido');
+    console.log('✅ [N8N Send] Recordatorio obtenido:', {
+      clientName: recordatorio.client?.names,
+      vehicleModel: recordatorio.vehicles?.model,
+      vehicleVin: recordatorio.vehicles?.vin
+    });
 
     // 3. Obtener template de mensaje
     console.log('📝 [N8N Send] Obteniendo template:', template_type);
@@ -148,6 +191,7 @@ export async function POST(request: Request) {
       vehicle_make: recordatorio.vehicles?.make || '',
       vehicle_model: recordatorio.vehicles?.model || '',
       vehicle_year: recordatorio.vehicles?.year || '',
+      vehicle_vin: recordatorio.vehicles?.vin || '',
       service_name: recordatorio.services?.service_name || 'servicio',
       appointment_date: recordatorio.appointment?.appointment_date ? 
         format(parseISO(recordatorio.appointment.appointment_date), 'dd/MM/yyyy') : '',
@@ -155,8 +199,8 @@ export async function POST(request: Request) {
         format(parseISO(`2000-01-01T${recordatorio.appointment.appointment_time}`), 'HH:mm') : ''
     };
 
-    const processedMessage = processTemplate(template.message_template, templateData);
-    console.log('✅ [N8N Send] Template procesado');
+    const processedMessage = processTemplateWithConditionals(template.message_template, templateData);
+    console.log('✅ [N8N Send] Template procesado:', processedMessage);
 
     // 6. Formatear número de teléfono
     const formattedPhone = formatPhoneToN8n(recordatorio.client?.phone_number || '');
