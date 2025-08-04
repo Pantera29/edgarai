@@ -60,7 +60,7 @@ function processTemplateWithConditionals(template: string, data: any): string {
   
   // Procesar condicionales para VIN
   processed = processed.replace(
-    /\{\{vin_if_exists\}\}(.*?)\{\{\/vin_if_exists\}\}/gs,
+    /\{\{vin_if_exists\}\}([\s\S]*?)\{\{\/vin_if_exists\}\}/g,
     (match, content) => {
       return data.vehicle_vin ? content : '';
     }
