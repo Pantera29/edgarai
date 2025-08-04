@@ -601,6 +601,27 @@ export function AppointmentCalendar({
   // Función para traducir mensajes conocidos
   const traducirMensajeDisponibilidad = (msg: string | null): string => {
     if (!msg) return 'No hay horarios disponibles';
+    
+    // Traducir mensajes completos del inglés al español
+    if (msg.includes('No availability for the requested date')) {
+      if (msg.includes('Daily limit reached')) {
+        return 'No hay disponibilidad para la fecha solicitada. Se alcanzó el límite diario para este servicio. Aquí tienes fechas alternativas con disponibilidad: Los horarios específicos se mostrarán cuando seleccione una fecha.';
+      }
+      if (msg.includes('not a working day')) {
+        return 'No hay disponibilidad para la fecha solicitada. El concesionario no opera en el día seleccionado. Aquí tienes fechas alternativas con disponibilidad: Los horarios específicos se mostrarán cuando seleccione una fecha.';
+      }
+      if (msg.includes('blocked')) {
+        return 'No hay disponibilidad para la fecha solicitada. El día está bloqueado para agendar citas. Aquí tienes fechas alternativas con disponibilidad: Los horarios específicos se mostrarán cuando seleccione una fecha.';
+      }
+      return 'No hay disponibilidad para la fecha solicitada. Aquí tienes fechas alternativas con disponibilidad: Los horarios específicos se mostrarán cuando seleccione una fecha.';
+    }
+    
+    // Remover la nota técnica sobre slots no incluidos y reemplazarla con un mensaje más amigable
+    if (msg.includes('Note: Time slots are not included')) {
+      const baseMessage = msg.replace(' (Note: Time slots are not included in this response for optimization. If you want to display available times, you must make a separate request with the selected date.)', '');
+      return baseMessage + ' Los horarios específicos se mostrarán cuando seleccione una fecha.';
+    }
+    
     // Mapeo de mensajes conocidos del endpoint
     if (msg.includes('is not available on')) return 'El servicio no está disponible en el día seleccionado. Por favor, elige otro día o consulta con el taller.';
     if (msg.includes('Daily limit reached')) return 'Se alcanzó el límite diario de citas para este servicio.';
