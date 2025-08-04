@@ -166,7 +166,7 @@ export async function POST(request: Request) {
     // 3. Verificar que el servicio existe
     const { data: service, error: serviceError } = await supabase
       .from('services')
-      .select('id_uuid')
+      .select('id_uuid, daily_limit, service_name')
       .eq('id_uuid', finalServiceId)  // ← Usar finalServiceId
       .maybeSingle();
 
@@ -210,7 +210,80 @@ export async function POST(request: Request) {
       providedWorkshopId: workshop_id
     });
 
-    // 5. Verificar disponibilidad antes de crear la cita
+    // 5. NUEVO: Validar límite diario del servicio
+    if (service.daily_limit !== null) {
+      console.log('🔍 Validando límite diario para servicio:', {
+        serviceId: finalServiceId,
+        serviceName: service.service_name,
+        dailyLimit: service.daily_limit,
+        appointmentDate: appointment_date,
+        dealershipId: finalDealershipId
+      });
+
+      // Contar citas existentes para este servicio, fecha y concesionario
+      const { count: currentAppointmentsCount, error: countError } = await supabase
+        .from('appointment')
+        .select('*', { count: 'exact', head: false })
+        .eq('service_id', finalServiceId)
+        .eq('appointment_date', appointment_date)
+        .eq('dealership_id', finalDealershipId);
+
+      if (countError) {
+        console.error('Error contando citas existentes para límite diario:', countError);
+        return NextResponse.json(
+          { message: 'Error verificando disponibilidad del servicio. Por favor, intenta nuevamente.' },
+          { status: 500 }
+        );
+      }
+
+      const appointmentCount = currentAppointmentsCount || 0;
+      
+      console.log('📊 Conteo de citas para límite diario:', {
+        currentCount: appointmentCount,
+        dailyLimit: service.daily_limit,
+        wouldExceed: appointmentCount >= service.daily_limit
+      });
+
+      // Verificar si se excedería el límite
+      if (appointmentCount >= service.daily_limit) {
+        console.log('❌ Límite diario excedido:', {
+          serviceId: finalServiceId,
+          serviceName: service.service_name,
+          currentCount: appointmentCount,
+          dailyLimit: service.daily_limit,
+          appointmentDate: appointment_date,
+          dealershipId: finalDealershipId
+        });
+
+        return NextResponse.json(
+          { 
+            message: 'Cannot create appointment: daily limit for this service has been reached for the dealership. Please select another date or contact the workshop.',
+            details: {
+              serviceName: service.service_name,
+              currentAppointments: appointmentCount,
+              dailyLimit: service.daily_limit,
+              appointmentDate: appointment_date
+            }
+          },
+          { status: 409 }
+        );
+      }
+
+      console.log('✅ Límite diario válido:', {
+        serviceId: finalServiceId,
+        currentCount: appointmentCount,
+        dailyLimit: service.daily_limit,
+        remainingSlots: service.daily_limit - appointmentCount
+      });
+    } else {
+      console.log('ℹ️ Servicio sin límite diario configurado:', {
+        serviceId: finalServiceId,
+        serviceName: service.service_name,
+        dailyLimit: service.daily_limit
+      });
+    }
+
+    // 6. Verificar disponibilidad antes de crear la cita
     const { data: existingAppointments, error: appointmentsError } = await supabase
       .from('appointment')
       .select('id')
@@ -225,7 +298,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 6. Crear la cita
+    // 7. Crear la cita
     const { data: newAppointment, error: insertError } = await supabase
       .from('appointment')
       .insert([{
@@ -268,7 +341,7 @@ export async function POST(request: Request) {
       workshop_id: finalWorkshopId
     });
 
-    // 6. NUEVO: Crear recordatorio de confirmación automáticamente
+    // 8. NUEVO: Crear recordatorio de confirmación automáticamente
     console.log('🔍 [DEBUG] Iniciando lógica de recordatorio de confirmación');
     console.log('🔍 [DEBUG] newAppointment existe:', !!newAppointment);
     
@@ -326,7 +399,7 @@ export async function POST(request: Request) {
       console.log('❌ [DEBUG] newAppointment es null/undefined, no se puede crear recordatorio');
     }
 
-    // 7. Enviar SMS de confirmación
+    // 9. Enviar SMS de confirmación
     try {
       // Verificar si los SMS están habilitados
       const smsEnabled = process.env.ENABLE_SMS === 'true';
