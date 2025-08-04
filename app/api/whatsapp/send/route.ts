@@ -54,6 +54,21 @@ function processTemplate(template: string, data: any): string {
   });
 }
 
+function processTemplateWithConditionals(template: string, data: any): string {
+  // Primero procesar las variables normales
+  let processed = processTemplate(template, data);
+  
+  // Procesar condicionales para VIN
+  processed = processed.replace(
+    /\{\{vin_if_exists\}\}(.*?)\{\{\/vin_if_exists\}\}/gs,
+    (match, content) => {
+      return data.vehicle_vin ? content : '';
+    }
+  );
+  
+  return processed;
+}
+
 export async function POST(request: Request) {
   try {
     console.log('🚀 Iniciando envío de WhatsApp...');
@@ -93,7 +108,8 @@ export async function POST(request: Request) {
           make,
           model,
           year,
-          license_plate
+          license_plate,
+          vin
         ),
         services:service_id (
           service_name,
@@ -191,6 +207,7 @@ export async function POST(request: Request) {
       vehicle_make: recordatorio.vehicles.make,
       vehicle_model: recordatorio.vehicles.model,
       vehicle_year: recordatorio.vehicles.year,
+      vehicle_vin: recordatorio.vehicles.vin || '', // Agregar VIN
       service_name: recordatorio.services?.service_name || 'servicio',
       appointment_date: recordatorio.appointment_date ? 
         format(parseISO(recordatorio.appointment_date), 'dd/MM/yyyy') : '',
@@ -198,7 +215,7 @@ export async function POST(request: Request) {
         format(parseISO(`2000-01-01T${recordatorio.appointment_time}`), 'HH:mm') : ''
     };
 
-    const processedMessage = processTemplate(template.message_template, templateData);
+    const processedMessage = processTemplateWithConditionals(template.message_template, templateData);
     console.log('✅ Template procesado:', processedMessage);
 
     // 6. Formatear número de teléfono
