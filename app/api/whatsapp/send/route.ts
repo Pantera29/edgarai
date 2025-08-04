@@ -55,16 +55,16 @@ function processTemplate(template: string, data: any): string {
 }
 
 function processTemplateWithConditionals(template: string, data: any): string {
-  // Primero procesar las variables normales
-  let processed = processTemplate(template, data);
-  
-  // Procesar condicionales para VIN
-  processed = processed.replace(
+  // Primero procesar condicionales para VIN
+  let processed = template.replace(
     /\{\{vin_if_exists\}\}([\s\S]*?)\{\{\/vin_if_exists\}\}/g,
     (match, content) => {
       return data.vehicle_vin ? content : '';
     }
   );
+  
+  // Luego procesar las variables normales
+  processed = processTemplate(processed, data);
   
   return processed;
 }
