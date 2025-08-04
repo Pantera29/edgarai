@@ -55,16 +55,33 @@ function processTemplate(template: string, data: any): string {
 }
 
 function processTemplateWithConditionals(template: string, data: any): string {
+  console.log('🔍 Debug - Template original:', template);
+  console.log('🔍 Debug - Data recibida:', data);
+  
   // Primero procesar condicionales para VIN
-  let processed = template.replace(
-    /\{\{vin_if_exists\}\}([\s\S]*?)\{\{\/vin_if_exists\}\}/g,
-    (match, content) => {
-      return data.vehicle_vin ? content : '';
-    }
-  );
+  let processed = template;
+  
+  // Buscar y procesar condicionales VIN
+  const vinRegex = /\{\{vin_if_exists\}\}([\s\S]*?)\{\{\/vin_if_exists\}\}/g;
+  let match;
+  
+  while ((match = vinRegex.exec(template)) !== null) {
+    console.log('🔍 Debug - Encontrado condicional VIN:', { 
+      fullMatch: match[0], 
+      content: match[1], 
+      hasVin: !!data.vehicle_vin,
+      vehicleVin: data.vehicle_vin 
+    });
+    
+    processed = processed.replace(match[0], data.vehicle_vin ? match[1] : '');
+  }
+  
+  console.log('🔍 Debug - Después de procesar condicionales:', processed);
   
   // Luego procesar las variables normales
   processed = processTemplate(processed, data);
+  
+  console.log('🔍 Debug - Template final procesado:', processed);
   
   return processed;
 }
@@ -139,7 +156,8 @@ export async function POST(request: Request) {
     console.log('✅ Recordatorio obtenido:', {
       clientName: recordatorio.client.names,
       vehicleModel: recordatorio.vehicles.model,
-      serviceName: recordatorio.services?.service_name
+      serviceName: recordatorio.services?.service_name,
+      vehicleVin: recordatorio.vehicles.vin
     });
 
     // 3. Obtener template de mensaje
