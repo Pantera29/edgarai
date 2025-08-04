@@ -701,19 +701,19 @@ export async function GET(request: Request) {
         console.log('🔍 Límite diario alcanzado, buscando próximas fechas...');
         
         try {
-          const nextAvailableDates = await findNextAvailableDatesSmart(
+          const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
             date, finalServiceId, dealershipId, finalWorkshopId, supabase
           );
           
           return NextResponse.json({
             availableSlots: [],
             totalSlots: 0,
-            message: getUnavailabilityMessage('DAILY_LIMIT_REACHED'),
+            message: getUnavailabilityMessage('DAILY_LIMIT_REACHED') + ' (Note: Time slots are not included in this response for optimization. If you want to display available times, you must make a separate request with the selected date.)',
             nextAvailableDates,
             reason: 'DAILY_LIMIT_REACHED',
             searchInfo: {
-              daysChecked: Math.min(7, nextAvailableDates.length + 3),
-              maxSearchDays: 7
+              daysChecked: Math.min(30, nextAvailableDates.length + 3),
+              maxSearchDays: 30
             }
           });
         } catch (error) {
@@ -754,7 +754,7 @@ export async function GET(request: Request) {
       console.log('🔍 No hay disponibilidad, buscando próximas fechas...');
       
       try {
-        const nextAvailableDates = await findNextAvailableDatesSmart(
+        const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
           date, finalServiceId, dealershipId, finalWorkshopId, supabase
         );
         
@@ -777,12 +777,12 @@ export async function GET(request: Request) {
         return NextResponse.json({
           availableSlots: [],
           totalSlots: 0,
-          message: getUnavailabilityMessage(reason),
+          message: getUnavailabilityMessage(reason) + ' (Note: Time slots are not included in this response for optimization. If you want to display available times, you must make a separate request with the selected date.)',
           nextAvailableDates,
           reason,
           searchInfo: {
-            daysChecked: Math.min(7, nextAvailableDates.length + 3), // Estimación
-            maxSearchDays: 7
+            daysChecked: Math.min(30, nextAvailableDates.length + 3), // Estimación
+            maxSearchDays: 30
           }
         });
       } catch (error) {
@@ -1329,8 +1329,8 @@ async function findNextAvailableDatesSmart(
   workshopId: string,
   supabase: any,
   options: AvailabilitySearchOptions = {
-    maxDays: 15,
-    minDates: 3,
+    maxDays: 30,
+    minDates: 1,
     maxDates: 5,
     includeToday: false
   }
@@ -1395,6 +1395,69 @@ async function findNextAvailableDatesSmart(
   });
 
   return nextDates;
+}
+
+// Nueva función que usa la función de PostgreSQL para la búsqueda de fechas disponibles
+async function findNextAvailableDatesWithDBFunction(
+  currentDate: string,
+  serviceId: string,
+  dealershipId: string,
+  workshopId: string,
+  supabase: any,
+  options: AvailabilitySearchOptions = {
+    maxDays: 30,
+    minDates: 1,
+    maxDates: 5,
+    includeToday: false
+  }
+): Promise<NextAvailableDate[]> {
+  console.log('🚀 Usando función de PostgreSQL para búsqueda rápida:', {
+    startDate: currentDate,
+    maxDays: options.maxDays,
+    maxDates: options.maxDates,
+    serviceId,
+    dealershipId,
+    workshopId
+  });
+
+  try {
+    // Llamar a la función de PostgreSQL
+    const { data: availableDates, error } = await supabase
+      .rpc('find_available_dates', {
+        p_start_date: currentDate,
+        p_service_id: serviceId,
+        p_dealership_id: dealershipId,
+        p_workshop_id: workshopId,
+        p_max_days: options.maxDays,
+        p_max_dates: options.maxDates
+      });
+
+    if (error) {
+      console.error('❌ Error llamando función de PostgreSQL:', error);
+      throw error;
+    }
+
+    console.log('✅ Resultados de función de PostgreSQL:', {
+      fechasEncontradas: availableDates?.length || 0,
+      fechas: (availableDates as any[])?.map((d: any) => `${d.available_date} (${d.available_slots} slots) - ${d.day_name}`) || []
+    });
+
+    // Transformar resultado al formato esperado
+    const nextAvailableDates: NextAvailableDate[] = (availableDates as any[] || []).map((date: any) => ({
+      date: date.available_date,
+      availableSlots: date.available_slots,
+      timeSlots: [], // Los slots específicos se calculan cuando se selecciona la fecha
+      dayName: date.day_name,
+      isWeekend: date.is_weekend
+    }));
+
+    return nextAvailableDates;
+  } catch (error) {
+    console.error('❌ Error en búsqueda con función de PostgreSQL:', error);
+    // Fallback: usar la función original si falla la función de PostgreSQL
+    console.log('🔄 Usando fallback a búsqueda original...');
+    return findNextAvailableDatesSmart(currentDate, serviceId, dealershipId, workshopId, supabase, options);
+  }
 }
 
 // Función auxiliar para verificar disponibilidad de una fecha específica
