@@ -5,42 +5,42 @@ import { cookies } from "next/headers";
 export async function POST(request: Request) {
   try {
     const supabase = createServerComponentClient({ cookies });
-    const { transaction_id, customer_id } = await request.json();
+    const { appointment_id, customer_id } = await request.json();
 
     console.log('📝 Creando nuevo registro NPS:', {
-      transaction_id,
+      appointment_id,
       customer_id
     });
 
     // Validar campos requeridos
-    if (!transaction_id || !customer_id) {
+    if (!appointment_id || !customer_id) {
       console.log('❌ Error: Campos requeridos faltantes');
       return NextResponse.json(
-        { message: 'transaction_id y customer_id son requeridos' },
+        { message: 'appointment_id y customer_id son requeridos' },
         { status: 400 }
       );
     }
 
-    // Verificar que la transacción existe
-    console.log('🔍 Verificando existencia de la transacción:', transaction_id);
-    const { data: transaction, error: transactionError } = await supabase
-      .from('service_transactions')
-      .select('transaction_id')
-      .eq('transaction_id', transaction_id)
+    // Verificar que la cita existe
+    console.log('🔍 Verificando existencia de la cita:', appointment_id);
+    const { data: appointment, error: appointmentError } = await supabase
+      .from('appointment')
+      .select('id')
+      .eq('id', appointment_id)
       .maybeSingle();
 
-    if (transactionError) {
-      console.error('❌ Error al verificar transacción:', transactionError);
+    if (appointmentError) {
+      console.error('❌ Error al verificar cita:', appointmentError);
       return NextResponse.json(
-        { message: 'Error al verificar transacción' },
+        { message: 'Error al verificar cita' },
         { status: 500 }
       );
     }
 
-    if (!transaction) {
-      console.log('❌ Transacción no encontrada:', transaction_id);
+    if (!appointment) {
+      console.log('❌ Cita no encontrada:', appointment_id);
       return NextResponse.json(
-        { message: 'Transacción no encontrada' },
+        { message: 'Cita no encontrada' },
         { status: 404 }
       );
     }
@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     const { data: npsRecord, error: npsError } = await supabase
       .from('nps')
       .insert({
-        transaction_id,
+        appointment_id,
         customer_id,
         status: 'pending',
         score: null,

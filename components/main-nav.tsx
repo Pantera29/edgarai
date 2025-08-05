@@ -67,11 +67,6 @@ export const mainNavItems = [
     icon: Package
   },
   {
-    title: "Transacciones",
-    href: "/transacciones",
-    icon: Receipt
-  },
-  {
     title: "Configuración",
     href: "/admin",
     icon: Settings,

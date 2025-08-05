@@ -477,9 +477,9 @@ export async function PATCH(
       }
     }
 
-    // Si la cita se marcó como completada, crear recordatorio automático y transacción
+    // Si la cita se marcó como completada, crear recordatorio automático y NPS
     if (filteredUpdates.status === 'completed' && appointmentExists.status !== 'completed') {
-      console.log('🔔 Cita completada, creando recordatorio automático y transacción...');
+      console.log('🔔 Cita completada, creando recordatorio automático y NPS...');
       
       try {
         // 1. Crear recordatorio automático
@@ -498,34 +498,30 @@ export async function PATCH(
           console.log('⚠️ No se pudo crear recordatorio:', reminderResult.error);
         }
 
-        // 2. Crear transacción automática
-        console.log('💰 Creando transacción automática...');
-        const { data: transaction, error: transactionError } = await supabase
-          .from('service_transactions')
-          .insert({
-            appointment_id: data.id,
-            transaction_date: data.appointment_date,
-            notes: 'Transacción creada automáticamente al completar la cita',
-            dealership_id: data.client.dealership_id
-          })
-          .select(`
-            *,
-            specific_services (
-              service_name,
-              kilometers,
-              months,
-              price
-            )
-          `)
+        // 2. Obtener configuración NPS antes de crear cualquier cosa
+        console.log('📊 [NPS Reminder] Obteniendo configuración de días para agencia:', data.client.dealership_id);
+        const { data: reminderSettings, error: settingsError } = await supabase
+          .from('dealership_reminder_settings')
+          .select('nps_days_after, nps_enabled')
+          .eq('dealership_id', data.client.dealership_id)
           .single();
 
-        if (transactionError) {
-          console.error('❌ Error al crear transacción automática:', transactionError);
-          // No fallamos la actualización de la cita si falla la transacción
-        } else {
-          console.log('✅ Transacción automática creada exitosamente:', transaction);
+        if (settingsError && settingsError.code !== 'PGRST116') {
+          console.error('❌ [NPS Reminder] Error obteniendo configuración:', settingsError);
+        }
 
-          // 3. Crear registro NPS
+        // Usar configuración personalizada o valores por defecto
+        const npsDaysAfter = reminderSettings?.nps_days_after ?? 1;
+        const npsEnabled = reminderSettings?.nps_enabled ?? true;
+
+        console.log('⚙️ [NPS Reminder] Configuración obtenida:', {
+          nps_days_after: npsDaysAfter,
+          nps_enabled: npsEnabled,
+          dealership_id: data.client.dealership_id
+        });
+
+        if (npsEnabled) {
+          // 3. Crear registro NPS directamente con appointment_id
           console.log('📊 Creando registro NPS...');
           try {
             const npsResponse = await fetch(`${new URL(request.url).origin}/api/nps/create`, {
@@ -535,7 +531,7 @@ export async function PATCH(
                 'Cookie': request.headers.get('cookie') || ''
               },
               body: JSON.stringify({
-                transaction_id: transaction.transaction_id,
+                appointment_id: data.id,
                 customer_id: data.client.id
               })
             });
@@ -550,78 +546,53 @@ export async function PATCH(
             // No fallamos la actualización de la cita si falla la creación del NPS
           }
 
-          // 4. Crear recordatorio NPS con configuración personalizada por agencia
+          // 4. Crear recordatorio NPS
           try {
-            console.log('📊 [NPS Reminder] Obteniendo configuración de días para agencia:', data.client.dealership_id);
-            
-            // Obtener configuración de días NPS para esta agencia
-            const { data: reminderSettings, error: settingsError } = await supabase
-              .from('dealership_reminder_settings')
-              .select('nps_days_after, nps_enabled')
-              .eq('dealership_id', data.client.dealership_id)
-              .single();
+            // Solo crear recordatorio si está habilitado
+            const appointmentDate = new Date(data.appointment_date);
+            const npsReminderDate = new Date(appointmentDate);
+            npsReminderDate.setDate(npsReminderDate.getDate() + npsDaysAfter);
 
-            if (settingsError && settingsError.code !== 'PGRST116') {
-              console.error('❌ [NPS Reminder] Error obteniendo configuración:', settingsError);
-            }
-
-            // Usar configuración personalizada o valores por defecto
-            const npsDaysAfter = reminderSettings?.nps_days_after ?? 1;
-            const npsEnabled = reminderSettings?.nps_enabled ?? true;
-
-            console.log('⚙️ [NPS Reminder] Configuración obtenida:', {
+            console.log('📅 [NPS Reminder] Fechas calculadas:', {
+              appointment_date: data.appointment_date,
               nps_days_after: npsDaysAfter,
-              nps_enabled: npsEnabled,
-              dealership_id: data.client.dealership_id
+              reminder_date: npsReminderDate.toISOString().split('T')[0]
             });
 
-            // Solo crear recordatorio si está habilitado
-            if (npsEnabled) {
-              const appointmentDate = new Date(data.appointment_date);
-              const npsReminderDate = new Date(appointmentDate);
-              npsReminderDate.setDate(npsReminderDate.getDate() + npsDaysAfter);
+            const { data: npsReminder, error: npsReminderError } = await supabase
+              .from('reminders')
+              .insert({
+                client_id_uuid: data.client.id,
+                vehicle_id: data.vehicle.id_uuid,
+                service_id: data.service.id_uuid,
+                base_date: data.appointment_date,
+                reminder_date: npsReminderDate.toISOString().split('T')[0],
+                notes: `Recordatorio NPS post-servicio (${npsDaysAfter} día${npsDaysAfter > 1 ? 's' : ''} después)`,
+                status: 'pending',
+                reminder_type: 'nps',
+                dealership_id: data.client.dealership_id,
+                appointment_id: data.id
+              })
+              .select()
+              .single();
 
-              console.log('📅 [NPS Reminder] Fechas calculadas:', {
-                appointment_date: data.appointment_date,
-                nps_days_after: npsDaysAfter,
+            if (npsReminderError) {
+              console.error('❌ [NPS Reminder] Error al crear recordatorio NPS:', npsReminderError);
+            } else {
+              console.log('✅ [NPS Reminder] Recordatorio NPS creado exitosamente:', {
+                reminder_id: npsReminder?.reminder_id,
+                days_after: npsDaysAfter,
                 reminder_date: npsReminderDate.toISOString().split('T')[0]
               });
-
-              const { data: npsReminder, error: npsReminderError } = await supabase
-                .from('reminders')
-                .insert({
-                  client_id_uuid: data.client.id,
-                  vehicle_id: data.vehicle.id_uuid,
-                  service_id: data.service.id_uuid,
-                  base_date: data.appointment_date,
-                  reminder_date: npsReminderDate.toISOString().split('T')[0],
-                  notes: `Recordatorio NPS post-servicio (${npsDaysAfter} día${npsDaysAfter > 1 ? 's' : ''} después)`,
-                  status: 'pending',
-                  reminder_type: 'nps',
-                  dealership_id: data.client.dealership_id
-                })
-                .select()
-                .single();
-
-              if (npsReminderError) {
-                console.error('❌ [NPS Reminder] Error al crear recordatorio NPS:', npsReminderError);
-              } else {
-                console.log('✅ [NPS Reminder] Recordatorio NPS creado exitosamente:', {
-                  reminder_id: npsReminder?.reminder_id,
-                  days_after: npsDaysAfter,
-                  reminder_date: npsReminderDate.toISOString().split('T')[0]
-                });
-              }
-            } else {
-              console.log('🚫 [NPS Reminder] Recordatorio NPS deshabilitado para esta agencia');
             }
           } catch (npsReminderCatchError) {
             console.error('❌ [NPS Reminder] Error inesperado al crear recordatorio NPS:', npsReminderCatchError);
           }
+        } else {
+          console.log('🚫 [NPS Reminder] NPS deshabilitado para esta agencia, no se creará registro NPS ni recordatorio.');
         }
-
       } catch (error) {
-        // IMPORTANTE: No fallar la actualización de la cita si falla el recordatorio o la transacción
+        // IMPORTANTE: No fallar la actualización de la cita si falla el recordatorio o NPS
         console.error('❌ Error en proceso automático:', error);
       }
     }

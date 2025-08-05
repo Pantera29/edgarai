@@ -248,8 +248,7 @@ model_blocked_dates (id, dealership_id, model_id, blocked_date, reason)
 automatic_reminder_rules (rule_id, dealership_id, months_after, is_active)
 recordatorios_mantenimiento (id, cliente_id, tipo, fecha_programada, descripcion, estado, kilometraje_programado)
 
--- Transactions & Services
-service_transactions (id, appointment_id, transaction_date, notes, dealership_id, specific_service_id)
+-- Services (Transactions removed - NPS now uses appointment_id directly)
 
 -- AI & Analytics (NUEVO)
 chat_conversations (id, dealership_id, user_identifier, channel, duration_seconds, created_at, metadata)
@@ -272,7 +271,7 @@ citas, servicios (use 'appointment' and 'services' instead)
 - `client` → `appointment` (1:many via client_id)
 - `vehicles` → `appointment` (1:many via vehicle_id)
 - `services` → `appointment` (1:many via service_id)
-- `appointment` → `service_transactions` (1:many via appointment_id)
+- `appointment` → `nps` (1:many via appointment_id)
 - `chat_conversations` → `conversation_evaluations` (1:1 via conversation_id)
 
 ## Convenciones API
@@ -352,9 +351,7 @@ const { data, error } = await supabase
 /api/dealerships/usage - Métricas de uso mensual de conversaciones
 /api/vapi/end-of-call - Webhook para finalización de llamadas
 
-# Transactions
-/api/transactions/create - Crear transacciones de servicio
-/api/transactions/update/{id} - Actualizar transacciones
+# Transactions (REMOVED - NPS now uses appointment_id directly)
 
 # Reminders
 /api/reminders - Gestión de recordatorios
