@@ -107,7 +107,7 @@ export async function PATCH(request: Request) {
     console.log('🔍 Buscando NPS pendiente...');
     const { data: npsRecords, error: npsError } = await supabase
       .from('nps')
-      .select('id, transaction_id, status, created_at')
+      .select('id, appointment_id, status, created_at')
       .eq('customer_id', client.id)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
@@ -136,7 +136,7 @@ export async function PATCH(request: Request) {
     const npsRecord = npsRecords[0];
     console.log('📊 NPS pendiente encontrado:', {
       id: npsRecord.id,
-      transaction_id: npsRecord.transaction_id,
+      appointment_id: npsRecord.appointment_id,
       created_at: npsRecord.created_at
     });
 

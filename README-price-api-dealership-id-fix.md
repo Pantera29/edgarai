@@ -87,12 +87,9 @@ specific_services: {
 - **No afecta** otros endpoints que ya usaban este campo
 
 ## 🔍 Evidencia del Problema
-El campo `dealership_id` ya se estaba usando en otros archivos del proyecto:
-- `app/api/transactions/create/route.ts` (línea 147)
-- `app/api/transactions/update/[id]/route.ts` (línea 107)
-- `components/workshop/transaction-form.tsx` (línea 125)
+El campo `dealership_id` ya se estaba usando en otros archivos del proyecto, lo que confirmaba que el campo existe en la base de datos pero faltaba en los tipos TypeScript.
 
-Esto confirmaba que el campo existe en la base de datos pero faltaba en los tipos TypeScript.
+**Nota**: Los archivos de transacciones mencionados anteriormente han sido eliminados como parte de la migración de NPS para usar `appointment_id` directamente.
 
 ## 📝 Notas Técnicas
 - **Tipo**: `string` (UUID del concesionario)

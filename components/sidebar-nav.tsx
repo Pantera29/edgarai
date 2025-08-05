@@ -62,11 +62,5 @@ export const sidebarLinks = [
     href: "/productos",
     icon: Package,
     description: "Gestión de inventario y productos"
-  },
-  {
-    title: "Transacciones",
-    href: "/transacciones",
-    icon: Receipt,
-    description: "Gestión de transacciones y pagos"
   }
 ] 

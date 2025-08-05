@@ -345,6 +345,41 @@ export interface Database {
           access_count?: number
         }
       }
+      nps: {
+        Row: {
+          id: string
+          appointment_id: number | null
+          customer_id: string
+          status: string
+          score: number | null
+          classification: string | null
+          comments: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          appointment_id?: number | null
+          customer_id: string
+          status?: string
+          score?: number | null
+          classification?: string | null
+          comments?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          appointment_id?: number | null
+          customer_id?: string
+          status?: string
+          score?: number | null
+          classification?: string | null
+          comments?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Functions: {
       get_admin_conversations_with_evaluations: {
