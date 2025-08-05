@@ -331,7 +331,8 @@ export default function RecordatoriosPage() {
     service_id: '',
     base_date: '',
     reminder_date: '',
-    notes: ''
+    notes: '',
+    reminder_type: 'follow_up'
   });
   const [servicios, setServicios] = useState<any[]>([]);
   const { toast } = useToast();
@@ -446,48 +447,76 @@ export default function RecordatoriosPage() {
       });
       return;
     }
+    
     console.log(`[Auditoría] Consultando recordatorios para dealership_id: ${dealershipIdFromToken}`);
-    const { data, error } = await supabase
-      .from('reminders')
-      .select(`
-        *,
-        client!reminders_client_id_fkey (
-          names,
-          email,
-          phone_number,
-          dealership_id
-        ),
-        vehicles!reminders_vehicle_id_fkey (
-          make,
-          model,
-          year,
-          license_plate
-        ),
-        services (
-          service_name,
-          description,
-          dealership_id
-        )
-      `)
-      .eq('dealership_id', dealershipIdFromToken)
-      .order('reminder_date', { ascending: true });
+    
+    // Implementar paginación para traer todos los recordatorios
+    let allRecordatorios: Recordatorio[] = [];
+    let hasMore = true;
+    let from = 0;
+    const pageSize = 1000; // Máximo por página
+    
+    try {
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('reminders')
+          .select(`
+            *,
+            client!reminders_client_id_fkey (
+              names,
+              email,
+              phone_number,
+              dealership_id
+            ),
+            vehicles!reminders_vehicle_id_fkey (
+              make,
+              model,
+              year,
+              license_plate
+            ),
+            services (
+              service_name,
+              description,
+              dealership_id
+            )
+          `)
+          .eq('dealership_id', dealershipIdFromToken)
+          .order('reminder_date', { ascending: true })
+          .range(from, from + pageSize - 1);
 
-    if (error) {
-      console.error('[Seguridad] Error al consultar recordatorios:', error);
-      setRecordatorios([]);
-      setFilteredRecordatorios([]);
-      setMetricas(prev => ({ ...prev, porFecha: [] }));
-      return;
-    }
+        if (error) {
+          console.error('[Seguridad] Error al consultar recordatorios:', error);
+          setRecordatorios([]);
+          setFilteredRecordatorios([]);
+          setMetricas(prev => ({ ...prev, porFecha: [] }));
+          return;
+        }
 
-    // Doble verificación: nunca mostrar datos de otra agencia
-    const filteredData = (data as Recordatorio[]).filter(r => r.dealership_id === dealershipIdFromToken);
-    if (filteredData.length !== (data as Recordatorio[]).length) {
-      console.error('[ALERTA] Se detectaron recordatorios de otra agencia en la consulta. Esto NO debería ocurrir.');
-    }
-    setRecordatorios(filteredData);
-    setFilteredRecordatorios(filteredData);
-    updateStats(filteredData);
+        const pageData = data as Recordatorio[];
+        if (pageData.length === 0) {
+          hasMore = false;
+        } else {
+          allRecordatorios = [...allRecordatorios, ...pageData];
+          from += pageSize;
+          
+          // Si recibimos menos de pageSize registros, hemos terminado
+          if (pageData.length < pageSize) {
+            hasMore = false;
+          }
+        }
+      }
+
+      console.log(`[Auditoría] Total de recordatorios cargados: ${allRecordatorios.length}`);
+
+      // Doble verificación: nunca mostrar datos de otra agencia
+      const filteredData = allRecordatorios.filter(r => r.dealership_id === dealershipIdFromToken);
+      if (filteredData.length !== allRecordatorios.length) {
+        console.error('[ALERTA] Se detectaron recordatorios de otra agencia en la consulta. Esto NO debería ocurrir.');
+      }
+      
+      setRecordatorios(filteredData);
+      setFilteredRecordatorios(filteredData);
+      updateStats(filteredData);
 
     // Preparar datos para el gráfico
     const hoy = new Date();
@@ -539,6 +568,18 @@ export default function RecordatoriosPage() {
       ...prev,
       porFecha: porFechaEstado
     }));
+    
+    } catch (error) {
+      console.error('[Error] Error durante la carga de recordatorios:', error);
+      setRecordatorios([]);
+      setFilteredRecordatorios([]);
+      setMetricas(prev => ({ ...prev, porFecha: [] }));
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los recordatorios. Intente de nuevo.",
+        variant: "destructive",
+      });
+    }
   }
 
   const updateStats = (data: Recordatorio[]) => {
@@ -812,7 +853,7 @@ export default function RecordatoriosPage() {
       });
       return;
     }
-    if (!formData.client_id || !formData.vehicle_id || !formData.service_id || !formData.base_date || !formData.reminder_date) {
+    if (!formData.client_id || !formData.vehicle_id || !formData.service_id || !formData.base_date || !formData.reminder_date || !formData.reminder_type) {
       toast({
         title: "Error",
         description: "Por favor complete todos los campos requeridos",
@@ -830,6 +871,7 @@ export default function RecordatoriosPage() {
         base_date: baseDateUTC,
         reminder_date: reminderDateUTC,
         notes: formData.notes,
+        reminder_type: formData.reminder_type,
         status: 'pending' as const,
         dealership_id: dealershipId
       };
@@ -852,7 +894,8 @@ export default function RecordatoriosPage() {
         service_id: '',
         base_date: '',
         reminder_date: '',
-        notes: ''
+        notes: '',
+        reminder_type: 'follow_up'
       });
       fetchRecordatorios(dealershipId);
     } catch (error) {
@@ -873,7 +916,8 @@ export default function RecordatoriosPage() {
     service_id: '',
     base_date: '',
     reminder_date: '',
-    notes: ''
+    notes: '',
+    reminder_type: 'follow_up'
   });
 
   const handleEdit = async (e: React.FormEvent) => {
@@ -887,7 +931,7 @@ export default function RecordatoriosPage() {
       });
       return;
     }
-    if (!formDataEditar.client_id || !formDataEditar.vehicle_id || !formDataEditar.service_id || !formDataEditar.base_date || !formDataEditar.reminder_date) {
+    if (!formDataEditar.client_id || !formDataEditar.vehicle_id || !formDataEditar.service_id || !formDataEditar.base_date || !formDataEditar.reminder_date || !formDataEditar.reminder_type) {
       toast({
         title: "Error",
         description: "Por favor complete todos los campos requeridos",
@@ -916,7 +960,8 @@ export default function RecordatoriosPage() {
           service_id: formDataEditar.service_id,
           base_date: baseDateUTC,
           reminder_date: reminderDateUTC,
-          notes: formDataEditar.notes
+          notes: formDataEditar.notes,
+          reminder_type: formDataEditar.reminder_type
           // dealership_id NO se actualiza nunca
         })
         .eq('reminder_id', recordatorioEditar.reminder_id)
@@ -1813,7 +1858,8 @@ export default function RecordatoriosPage() {
                               service_id: recordatorio.service_id ?? '',
                               base_date: format(parseISO(recordatorio.base_date), 'yyyy-MM-dd'),
                               reminder_date: format(parseISO(recordatorio.reminder_date), 'yyyy-MM-dd'),
-                              notes: recordatorio.notes || ''
+                              notes: recordatorio.notes || '',
+                              reminder_type: recordatorio.reminder_type || 'follow_up'
                             });
                             setMostrarFormularioEditar(true);
                             cargarVehiculos(recordatorio.client_id_uuid);
@@ -1954,6 +2000,23 @@ export default function RecordatoriosPage() {
               </div>
 
               <div className="space-y-2">
+                <Label>Tipo de Recordatorio *</Label>
+                <Select
+                  value={formData.reminder_type}
+                  onValueChange={(value) => setFormData({ ...formData, reminder_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione el tipo de recordatorio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="follow_up">Seguimiento</SelectItem>
+                    <SelectItem value="confirmation">Confirmación</SelectItem>
+                    <SelectItem value="nps">NPS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
                 <Label>Fecha de origen *</Label>
                 <Input
                   type="date"
@@ -2047,6 +2110,23 @@ export default function RecordatoriosPage() {
                         {servicio.service_name}
                       </SelectItem>
                     ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tipo de Recordatorio *</Label>
+                <Select
+                  value={formDataEditar.reminder_type}
+                  onValueChange={(value) => setFormDataEditar({ ...formDataEditar, reminder_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccione el tipo de recordatorio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="follow_up">Seguimiento</SelectItem>
+                    <SelectItem value="confirmation">Confirmación</SelectItem>
+                    <SelectItem value="nps">NPS</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
