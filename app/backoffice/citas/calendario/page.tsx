@@ -584,7 +584,14 @@ export default function CalendarioCitasPage() {
             <div className="flex flex-col space-y-4 flex-grow overflow-hidden">
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className="font-medium">Cliente:</div>
-                <div>{selectedCita.client?.names}</div>
+                <div>
+                  {selectedCita.client?.names}
+                  {selectedCita.client?.phone_number && (
+                    <div className="text-xs text-gray-600 mt-1">
+                      📞 {selectedCita.client.phone_number}
+                    </div>
+                  )}
+                </div>
                 <div className="font-medium">Servicio:</div>
                 <div>
                   {selectedCita.service?.service_name}
