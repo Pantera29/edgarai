@@ -64,6 +64,8 @@ export async function POST(request: Request) {
     const supabase = createServerComponentClient({ cookies });
     
     // Obtener datos del cuerpo de la solicitud
+    const requestData = await request.json();
+    
     const { 
       client_id, 
       vehicle_id,
@@ -74,28 +76,33 @@ export async function POST(request: Request) {
       appointment_time,
       notes,
       channel = 'agenteai', // Valor por defecto si no se proporciona
-      dealership_id = null, // Permitir que se envíe un dealership_id explícito
       dealership_phone = null, // Número de teléfono para buscar el dealership
+      phone = null, // Nuevo: alias para phone_number
       phone_number = null, // Mantener para compatibilidad
       workshop_id = null // Workshop ID específico (opcional)
-    } = await request.json();
+    } = requestData;
+
+    // Permitir que se envíe un dealership_id explícito (usar let para poder reasignar)
+    let dealership_id = requestData.dealership_id || null;
+
+    // Normalizar el parámetro de teléfono
+    const phoneToUse = phone_number || phone;
 
     // Log de los parámetros principales del request
     console.log('Nueva cita - Request recibido:', {
       client_id,
       vehicle_id,
       service_id,
-      specific_service_id, // ← NUEVO
-      removed_additional,  // ← NUEVO
+      specific_service_id,
+      removed_additional,
       appointment_date,
       appointment_time,
       channel,
       dealership_id,
-      dealership_phone,
-      phone_number,
+      phone: phoneToUse,
       workshop_id
     });
-
+    
     // Resolver service_id si viene specific_service_id
     let finalServiceId = service_id;
     if (specific_service_id && !service_id) {
@@ -117,10 +124,133 @@ export async function POST(request: Request) {
       }
     }
 
+    // NUEVO: Lógica de resolución del cliente
+    let finalClientId = client_id;
+    
+    // Si se proporciona client_id directo, obtener su dealership_id
+    if (finalClientId) {
+      console.log('🔍 Obteniendo dealership_id del cliente:', finalClientId);
+      const { data: clientData } = await supabase
+        .from('client')
+        .select('dealership_id')
+        .eq('id', finalClientId)
+        .maybeSingle();
+      
+      if (clientData?.dealership_id) {
+        // Si no se proporciona dealership_id, usar el del cliente
+        if (!dealership_id) {
+          dealership_id = clientData.dealership_id;
+          console.log('✅ Dealership_id obtenido del cliente:', dealership_id);
+        }
+      } else {
+        console.log('❌ Cliente no encontrado o sin dealership_id');
+        return NextResponse.json(
+          { message: 'Client not found or has no dealership_id' },
+          { status: 404 }
+        );
+      }
+    }
+    
+    if (!finalClientId && phoneToUse) {
+          console.log('🔍 Buscando cliente por teléfono:', {
+      phone: phoneToUse,
+      dealership_id,
+      service_id: finalServiceId
+    });
+      
+      let dealershipIdForSearch = dealership_id;
+      
+      // Si no se proporciona dealership_id pero sí service_id, 
+      // podemos determinar el dealership del servicio
+      if (!dealershipIdForSearch && finalServiceId) {
+        console.log('🔍 Determinando dealership desde service_id:', finalServiceId);
+        const { data: service, error: serviceError } = await supabase
+          .from('services')
+          .select('dealership_id')
+          .eq('id_uuid', finalServiceId)
+          .maybeSingle();
+        
+        if (serviceError) {
+          console.log('❌ Error consultando servicio:', serviceError);
+        }
+        
+        if (service?.dealership_id) {
+          dealershipIdForSearch = service.dealership_id;
+          // IMPORTANTE: Actualizar también la variable dealership_id para que esté disponible después
+          dealership_id = service.dealership_id;
+          console.log('✅ Dealership determinado desde servicio:', dealershipIdForSearch);
+        } else {
+          console.log('❌ No se pudo determinar dealership desde servicio');
+        }
+      }
+      
+      // Buscar cliente por phone + dealership
+      if (dealershipIdForSearch) {
+        console.log('🔍 Buscando cliente por phone + dealership:', {
+          phone: phoneToUse,
+          dealership: dealershipIdForSearch
+        });
+        
+        const { data: client, error } = await supabase
+          .from('client')
+          .select('id')
+          .eq('phone_number', phoneToUse)
+          .eq('dealership_id', dealershipIdForSearch)
+          .maybeSingle();
+          
+        if (client) {
+          finalClientId = client.id;
+          console.log('✅ Cliente encontrado por phone + dealership:', {
+            phone: phoneToUse,
+            dealership: dealershipIdForSearch,
+            clientId: finalClientId
+          });
+        } else {
+          console.log('❌ Cliente no encontrado por phone + dealership:', {
+            phone: phoneToUse,
+            dealership: dealershipIdForSearch
+          });
+          return NextResponse.json(
+            { 
+              message: `No client found with phone ${phoneToUse} in dealership ${dealershipIdForSearch}`,
+              phone: phoneToUse,
+              dealership_id: dealershipIdForSearch
+            },
+            { status: 404 }
+          );
+        }
+      } else {
+        console.log('❌ No se puede buscar por teléfono sin dealership_id o service_id');
+        return NextResponse.json(
+          { 
+            message: 'Cannot search by phone without dealership_id or service_id to determine dealership',
+            phone: phoneToUse,
+            received: {
+              dealership_id: !!dealership_id,
+              service_id: !!finalServiceId
+            }
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Validar campos requeridos
-    if (!client_id || !vehicle_id || !finalServiceId || !appointment_date || !appointment_time) {
+    if (!finalClientId || !vehicle_id || !finalServiceId || !appointment_date || !appointment_time) {
       return NextResponse.json(
-        { message: 'Missing required parameters. Please provide: client_id, vehicle_id, service_id (or specific_service_id), appointment_date, appointment_time.' },
+        { 
+          message: 'Missing required parameters. Please provide: client_id OR (phone/phone_number + dealership_id) OR (phone/phone_number + service_id), vehicle_id, service_id (or specific_service_id), appointment_date, appointment_time.',
+          received: {
+            client_id: !!client_id,
+            phone: !!phone,
+            phone_number: !!phone_number,
+            vehicle_id: !!vehicle_id,
+            service_id: !!service_id,
+            specific_service_id: !!specific_service_id,
+            appointment_date: !!appointment_date,
+            appointment_time: !!appointment_time
+          }
+        },
         { status: 400 }
       );
     }
@@ -138,7 +268,7 @@ export async function POST(request: Request) {
     const { data: client, error: clientError } = await supabase
       .from('client')
       .select('id')
-      .eq('id', client_id)
+      .eq('id', finalClientId)
       .maybeSingle();
 
     if (clientError || !client) {
@@ -153,7 +283,7 @@ export async function POST(request: Request) {
       .from('vehicles')
       .select('id_uuid, client_id')
       .eq('id_uuid', vehicle_id)
-      .eq('client_id', client_id)
+      .eq('client_id', finalClientId)
       .maybeSingle();
 
     if (vehicleError || !vehicle) {
@@ -302,7 +432,7 @@ export async function POST(request: Request) {
     const { data: newAppointment, error: insertError } = await supabase
       .from('appointment')
       .insert([{
-        client_id,
+        client_id: finalClientId,
         vehicle_id,
         service_id: finalServiceId,          // ← Usar finalServiceId
         specific_service_id: specific_service_id || null, // ← AGREGADO
@@ -333,10 +463,8 @@ export async function POST(request: Request) {
 
     // Logging de parámetros resueltos
     console.log('📅 Creando cita con parámetros resueltos:', {
-      original_service_id: service_id,
-      specific_service_id,
+      resolved_client_id: finalClientId,
       resolved_service_id: finalServiceId,
-      removed_additional: removed_additional || false,
       dealership_id: finalDealershipId,
       workshop_id: finalWorkshopId
     });
@@ -373,7 +501,7 @@ export async function POST(request: Request) {
           
           const reminderResult = await createConfirmationReminder({
             appointment_id: newAppointment.id.toString(),
-            client_id: client_id,
+            client_id: finalClientId,
             vehicle_id: vehicle_id,
             service_id: finalServiceId,
             appointment_date: appointment_date,
