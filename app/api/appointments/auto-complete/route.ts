@@ -101,6 +101,12 @@ export async function POST(request: Request) {
           // Llamar al endpoint de actualización existente
           const updateUrl = `${baseUrl}/api/appointments/update/${appointment.id}`;
           console.log(`🔗 [Appointments Auto-Complete] Llamando endpoint: ${updateUrl}`);
+          console.log(`📊 [Appointments Auto-Complete] Datos de la cita a actualizar:`, {
+            appointment_id: appointment.id,
+            current_status: appointment.status,
+            appointment_date: appointment.appointment_date,
+            dealership_id: appointment.dealership_id
+          });
           
           // Obtener todos los headers de autenticación de la request original
           const cookies = request.headers.get('cookie') || '';
