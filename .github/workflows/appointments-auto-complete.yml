@@ -2,9 +2,9 @@ name: EdgarAI Appointments Auto-Complete Cron
 
 on:
   schedule:
-    # Ejecutar todos los días a las 6:00 AM hora de México (UTC-6)
-    # En UTC sería las 12:00 (12:00 PM)
-    - cron: '0 12 * * *'
+    # Ejecutar cada hora para procesar citas vencidas en lotes pequeños
+    # En UTC sería cada hora en punto
+    - cron: '0 * * * *'
   workflow_dispatch:
 
 jobs:
@@ -13,4 +13,4 @@ jobs:
     steps:
       - name: Call appointments auto-complete endpoint
         run: |
-          curl -v "https://edgarai.vercel.app/api/appointments/auto-complete/" 
+          curl -v "https://edgarai.vercel.app/api/appointments/auto-complete/?limit=10" 
