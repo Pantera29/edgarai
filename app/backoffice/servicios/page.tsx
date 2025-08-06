@@ -690,15 +690,16 @@ export default function ServiciosPage() {
       </Table>
 
       <Dialog open={mostrarFormulario} onOpenChange={setMostrarFormulario}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Añadir Nuevo Servicio</DialogTitle>
             <DialogDescription>
               Complete los datos del nuevo servicio. Los campos marcados con * son obligatorios.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
-            <div className="grid gap-4 py-4">
+          <div className="max-h-[calc(90vh-120px)] overflow-y-auto">
+            <form onSubmit={handleSubmit}>
+              <div className="grid gap-4 py-4">
               <div className="space-y-1">
                 <Label htmlFor="nombre">Nombre del Servicio</Label>
                 <Input
@@ -938,19 +939,21 @@ export default function ServiciosPage() {
               </Button>
             </DialogFooter>
           </form>
+          </div>
         </DialogContent>
       </Dialog>
 
       <Dialog open={editando} onOpenChange={setEditando}>
-        <DialogContent>
+        <DialogContent className="max-w-4xl max-h-[90vh]">
           <DialogHeader>
             <DialogTitle>Editar Servicio</DialogTitle>
             <DialogDescription>
               Modifique los datos del servicio.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleUpdate}>
-            <div className="grid gap-4 py-4">
+          <div className="max-h-[calc(90vh-120px)] overflow-y-auto">
+            <form onSubmit={handleUpdate}>
+              <div className="grid gap-4 py-4">
               <div className="space-y-1">
                 <Label htmlFor="edit-nombre">Nombre del Servicio</Label>
                 <Input
@@ -1211,6 +1214,7 @@ export default function ServiciosPage() {
               </Button>
             </DialogFooter>
           </form>
+          </div>
         </DialogContent>
       </Dialog>
       <Toaster />
