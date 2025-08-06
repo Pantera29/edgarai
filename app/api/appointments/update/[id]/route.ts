@@ -478,6 +478,12 @@ export async function PATCH(
     }
 
     // Si la cita se marcó como completada, crear recordatorio automático y NPS
+    console.log('🔍 [Appointment Update] Verificando condición para crear reminders:', {
+      filteredUpdates_status: filteredUpdates.status,
+      appointmentExists_status: appointmentExists.status,
+      should_create_reminders: filteredUpdates.status === 'completed' && appointmentExists.status !== 'completed'
+    });
+    
     if (filteredUpdates.status === 'completed' && appointmentExists.status !== 'completed') {
       console.log('🔔 Cita completada, creando recordatorio automático y NPS...');
       
