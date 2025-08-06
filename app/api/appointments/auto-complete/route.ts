@@ -9,9 +9,6 @@ export async function POST(request: Request) {
   console.log('🔄 [Appointments Auto-Complete] ===== INICIO PROCESAMIENTO =====');
   console.log(`🆔 [Appointments Auto-Complete] Request ID: ${requestId}`);
   console.log(`⏰ [Appointments Auto-Complete] Timestamp inicio: ${new Date().toISOString()}`);
-  console.log(`🌐 [Appointments Auto-Complete] User Agent: ${request.headers.get('user-agent') || 'N/A'}`);
-  console.log(`🔗 [Appointments Auto-Complete] URL: ${request.url}`);
-  console.log(`📋 [Appointments Auto-Complete] Method: ${request.method}`);
   
   try {
     const supabase = createRouteHandlerClient({ cookies });
@@ -26,20 +23,13 @@ export async function POST(request: Request) {
     console.log(`   UTC: ${now.toISOString()}`);
     console.log(`   México: ${todayInMexico.toISOString()}`);
     console.log(`   Fecha México: ${today}`);
-    console.log(`   Zona horaria: ${timezone}`);
     
-    // Buscar citas que necesitan ser auto-completadas
+    // Buscar citas vencidas (pending con fecha anterior a hoy)
     console.log('🔍 [Appointments Auto-Complete] Buscando citas vencidas...');
     const { data: expiredAppointments, error: searchError } = await supabase
       .from('appointment')
-      .select(`
-        id,
-        appointment_date,
-        appointment_time,
-        status,
-        dealership_id
-      `)
-      .in('status', ['pending', 'confirmed'])
+      .select('id, appointment_date, status, dealership_id')
+      .eq('status', 'pending')
       .lt('appointment_date', today)
       .order('appointment_date', { ascending: true });
     
@@ -88,12 +78,9 @@ export async function POST(request: Request) {
     console.log('📋 [Appointments Auto-Complete] Resumen por agencia:');
     Object.entries(byDealership).forEach(([dealershipId, appointments]) => {
       console.log(`   🏢 Agencia ${dealershipId}: ${appointments.length} citas vencidas`);
-      appointments.forEach(appointment => {
-        console.log(`      - ID: ${appointment.id}, Fecha: ${appointment.appointment_date}, Estado: ${appointment.status}`);
-      });
     });
     
-    // Actualizar cada cita usando el endpoint existente
+    // Actualizar cada cita usando el endpoint PATCH existente
     console.log('🔄 [Appointments Auto-Complete] Iniciando actualización de citas vencidas...');
     
     const baseUrl = new URL(request.url).origin;
@@ -123,8 +110,7 @@ export async function POST(request: Request) {
           console.log(`📡 [Appointments Auto-Complete] Respuesta para cita ${appointment.id}:`, {
             status: response.status,
             statusText: response.statusText,
-            ok: response.ok,
-            data: responseData
+            ok: response.ok
           });
           
           if (!response.ok) {
