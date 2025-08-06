@@ -6,9 +6,14 @@ export async function POST(request: Request) {
   const startTime = Date.now();
   const requestId = Math.random().toString(36).substring(7);
   
+  // Obtener parámetros de la URL
+  const url = new URL(request.url);
+  const limit = parseInt(url.searchParams.get('limit') || '10');
+  
   console.log('🔄 [Appointments Auto-Complete] ===== INICIO PROCESAMIENTO =====');
   console.log(`🆔 [Appointments Auto-Complete] Request ID: ${requestId}`);
   console.log(`⏰ [Appointments Auto-Complete] Timestamp inicio: ${new Date().toISOString()}`);
+  console.log(`📊 [Appointments Auto-Complete] Límite de procesamiento: ${limit} citas`);
   
   try {
     const supabase = createRouteHandlerClient({ cookies });
@@ -24,14 +29,15 @@ export async function POST(request: Request) {
     console.log(`   México: ${todayInMexico.toISOString()}`);
     console.log(`   Fecha México: ${today}`);
     
-    // Buscar citas vencidas (pending con fecha anterior a hoy)
-    console.log('🔍 [Appointments Auto-Complete] Buscando citas vencidas...');
+    // Buscar citas vencidas (pending con fecha anterior a hoy) - CON LÍMITE
+    console.log(`🔍 [Appointments Auto-Complete] Buscando citas vencidas (máximo ${limit})...`);
     const { data: expiredAppointments, error: searchError } = await supabase
       .from('appointment')
       .select('id, appointment_date, status, dealership_id')
       .eq('status', 'pending')
       .lt('appointment_date', today)
-      .order('appointment_date', { ascending: true });
+      .order('appointment_date', { ascending: true })
+      .limit(limit);
     
     if (searchError) {
       console.error('❌ [Appointments Auto-Complete] Error buscando citas vencidas:', searchError);
@@ -55,6 +61,8 @@ export async function POST(request: Request) {
         success: true,
         message: 'No hay citas vencidas para auto-completar',
         completed_count: 0,
+        processed_count: 0,
+        limit: limit,
         date: today,
         debug: {
           request_id: requestId,
@@ -63,7 +71,7 @@ export async function POST(request: Request) {
       });
     }
     
-    console.log(`📊 [Appointments Auto-Complete] Encontradas ${expiredAppointments.length} citas vencidas`);
+    console.log(`📊 [Appointments Auto-Complete] Encontradas ${expiredAppointments.length} citas vencidas (de máximo ${limit})`);
     
     // Agrupar por dealership para logs
     const byDealership = expiredAppointments.reduce((acc, appointment) => {
@@ -154,6 +162,7 @@ export async function POST(request: Request) {
     console.log('📊 [Appointments Auto-Complete] Resumen final:');
     console.log(`   ✅ Citas actualizadas exitosamente: ${successfulUpdates}`);
     console.log(`   ❌ Citas con error: ${failedUpdates}`);
+    console.log(`   📋 Total procesadas: ${expiredAppointments.length}`);
     console.log(`   ⏱️ Tiempo total de ejecución: ${totalExecutionTime}ms`);
     
     return NextResponse.json({
@@ -161,7 +170,8 @@ export async function POST(request: Request) {
       message: 'Proceso de auto-completado de citas finalizado',
       completed_count: successfulUpdates,
       failed_count: failedUpdates,
-      total_processed: expiredAppointments.length,
+      processed_count: expiredAppointments.length,
+      limit: limit,
       date: today,
       debug: {
         request_id: requestId,
