@@ -12,14 +12,16 @@ export async function POST(request: Request) {
     const today = new Date().toISOString().split('T')[0];
     console.log('📅 [Reminders Expire] Fecha actual:', today);
     
-    // Buscar recordatorios pendientes que ya pasaron su fecha
-    console.log('🔍 [Reminders Expire] Buscando recordatorios pendientes vencidos...');
+    // Buscar recordatorios pendientes que ya pasaron su fecha (limitado a 100)
+    const LIMIT_RECORDATORIOS = 100;
+    console.log(`🔍 [Reminders Expire] Buscando recordatorios pendientes vencidos (límite: ${LIMIT_RECORDATORIOS})...`);
     const { data: expiredReminders, error: searchError } = await supabase
       .from('reminders')
       .select('reminder_id, reminder_date, dealership_id, reminder_type, client_id_uuid')
       .eq('status', 'pending')
       .lt('reminder_date', today)
-      .order('reminder_date', { ascending: true });
+      .order('reminder_date', { ascending: true })
+      .limit(LIMIT_RECORDATORIOS);
     
     if (searchError) {
       console.error('❌ [Reminders Expire] Error buscando recordatorios vencidos:', searchError);
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
       });
     }
     
-    console.log(`📊 [Reminders Expire] Encontrados ${expiredReminders.length} recordatorios vencidos`);
+    console.log(`📊 [Reminders Expire] Encontrados ${expiredReminders.length} recordatorios vencidos (límite aplicado: ${LIMIT_RECORDATORIOS})`);
     
     // Extraer IDs de recordatorios a expirar
     const reminderIds = expiredReminders.map(r => r.reminder_id);
@@ -82,15 +84,18 @@ export async function POST(request: Request) {
     console.log(`✅ [Reminders Expire] Proceso completado exitosamente`);
     console.log(`   📊 Total recordatorios expirados: ${updatedReminders?.length || 0}`);
     console.log(`   📅 Fecha de procesamiento: ${today}`);
+    console.log(`   ⚠️ Límite aplicado: ${LIMIT_RECORDATORIOS} recordatorios por ejecución`);
     
     return NextResponse.json({
       message: 'Recordatorios vencidos expirados exitosamente',
       expired_count: updatedReminders?.length || 0,
       date: today,
+      limit_applied: LIMIT_RECORDATORIOS,
       details: {
         total_found: expiredReminders.length,
         total_updated: updatedReminders?.length || 0,
-        by_dealership: Object.keys(byDealership).length
+        by_dealership: Object.keys(byDealership).length,
+        limit_reached: expiredReminders.length === LIMIT_RECORDATORIOS
       }
     });
     
