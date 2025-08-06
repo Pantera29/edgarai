@@ -102,11 +102,31 @@ export async function POST(request: Request) {
           const updateUrl = `${baseUrl}/api/appointments/update/${appointment.id}`;
           console.log(`🔗 [Appointments Auto-Complete] Llamando endpoint: ${updateUrl}`);
           
+          // Obtener todos los headers de autenticación de la request original
+          const cookies = request.headers.get('cookie') || '';
+          const authHeader = request.headers.get('authorization') || '';
+          const userAgent = request.headers.get('user-agent') || '';
+          const forwardedFor = request.headers.get('x-forwarded-for') || '';
+          const realIp = request.headers.get('x-real-ip') || '';
+          
+          console.log(`🔐 [Appointments Auto-Complete] Headers de autenticación para cita ${appointment.id}:`, {
+            hasCookies: !!cookies,
+            hasAuth: !!authHeader,
+            cookiesLength: cookies.length,
+            userAgent: userAgent.substring(0, 50) + '...'
+          });
+          
           const response = await fetch(updateUrl, {
             method: 'PATCH',
             headers: {
               'Content-Type': 'application/json',
-              'Cookie': request.headers.get('cookie') || ''
+              'Cookie': cookies,
+              'Authorization': authHeader,
+              'User-Agent': userAgent,
+              'X-Forwarded-For': forwardedFor,
+              'X-Real-IP': realIp,
+              'X-Internal-Call': 'true', // Marcar como llamada interna
+              'X-Request-ID': requestId // Pasar el ID de request para tracking
             },
             body: JSON.stringify({
               status: 'completed'
@@ -118,10 +138,17 @@ export async function POST(request: Request) {
           console.log(`📡 [Appointments Auto-Complete] Respuesta para cita ${appointment.id}:`, {
             status: response.status,
             statusText: response.statusText,
-            ok: response.ok
+            ok: response.ok,
+            hasData: !!responseData,
+            dataKeys: responseData ? Object.keys(responseData) : []
           });
           
           if (!response.ok) {
+            console.error(`❌ [Appointments Auto-Complete] Error HTTP para cita ${appointment.id}:`, {
+              status: response.status,
+              statusText: response.statusText,
+              data: responseData
+            });
             throw new Error(`HTTP ${response.status}: ${responseData.message || response.statusText}`);
           }
           
