@@ -1,5 +1,5 @@
 import "@/app/globals.css"
-import { Outfit, Work_Sans, Fraunces } from "next/font/google"
+import { Outfit, Inter, Fraunces } from "next/font/google"
 import { ThemeProvider } from "@/components/theme-provider"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { Analytics } from "@vercel/analytics/react"
@@ -12,8 +12,8 @@ const outfit = Outfit({
   variable: '--font-outfit'
 })
 
-// Configurar Work Sans para el contenido
-const workSans = Work_Sans({ 
+// Configurar Inter para el contenido (reemplaza Work Sans)
+const inter = Inter({ 
   subsets: ["latin"],
   variable: '--font-work-sans'
 })
@@ -37,7 +37,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${outfit.variable} ${workSans.variable} ${fraunces.variable}`}>
+      <body className={`${outfit.variable} ${inter.variable} ${fraunces.variable}`}>
         <ThemeProvider>
           <TooltipProvider>
             {children}

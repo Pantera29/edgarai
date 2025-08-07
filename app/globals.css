@@ -26,7 +26,7 @@
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
     --font-outfit: 'Outfit', sans-serif;
-    --font-work-sans: 'Work Sans', sans-serif;
+    --font-work-sans: 'Inter', sans-serif;
                --font-moranga: 'Fraunces', serif;
   }
 }
@@ -37,6 +37,7 @@
   }
   body {
     @apply bg-background text-foreground;
+    overflow-x: hidden;
   }
 }
 
@@ -186,4 +187,30 @@
   25% { content: '.'; }
   50% { content: '..'; }
   75% { content: '...'; }
+}
+
+/* Ocultar barra de scroll en navegadores comunes */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+/* Marquee suave para hero */
+@keyframes marqueeLeft {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+@keyframes marqueeRight {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+.marquee-left, .marquee-right { width: max-content; }
+.marquee-left {
+  animation: marqueeLeft 40s linear infinite;
+}
+.marquee-right {
+  animation: marqueeRight 40s linear infinite;
 }
