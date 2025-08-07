@@ -24,7 +24,7 @@ import { es } from 'date-fns/locale'
 import { Badge } from "@/components/ui/badge"
 import { TooltipProvider } from '@radix-ui/react-tooltip'
 import Link from "next/link"
-import { MessageSquare, ArrowRight, Phone, Clock } from 'lucide-react'
+import { MessageSquare, ArrowRight, Phone, Clock, ChevronLeft, Video, MoreVertical, Paperclip, Camera, Mic, Smile } from 'lucide-react'
 import Image from "next/image"
 import { useToast } from "@/components/ui/use-toast"
 
@@ -187,15 +187,86 @@ export default function LandingPage() {
     }
   }, [visibleMessages]);
 
+  // Loop automático entre casos de uso
+  useEffect(() => {
+    const order: Array<'agendamiento' | 'seguimiento' | 'nps'> = ['agendamiento', 'nps', 'seguimiento'];
+    const currentIndex = order.indexOf(casoActivo as 'agendamiento' | 'seguimiento' | 'nps');
+    const timeout = setTimeout(() => {
+      const next = order[(currentIndex + 1) % order.length];
+      setCasoActivo(next);
+    }, 9000);
+    return () => clearTimeout(timeout);
+  }, [casoActivo]);
+
   const scrollToSection = (sectionId: string) => {
     const element = document.getElementById(sectionId);
-    if (element) {
-      element.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'start'
-      });
-    }
+    if (!element) return;
+    const headerOffset = 64; // altura de la navbar fija (más reducida)
+    const elementPosition = element.getBoundingClientRect().top + window.pageYOffset;
+    const offsetPosition = elementPosition - headerOffset;
+    window.scrollTo({ top: offsetPosition, behavior: 'smooth' });
   };
+
+  // Eventos para el marquee del hero
+  type Tone = 'success' | 'info' | 'warning' | 'danger';
+  const eventsRow1: { text: string; tone: Tone }[] = [
+    { text: 'Cita agendada para martes 9:00', tone: 'success' },
+    { text: 'NPS respondido 9/10 - Promotor', tone: 'success' },
+    { text: 'Recordatorio creado', tone: 'info' },
+    { text: 'Cita confirmada', tone: 'success' },
+    { text: 'Recordatorio enviado', tone: 'info' },
+  ];
+  const eventsRow2: { text: string; tone: Tone }[] = [
+    { text: 'Cita reagendada por el cliente', tone: 'warning' },
+    { text: 'NPS respondido 8/10 - Neutro', tone: 'info' },
+    { text: 'Problema escalado a humano', tone: 'danger' },
+    { text: 'Recordatorio de mañana programado', tone: 'info' },
+    { text: 'NPS respondido 6/10 - Detractor', tone: 'danger' },
+  ];
+  const eventsRow3: { text: string; tone: Tone }[] = [
+    { text: 'Cita agendada para jueves 13:00', tone: 'success' },
+    { text: 'Recordatorio confirmado', tone: 'success' },
+    { text: 'NPS respondido 7/10 - Neutro', tone: 'info' },
+    { text: 'Problema escalado a humano', tone: 'danger' },
+    { text: 'Cita cancelada y reprogramada', tone: 'warning' },
+  ];
+  const eventsRow4: { text: string; tone: Tone }[] = [
+    { text: 'Recordatorio de kilómetro creado', tone: 'info' },
+    { text: 'Cita agendada para viernes 14:00', tone: 'success' },
+    { text: 'NPS respondido 10/10 - Promotor', tone: 'success' },
+    { text: 'Recordatorio fallido, reintentando', tone: 'warning' },
+    { text: 'Escalado resuelto por humano', tone: 'success' },
+  ];
+
+  const toneStyles: Record<Tone, { dot: string; border: string }> = {
+    success: { dot: 'bg-emerald-600', border: 'border-emerald-300/80' },
+    info: { dot: 'bg-blue-600', border: 'border-blue-300/80' },
+    warning: { dot: 'bg-amber-500', border: 'border-amber-400' },
+    danger: { dot: 'bg-rose-600', border: 'border-rose-400' },
+  };
+
+  // Panel lateral de flujos (sin badge visual, solo título y descripción)
+  const flowsMeta: Array<{ key: 'agendamiento' | 'nps' | 'seguimiento'; number: string; title: string; description: string }> = [
+    {
+      key: 'agendamiento',
+      number: '1',
+      title: 'Agenda de citas',
+      description: 'Mía agenda citas por WhatsApp en segundos y confirma disponibilidad.'
+    },
+    {
+      key: 'nps',
+      number: '2',
+      title: 'Encuesta de Satisfacción',
+      description: 'Mía envía y recopila NPS automáticamente para medir satisfacción.'
+    },
+    {
+      key: 'seguimiento',
+      number: '3',
+      title: 'Recordatorios automáticos',
+      description: 'Mía envía recordatorios de servicio y seguimiento sin intervención.'
+    }
+  ];
+
 
   const handleLlamadaDemo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -241,12 +312,12 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] pt-[88px]">
+    <div className="min-h-screen bg-[#f8fafc] pt-[64px] overflow-x-hidden">
       {/* Navbar con logo a la izquierda */}
-      <nav className="py-6 px-6 border-b fixed w-full top-0 bg-[#f8fafc] z-50">
+      <nav className="py-[12px] px-6 fixed w-full top-0 bg-[#f8fafc] z-50">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           {/* Logo */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection('hero')} role="button" aria-label="Ir al inicio">
             <Image
               src="/favicon.ico"
               alt="MuviAI Logo"
@@ -273,15 +344,24 @@ export default function LandingPage() {
           {mobileMenuOpen && (
             <div className="absolute top-full left-0 right-0 bg-[#f8fafc] border-b shadow-lg md:hidden">
               <div className="p-6 space-y-6">
-                <button 
-                  onClick={() => {
-                    scrollToSection('caracteristicas');
-                    setMobileMenuOpen(false);
-                  }}
-                  className="block w-full text-left text-xl font-work-sans"
-                >
-                  Características
-                </button>
+                  <button 
+                    onClick={() => {
+                      scrollToSection('mia-en-accion');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="block w-full text-left text-xl font-work-sans"
+                  >
+                    Mía en acción
+                  </button>
+                  <button 
+                    onClick={() => {
+                      scrollToSection('caracteristicas');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="block w-full text-left text-xl font-work-sans"
+                  >
+                    Características
+                  </button>
 
                 <a 
                   href="/login" 
@@ -291,13 +371,13 @@ export default function LandingPage() {
                   Login Agencia
                 </a>
                 <a 
-                  href="https://wa.me/525575131257?text=Estoy%20interesado%20en%20conocer%20a%20Mía"
+                  href="https://wa.me/525575131257?text=Hola%2C%20quiero%20hablar%20con%20el%20fundador%20de%20MuviAI"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="block bg-primary text-white px-4 py-3 rounded-full text-center text-xl font-work-sans"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Agendar demo
+                  Hablar con Fundador
                 </a>
               </div>
             </div>
@@ -305,9 +385,17 @@ export default function LandingPage() {
 
           {/* Menú de escritorio */}
           <div className="hidden md:flex items-center gap-8">
-            <button 
-              onClick={() => scrollToSection('caracteristicas')} 
+            <button
+              onClick={() => scrollToSection('mia-en-accion')}
               className="text-gray-600 hover:text-black font-work-sans"
+              aria-label="Ver Mía en acción"
+            >
+              Mía en acción
+            </button>
+            <button
+              onClick={() => scrollToSection('caracteristicas')}
+              className="text-gray-600 hover:text-black font-work-sans"
+              aria-label="Ir a características"
             >
               Características
             </button>
@@ -316,240 +404,320 @@ export default function LandingPage() {
               Login Agencia
             </a>
             <a 
-              href="https://wa.me/525575131257?text=Estoy%20interesado%20en%20conocer%20a%20Mía"
+              href="https://wa.me/525575131257?text=Hola%2C%20quiero%20hablar%20con%20el%20fundador%20de%20MuviAI"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-primary text-white px-4 py-2 rounded-full hover:bg-primary/90 font-work-sans"
             >
-              Agendar demo
+              Hablar con Fundador
             </a>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="py-20 bg-[#f8fafc]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-2 gap-24 items-start">
-            {/* Lado izquierdo - Título, descripción y botón CTA */}
-            <div className="text-left flex flex-col">
+      <section id="hero" className="pt-8 md:pt-10 pb-6 md:pb-8 bg-[#f8fafc] min-h-[calc(100vh-64px)]">
+        <div className="max-w-5xl mx-auto px-6">
+          <div className="flex flex-col items-center text-center">
+            {/* Título, descripción y botón CTA centrados */}
+            <div className="flex flex-col items-center">
               <h1 className="text-5xl lg:text-7xl leading-tight font-moranga font-semibold tracking-tight mb-6">
                 <span className="text-[#0f172a]">La tranquilidad de saber que</span> <span className="text-primary">Mía</span> <span className="text-[#0f172a]">está cuidando tu negocio</span>
               </h1>
-              <p className="text-xl text-[#64748b] mb-12 font-work-sans">
+              <p className="text-xl text-[#64748b] mb-10 font-work-sans max-w-3xl">
                 Mía es una experta en atención al cliente que gestiona citas, WhatsApp y llamadas de tu agencia, con la eficiencia de la IA y la calidez de una asesora humana.
               </p>
               
-              {/* Botón CTA alineado debajo del título y subtítulo */}
-              <div className="mt-auto">
+              {/* Botón CTA centrado */}
+              <div>
                 <a 
-                  href="https://wa.me/525575131257?text=Estoy%20interesado%20en%20conocer%20a%20Mía"
+                  href="https://wa.me/525575131257?text=Hola%2C%20quiero%20hablar%20con%20el%20fundador%20de%20MuviAI"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="bg-primary text-white px-8 py-4 rounded-full text-lg hover:bg-primary/90 transition-colors font-work-sans inline-block"
                 >
-                  Agendar Demo
+                  Hablar con Fundador
                 </a>
+              </div>
+
+              {/* Marquee de eventos (contenedor anclado al viewport para evitar desbordes) */}
+              <div className="mt-20 relative left-1/2 -translate-x-1/2 w-screen max-w-screen overflow-hidden space-y-3 opacity-70 pointer-events-none px-6">
+                {/* Fila 1 - izquierda */}
+                <div className="relative overflow-hidden w-full">
+                  <div className="marquee-left inline-flex gap-3 whitespace-nowrap will-change-transform">
+                    {[...eventsRow1, ...eventsRow1, ...eventsRow1].map((item, idx) => (
+                      <span
+                        key={`r1-${idx}`}
+                        className={`inline-flex items-center gap-2 rounded-full border ${toneStyles[item.tone].border} bg-white/70 px-3 py-1 text-sm text-gray-800 shadow-sm backdrop-blur`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${toneStyles[item.tone].dot}`} />
+                        {item.text}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                {/* Fila 2 - derecha */}
+                <div className="relative overflow-hidden w-full">
+                  <div className="marquee-right inline-flex gap-3 whitespace-nowrap will-change-transform">
+                    {[...eventsRow2, ...eventsRow2, ...eventsRow2].map((item, idx) => (
+                      <span
+                        key={`r2-${idx}`}
+                        className={`inline-flex items-center gap-2 rounded-full border ${toneStyles[item.tone].border} bg-white/70 px-3 py-1 text-sm text-gray-800 shadow-sm backdrop-blur`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${toneStyles[item.tone].dot}`} />
+                        {item.text}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                {/* Fila 3 - izquierda */}
+                <div className="relative overflow-hidden w-full">
+                  <div className="marquee-left inline-flex gap-3 whitespace-nowrap will-change-transform">
+                    {[...eventsRow3, ...eventsRow3, ...eventsRow3].map((item, idx) => (
+                      <span
+                        key={`r3-${idx}`}
+                        className={`inline-flex items-center gap-2 rounded-full border ${toneStyles[item.tone].border} bg-white/70 px-3 py-1 text-sm text-gray-800 shadow-sm backdrop-blur`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${toneStyles[item.tone].dot}`} />
+                        {item.text}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                {/* Fila 4 - derecha */}
+                <div className="relative overflow-hidden w-full">
+                  <div className="marquee-right inline-flex gap-3 whitespace-nowrap will-change-transform">
+                    {[...eventsRow4, ...eventsRow4, ...eventsRow4].map((item, idx) => (
+                      <span
+                        key={`r4-${idx}`}
+                        className={`inline-flex items-center gap-2 rounded-full border ${toneStyles[item.tone].border} bg-white/70 px-3 py-1 text-sm text-gray-800 shadow-sm backdrop-blur`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${toneStyles[item.tone].dot}`} />
+                        {item.text}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Lado derecho - Componente de WhatsApp y toggle */}
-            <div className="flex flex-col">
-              <div className="bg-[#F0F2F5] rounded-3xl overflow-hidden shadow-2xl transform -translate-y-1">
-                {/* Header del chat */}
-                <div className="bg-[#075E54] text-white p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
-                    <Image
-                      src="/favicon.ico"
-                      alt="MuviAI Logo"
-                      width={24}
-                      height={24}
-                      className="rounded-sm"
-                    />
-                  </div>
-                  <div>
-                    <div className="font-medium font-work-sans">Mía</div>
-                    <div className="text-xs opacity-80 font-work-sans">en línea</div>
-                  </div>
-                </div>
+            {/* Fin hero, el teléfono se mueve a su propia sección */}
+          </div>
+        </div>
+      </section>
 
-                {/* Contenedor de mensajes */}
-                <div 
-                  className="p-4 bg-[#E4DDD6] h-[300px] overflow-y-auto space-y-3 messages-container" 
-                  style={{ scrollBehavior: 'smooth' }}
-                >
-                  {casoActivo === 'agendamiento' && (
-                    <>
-                      {[
-                        {
-                          user: true,
-                          text: "Hola, necesito agendar una cita para servicio",
-                          time: "10:30 AM"
-                        },
-                        {
-                          user: false,
-                          text: "¡Hola! Con gusto te ayudo a agendar tu cita. ¿Para qué tipo de servicio necesitas la cita?",
-                          time: "10:30 AM"
-                        },
-                        {
-                          user: true,
-                          text: "Servicio de 10,000 km",
-                          time: "10:31 AM"
-                        },
-                        {
-                          user: false,
-                          text: "Perfecto. Tengo disponibilidad para mañana a las 9:00 AM o 2:00 PM. ¿Qué horario te funciona mejor?",
-                          time: "10:31 AM"
-                        },
-                        {
-                          user: true,
-                          text: "Me gustaría a las 9:00 AM",
-                          time: "10:32 AM"
-                        },
-                        {
-                          user: false,
-                          text: "¡Excelente! Tu cita quedó agendada para mañana a las 9:00 AM. Te enviaré un recordatorio una hora antes. ¿Necesitas algo más?",
-                          time: "10:32 AM"
-                        }
-                      ].slice(Math.max(0, visibleMessages - 4), visibleMessages).map((msg, idx) => (
-                        <div key={idx} className={`flex justify-${msg.user ? 'end' : 'start'} animate-slideIn`}>
-                          <div className={`${msg.user ? 'bg-[#DCF8C6]' : 'bg-white'} rounded-lg p-3 max-w-[80%] shadow-sm`}>
-                            <div className="text-[15px] font-work-sans">{msg.text}</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">{msg.time}</div>
+      {/* Sección Teléfono WhatsApp */}
+      <section className="py-10 mt-24 md:mt-28 bg-[#f8fafc]" id="mia-en-accion">
+        <div className="max-w-7xl mx-auto px-6">
+          <h2 className="text-3xl md:text-4xl font-moranga font-semibold text-gray-900 text-center mb-8 md:mb-10">Mía en acción</h2>
+          <div className="flex justify-center">
+            <div className="relative w-fit">
+              {/* Wrapper con ancho real escalado para layout correcto */}
+              <div className="relative w-[246px] md:w-[277px] h-[570px] shrink-0">
+                <div className="w-[320px] md:w-[360px] scale-[0.77] origin-top-left">
+                  {/* Bisel del iPhone */}
+                  <div className="relative h-[740px] rounded-[44px] bg-black shadow-2xl">
+                    {/* Borde/bisel */}
+                    <div className="absolute inset-[6px] rounded-[38px] bg-black" />
+                    {/* Isla dinámica */}
+                    <div className="absolute left-1/2 top-0 z-20 h-7 w-40 -translate-x-1/2 translate-y-2 rounded-b-2xl bg-black" />
+                    {/* Pantalla */}
+                    <div className="absolute inset-[10px] overflow-hidden rounded-[34px] bg-white flex flex-col">
+                      {/* Header de WhatsApp */}
+                      <div className="bg-[#075E54] text-white">
+                        {/* Barra de estado */}
+                        <div className="flex items-center justify-between px-4 pt-2 text-[11px]">
+                          <span className="font-medium">9:41</span>
+                          <div className="flex items-center gap-1 text-white/90">
+                            {/* Señal */}
+                            <svg width="18" height="12" viewBox="0 0 18 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                              <rect x="1" y="8" width="2" height="3" rx="0.5" fill="currentColor"/>
+                              <rect x="5" y="6" width="2" height="5" rx="0.5" fill="currentColor"/>
+                              <rect x="9" y="4" width="2" height="7" rx="0.5" fill="currentColor"/>
+                              <rect x="13" y="2" width="2" height="9" rx="0.5" fill="currentColor"/>
+                            </svg>
+                            {/* Wi‑Fi */}
+                            <svg width="16" height="12" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                              <path d="M1 4.5C3.2 2.9 5.7 2 8 2c2.3 0 4.8.9 7 2.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                              <path d="M3 7c1.5-1 3.3-1.5 5-1.5S11.5 6 13 7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                              <path d="M6 9.5c.6-.4 1.3-.6 2-.6s1.4.2 2 .6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                              <circle cx="8" cy="10.2" r="0.8" fill="currentColor"/>
+                            </svg>
+                            {/* Batería */}
+                            <svg width="24" height="12" viewBox="0 0 24 12" fill="none" xmlns="http://www.w3.org/2000/svg" className="shrink-0">
+                              <rect x="1" y="2" width="18" height="8" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                              <rect x="3" y="4" width="14" height="4" rx="1" fill="currentColor"/>
+                              <rect x="20" y="4" width="2.5" height="4" rx="0.7" fill="currentColor"/>
+                            </svg>
                           </div>
                         </div>
-                      ))}
-                    </>
-                  )}
-                  {casoActivo === 'seguimiento' && (
-                    <>
-                      {visibleMessages >= 1 && (
-                        <div className="flex justify-start animate-slideIn">
-                          <div className="bg-white rounded-lg p-3 max-w-[80%] shadow-sm relative">
-                            <div className="text-[15px] font-work-sans">Hola Juan, tu auto ya está listo. Encontramos algunos detalles adicionales que requieren atención. ¿Te gustaría que te explique?</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:32 AM</div>
+                        {/* Título chat */}
+                        <div className="flex items-center gap-2 px-3 py-2">
+                          <ChevronLeft size={20} className="opacity-90" />
+                          <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">
+                            <Image src="/favicon.ico" alt="MuviAI Logo" width={18} height={18} className="rounded" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="truncate text-[15px] leading-tight font-medium font-work-sans">Mía</div>
+                            <div className="text-[11px] leading-tight opacity-90 font-work-sans">en línea</div>
+                          </div>
+                          <div className="flex items-center gap-3 pr-1">
+                            <Video size={18} className="opacity-90" />
+                            <Phone size={18} className="opacity-90" />
+                            <MoreVertical size={18} className="opacity-90" />
                           </div>
                         </div>
-                      )}
-                      {visibleMessages >= 2 && (
-                        <div className="flex justify-end animate-slideIn">
-                          <div className="bg-[#DCF8C6] rounded-lg p-3 max-w-[80%] shadow-sm">
-                            <div className="text-[15px] font-work-sans">Sí, por favor dime qué encontraron</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:32 AM</div>
-                          </div>
-                        </div>
-                      )}
-                      {visibleMessages >= 3 && (
-                        <div className="flex justify-start animate-slideIn">
-                          <div className="bg-white rounded-lg p-3 max-w-[80%] shadow-sm">
-                            <div className="text-[15px] font-work-sans">Las balatas están al 20% y recomendamos cambiarlas pronto. También notamos que el líquido de frenos necesita reemplazo. ¿Te gustaría que lo incluyamos en el servicio actual?</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:33 AM</div>
-                          </div>
-                        </div>
-                      )}
-                      {visibleMessages >= 4 && (
-                        <div className="flex justify-end animate-slideIn">
-                          <div className="bg-[#DCF8C6] rounded-lg p-3 max-w-[80%] shadow-sm">
-                            <div className="text-[15px] font-work-sans">Sí, por favor inclúyanlo todo</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:34 AM</div>
-                          </div>
-                        </div>
-                      )}
-                      {visibleMessages >= 5 && (
-                        <div className="flex justify-start animate-slideIn">
-                          <div className="bg-white rounded-lg p-3 max-w-[80%] shadow-sm">
-                            <div className="text-[15px] font-work-sans">Perfecto, procederemos con los trabajos adicionales. Te mantendré informado del progreso.</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:34 AM</div>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {casoActivo === 'nps' && (
-                    <>
-                      {visibleMessages >= 1 && (
-                        <div className="flex justify-start animate-slideIn">
-                          <div className="bg-white rounded-lg p-3 max-w-[80%] shadow-sm relative">
-                            <div className="text-[15px] font-work-sans">Hola María, ¿qué tal ha funcionado tu auto después del servicio? En escala del 0-10, ¿qué tan probable es que nos recomiendes?</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:34 AM</div>
-                          </div>
-                        </div>
-                      )}
-                      {visibleMessages >= 2 && (
-                        <div className="flex justify-end animate-slideIn">
-                          <div className="bg-[#DCF8C6] rounded-lg p-3 max-w-[80%] shadow-sm">
-                            <div className="text-[15px] font-work-sans">¡Todo excelente! Les doy un 10, el servicio fue muy rápido</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:34 AM</div>
-                          </div>
-                        </div>
-                      )}
-                      {visibleMessages >= 3 && (
-                        <div className="flex justify-start animate-slideIn">
-                          <div className="bg-white rounded-lg p-3 max-w-[80%] shadow-sm">
-                            <div className="text-[15px] font-work-sans">¡Gracias por tu feedback! Te recordamos que tu próximo servicio será en 5,000 km. ¿Te gustaría que te agende un recordatorio?</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:35 AM</div>
-                          </div>
-                        </div>
-                      )}
-                      {visibleMessages >= 4 && (
-                        <div className="flex justify-end animate-slideIn">
-                          <div className="bg-[#DCF8C6] rounded-lg p-3 max-w-[80%] shadow-sm">
-                            <div className="text-[15px] font-work-sans">Sí, por favor</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:35 AM</div>
-                          </div>
-                        </div>
-                      )}
-                      {visibleMessages >= 5 && (
-                        <div className="flex justify-start animate-slideIn">
-                          <div className="bg-white rounded-lg p-3 max-w-[80%] shadow-sm">
-                            <div className="text-[15px] font-work-sans">Listo, te enviaré un recordatorio cuando estés cerca de los 5,000 km. ¡Que tengas un excelente día!</div>
-                            <div className="text-[11px] text-gray-500 text-right mt-1 font-work-sans">10:36 AM</div>
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
+                      </div>
 
-                {/* Footer del chat */}
-                <div className="bg-[#F0F2F5] p-4 flex items-center gap-4">
-                  <input 
-                    type="text" 
-                    placeholder="Escribe un mensaje" 
-                    className="bg-white rounded-full py-2 px-4 flex-1 text-sm font-work-sans"
-                    disabled
-                  />
+                      {/* Mensajes */}
+                      <div className="messages-container flex-1 bg-[#E4DDD6] px-2 py-3 space-y-2 overflow-y-auto scrollbar-hide" style={{ scrollBehavior: 'smooth' }}>
+                        {casoActivo === 'agendamiento' && (
+                          <>
+                            {[
+                              { user: true, text: 'Hola, necesito agendar una cita para servicio', time: '10:30 AM' },
+                              { user: false, text: '¡Hola! Con gusto te ayudo a agendar tu cita. ¿Para qué tipo de servicio necesitas la cita?', time: '10:30 AM' },
+                              { user: true, text: 'Servicio de 10,000 km', time: '10:31 AM' },
+                              { user: false, text: 'Perfecto. Tengo disponibilidad para mañana a las 9:00 AM o 2:00 PM. ¿Qué horario te funciona mejor?', time: '10:31 AM' },
+                              { user: true, text: 'Me gustaría a las 9:00 AM', time: '10:32 AM' },
+                              { user: false, text: '¡Excelente! Tu cita quedó agendada para mañana a las 9:00 AM. Te enviaré un recordatorio una hora antes. ¿Necesitas algo más?', time: '10:32 AM' }
+                            ].slice(Math.max(0, visibleMessages - 6), visibleMessages).map((msg, idx) => (
+                              <div key={idx} className={`flex ${msg.user ? 'justify-end' : 'justify-start'} animate-slideIn`}>
+                                <div className={`${msg.user ? 'bg-[#DCF8C6]' : 'bg-white'} rounded-2xl px-3 py-2 max-w-[78%] shadow`}> 
+                                  <div className="text-[15px] font-work-sans">{msg.text}</div>
+                                  <div className="mt-1 flex items-center justify-end gap-1">
+                                    <span className="text-[10px] text-gray-500 font-work-sans">{msg.time}</span>
+                                    {msg.user && (
+                                      <span className="text-[10px] text-blue-500">✓✓</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </>
+                        )}
+
+                        {casoActivo === 'seguimiento' && (
+                          <>
+                            {visibleMessages >= 1 && (
+                              <div className="flex justify-start animate-slideIn">
+                                <div className="bg-white rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">Hola Juan, se acerca tu servicio de 50,000 km. ¿Quieres que te ayude a agendarlo?</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:32 AM</div>
+                                </div>
+                              </div>
+                            )}
+                            {visibleMessages >= 2 && (
+                              <div className="flex justify-end animate-slideIn">
+                                <div className="bg-[#DCF8C6] rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">Sí, me gustaría agendarlo esta semana</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:32 AM</div>
+                                </div>
+                              </div>
+                            )}
+                            {visibleMessages >= 3 && (
+                              <div className="flex justify-start animate-slideIn">
+                                <div className="bg-white rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">Perfecto, tengo disponibilidad el jueves a las 9:00 AM o 2:00 PM. ¿Cuál prefieres?</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:33 AM</div>
+                                </div>
+                              </div>
+                            )}
+                            {visibleMessages >= 4 && (
+                              <div className="flex justify-end animate-slideIn">
+                                <div className="bg-[#DCF8C6] rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">Jueves a las 9:00 AM</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:34 AM</div>
+                                </div>
+                              </div>
+                            )}
+                            {visibleMessages >= 5 && (
+                              <div className="flex justify-start animate-slideIn">
+                                <div className="bg-white rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">Listo, te agendé el jueves a las 9:00 AM. Te enviaré un recordatorio un día antes. ¿Necesitas algo más?</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:34 AM</div>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+
+                        {casoActivo === 'nps' && (
+                          <>
+                            {visibleMessages >= 1 && (
+                              <div className="flex justify-start animate-slideIn">
+                                <div className="bg-white rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">Hola María, ¿qué tal ha funcionado tu auto después del servicio? En escala del 0-10, ¿qué tan probable es que nos recomiendes?</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:34 AM</div>
+                                </div>
+                              </div>
+                            )}
+                            {visibleMessages >= 2 && (
+                              <div className="flex justify-end animate-slideIn">
+                                <div className="bg-[#DCF8C6] rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">¡Todo excelente! Les doy un 10, el servicio fue muy rápido</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:34 AM</div>
+                                </div>
+                              </div>
+                            )}
+                            {visibleMessages >= 3 && (
+                              <div className="flex justify-start animate-slideIn">
+                                <div className="bg-white rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">¡Gracias por tu feedback! Te recordamos que tu próximo servicio será en 5,000 km. ¿Te gustaría que te agende un recordatorio?</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:35 AM</div>
+                                </div>
+                              </div>
+                            )}
+                            {visibleMessages >= 4 && (
+                              <div className="flex justify-end animate-slideIn">
+                                <div className="bg-[#DCF8C6] rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">Sí, por favor</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:35 AM</div>
+                                </div>
+                              </div>
+                            )}
+                            {visibleMessages >= 5 && (
+                              <div className="flex justify-start animate-slideIn">
+                                <div className="bg-white rounded-2xl px-3 py-2 max-w-[78%] shadow">
+                                  <div className="text-[15px] font-work-sans">Listo, te enviaré un recordatorio cuando estés cerca de los 5,000 km. ¡Que tengas un excelente día!</div>
+                                  <div className="mt-1 text-right text-[10px] text-gray-500 font-work-sans">10:36 AM</div>
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+
+                      {/* Input inferior */}
+                      <div className="bg-[#F0F2F5] px-3 py-2 flex items-center gap-2 border-t border-black/5">
+                        <Smile size={18} className="text-gray-500" />
+                        <Paperclip size={18} className="text-gray-500" />
+                        <Camera size={18} className="text-gray-500" />
+                        <input
+                          type="text"
+                          placeholder="Mensaje"
+                          className="flex-1 rounded-full bg-white px-4 py-2 text-sm font-work-sans"
+                          disabled
+                        />
+                        <Mic size={18} className="text-gray-500" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              {/* Toggle de casos de uso alineado debajo del componente WhatsApp */}
-              <div className="flex justify-center mt-6">
-                <div className="inline-flex rounded-full border border-gray-200 p-1 bg-white shadow-sm">
-                  <button
-                    onClick={() => setCasoActivo('agendamiento')}
-                    className={`px-6 py-2 rounded-full text-sm transition-colors font-work-sans ${
-                      casoActivo === 'agendamiento' ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    Agendar Cita
-                  </button>
-                  <button
-                    onClick={() => setCasoActivo('seguimiento')}
-                    className={`px-6 py-2 rounded-full text-sm transition-colors font-work-sans ${
-                      casoActivo === 'seguimiento' ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    Seguimiento
-                  </button>
-                  <button
-                    onClick={() => setCasoActivo('nps')}
-                    className={`px-6 py-2 rounded-full text-sm transition-colors font-work-sans ${
-                      casoActivo === 'nps' ? 'bg-gray-900 text-white' : 'hover:bg-gray-50'
-                    }`}
-                  >
-                    NPS
-                  </button>
-                </div>
+              {/* Panel lateral con títulos y descripciones sincronizados */}
+              <div className="mt-6 md:mt-0 md:absolute md:left-[calc(100%+28px)] md:top-1/2 md:-translate-y-1/2 flex flex-col items-start gap-6 w-[340px] md:w-[520px]">
+                {flowsMeta.map((flow) => {
+                  const isActive = casoActivo === flow.key;
+                  return (
+                    <div key={flow.key} className="transition-all duration-300">
+                      <div className="flex items-center gap-3">
+                        <span className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-sm font-semibold flex-shrink-0 ${isActive ? 'bg-gray-900 text-white' : 'bg-gray-300 text-gray-700'}`}>{flow.number}</span>
+                        <h4 className={`font-moranga text-2xl md:text-[28px] leading-tight ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>{flow.title}</h4>
+                      </div>
+                      <p className={`mt-2 font-work-sans text-base md:text-lg leading-relaxed ${isActive ? 'text-gray-700' : 'text-gray-500/80'}`}>{flow.description}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -557,7 +725,7 @@ export default function LandingPage() {
       </section>
 
       {/* Sección Dashboard Preview */}
-      <section className="py-24 bg-[#f8fafc]">
+      <section id="caracteristicas" className="py-12 md:py-14 bg-[#f8fafc]">
         <div className="max-w-7xl mx-auto px-8">
           {/* Header */}
           <div className="text-center mb-16">
