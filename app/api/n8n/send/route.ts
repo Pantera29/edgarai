@@ -221,7 +221,12 @@ export async function POST(request: Request) {
     const payload = {
       message: processedMessage,
       whapi_id: mapping.whapi_id,
-      to: formattedPhone
+      to: formattedPhone,
+      client_id: recordatorio.client_id_uuid,
+      dealership_id,
+      ...(recordatorio.vehicle_id ? { vehicle_id: recordatorio.vehicle_id } : {}),
+      ...(recordatorio.appointment_id ? { appointment_id: recordatorio.appointment_id } : {}),
+      ...(recordatorio.service_id ? { service_id: recordatorio.service_id } : {})
     };
 
     const response = await fetch('https://n8n.edgarai.com.mx/webhook/outbound', {
