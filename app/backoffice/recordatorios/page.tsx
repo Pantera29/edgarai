@@ -382,7 +382,7 @@ export default function RecordatoriosPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedDate, setSelectedDate] = useState<Date>()
   const [selectedReminderType, setSelectedReminderType] = useState<string>("todos")
-  const [currentTab, setCurrentTab] = useState<string>("todos")
+  const [currentTab, setCurrentTab] = useState<string>("pendiente")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(50)
   const [stats, setStats] = useState({
@@ -1692,7 +1692,7 @@ export default function RecordatoriosPage() {
           </Popover>
         </div>
 
-        <Tabs defaultValue="todos" className="w-full" onValueChange={(tab) => setCurrentTab(tab)}>
+        <Tabs value={currentTab} className="w-full" onValueChange={(tab) => setCurrentTab(tab)}>
           <TabsList>
             <TabsTrigger value="todos">Todos</TabsTrigger>
             <TabsTrigger value="pendiente">Pendientes</TabsTrigger>
