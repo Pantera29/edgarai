@@ -29,12 +29,12 @@ export async function POST(request: Request) {
     console.log(`   México: ${todayInMexico.toISOString()}`);
     console.log(`   Fecha México: ${today}`);
     
-    // Buscar citas vencidas (pending con fecha anterior a hoy) - CON LÍMITE
+    // Buscar citas vencidas (pending y confirmed con fecha anterior a hoy) - CON LÍMITE
     console.log(`🔍 [Appointments Auto-Complete] Buscando citas vencidas (máximo ${limit})...`);
     const { data: expiredAppointments, error: searchError } = await supabase
       .from('appointment')
       .select('id, appointment_date, status, dealership_id')
-      .eq('status', 'pending')
+      .in('status', ['pending', 'confirmed'])
       .lt('appointment_date', today)
       .order('appointment_date', { ascending: true })
       .limit(limit);
