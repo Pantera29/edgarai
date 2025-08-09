@@ -147,24 +147,25 @@ async function processReminders(request: Request) {
           .eq('status', 'pending')
           .eq('dealership_id', agencyId)
           .order('created_at', { ascending: true })
-          .limit(1);
+          .limit(2);
         
         if (targetReminderType) {
           reminderQuery = reminderQuery.eq('reminder_type', targetReminderType);
         }
         
-        const { data: nextReminder, error: reminderError } = await reminderQuery.single();
+        const { data: nextReminders, error: reminderError } = await reminderQuery;
         
         if (reminderError) {
-          if (reminderError.code === 'PGRST116') {
-            console.log(`ℹ️ [Reminder Process] No hay recordatorios pendientes para agencia: ${agencyId}`);
-          } else {
-            console.error(`❌ [Reminder Process] Error obteniendo recordatorio para agencia ${agencyId}:`, reminderError);
-          }
+          console.error(`❌ [Reminder Process] Error obteniendo recordatorios para agencia ${agencyId}:`, reminderError);
           continue;
         }
         
-        if (nextReminder) {
+        if (!nextReminders || nextReminders.length === 0) {
+          console.log(`ℹ️ [Reminder Process] No hay recordatorios pendientes para agencia: ${agencyId}`);
+          continue;
+        }
+        
+        for (const nextReminder of nextReminders) {
           // NUEVO: Verificar si el tipo de recordatorio está habilitado
           const reminderTypeKey = `${nextReminder.reminder_type}_enabled` as keyof typeof reminderSettings;
           const isEnabled = reminderSettings[reminderTypeKey] ?? true;
