@@ -23,7 +23,6 @@ interface AppointmentDialogProps {
   onDateChange: (date: string) => void;
   onSlotChange: (slot: string) => void;
   onSave: () => void;
-  recommendedServiceId?: string | null;
 }
 
 export default function AppointmentDialog({
@@ -36,7 +35,6 @@ export default function AppointmentDialog({
   onDateChange,
   onSlotChange,
   onSave,
-  recommendedServiceId,
 }: AppointmentDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -190,33 +188,16 @@ export default function AppointmentDialog({
           fecha_hora: fechaHora,
           status: status,
           notas: notas,
-          recommended_service_id: recommendedServiceId || null
         }])
         .select()
         .single();
 
       if (error) throw error;
       
-      // Si existe un servicio recomendado, actualizar su estado
-      if (recommendedServiceId) {
-        const { error: updateError } = await supabase
-          .from('recommended_services')
-          .update({ status: 'scheduled' })
-          .eq('id', recommendedServiceId);
-
-        if (updateError) throw updateError;
-
-        toast({
-          title: "Cita agendada",
-          description: "La cita se ha creado y el servicio recomendado ha sido actualizado",
-          duration: 5000
-        });
-      } else {
-        toast({
-          title: "Cita agendada",
-          description: "La cita se ha creado exitosamente"
-        });
-      }
+      toast({
+        title: "Cita agendada",
+        description: "La cita se ha creado exitosamente"
+      });
       
       onOpenChange(false);
       onSave();
