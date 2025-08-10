@@ -40,12 +40,76 @@ export const useClientSearch = (dealershipId: string) => {
     try {
       console.log('🔍 Buscando clientes con query:', query, 'para dealership:', dealershipId);
       
-      // MEJORA: Búsqueda por nombre Y teléfono
-      const { data, error } = await supabase
+      // MEJORA: Búsqueda por palabras individuales Y teléfono
+      // Dividir la consulta en palabras individuales
+      const words = query.trim().split(/\s+/).filter(word => word.length > 0);
+      
+      let supabaseQuery = supabase
         .from('client')
         .select('id, names, phone_number, dealership_id')
-        .or(`names.ilike.%${query}%,phone_number.ilike.%${query}%`)
-        .eq('dealership_id', dealershipId)
+        .eq('dealership_id', dealershipId);
+      
+      if (words.length > 0) {
+        // Aplicar filtros para cada palabra del nombre (AND)
+        words.forEach(word => {
+          supabaseQuery = supabaseQuery.filter('names', 'ilike', `%${word}%`);
+        });
+        
+        // Agregar búsqueda por teléfono completo (OR)
+        const phoneQuery = supabase
+          .from('client')
+          .select('id, names, phone_number, dealership_id')
+          .eq('dealership_id', dealershipId)
+          .ilike('phone_number', `%${query}%`);
+        
+        // Ejecutar ambas consultas
+        const [nameResults, phoneResults] = await Promise.all([
+          supabaseQuery.limit(10).order('names'),
+          phoneQuery.limit(10).order('names')
+        ]);
+        
+        if (nameResults.error) {
+          console.error('❌ Error en búsqueda por nombre:', nameResults.error);
+          setError('Error al buscar clientes');
+          setClients([]);
+          return;
+        }
+        
+        if (phoneResults.error) {
+          console.error('❌ Error en búsqueda por teléfono:', phoneResults.error);
+          setError('Error al buscar clientes');
+          setClients([]);
+          return;
+        }
+        
+        // Combinar resultados únicos
+        const allResults = [...(nameResults.data || []), ...(phoneResults.data || [])];
+        const uniqueResults = allResults.filter((client, index, self) => 
+          index === self.findIndex(c => c.id === client.id)
+        );
+        
+        console.log('✅ Resultados de búsqueda:', uniqueResults.length, 'clientes encontrados');
+        console.log('📊 Resultados completos:', uniqueResults);
+
+        // Combinar resultados de búsqueda con clientes seleccionados previamente
+        const searchResults = uniqueResults;
+        const combinedResults = [...selectedClients];
+        
+        // Agregar resultados de búsqueda que no estén ya en selectedClients
+        searchResults.forEach(client => {
+          if (!combinedResults.find(c => c.id === client.id)) {
+            combinedResults.push(client);
+          }
+        });
+
+        console.log('📋 Resultados combinados finales:', combinedResults.length, 'clientes');
+        setClients(combinedResults);
+        return;
+      }
+      
+      // Si no hay palabras, solo buscar por teléfono
+      const { data, error } = await supabaseQuery
+        .ilike('phone_number', `%${query}%`)
         .limit(10)
         .order('names');
 
