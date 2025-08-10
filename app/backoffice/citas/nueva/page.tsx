@@ -28,6 +28,7 @@ interface ExtendedVehicle extends Vehicle {
     names?: string;
   };
   model_id?: string; // <-- Agregado para que TypeScript acepte el campo
+  vin?: string; // <-- Agregado para incluir el VIN del vehículo
 }
 
 // Interfaz para clientes extendida
@@ -494,7 +495,7 @@ export default function NuevaReservaPage() {
       return "";
     }
     
-    return `${vehicle.make} ${vehicle.model}${vehicle.license_plate ? ` (${vehicle.license_plate})` : ''}`;
+    return `${vehicle.make} ${vehicle.model}${vehicle.license_plate ? ` (${vehicle.license_plate})` : ''}${vehicle.vin ? ` - VIN: ${vehicle.vin}` : ''}`;
   }, [selectedVehicle, filteredVehicles]);
 
   // Obtener el texto del taller seleccionado
@@ -1185,7 +1186,7 @@ export default function NuevaReservaPage() {
                         key={vehiculo.id_uuid || vehiculo.id} 
                         value={vehiculo.id_uuid || vehiculo.id}
                       >
-                        {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}`}
+                        {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}${vehiculo.vin ? ` - VIN: ${vehiculo.vin}` : ''}`}
                       </SelectItem>
                     ))
                   ) : (
