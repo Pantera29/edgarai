@@ -455,8 +455,62 @@ export async function POST(request: Request) {
 
     if (insertError) {
       console.error('Error creating appointment:', insertError.message);
+      
+      // Manejo específico de errores de restricción única
+      if (insertError.message.includes('appointment_vehicle_date_time_unique')) {
+        return NextResponse.json(
+          { 
+            message: 'Cannot create appointment: This vehicle already has an appointment scheduled at this date and time',
+            error_type: 'DUPLICATE_APPOINTMENT',
+            solution: 'Choose a different time slot or date for this vehicle. Use GET /api/appointments/availability to find available slots.'
+          },
+          { status: 409 }
+        );
+      }
+
+      // Manejo de otros errores de restricción única
+      if (insertError.message.includes('duplicate key value violates unique constraint')) {
+        return NextResponse.json(
+          { 
+            message: 'Cannot create appointment: Duplicate appointment detected',
+            error_type: 'DUPLICATE_DATA',
+            solution: 'This appointment may have already been created. Check existing appointments or try with different parameters.'
+          },
+          { status: 409 }
+        );
+      }
+
+      // Manejo de errores de foreign key
+      if (insertError.message.includes('foreign key constraint')) {
+        return NextResponse.json(
+          { 
+            message: 'Cannot create appointment: One or more referenced records do not exist',
+            error_type: 'INVALID_REFERENCES',
+            solution: 'Verify that the client, vehicle, service, and dealership IDs are valid and exist in the database.'
+          },
+          { status: 400 }
+        );
+      }
+
+      // Manejo de errores de validación
+      if (insertError.message.includes('check constraint') || insertError.message.includes('validation')) {
+        return NextResponse.json(
+          { 
+            message: 'Cannot create appointment: Invalid data format or validation failed',
+            error_type: 'VALIDATION_ERROR',
+            solution: 'Check that the date format is YYYY-MM-DD, time format is HH:MM:SS, and all required fields are provided.'
+          },
+          { status: 400 }
+        );
+      }
+
+      // Error genérico
       return NextResponse.json(
-        { message: 'Failed to create appointment. Please try again or contact support if the issue persists.', error: insertError.message },
+        { 
+          message: 'Failed to create appointment due to a database error',
+          error_type: 'DATABASE_ERROR',
+          solution: 'Please try again. If the problem persists, contact support.'
+        },
         { status: 500 }
       );
     }
