@@ -2,9 +2,9 @@ name: EdgarAI Reminders Expire Cron
 
 on:
   schedule:
-    # Ejecutar todos los días a las 10:00 AM hora de México (UTC-6)
-    # En UTC sería las 16:00 (4:00 PM)
-    - cron: '0 16 * * *'
+    # Ejecutar a las 5, 6 y 7 AM hora de México (UTC-6)
+    # En UTC sería las 11:00, 12:00 y 13:00
+    - cron: '0 11,12,13 * * *'
   workflow_dispatch:
 
 jobs:
