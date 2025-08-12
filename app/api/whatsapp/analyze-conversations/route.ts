@@ -191,19 +191,50 @@ RESPONDE ÚNICAMENTE CON EL OBJETO JSON:`
 // Función para obtener el conteo de conversaciones pendientes
 async function getRemainingCount(dealership_id?: string): Promise<number> {
   try {
-    let query = supabase
+    // Query 1: Conversaciones nunca analizadas
+    let neverAnalyzedQuery = supabase
       .from('chat_conversations')
       .select('*', { count: 'exact', head: true })
       .eq('channel', 'whatsapp')
-      .is('was_successful', null);
+      .is('last_analyzed_at', null);
+
+    // Query 2: Conversaciones ya analizadas (para filtrar después)
+    let alreadyAnalyzedQuery = supabase
+      .from('chat_conversations')
+      .select('updated_at, last_analyzed_at')
+      .eq('channel', 'whatsapp')
+      .not('last_analyzed_at', 'is', null);
 
     // Filtrar por dealership si se proporciona
     if (dealership_id) {
-      query = query.eq('dealership_id', dealership_id);
+      neverAnalyzedQuery = neverAnalyzedQuery.eq('dealership_id', dealership_id);
+      alreadyAnalyzedQuery = alreadyAnalyzedQuery.eq('dealership_id', dealership_id);
     }
 
-    const { count } = await query;
-    return count || 0;
+    // Ejecutar ambos queries
+    const [neverAnalyzedResult, alreadyAnalyzedResult] = await Promise.all([
+      neverAnalyzedQuery,
+      alreadyAnalyzedQuery
+    ]);
+
+    const neverAnalyzedCount = neverAnalyzedResult.count || 0;
+    
+    // Contar conversaciones que necesitan re-análisis
+    const needsReanalysisCount = (alreadyAnalyzedResult.data || []).filter(conv => {
+      if (!conv.last_analyzed_at || !conv.updated_at) return false;
+      
+      // Convertir a fechas (solo fecha, sin hora)
+      const lastAnalyzed = new Date(conv.last_analyzed_at);
+      const updated = new Date(conv.updated_at);
+      
+      // Comparar solo la fecha (YYYY-MM-DD)
+      const lastAnalyzedDate = lastAnalyzed.toISOString().split('T')[0];
+      const updatedDate = updated.toISOString().split('T')[0];
+      
+      return updatedDate > lastAnalyzedDate;
+    }).length;
+
+    return neverAnalyzedCount + needsReanalysisCount;
   } catch (error) {
     console.error('Error obteniendo conteo restante:', error);
     return 0;
@@ -220,30 +251,79 @@ export async function POST(request: Request) {
 
     console.log('📝 [WhatsApp Analyzer] Parámetros:', { batch_size, dealership_id });
 
-    // Obtener conversaciones de WhatsApp sin análisis
-    let query = supabase
+    // Obtener conversaciones de WhatsApp que necesitan análisis
+    // Query 1: Conversaciones nunca analizadas
+    let neverAnalyzedQuery = supabase
       .from('chat_conversations')
-      .select('id, messages, user_identifier, dealership_id')
+      .select('id, messages, user_identifier, dealership_id, updated_at, last_analyzed_at')
       .eq('channel', 'whatsapp')
-      .is('was_successful', null)
-      .limit(batch_size);
+      .is('last_analyzed_at', null);
+
+    // Query 2: Conversaciones ya analizadas (para filtrar después)
+    let alreadyAnalyzedQuery = supabase
+      .from('chat_conversations')
+      .select('id, messages, user_identifier, dealership_id, updated_at, last_analyzed_at')
+      .eq('channel', 'whatsapp')
+      .not('last_analyzed_at', 'is', null);
 
     // Filtrar por dealership si se proporciona
     if (dealership_id) {
-      query = query.eq('dealership_id', dealership_id);
+      neverAnalyzedQuery = neverAnalyzedQuery.eq('dealership_id', dealership_id);
+      alreadyAnalyzedQuery = alreadyAnalyzedQuery.eq('dealership_id', dealership_id);
     }
 
-    const { data: conversations, error } = await query;
+    // Ejecutar ambos queries
+    const [neverAnalyzedResult, alreadyAnalyzedResult] = await Promise.all([
+      neverAnalyzedQuery.limit(batch_size),
+      alreadyAnalyzedQuery
+    ]);
 
-    if (error) {
-      console.error('❌ [WhatsApp Analyzer] Error obteniendo conversaciones:', error);
-      throw error;
+    if (neverAnalyzedResult.error) {
+      console.error('❌ [WhatsApp Analyzer] Error obteniendo conversaciones nunca analizadas:', neverAnalyzedResult.error);
+      throw neverAnalyzedResult.error;
     }
+
+    if (alreadyAnalyzedResult.error) {
+      console.error('❌ [WhatsApp Analyzer] Error obteniendo conversaciones ya analizadas:', alreadyAnalyzedResult.error);
+      throw alreadyAnalyzedResult.error;
+    }
+
+    // Combinar resultados
+    const neverAnalyzed = neverAnalyzedResult.data || [];
+    const allAnalyzed = alreadyAnalyzedResult.data || [];
+    
+    // Filtrar conversaciones que necesitan re-análisis (solo por fecha, sin hora)
+    const needsReanalysis = allAnalyzed.filter(conv => {
+      if (!conv.last_analyzed_at || !conv.updated_at) return false;
+      
+      // Convertir a fechas (solo fecha, sin hora)
+      const lastAnalyzed = new Date(conv.last_analyzed_at);
+      const updated = new Date(conv.updated_at);
+      
+      // Comparar solo la fecha (YYYY-MM-DD)
+      const lastAnalyzedDate = lastAnalyzed.toISOString().split('T')[0];
+      const updatedDate = updated.toISOString().split('T')[0];
+      
+      return updatedDate > lastAnalyzedDate;
+    });
+    
+    console.log(`📊 [WhatsApp Analyzer] Conversaciones encontradas:`, {
+      never_analyzed: neverAnalyzed.length,
+      needs_reanalysis: needsReanalysis.length,
+      total_found: neverAnalyzed.length + needsReanalysis.length
+    });
+
+    const conversations = [
+      ...neverAnalyzed,
+      ...needsReanalysis
+    ].slice(0, batch_size); // Limitar al batch_size total
+
+    // Los errores ya se manejan arriba en los queries individuales
 
     if (!conversations || conversations.length === 0) {
       const remaining = await getRemainingCount(dealership_id);
       return NextResponse.json({
-        message: 'No hay más conversaciones de WhatsApp para analizar',
+        message: 'No hay más conversaciones de WhatsApp que necesiten análisis',
         processed: 0,
         results: [],
         remaining: remaining
@@ -256,7 +336,8 @@ export async function POST(request: Request) {
     
     for (const conv of conversations) {
       try {
-        console.log(`🔄 [WhatsApp Analyzer] Analizando conversación ${conv.id}`);
+        const isReanalysis = conv.last_analyzed_at !== null;
+        console.log(`🔄 [WhatsApp Analyzer] ${isReanalysis ? 'Re-analizando' : 'Analizando'} conversación ${conv.id}${isReanalysis ? ` (último análisis: ${conv.last_analyzed_at})` : ''}`);
 
         // Verificar que existan mensajes
         if (!conv.messages || !Array.isArray(conv.messages) || conv.messages.length === 0) {
@@ -285,7 +366,8 @@ export async function POST(request: Request) {
             outcome_type: analysis.outcome_type,
             follow_up_notes: analysis.follow_up_notes,
             customer_satisfaction: analysis.customer_satisfaction,
-            agent_performance: analysis.agent_performance
+            agent_performance: analysis.agent_performance,
+            last_analyzed_at: new Date().toISOString()
           })
           .eq('id', conv.id);
 
@@ -297,12 +379,13 @@ export async function POST(request: Request) {
             error: updateError.message
           });
         } else {
-          console.log(`✅ [WhatsApp Analyzer] Conversación ${conv.id} analizada exitosamente`);
+          console.log(`✅ [WhatsApp Analyzer] Conversación ${conv.id} ${isReanalysis ? 're-analizada' : 'analizada'} exitosamente`);
           results.push({
             id: conv.id,
             status: 'success',
             was_successful: was_successful,
-            analysis: analysis
+            analysis: analysis,
+            is_reanalysis: isReanalysis
           });
         }
 
@@ -343,6 +426,10 @@ export async function POST(request: Request) {
         estimated_total: remaining + results.length,
         completed: results.length,
         percentage: remaining === 0 ? 100 : Math.round((results.length / (remaining + results.length)) * 100)
+      },
+      analysis_summary: {
+        new_analyses: results.filter(r => r.status === 'success' && !r.is_reanalysis).length,
+        re_analyses: results.filter(r => r.status === 'success' && r.is_reanalysis).length
       }
     });
 
@@ -373,29 +460,48 @@ export async function GET(request: Request) {
       baseQuery = baseQuery.eq('dealership_id', dealership_id);
     }
 
-    // Obtener estadísticas paso a paso para mejor debugging
+    // Obtener estadísticas detalladas
     const { count: totalWhatsApp } = await baseQuery.eq('channel', 'whatsapp');
     console.log('📊 Total WhatsApp conversations:', totalWhatsApp);
 
-    const { count: pending } = await baseQuery
+    // Conversaciones nunca analizadas
+    const { count: neverAnalyzed } = await baseQuery
       .eq('channel', 'whatsapp')
-      .is('was_successful', null);
-    console.log('📊 Pending conversations:', pending);
+      .is('last_analyzed_at', null);
+    console.log('📊 Never analyzed conversations:', neverAnalyzed);
 
-    const analyzed = (totalWhatsApp || 0) - (pending || 0);
-    const progressPercentage = totalWhatsApp ? Math.round((analyzed / totalWhatsApp) * 100) : 0;
+    // Conversaciones que necesitan re-análisis
+    const { count: needsReanalysis } = await baseQuery
+      .eq('channel', 'whatsapp')
+      .not('last_analyzed_at', 'is', null)
+      .gt('updated_at', 'last_analyzed_at');
+    console.log('📊 Needs reanalysis conversations:', needsReanalysis);
+
+    // Conversaciones actualizadas
+    const { count: upToDate } = await baseQuery
+      .eq('channel', 'whatsapp')
+      .not('last_analyzed_at', 'is', null)
+      .lte('updated_at', 'last_analyzed_at');
+    console.log('📊 Up to date conversations:', upToDate);
+
+    const pendingAnalysis = (neverAnalyzed || 0) + (needsReanalysis || 0);
+    const progressPercentage = totalWhatsApp ? Math.round(((totalWhatsApp - pendingAnalysis) / totalWhatsApp) * 100) : 0;
 
     console.log('📊 Estadísticas calculadas:', {
       total: totalWhatsApp,
-      analyzed,
-      pending,
+      never_analyzed: neverAnalyzed,
+      needs_reanalysis: needsReanalysis,
+      up_to_date: upToDate,
+      pending_analysis: pendingAnalysis,
       progress: progressPercentage
     });
 
     return NextResponse.json({
       total_whatsapp_conversations: totalWhatsApp || 0,
-      analyzed: analyzed,
-      pending: pending || 0,
+      never_analyzed: neverAnalyzed || 0,
+      needs_reanalysis: needsReanalysis || 0,
+      up_to_date: upToDate || 0,
+      pending_analysis: pendingAnalysis,
       progress_percentage: progressPercentage,
       dealership_filter: dealership_id || 'all'
     });
