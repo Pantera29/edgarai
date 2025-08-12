@@ -583,8 +583,11 @@ export default function RecordatoriosPage() {
   }
 
   const updateStats = (data: Recordatorio[]) => {
+    // Usar fecha local en lugar de UTC para evitar problemas de zona horaria
     const today = new Date();
-    const todayString = today.toISOString().slice(0, 10); // 'YYYY-MM-DD'
+    const todayString = today.getFullYear() + '-' + 
+      String(today.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(today.getDate()).padStart(2, '0'); // 'YYYY-MM-DD' en zona horaria local
 
     const recordatoriosParaHoy = data.filter(r => {
       if (!r.reminder_date) return false;

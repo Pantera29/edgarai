@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils';
 import { verifyToken } from "@/app/jwt/token";
 import { useRouter } from 'next/navigation';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TimeSelector } from "@/components/ui/time-selector";
 
 const DAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
@@ -426,30 +427,26 @@ export default function WorkshopConfiguration() {
                           <Label className="text-sm font-medium text-gray-700">Horario de Operación</Label>
                           <div className="flex items-center gap-2">
                             <div className="flex-1">
-                              <Input
-                                type="time"
+                              <TimeSelector
                                 value={schedule.opening_time.slice(0, 5)}
-                                onChange={(e) => 
+                                onChange={(value) => 
                                   updateSchedule(index, { 
-                                    opening_time: e.target.value + ':00' 
+                                    opening_time: value + ':00' 
                                   })
                                 }
                                 disabled={!isEditing}
-                                className="w-full"
                               />
                             </div>
                             <span className="text-gray-500">a</span>
                             <div className="flex-1">
-                              <Input
-                                type="time"
+                              <TimeSelector
                                 value={schedule.closing_time.slice(0, 5)}
-                                onChange={(e) => 
+                                onChange={(value) => 
                                   updateSchedule(index, { 
-                                    closing_time: e.target.value + ':00' 
+                                    closing_time: value + ':00' 
                                   })
                                 }
                                 disabled={!isEditing}
-                                className="w-full"
                               />
                             </div>
                           </div>
@@ -457,17 +454,14 @@ export default function WorkshopConfiguration() {
 
                         <div className="space-y-2">
                           <Label className="text-sm font-medium text-gray-700">Horario de Recepción</Label>
-                          <Input
-                            type="time"
+                          <TimeSelector
                             value={schedule.reception_end_time ? schedule.reception_end_time.slice(0, 5) : ''}
-                            onChange={(e) => 
+                            onChange={(value) => 
                               updateSchedule(index, { 
-                                reception_end_time: e.target.value ? e.target.value + ':00' : null 
+                                reception_end_time: value ? value + ':00' : null 
                               })
                             }
                             disabled={!isEditing}
-                            className="w-full"
-                            placeholder="12:00"
                           />
                           <div className="text-xs text-gray-500">
                             Límite para recibir nuevas citas
@@ -518,8 +512,6 @@ export default function WorkshopConfiguration() {
                           </div>
                         </div>
                       </div>
-
-
                     </div>
                   )}
                 </div>
