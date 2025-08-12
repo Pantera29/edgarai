@@ -450,7 +450,24 @@ export default function RecordatoriosPage() {
     
     console.log(`[Auditoría] Consultando recordatorios para dealership_id: ${dealershipIdFromToken}`);
     
-    // Implementar paginación para traer todos los recordatorios
+    // Calcular el periodo de 61 días (30 días hacia atrás + hoy + 30 días hacia adelante)
+    const hoy = new Date();
+    const fechaInicio = new Date(hoy);
+    fechaInicio.setDate(hoy.getDate() - 30);
+    const fechaFin = new Date(hoy);
+    fechaFin.setDate(hoy.getDate() + 30);
+    
+    // Formatear fechas para la consulta (YYYY-MM-DD)
+    const fechaInicioString = fechaInicio.getFullYear() + '-' + 
+      String(fechaInicio.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(fechaInicio.getDate()).padStart(2, '0');
+    const fechaFinString = fechaFin.getFullYear() + '-' + 
+      String(fechaFin.getMonth() + 1).padStart(2, '0') + '-' + 
+      String(fechaFin.getDate()).padStart(2, '0');
+    
+    console.log(`[Auditoría] Consultando recordatorios del periodo: ${fechaInicioString} a ${fechaFinString}`);
+    
+    // Implementar paginación para traer recordatorios del periodo de 61 días
     let allRecordatorios: Recordatorio[] = [];
     let hasMore = true;
     let from = 0;
@@ -481,6 +498,8 @@ export default function RecordatoriosPage() {
             )
           `)
           .eq('dealership_id', dealershipIdFromToken)
+          .gte('reminder_date', fechaInicioString + 'T00:00:00')
+          .lte('reminder_date', fechaFinString + 'T23:59:59')
           .order('reminder_date', { ascending: true })
           .range(from, from + pageSize - 1);
 
