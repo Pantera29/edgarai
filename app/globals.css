@@ -41,6 +41,65 @@
   }
 }
 
+/* Estilos para mejorar el selector de tiempo */
+@layer components {
+  .time-input-enhanced {
+    position: relative;
+  }
+  
+  .time-input-enhanced input[type="time"] {
+    cursor: pointer;
+  }
+  
+  .time-input-enhanced input[type="time"]::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+  }
+  
+  .time-input-enhanced input[type="time"]::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+  }
+  
+  /* Forzar scroll en el selector de tiempo */
+  .time-input-enhanced input[type="time"]::-webkit-datetime-edit {
+    cursor: pointer;
+  }
+  
+  /* Mejorar la apariencia del selector nativo */
+  .time-input-enhanced input[type="time"]::-webkit-inner-spin-button,
+  .time-input-enhanced input[type="time"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  /* Estilos para el selector de tiempo personalizado */
+  .time-selector-content {
+    max-height: 200px !important;
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+  }
+
+  .time-selector-content::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .time-selector-content::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+
+  .time-selector-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+
+  .time-selector-content::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+}
+
 /* Agregar estas clases */
 .tab-content-enter {
   opacity: 0;
