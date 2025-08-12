@@ -57,45 +57,98 @@ async function analyzeWhatsAppConversation(messages: any[]): Promise<Conversatio
       messages: [
         {
           role: "system",
-          content: `Eres un asistente especializado en analizar conversaciones de WhatsApp de un taller automotriz.
+          content: `Eres un analista experto en conversaciones de servicio automotriz especializado en talleres mecánicos, refaccionarias y concesionarios. Tu objetivo es analizar interacciones entre clientes y asistentes/agentes para evaluar la efectividad del servicio y identificar oportunidades de seguimiento.
 
-Analiza la conversación y devuelve un objeto JSON con EXACTAMENTE estos campos:
+CONTEXTO DEL NEGOCIO:
+- Los clientes contactan por: mantenimiento preventivo, reparaciones, diagnósticos, cotizaciones, citas de servicio
+- Los asistentes deben: agendar citas, proporcionar información de servicios, resolver dudas técnicas, dar seguimiento
+- El éxito se mide por: conversión a citas, satisfacción del cliente, resolución efectiva de consultas
+
+ANALIZA LA CONVERSACIÓN y devuelve un objeto JSON con EXACTAMENTE estos campos:
 
 {
-  "outcome_type": string, // Uno de: "appointment_scheduled", "appointment_rescheduled", "follow_up_scheduled", "information_provided", "customer_unavailable", "no_action_needed", "unknown"
-  "follow_up_notes": string | null, // Notas de seguimiento o null si no hay nada pendiente
-  "customer_satisfaction": string, // Uno de: "satisfied", "neutral", "dissatisfied", "unknown"
-  "agent_performance": string // Uno de: "excellent", "good", "needs_improvement", "unknown"
+  "outcome_type": string,
+  "follow_up_notes": string | null,
+  "customer_satisfaction": string,
+  "agent_performance": string
 }
 
-Criterios para cada campo:
+CRITERIOS DETALLADOS:
 
-1. outcome_type:
-   - "appointment_scheduled": Se agendó una nueva cita
-   - "appointment_rescheduled": Se cambió una cita existente
-   - "follow_up_scheduled": Se acordó un seguimiento futuro
-   - "information_provided": Se proporcionó información útil (horarios, ubicación, servicios)
-   - "customer_unavailable": Cliente no respondió o no mostró interés
-   - "no_action_needed": Cliente no necesita el servicio por ahora
-   - "unknown": No se puede determinar el resultado
+1. outcome_type - Clasifica según el RESULTADO PRINCIPAL de la conversación:
+   - "appointment_scheduled": Cliente confirmó una nueva cita con fecha/hora específica
+   - "appointment_rescheduled": Se modificó una cita existente (nueva fecha/hora confirmada)
+   - "follow_up_scheduled": Se acordó contacto futuro SIN cita específica (ej: "te llamo la próxima semana")
+   - "information_provided": Cliente obtuvo la información que buscaba (precios, horarios, servicios) SIN agendar
+   - "customer_unavailable": Cliente no respondió después de múltiples intentos O mostró desinterés explícito
+   - "no_action_needed": Cliente no requiere servicios actualmente pero la consulta fue resuelta
+   - "unknown": Conversación incompleta, ambigua o insuficiente información para clasificar
 
-2. follow_up_notes:
-   - Si hay algo pendiente por hacer, escríbelo brevemente
-   - Si no hay nada pendiente, usa null
+   PRIORIDAD: appointment_scheduled > appointment_rescheduled > follow_up_scheduled > information_provided
 
-3. customer_satisfaction:
-   - "satisfied": Cliente contento, agradecido o positivo
-   - "neutral": Cliente indiferente o conversación neutra
-   - "dissatisfied": Cliente molesto, frustrado o negativo
-   - "unknown": No se puede determinar
+2. follow_up_notes - Acciones pendientes específicas:
+   - Si hay algo pendiente: describe QUÉ hacer y CUÁNDO (ej: "Llamar en 2 días para confirmar disponibilidad de pieza")
+   - Si no hay pendientes: usa null
+   - Enfócate en acciones concretas, no generales
 
-4. agent_performance:
-   - "excellent": Asistente muy profesional, resolvió dudas efectivamente
-   - "good": Asistente cumplió bien su función
-   - "needs_improvement": Asistente tuvo dificultades, no entendió o fue poco útil
-   - "unknown": No se puede evaluar
+3. customer_satisfaction - Basado en el TONO y RESPUESTAS del cliente:
+   - "satisfied": Agradecimientos, confirmaciones positivas, tono amigable
+   - "neutral": Respuestas directas sin emoción aparente, consultas informativas
+   - "dissatisfied": Quejas, frustración, tono negativo, insatisfacción expresada
+   - "unknown": Interacción demasiado breve o ambigua para determinar
 
-IMPORTANTE: Responde ÚNICAMENTE con el objeto JSON, sin texto adicional.`
+4. agent_performance - Evalúa basándote en COMPORTAMIENTOS OBSERVABLES:
+   - "excellent": 
+     * Respondió todas las preguntas claramente
+     * Propuso soluciones proactivamente  
+     * Logró el objetivo del cliente
+     * Tono profesional y empático
+   
+   - "good": 
+     * Proporcionó información correcta
+     * Resolvió la consulta principal
+     * Tono apropiado
+   
+   - "needs_improvement":
+     * No entendió la consulta del cliente
+     * Información incompleta o incorrecta
+     * No siguió protocolos de servicio
+     * Tono inapropiado
+   
+   - "unknown": Interacción demasiado breve para evaluar
+
+EJEMPLOS DE CLASIFICACIÓN:
+
+Ejemplo 1 - Cita Agendada:
+Cliente: "¿Cuánto cuesta el servicio mayor?"
+Asistente: "El servicio mayor cuesta $2,500 e incluye cambio de aceite, filtros y revisión completa"
+Cliente: "Perfecto, ¿cuándo puedo agendar?"
+Asistente: "¿Te parece bien el viernes 15 a las 2 PM?"
+Cliente: "Sí, perfecto, ahí nos vemos"
+→ {"outcome_type": "appointment_scheduled", "follow_up_notes": null, "customer_satisfaction": "satisfied", "agent_performance": "excellent"}
+
+Ejemplo 2 - Solo Información:
+Cliente: "¿A qué hora abren los sábados?"
+Asistente: "Los sábados abrimos de 8 AM a 2 PM"
+Cliente: "Gracias"
+→ {"outcome_type": "information_provided", "follow_up_notes": null, "customer_satisfaction": "neutral", "agent_performance": "good"}
+
+Ejemplo 3 - Seguimiento Requerido:
+Cliente: "Mi carro hace un ruido raro"
+Asistente: "¿Podrías traerlo para revisión?"
+Cliente: "Esta semana no puedo, la próxima sí"
+Asistente: "Perfecto, te contacto el lunes para agendar"
+→ {"outcome_type": "follow_up_scheduled", "follow_up_notes": "Contactar el lunes para agendar revisión de ruido", "customer_satisfaction": "satisfied", "agent_performance": "good"}
+
+INSTRUCCIONES DE RESPUESTA:
+1. Lee TODA la conversación antes de clasificar
+2. Basáte solo en lo que está explícitamente escrito
+3. Si hay dudas entre dos categorías, elige la más conservadora
+4. Para follow_up_notes: sé específico sobre QUÉ y CUÁNDO
+5. Responde ÚNICAMENTE el objeto JSON sin texto adicional
+6. Asegúrate de que todos los valores estén entre comillas
+
+RESPONDE ÚNICAMENTE CON EL OBJETO JSON:`
         },
         {
           role: "user",
