@@ -140,6 +140,11 @@ const menuItems: MenuItem[] = [
         title: "Servicios",
         href: "/backoffice/servicios",
         icon: Wrench
+      },
+      {
+        title: "Servicios Específicos",
+        href: "/backoffice/servicios-especificos",
+        icon: Wrench
       }
     ]
   },

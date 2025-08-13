@@ -98,6 +98,58 @@
   .time-selector-content::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
   }
+
+  /* Estilos para scroll en SelectContent */
+  .select-content-scrollable {
+    max-height: 200px !important;
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+  }
+
+  .select-content-scrollable::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .select-content-scrollable::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+
+  .select-content-scrollable::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+
+  .select-content-scrollable::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+
+  /* Estilos para scroll en modales */
+  .modal-scrollable {
+    max-height: 60vh !important;
+    overflow-y: auto !important;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+  }
+
+  .modal-scrollable::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .modal-scrollable::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+  }
+
+  .modal-scrollable::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 3px;
+  }
+
+  .modal-scrollable::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
 }
 
 /* Agregar estas clases */
