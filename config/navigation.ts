@@ -1,4 +1,4 @@
-import { Home, Users, Calendar, Settings, MessageSquare, Car } from "lucide-react"
+import { Home, Users, Calendar, Settings, MessageSquare, Car, Wrench } from "lucide-react"
 
 export const navigationItems = [
   {
@@ -20,6 +20,11 @@ export const navigationItems = [
     title: "Servicios",
     href: "/servicios",
     icon: Settings,
+  },
+  {
+    title: "Servicios Específicos",
+    href: "/servicios-especificos",
+    icon: Wrench,
   },
   {
     title: "Vehículos",

@@ -617,6 +617,13 @@ export default function ServiciosPage() {
         />
         <Button onClick={() => setMostrarFormulario(true)}>Añadir Nuevo Servicio</Button>
       </div>
+      
+      <div className="flex justify-between items-center mb-4">
+        <Input
+          placeholder="Buscar servicios..."
+          className="max-w-sm"
+        />
+      </div>
 
       <Table>
         <TableHeader>
