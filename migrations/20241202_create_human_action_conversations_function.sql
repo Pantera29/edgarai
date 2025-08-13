@@ -37,7 +37,7 @@ RETURNS TABLE (
   client_phone TEXT,
   client_agent_active BOOLEAN,
   -- Métricas de urgencia
-  hours_since_last_activity NUMERIC,
+  hours_since_last_activity INTEGER,
   urgency_level TEXT,
   -- Total count para paginación
   total_count BIGINT
@@ -67,9 +67,9 @@ BEGIN
     AND (p_channel_filter IS NULL OR cc.channel = p_channel_filter)
     AND (p_search_query IS NULL OR 
          cc.user_identifier ILIKE '%' || p_search_query || '%' OR
-         c.names ILIKE '%' || p_search_query || '%' OR
-         c.phone_number ILIKE '%' || p_search_query || '%' OR
-         c.email ILIKE '%' || p_search_query || '%')
+         COALESCE(c.names, '') ILIKE '%' || p_search_query || '%' OR
+         COALESCE(c.phone_number, '') ILIKE '%' || p_search_query || '%' OR
+         COALESCE(c.email, '') ILIKE '%' || p_search_query || '%')
     AND (p_urgency_filter = 'all' OR 
          EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - cc.updated_at)) / 3600 <= v_urgency_threshold_hours);
 
@@ -102,7 +102,7 @@ BEGIN
     c.phone_number as client_phone,
     c.agent_active as client_agent_active,
     -- Calcular horas desde la última actividad
-    EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - cc.updated_at)) / 3600 as hours_since_last_activity,
+    EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - cc.updated_at)) / 3600::INTEGER as hours_since_last_activity,
     -- Determinar nivel de urgencia
     CASE 
       WHEN EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - cc.updated_at)) / 3600 <= 6 THEN 'critical'
@@ -119,16 +119,16 @@ BEGIN
     AND (p_channel_filter IS NULL OR cc.channel = p_channel_filter)
     AND (p_search_query IS NULL OR 
          cc.user_identifier ILIKE '%' || p_search_query || '%' OR
-         c.names ILIKE '%' || p_search_query || '%' OR
-         c.phone_number ILIKE '%' || p_search_query || '%' OR
-         c.email ILIKE '%' || p_search_query || '%')
+         COALESCE(c.names, '') ILIKE '%' || p_search_query || '%' OR
+         COALESCE(c.phone_number, '') ILIKE '%' || p_search_query || '%' OR
+         COALESCE(c.email, '') ILIKE '%' || p_search_query || '%')
     AND (p_urgency_filter = 'all' OR 
          EXTRACT(EPOCH FROM (CURRENT_TIMESTAMP - cc.updated_at)) / 3600 <= v_urgency_threshold_hours)
   ORDER BY 
-    -- Ordenar por urgencia primero (más antiguas primero)
-    cc.updated_at ASC,
+    -- Ordenar por urgencia primero (más recientes primero)
+    cc.updated_at DESC,
     -- Luego por fecha de creación
-    cc.created_at ASC
+    cc.created_at DESC
   LIMIT p_limit_rows
   OFFSET p_offset_rows;
 END;

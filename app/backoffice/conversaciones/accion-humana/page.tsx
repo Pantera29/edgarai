@@ -80,7 +80,6 @@ interface MetricasAccionHumana {
   phone_count: number;
   urgent_count: number;
   normal_count: number;
-  avg_hours_since_activity: number;
   urgency_distribution: {
     urgent: number;
     normal: number;
@@ -211,6 +210,8 @@ export default function ConversacionesAccionHumanaPage() {
 
   const getUrgencyBadge = (urgencyLevel: string) => {
     switch (urgencyLevel) {
+      case "critical":
+      case "very_urgent":
       case "urgent":
         return <Badge className="bg-orange-500 text-white"><AlertTriangle className="h-3 w-3 mr-1" />Urgente</Badge>;
       default:
@@ -339,7 +340,7 @@ export default function ConversacionesAccionHumanaPage() {
       {/* Métricas */}
       {(() => { console.log('🔍 Estado de métricas:', { loadingMetricas, metricas, hasMetricas: !!metricas }); return null; })()}
       {!loadingMetricas && metricas && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <Card className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
               <h3 className="tracking-tight text-sm font-medium text-muted-foreground">
@@ -376,26 +377,6 @@ export default function ConversacionesAccionHumanaPage() {
               <p className="text-xs text-muted-foreground">
                 <Clock className="inline h-3 w-3 mr-1" />
                 Requieren atención inmediata
-              </p>
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">
-                Tiempo Promedio
-              </h3>
-              <div className="rounded-md bg-blue-100 p-1">
-                <TrendingUp className="h-4 w-4 text-blue-600" />
-              </div>
-            </div>
-            <div className="flex items-center">
-              <div className="text-3xl font-bold">{metricas.avg_hours_since_activity}h</div>
-            </div>
-            <div className="mt-3">
-              <p className="text-xs text-muted-foreground">
-                <Clock className="inline h-3 w-3 mr-1" />
-                Desde última actividad
               </p>
             </div>
           </Card>
