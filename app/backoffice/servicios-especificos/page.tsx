@@ -53,6 +53,7 @@ interface VehicleModel {
   name: string
   make_id: string
   make: {
+    id: string
     name: string
   }
 }
@@ -81,6 +82,7 @@ interface SpecificService {
   model: {
     name: string
     make: {
+      id: string
       name: string
     }
   }
@@ -225,7 +227,14 @@ export default function ServiciosEspecificosPage() {
 
       if (error) throw error
       
-      setSpecificServices(data || [])
+      // Transformar los datos para que coincidan con la interfaz SpecificService
+      const transformedData = data?.map((item: any) => ({
+        ...item,
+        model: Array.isArray(item.model) ? item.model[0] : item.model,
+        service: Array.isArray(item.service) ? item.service[0] : item.service
+      })) || []
+      
+      setSpecificServices(transformedData)
     } catch (error) {
       console.error('Error al cargar servicios específicos:', error)
       throw error
@@ -291,14 +300,27 @@ export default function ServiciosEspecificosPage() {
       // Cargar todos los modelos de una marca específica para el formulario
       const { data, error } = await supabase
         .from('vehicle_models')
-        .select('id, name, make_id')
+        .select(`
+          id, 
+          name, 
+          make_id,
+          make:vehicle_makes (
+            name
+          )
+        `)
         .eq('make_id', makeId)
         .eq('is_active', true)
         .order('name')
 
       if (error) throw error
       
-      setModels(data || [])
+      // Transformar los datos para que coincidan con la interfaz VehicleModel
+      const transformedData = data?.map((item: any) => ({
+        ...item,
+        make: Array.isArray(item.make) ? item.make[0] : item.make
+      })) || []
+      
+      setModels(transformedData)
     } catch (error) {
       console.error('Error al cargar todos los modelos:', error)
       throw error
