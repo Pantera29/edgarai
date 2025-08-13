@@ -96,7 +96,6 @@ Your project has **mixed Spanish/English** throughout:
 ✅ Current Tables: "client", "services", "appointment" (English names)
 ✅ Current Fields: "service_name", "duration_minutes", "client_id" (English names)  
 ✅ Status Values: "pending", "confirmed", "completed" (English values)
-❌ Legacy Tables: "citas", "servicios" (Spanish - being deprecated)
 
 -- CRITICAL: Use existing English table/field names, NOT Spanish translations
 ```
@@ -246,7 +245,6 @@ model_blocked_dates (id, dealership_id, model_id, blocked_date, reason)
 
 -- Reminders & Automation
 automatic_reminder_rules (rule_id, dealership_id, months_after, is_active)
-recordatorios_mantenimiento (id, cliente_id, tipo, fecha_programada, descripcion, estado, kilometraje_programado)
 
 -- Services (Transactions removed - NPS now uses appointment_id directly)
 
@@ -261,8 +259,7 @@ calendar_tokens (id, dealership_id, token_hash, created_at, expires_at, is_activ
 -- NPS & Feedback (NUEVO)
 nps_surveys (id, client_id, dealership_id, score, feedback, created_at, channel)
 
--- Legacy Tables (DEPRECATED - NO USAR)
-citas, servicios (use 'appointment' and 'services' instead)
+
 ```
 
 #### **Key Relationships**
