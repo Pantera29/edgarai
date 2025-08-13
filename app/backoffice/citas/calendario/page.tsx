@@ -164,7 +164,8 @@ export default function CalendarioCitasPage() {
           dealership_id: appointment.dealership_id,
           workshop_id: appointment.workshop_id, // <-- NUEVO
           specific_service_id: appointment.specific_service_id, // <-- NUEVO
-          removed_additional: appointment.removed_additional // <-- AGREGADO
+          removed_additional: appointment.removed_additional, // <-- AGREGADO
+          display: 'block' // <-- NUEVO: Para mostrar solo el horario de inicio
         } as CalendarEventWithServiceId
       }).filter((e): e is CalendarEventWithServiceId => !!e)
 
@@ -551,14 +552,15 @@ export default function CalendarioCitasPage() {
               events={filteredEvents.map(event => ({
                 ...event,
                 backgroundColor: statusColors[event.status],
-                borderColor: statusColors[event.status]
+                borderColor: statusColors[event.status],
+                title: `${new Date(event.start).toLocaleTimeString('es-ES', {hour: '2-digit', minute: '2-digit'})}\n${event.title}`
               }))}
               eventClick={handleEventClick}
               dateClick={handleDateClick}
               height="auto"
               allDaySlot={false}
               slotMinTime="08:00:00"
-              slotMaxTime="17:00:00"
+              slotMaxTime="14:00:00"
               slotDuration="00:30:00"
               nowIndicator={true}
               editable={true}
@@ -567,6 +569,13 @@ export default function CalendarioCitasPage() {
               dayMaxEvents={true}
               weekends={true}
               datesSet={handleDatesSet}
+              eventTimeFormat={{
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+              }}
+              eventDisplay="block"
+
             />
           )}
         </div>
@@ -724,7 +733,15 @@ export default function CalendarioCitasPage() {
       </Dialog>
 
       {/* Ocultar el título nativo de FullCalendar */}
-      <style>{`.fc-toolbar-title { display: none !important; }`}</style>
+      <style>{`
+        .fc-toolbar-title { display: none !important; }
+        .fc-event-time { display: none !important; }
+        .fc-event-title { 
+          white-space: pre-line !important; 
+          word-break: break-word !important;
+        }
+      `}</style>
+
     </div>
   )
 } 
