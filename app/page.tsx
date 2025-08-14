@@ -210,27 +210,20 @@ export default function LandingPage() {
   // Eventos para el marquee del hero
   type Tone = 'success' | 'info' | 'warning' | 'danger';
   const eventsRow1: { text: string; tone: Tone }[] = [
-    { text: 'Cita agendada para martes 9:00', tone: 'success' },
-    { text: 'NPS respondido 9/10 - Promotor', tone: 'success' },
-    { text: 'Recordatorio creado', tone: 'info' },
-    { text: 'Cita confirmada', tone: 'success' },
-    { text: 'Recordatorio enviado', tone: 'info' },
-  ];
-  const eventsRow2: { text: string; tone: Tone }[] = [
     { text: 'Cita reagendada por el cliente', tone: 'warning' },
     { text: 'NPS respondido 8/10 - Neutro', tone: 'info' },
     { text: 'Problema escalado a humano', tone: 'danger' },
     { text: 'Recordatorio de mañana programado', tone: 'info' },
     { text: 'NPS respondido 6/10 - Detractor', tone: 'danger' },
   ];
-  const eventsRow3: { text: string; tone: Tone }[] = [
+  const eventsRow2: { text: string; tone: Tone }[] = [
     { text: 'Cita agendada para jueves 13:00', tone: 'success' },
     { text: 'Recordatorio confirmado', tone: 'success' },
     { text: 'NPS respondido 7/10 - Neutro', tone: 'info' },
     { text: 'Problema escalado a humano', tone: 'danger' },
     { text: 'Cita cancelada y reprogramada', tone: 'warning' },
   ];
-  const eventsRow4: { text: string; tone: Tone }[] = [
+  const eventsRow3: { text: string; tone: Tone }[] = [
     { text: 'Recordatorio de kilómetro creado', tone: 'info' },
     { text: 'Cita agendada para viernes 14:00', tone: 'success' },
     { text: 'NPS respondido 10/10 - Promotor', tone: 'success' },
@@ -312,22 +305,46 @@ export default function LandingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] pt-[64px] overflow-x-hidden">
-      {/* Navbar con logo a la izquierda */}
-      <nav className="py-[12px] px-6 fixed w-full top-0 bg-[#f8fafc] z-50">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          {/* Logo */}
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => scrollToSection('hero')} role="button" aria-label="Ir al inicio">
-            <Image
-              src="/favicon.ico"
-              alt="MuviAI Logo"
-              width={32}
-              height={32}
-              className="rounded-sm"
-            />
-            <div className="text-2xl font-work-sans">
-              muvi<span className="font-medium">AI</span>
+    <div className="min-h-screen bg-white pt-[64px] overflow-x-hidden">
+      {/* Navbar con diseño tipo Flai */}
+      <nav className="py-4 px-6 fixed w-full top-0 bg-white z-50">
+        <div className="max-w-6xl mx-auto flex items-center">
+          {/* Logo a la izquierda */}
+          <div className="flex items-center cursor-pointer" onClick={() => scrollToSection('hero')} role="button" aria-label="Ir al inicio">
+            <div className="text-2xl font-bold text-black">
+              Muvi
             </div>
+          </div>
+
+          {/* Navegación centrada - solo en desktop */}
+          <div className="hidden md:flex items-center gap-8 mx-auto">
+            <button
+              onClick={() => scrollToSection('mia-en-accion')}
+              className="text-gray-600 hover:text-black font-work-sans transition-colors"
+            >
+              Qué hacemos
+            </button>
+            <button
+              onClick={() => scrollToSection('caracteristicas')}
+              className="text-gray-600 hover:text-black font-work-sans transition-colors"
+            >
+              Cómo funciona
+            </button>
+          </div>
+
+          {/* CTA y Login a la derecha */}
+          <div className="flex items-center gap-4">
+            <a 
+              href="https://wa.me/525575131257?text=Hola%2C%20quiero%20agendar%20una%20demo%20de%20MuviAI"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors font-work-sans"
+            >
+              Agendar demo
+            </a>
+            <a href="/login" className="text-black font-work-sans hover:text-gray-700 transition-colors">
+              Login Agencia
+            </a>
           </div>
 
           {/* Botón hamburguesa para móvil */}
@@ -342,106 +359,70 @@ export default function LandingPage() {
 
           {/* Menú móvil */}
           {mobileMenuOpen && (
-            <div className="absolute top-full left-0 right-0 bg-[#f8fafc] border-b shadow-lg md:hidden">
-              <div className="p-6 space-y-6">
-                  <button 
-                    onClick={() => {
-                      scrollToSection('mia-en-accion');
-                      setMobileMenuOpen(false);
-                    }}
-                    className="block w-full text-left text-xl font-work-sans"
-                  >
-                    Mía en acción
-                  </button>
-                  <button 
-                    onClick={() => {
-                      scrollToSection('caracteristicas');
-                      setMobileMenuOpen(false);
-                    }}
-                    className="block w-full text-left text-xl font-work-sans"
-                  >
-                    Características
-                  </button>
-
-                <a 
-                  href="/login" 
-                  className="block text-xl font-work-sans"
-                  onClick={() => setMobileMenuOpen(false)}
+            <div className="absolute top-full left-0 right-0 bg-white border-b shadow-lg md:hidden">
+              <div className="p-6 space-y-4">
+                <button 
+                  onClick={() => {
+                    scrollToSection('mia-en-accion');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black"
                 >
-                  Login Agencia
-                </a>
+                  Qué hacemos
+                </button>
+                <button 
+                  onClick={() => {
+                    scrollToSection('caracteristicas');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black"
+                >
+                  Cómo funciona
+                </button>
                 <a 
-                  href="https://wa.me/525575131257?text=Hola%2C%20quiero%20hablar%20con%20el%20fundador%20de%20MuviAI"
+                  href="https://wa.me/525575131257?text=Hola%2C%20quiero%20agendar%20una%20demo%20de%20MuviAI"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block bg-primary text-white px-4 py-3 rounded-full text-center text-xl font-work-sans"
+                  className="block bg-primary text-white px-4 py-3 rounded-lg text-center text-lg font-work-sans"
                   onClick={() => setMobileMenuOpen(false)}
                 >
-                  Hablar con Fundador
+                  Agendar demo
                 </a>
               </div>
             </div>
           )}
-
-          {/* Menú de escritorio */}
-          <div className="hidden md:flex items-center gap-8">
-            <button
-              onClick={() => scrollToSection('mia-en-accion')}
-              className="text-gray-600 hover:text-black font-work-sans"
-              aria-label="Ver Mía en acción"
-            >
-              Mía en acción
-            </button>
-            <button
-              onClick={() => scrollToSection('caracteristicas')}
-              className="text-gray-600 hover:text-black font-work-sans"
-              aria-label="Ir a características"
-            >
-              Características
-            </button>
-
-            <a href="/login" className="text-gray-600 hover:text-black font-work-sans">
-              Login Agencia
-            </a>
-            <a 
-              href="https://wa.me/525575131257?text=Hola%2C%20quiero%20hablar%20con%20el%20fundador%20de%20MuviAI"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-primary text-white px-4 py-2 rounded-full hover:bg-primary/90 font-work-sans"
-            >
-              Hablar con Fundador
-            </a>
-          </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section id="hero" className="pt-8 md:pt-10 pb-6 md:pb-8 bg-[#f8fafc] min-h-[calc(100vh-64px)]">
-        <div className="max-w-5xl mx-auto px-6">
+      <section id="hero" className="relative pt-16 md:pt-20 pb-6 md:pb-8 bg-white min-h-[calc(100vh-64px)]">
+        {/* Refuerzos de gradiente locales (suaves) */}
+        {/* gradientes removidos */}
+        <div className="relative max-w-5xl mx-auto px-6">
           <div className="flex flex-col items-center text-center">
             {/* Título, descripción y botón CTA centrados */}
             <div className="flex flex-col items-center">
               <h1 className="text-5xl lg:text-7xl leading-tight font-moranga font-semibold tracking-tight mb-6">
-                <span className="text-[#0f172a]">La tranquilidad de saber que</span> <span className="text-primary">Mía</span> <span className="text-[#0f172a]">está cuidando tu negocio</span>
+                <span className="text-[#0f172a]">Convierte cada llamada y chat en citas confirmadas con IA</span>
               </h1>
-              <p className="text-xl text-[#64748b] mb-10 font-work-sans max-w-3xl">
-                Mía es una experta en atención al cliente que gestiona citas, WhatsApp y llamadas de tu agencia, con la eficiencia de la IA y la calidez de una asesora humana.
+              <p className="text-xl text-[#64748b] mb-10 font-work-sans">
+                Mía, tu agente de IA para WhatsApp y teléfono, agenda 24/7, envía recordatorios y da seguimiento.
               </p>
               
               {/* Botón CTA centrado */}
               <div>
                 <a 
-                  href="https://wa.me/525575131257?text=Hola%2C%20quiero%20hablar%20con%20el%20fundador%20de%20MuviAI"
+                  href="https://wa.me/525575131257?text=Hola%2C%20quiero%20agendar%20una%20demo%20de%20MuviAI"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="bg-primary text-white px-8 py-4 rounded-full text-lg hover:bg-primary/90 transition-colors font-work-sans inline-block"
                 >
-                  Hablar con Fundador
+                  Agendar demo
                 </a>
               </div>
 
               {/* Marquee de eventos (contenedor anclado al viewport para evitar desbordes) */}
-              <div className="mt-20 relative left-1/2 -translate-x-1/2 w-screen max-w-screen overflow-hidden space-y-3 opacity-70 pointer-events-none px-6">
+              <div className="mt-32 relative left-1/2 -translate-x-1/2 w-screen max-w-screen overflow-hidden space-y-3 opacity-70 pointer-events-none px-6">
                 {/* Fila 1 - izquierda */}
                 <div className="relative overflow-hidden w-full">
                   <div className="marquee-left inline-flex gap-3 whitespace-nowrap will-change-transform">
@@ -484,20 +465,6 @@ export default function LandingPage() {
                     ))}
                   </div>
                 </div>
-                {/* Fila 4 - derecha */}
-                <div className="relative overflow-hidden w-full">
-                  <div className="marquee-right inline-flex gap-3 whitespace-nowrap will-change-transform">
-                    {[...eventsRow4, ...eventsRow4, ...eventsRow4].map((item, idx) => (
-                      <span
-                        key={`r4-${idx}`}
-                        className={`inline-flex items-center gap-2 rounded-full border ${toneStyles[item.tone].border} bg-white/70 px-3 py-1 text-sm text-gray-800 shadow-sm backdrop-blur`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${toneStyles[item.tone].dot}`} />
-                        {item.text}
-                      </span>
-                    ))}
-                  </div>
-                </div>
               </div>
             </div>
 
@@ -507,8 +474,9 @@ export default function LandingPage() {
       </section>
 
       {/* Sección Teléfono WhatsApp */}
-      <section className="py-10 mt-24 md:mt-28 bg-[#f8fafc]" id="mia-en-accion">
-        <div className="max-w-7xl mx-auto px-6">
+      <section className="relative py-10 mt-24 md:mt-28 bg-transparent" id="mia-en-accion">
+        {/* gradientes removidos */}
+        <div className="relative max-w-7xl mx-auto px-6">
           <h2 className="text-3xl md:text-4xl font-moranga font-semibold text-gray-900 text-center mb-8 md:mb-10">Mía en acción</h2>
           <div className="flex justify-center">
             <div className="relative w-fit">
@@ -555,7 +523,7 @@ export default function LandingPage() {
                         <div className="flex items-center gap-2 px-3 py-2">
                           <ChevronLeft size={20} className="opacity-90" />
                           <div className="h-8 w-8 rounded-full bg-white/20 flex items-center justify-center overflow-hidden">
-                            <Image src="/favicon.ico" alt="MuviAI Logo" width={18} height={18} className="rounded" />
+                            <span className="text-white text-sm font-medium">M</span>
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="truncate text-[15px] leading-tight font-medium font-work-sans">Mía</div>
@@ -725,8 +693,9 @@ export default function LandingPage() {
       </section>
 
       {/* Sección Dashboard Preview */}
-      <section id="caracteristicas" className="py-12 md:py-14 bg-[#f8fafc]">
-        <div className="max-w-7xl mx-auto px-8">
+      <section id="caracteristicas" className="relative py-12 md:py-14 bg-transparent">
+        {/* gradientes removidos */}
+        <div className="relative max-w-7xl mx-auto px-8">
           {/* Header */}
           <div className="text-center mb-16">
             <h2 className="text-4xl font-moranga font-semibold text-gray-900 mb-6">
@@ -921,14 +890,15 @@ export default function LandingPage() {
       */}
 
       {/* Sección de FAQs */}
-      <section className="py-20 bg-[#f8fafc]">
-        <div className="max-w-4xl mx-auto px-6">
+      <section className="relative py-20 bg-transparent">
+        {/* gradientes removidos */}
+        <div className="relative max-w-4xl mx-auto px-6">
           <h2 className="text-4xl font-moranga font-bold text-center mb-12">Preguntas Frecuentes</h2>
           <div className="space-y-4">
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button 
                 onClick={() => setOpenFaq(openFaq === 'faq1' ? '' : 'faq1')}
-                className="w-full flex items-center justify-between p-6 text-left bg-[#f8fafc] hover:bg-gray-100"
+                className="w-full flex items-center justify-between p-6 text-left bg-white hover:bg-gray-100"
               >
                 <h3 className="text-xl font-bold font-work-sans">¿Cómo funciona Mía?</h3>
                 <svg 
@@ -950,7 +920,7 @@ export default function LandingPage() {
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button 
                 onClick={() => setOpenFaq(openFaq === 'faq2' ? '' : 'faq2')}
-                className="w-full flex items-center justify-between p-6 text-left bg-[#f8fafc] hover:bg-gray-100"
+                className="w-full flex items-center justify-between p-6 text-left bg-white hover:bg-gray-100"
               >
                 <h3 className="text-xl font-bold font-work-sans">¿Cuánto tiempo toma la implementación?</h3>
                 <svg 
@@ -972,7 +942,7 @@ export default function LandingPage() {
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button 
                 onClick={() => setOpenFaq(openFaq === 'faq3' ? '' : 'faq3')}
-                className="w-full flex items-center justify-between p-6 text-left bg-[#f8fafc] hover:bg-gray-100"
+                className="w-full flex items-center justify-between p-6 text-left bg-white hover:bg-gray-100"
               >
                 <h3 className="text-xl font-bold font-work-sans">¿Se integra con mi sistema actual?</h3>
                 <svg 
@@ -994,7 +964,7 @@ export default function LandingPage() {
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button 
                 onClick={() => setOpenFaq(openFaq === 'faq4' ? '' : 'faq4')}
-                className="w-full flex items-center justify-between p-6 text-left bg-[#f8fafc] hover:bg-gray-100"
+                className="w-full flex items-center justify-between p-6 text-left bg-white hover:bg-gray-100"
               >
                 <h3 className="text-xl font-bold font-work-sans">¿Qué soporte ofrecen?</h3>
                 <svg 
@@ -1019,7 +989,7 @@ export default function LandingPage() {
 
 
       {/* Footer */}
-      <footer className="bg-[#f8fafc] text-gray-700 py-8">
+      <footer className="bg-white text-gray-700 py-8">
         <div className="max-w-6xl mx-auto px-6">
           <div className="flex justify-center items-center">
             <p className="text-gray-600 font-work-sans">
