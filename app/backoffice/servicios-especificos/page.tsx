@@ -457,6 +457,10 @@ export default function ServiciosEspecificosPage() {
     return new Intl.NumberFormat('es-AR').format(km)
   }
 
+  const generateServiceName = (km: number, months: number) => {
+    return `Servicio de ${formatKilometers(km)} kms o ${months} meses`
+  }
+
   const handleMakeChange = (makeId: string) => {
     setSelectedMake(makeId)
     setSelectedModel("all")
@@ -926,16 +930,6 @@ export default function ServiciosEspecificosPage() {
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="service_name">Nombre del Servicio *</Label>
-                <Input
-                  id="service_name"
-                  value={formData.service_name}
-                  onChange={(e) => setFormData({ ...formData, service_name: e.target.value })}
-                  placeholder="Ej: Cambio de aceite específico"
-                />
-              </div>
-              
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="kilometers">Kilometraje *</Label>
@@ -944,7 +938,16 @@ export default function ServiciosEspecificosPage() {
                     type="number"
                     min="1"
                     value={formData.kilometers}
-                    onChange={(e) => setFormData({ ...formData, kilometers: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const km = parseInt(e.target.value) || 0
+                      setFormData((prev) => {
+                        const next = { ...prev, kilometers: km }
+                        if (km > 0 && next.months > 0) {
+                          next.service_name = generateServiceName(km, next.months)
+                        }
+                        return next
+                      })
+                    }}
                     placeholder="5000"
                   />
                 </div>
@@ -956,10 +959,29 @@ export default function ServiciosEspecificosPage() {
                     type="number"
                     min="1"
                     value={formData.months}
-                    onChange={(e) => setFormData({ ...formData, months: parseInt(e.target.value) || 0 })}
+                    onChange={(e) => {
+                      const m = parseInt(e.target.value) || 0
+                      setFormData((prev) => {
+                        const next = { ...prev, months: m }
+                        if (next.kilometers > 0 && m > 0) {
+                          next.service_name = generateServiceName(next.kilometers, m)
+                        }
+                        return next
+                      })
+                    }}
                     placeholder="6"
                   />
                 </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="service_name">Nombre del Servicio *</Label>
+                <Input
+                  id="service_name"
+                  value={formData.service_name}
+                  onChange={(e) => setFormData({ ...formData, service_name: e.target.value })}
+                  placeholder="Ej: Cambio de aceite específico"
+                />
               </div>
               
               <div className="space-y-2">
@@ -1044,17 +1066,6 @@ export default function ServiciosEspecificosPage() {
           </DialogHeader>
           <form onSubmit={handleUpdate} className="flex flex-col h-full">
             <div className="grid gap-4 py-4 modal-scrollable">
-              <div className="space-y-2">
-                <Label htmlFor="edit-service_name">Nombre del Servicio *</Label>
-                <Input
-                  id="edit-service_name"
-                  value={servicioSeleccionado?.service_name || ""}
-                  onChange={(e) => setServicioSeleccionado(prev => 
-                    prev ? {...prev, service_name: e.target.value} : prev
-                  )}
-                />
-              </div>
-              
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="edit-kilometers">Kilometraje *</Label>
@@ -1063,9 +1074,17 @@ export default function ServiciosEspecificosPage() {
                     type="number"
                     min="1"
                     value={servicioSeleccionado?.kilometers || 0}
-                    onChange={(e) => setServicioSeleccionado(prev => 
-                      prev ? {...prev, kilometers: parseInt(e.target.value) || 0} : prev
-                    )}
+                    onChange={(e) => {
+                      const km = parseInt(e.target.value) || 0
+                      setServicioSeleccionado((prev) => {
+                        if (!prev) return prev
+                        const next = { ...prev, kilometers: km }
+                        if (km > 0 && next.months > 0) {
+                          next.service_name = generateServiceName(km, next.months)
+                        }
+                        return next
+                      })
+                    }}
                   />
                 </div>
                 
@@ -1076,11 +1095,30 @@ export default function ServiciosEspecificosPage() {
                     type="number"
                     min="1"
                     value={servicioSeleccionado?.months || 0}
-                    onChange={(e) => setServicioSeleccionado(prev => 
-                      prev ? {...prev, months: parseInt(e.target.value) || 0} : prev
-                    )}
+                    onChange={(e) => {
+                      const m = parseInt(e.target.value) || 0
+                      setServicioSeleccionado((prev) => {
+                        if (!prev) return prev
+                        const next = { ...prev, months: m }
+                        if (next.kilometers > 0 && m > 0) {
+                          next.service_name = generateServiceName(next.kilometers, m)
+                        }
+                        return next
+                      })
+                    }}
                   />
                 </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="edit-service_name">Nombre del Servicio *</Label>
+                <Input
+                  id="edit-service_name"
+                  value={servicioSeleccionado?.service_name || ""}
+                  onChange={(e) => setServicioSeleccionado(prev => 
+                    prev ? {...prev, service_name: e.target.value} : prev
+                  )}
+                />
               </div>
               
               <div className="space-y-2">
