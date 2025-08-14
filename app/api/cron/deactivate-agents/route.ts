@@ -164,7 +164,8 @@ export async function POST(request: Request) {
         console.log(`🔄 [CRON-DEACTIVATE] Procesando cliente: ${client.id} (${client.names})`);
         
         // Llamar al endpoint de actualización de cliente
-        const updateResponse = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/api/customers/update/${client.id}`, {
+        const baseUrl = process.env.NODE_ENV === 'production' ? 'https://edgarai.vercel.app' : 'http://localhost:3000';
+        const updateResponse = await fetch(`${baseUrl}/api/customers/update/${client.id}`, {
           method: 'PATCH',
           headers: {
             'Content-Type': 'application/json',
