@@ -116,6 +116,23 @@ export default function ConversacionesPage() {
     citas_completadas: 0
   });
   
+  // NUEVO: Estado para métricas de Agents in Action
+  const [agentsInActionMetrics, setAgentsInActionMetrics] = useState<any>({
+    unique_customers: 0,
+    appointments: {
+      total: 0,
+      booked: 0,
+      rescheduled: 0,
+      cancelled: 0
+    },
+    without_transfers: {
+      percentage: 0,
+      total_conversations: 0,
+      without_transfers: 0,
+      with_transfers: 0
+    }
+  });
+  
   const [duracionPromedio, setDuracionPromedio] = useState<number>(0);
   const [canalesVisibles, setCanalesVisibles] = useState<{[key: string]: boolean}>({
     'WhatsApp': true,
@@ -156,6 +173,7 @@ export default function ConversacionesPage() {
   useEffect(() => {
     if (dataToken) {
       cargarMetricas();
+      cargarAgentsInActionMetrics();
     }
   }, [dataToken]);
 
@@ -213,7 +231,33 @@ export default function ConversacionesPage() {
     }
   };
 
-  // NUEVO: Función para cargar métricas de acción humana
+  // NUEVO: Función para cargar métricas de Agents in Action
+  const cargarAgentsInActionMetrics = async () => {
+    try {
+      console.log("🤖 Iniciando carga de métricas de Agents in Action...");
+      
+      const response = await fetch(
+        `/api/conversations/agents-in-action?dealership_id=${dataToken.dealership_id}`
+      );
+      
+      if (!response.ok) {
+        throw new Error(`Error ${response.status}: ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      console.log('🤖 Datos de Agents in Action recibidos:', {
+        unique_customers: data.unique_customers,
+        appointments_total: data.appointments?.total,
+        without_transfers_pct: data.without_transfers?.percentage
+      });
+      
+      setAgentsInActionMetrics(data);
+      
+    } catch (error) {
+      console.error("❌ Error cargando métricas de Agents in Action:", error);
+    }
+  };
 
 
 
@@ -386,70 +430,63 @@ export default function ConversacionesPage() {
 
 
 
-      {/* NUEVO: Métricas de Conversión */}
+      {/* NUEVO: Métricas de Agents in Action */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">📊 Métricas de Conversión - Agente AI</h2>
+        <h2 className="text-xl font-semibold">🤖 Agents in Action - Métricas del Mes</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Tasa de Conversión */}
+          {/* Unique Customers */}
           <Card className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Tasa de Conversión</h3>
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Unique Customers</h3>
+              <div className="rounded-md bg-blue-100 p-1">
+                <Users className="h-4 w-4 text-blue-600" />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold">{agentsInActionMetrics.unique_customers}</div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <MessageSquare className="inline h-3 w-3 mr-1" />
+                Clientes únicos que interactuaron
+              </p>
+            </div>
+          </Card>
+          
+          {/* Appointments del AI */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Appointments</h3>
+              <div className="rounded-md bg-green-100 p-1">
+                <Calendar className="h-4 w-4 text-green-600" />
+              </div>
+            </div>
+            <div className="flex items-center">
+              <div className="text-3xl font-bold">{agentsInActionMetrics.appointments.total}</div>
+            </div>
+            <div className="mt-3">
+              <p className="text-xs text-muted-foreground">
+                <CheckCircle className="inline h-3 w-3 mr-1" />
+                {agentsInActionMetrics.appointments.booked} agendadas, {agentsInActionMetrics.appointments.cancelled} canceladas
+              </p>
+            </div>
+          </Card>
+          
+          {/* % Without Transfers */}
+          <Card className="p-6">
+            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">% Without Transfers</h3>
               <div className="rounded-md bg-purple-100 p-1">
-                <BarChart3 className="h-4 w-4 text-purple-600" />
+                <TrendingUp className="h-4 w-4 text-purple-600" />
               </div>
             </div>
             <div className="flex items-center">
-              <div className="text-3xl font-bold">{conversionMetrics.tasa_conversion}%</div>
+              <div className="text-3xl font-bold">{agentsInActionMetrics.without_transfers.percentage}%</div>
             </div>
             <div className="mt-3">
               <p className="text-xs text-muted-foreground">
-                <CheckCircle className="inline h-3 w-3 mr-1" />
-                {conversionMetrics.citas_agendadas} citas de {conversionMetrics.total_conversaciones} conversaciones
-              </p>
-            </div>
-          </Card>
-          
-          {/* Show-up Rate */}
-          <Card className="p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Show-up Rate</h3>
-              <div className="rounded-md bg-orange-100 p-1">
-                <Users className="h-4 w-4 text-orange-600" />
-              </div>
-            </div>
-            <div className="flex items-center">
-              <div className="text-3xl font-bold">{conversionMetrics.show_up_rate}%</div>
-            </div>
-            <div className="mt-3">
-              <p className="text-xs text-muted-foreground">
-                <CheckCircle className="inline h-3 w-3 mr-1" />
-                {conversionMetrics.citas_completadas} completadas de {conversionMetrics.citas_agendadas} agendadas
-              </p>
-            </div>
-          </Card>
-          
-          {/* Tasa de Éxito por Canal */}
-          <Card className="p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Éxito por Canal</h3>
-              <div className="rounded-md bg-indigo-100 p-1">
-                <PieChart className="h-4 w-4 text-indigo-600" />
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-center">
-                <div className="text-lg font-bold text-green-600">{conversionMetrics.tasa_exito_whatsapp}%</div>
-                <div className="text-xs text-muted-foreground">WhatsApp</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-blue-600">{conversionMetrics.tasa_exito_phone}%</div>
-                <div className="text-xs text-muted-foreground">Teléfono</div>
-              </div>
-            </div>
-            <div className="mt-3">
-              <p className="text-xs text-muted-foreground">
-                <TrendingUp className="inline h-3 w-3 mr-1" />
-                Conversión por canal del mes
+                <MessageSquare className="inline h-3 w-3 mr-1" />
+                {agentsInActionMetrics.without_transfers.without_transfers} de {agentsInActionMetrics.without_transfers.total_conversations} conversaciones
               </p>
             </div>
           </Card>
@@ -550,4 +587,4 @@ export default function ConversacionesPage() {
       </Card>
     </div>
   );
-} 
+}
