@@ -175,7 +175,9 @@ export default function CargaMasivaServiciosEspecificosPage() {
     // Validación básica
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]
-      if (r.kilometers <= 0 || r.months <= 0 || !r.service_id) {
+      const km = Number(r.kilometers) || 0
+      const m = Number(r.months) || 0
+      if (km <= 0 || m <= 0 || !r.service_id) {
         toast({ title: "Error", description: `Revisa los datos de la fila ${i + 1}`, variant: "destructive" })
         return
       }
