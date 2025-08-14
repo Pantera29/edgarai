@@ -1,0 +1,17 @@
+name: EdgarAI Reactivar Agentes AI
+
+on:
+  schedule:
+    # Reactivar agentes todos los días a las 7:55 AM (Ciudad de México)
+    - cron: '55 13 * * *'  # UTC-6 = 7:55 AM Ciudad de México
+  workflow_dispatch:
+
+jobs:
+  call-reactivate-agents-endpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call reactivate agents endpoint
+        run: |
+          curl -v -X POST "https://edgarai.vercel.app/api/cron/reactivate-agents" \
+            -H "Content-Type: application/json" \
+            -d '{"dealership_id":"b8ecf479-16ed-4f38-a726-cc1617a1fcbf"}'

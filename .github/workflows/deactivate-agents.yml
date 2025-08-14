@@ -1,0 +1,17 @@
+name: EdgarAI Desactivar Agentes AI
+
+on:
+  schedule:
+    # Desactivar agentes todos los días a las 8:00 AM (Ciudad de México)
+    - cron: '0 14 * * *'   # UTC-6 = 8:00 AM Ciudad de México
+  workflow_dispatch:
+
+jobs:
+  call-deactivate-agents-endpoint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call deactivate agents endpoint
+        run: |
+          curl -v -X POST "https://edgarai.vercel.app/api/cron/deactivate-agents" \
+            -H "Content-Type: application/json" \
+            -d '{"dealership_id":"b8ecf479-16ed-4f38-a726-cc1617a1fcbf"}'
