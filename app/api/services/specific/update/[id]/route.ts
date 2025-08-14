@@ -39,6 +39,41 @@ export async function PUT(
 
     console.log('🔄 [SpecificServiceUpdate] Actualizando servicio específico:', id);
 
+    // Obtener el registro actual para conocer dealership_id
+    const { data: current, error: curErr } = await supabase
+      .from('specific_services')
+      .select('id, dealership_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (curErr) {
+      console.log('❌ [SpecificServiceUpdate] Error consultando registro actual:', curErr.message);
+      return NextResponse.json({ error: 'Error consultando el servicio específico.' }, { status: 500 });
+    }
+    if (!current) {
+      return NextResponse.json({ error: 'Servicio específico no encontrado.' }, { status: 404 });
+    }
+
+    // Validar duplicados: mismo modelo y (km igual o meses igual) dentro de la misma agencia, excluyendo este id
+    const { data: dup, error: dupErr } = await supabase
+      .from('specific_services')
+      .select('id, kilometers, months')
+      .eq('dealership_id', current.dealership_id)
+      .eq('model_id', model_id)
+      .neq('id', id)
+      .or(`kilometers.eq.${kilometers},months.eq.${months}`)
+      .limit(1);
+
+    if (dupErr) {
+      console.log('❌ [SpecificServiceUpdate] Error validando duplicados:', dupErr.message);
+      return NextResponse.json({ error: 'Error validando duplicados.' }, { status: 500 });
+    }
+    if (dup && dup.length > 0) {
+      const d = dup[0];
+      const field = d.kilometers === kilometers ? `kilómetros ${kilometers}` : `meses ${months}`;
+      return NextResponse.json({ error: `Ya existe un servicio específico para este modelo con ${field}.` }, { status: 409 });
+    }
+
     const { data, error } = await supabase
       .from('specific_services')
       .update({

@@ -486,16 +486,31 @@ export default function ServiciosEspecificosPage() {
     setIsSubmitting(true)
     try {
       const dealershipId = (dataToken as any)?.dealership_id
-      
-      const { error } = await supabase
-        .from('specific_services')
-        .insert([{
-          ...formData,
-          service_id: formData.service_id,
-          dealership_id: dealershipId
-        }])
 
-      if (error) throw error
+      const payload = {
+        model_id: formData.model_id,
+        dealership_id: dealershipId,
+        service_name: formData.service_name,
+        kilometers: formData.kilometers,
+        months: formData.months,
+        price: formData.price,
+        service_id: formData.service_id,
+        additional_price: formData.additional_price,
+        additional_description: formData.additional_description,
+        includes_additional: formData.includes_additional,
+        is_active: formData.is_active,
+      }
+
+      const res = await fetch('/api/services/specific/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.details || err?.error || 'Error al crear servicio específico')
+      }
 
       setMostrarFormulario(false)
       setFormData({
@@ -546,9 +561,10 @@ export default function ServiciosEspecificosPage() {
 
     setIsSubmitting(true)
     try {
-      const { error } = await supabase
-        .from('specific_services')
-        .update({
+      const res = await fetch(`/api/services/specific/update/${servicioSeleccionado.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           model_id: servicioSeleccionado.model_id,
           service_name: servicioSeleccionado.service_name,
           kilometers: servicioSeleccionado.kilometers,
@@ -560,9 +576,12 @@ export default function ServiciosEspecificosPage() {
           includes_additional: servicioSeleccionado.includes_additional,
           is_active: servicioSeleccionado.is_active
         })
-        .eq('id', servicioSeleccionado.id)
+      })
 
-      if (error) throw error
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err?.details || err?.error || 'Error al actualizar servicio específico')
+      }
 
       setEditando(false)
       setServicioSeleccionado(null)
@@ -655,10 +674,18 @@ export default function ServiciosEspecificosPage() {
             Gestiona servicios específicos por modelo de vehículo
           </p>
         </div>
-        <Button onClick={() => setMostrarFormulario(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          Nuevo Servicio Específico
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => setMostrarFormulario(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Nuevo Servicio Específico
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/backoffice/servicios-especificos/carga-masiva${token ? `?token=${token}` : ''}`)}
+          >
+            Carga masiva
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
