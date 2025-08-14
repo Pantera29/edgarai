@@ -38,6 +38,7 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={`${outfit.variable} ${inter.variable} ${fraunces.variable}`}>
+        {/* gradientes removidos */}
         <ThemeProvider>
           <TooltipProvider>
             {children}
