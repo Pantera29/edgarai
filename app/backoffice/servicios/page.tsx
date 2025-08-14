@@ -128,9 +128,11 @@ export default function ServiciosPage() {
 
   const { toast } = useToast()
   const [servicios, setServicios] = useState<Servicio[]>([])
+  const [serviciosOriginales, setServiciosOriginales] = useState<Servicio[]>([])
   const [talleres, setTalleres] = useState<Workshop[]>([])
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [searchTerm, setSearchTerm] = useState("")
   const [formData, setFormData] = useState<Omit<Servicio, 'id_uuid'>>({
     service_name: "",
     description: "",
@@ -212,8 +214,10 @@ export default function ServiciosPage() {
             workshop: Array.isArray(ws.workshop) ? ws.workshop[0] : ws.workshop
           }))
         }))
+        setServiciosOriginales(normalizados)
         setServicios(normalizados)
       } else {
+        setServiciosOriginales([])
         setServicios([])
       }
     } catch (error) {
@@ -441,6 +445,7 @@ export default function ServiciosPage() {
         time_restriction_end_time: null
       })
       setSelectedWorkshops([])
+      setSearchTerm("")
       
       toast({
         title: "Éxito",
@@ -543,6 +548,7 @@ export default function ServiciosPage() {
       setEditando(false)
       setServicioSeleccionado(null)
       setSelectedWorkshops([])
+      setSearchTerm("")
       
       toast({
         title: "Éxito",
@@ -562,6 +568,27 @@ export default function ServiciosPage() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Función para filtrar servicios
+  const filtrarServicios = (termino: string) => {
+    if (!termino.trim()) {
+      setServicios(serviciosOriginales)
+      return
+    }
+
+    const filtrados = serviciosOriginales.filter(servicio =>
+      servicio.service_name.toLowerCase().includes(termino.toLowerCase()) ||
+      (servicio.description && servicio.description.toLowerCase().includes(termino.toLowerCase()))
+    )
+    setServicios(filtrados)
+  }
+
+  // Manejar cambios en el campo de búsqueda
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const valor = e.target.value
+    setSearchTerm(valor)
+    filtrarServicios(valor)
   }
 
   const handleDelete = async (id: string) => {
@@ -614,15 +641,10 @@ export default function ServiciosPage() {
         <Input
           placeholder="Buscar servicios..."
           className="max-w-sm"
+          value={searchTerm}
+          onChange={handleSearchChange}
         />
         <Button onClick={() => setMostrarFormulario(true)}>Añadir Nuevo Servicio</Button>
-      </div>
-      
-      <div className="flex justify-between items-center mb-4">
-        <Input
-          placeholder="Buscar servicios..."
-          className="max-w-sm"
-        />
       </div>
 
       <Table>
