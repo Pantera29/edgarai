@@ -130,7 +130,7 @@ export async function POST(request: Request) {
     appointments.forEach(appointment => {
       // Verificar que client existe y es un objeto (no un array)
       if (appointment.client && Array.isArray(appointment.client) && appointment.client.length > 0) {
-        const client = appointment.client[0];
+        const client = appointment.client[0] as any;
         if (!uniqueClients.has(client.id)) {
           uniqueClients.set(client.id, {
             id: client.id,
@@ -141,12 +141,13 @@ export async function POST(request: Request) {
         }
       } else if (appointment.client && !Array.isArray(appointment.client)) {
         // Si client es un objeto directo
-        if (!uniqueClients.has(appointment.client.id)) {
-          uniqueClients.set(appointment.client.id, {
-            id: appointment.client.id,
-            dealership_id: appointment.client.dealership_id,
-            names: appointment.client.names,
-            phone_number: appointment.client.phone_number
+        const client = appointment.client as any;
+        if (!uniqueClients.has(client.id)) {
+          uniqueClients.set(client.id, {
+            id: client.id,
+            dealership_id: client.dealership_id,
+            names: client.names,
+            phone_number: client.phone_number
           });
         }
       }
