@@ -1346,8 +1346,8 @@ export default function RecordatoriosPage() {
         throw new Error('Faltan datos para enviar el mensaje de WhatsApp');
       }
 
-      // Enviar mensaje de WhatsApp
-      const response = await fetch('/api/whatsapp/send', {
+      // Enviar mensaje de WhatsApp via N8N
+      const response = await fetch('/api/n8n/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
