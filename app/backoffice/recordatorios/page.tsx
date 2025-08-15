@@ -1355,7 +1355,8 @@ export default function RecordatoriosPage() {
         body: JSON.stringify({
           reminder_id: reminderId,
           template_type: selectedWhatsAppTemplate,
-          dealership_id: recordatorio.client.dealership_id
+          dealership_id: recordatorio.client.dealership_id,
+          sender_type: 'dealership_worker' // Envío manual desde backoffice = Dealership Worker
         })
       });
       

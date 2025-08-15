@@ -301,7 +301,8 @@ export async function POST(request: Request) {
           message: processedMessage,
           processed: true,
           status: 'active',
-          agente: true,
+          agente: true, // Mantener compatibilidad
+          sender_type: 'ai_agent', // Endpoint de recordatorios = AI Agent
           dealership_id: dealership_id
         });
 
