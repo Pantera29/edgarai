@@ -77,7 +77,7 @@ interface Message {
   id: string;
   conversation_id: string;
   content: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "customer" | "ai_agent" | "dealership_worker";
   created_at: string;
 }
 
@@ -212,17 +212,34 @@ export default function ConversacionDetallePage() {
               contenido = "[Contenido no disponible]";
             }
             
-            // Determinar el rol del mensaje - LÓGICA CORREGIDA
+            // Determinar el rol del mensaje - LÓGICA ACTUALIZADA PARA NUEVOS ROLES
             let rol = "user"; // Valor por defecto
             
             if (typeof msg === 'object') {
-              // 1. Verificar campo role
+              // 1. Verificar campo role - NUEVOS ROLES ESPECÍFICOS
               if (msg.role) {
-                // Considerar varios valores como mensajes del asistente
-                if (["assistant", "bot", "system", "ai"].includes(msg.role.toLowerCase())) {
-                  rol = "assistant";
+                const roleLower = msg.role.toLowerCase();
+                
+                // Roles específicos del nuevo sistema
+                if (["customer", "ai_agent", "dealership_worker"].includes(msg.role)) {
+                  rol = msg.role; // Usar el rol específico tal como está
+                  console.log(`Mensaje #${index} - Rol específico: ${msg.role}`);
                 }
-                console.log(`Mensaje #${index} - Rol original: ${msg.role} -> Rol asignado: ${rol}`);
+                // Roles genéricos antiguos (mantener compatibilidad)
+                else if (["assistant", "bot", "system", "ai"].includes(roleLower)) {
+                  rol = "assistant";
+                  console.log(`Mensaje #${index} - Rol genérico: ${msg.role} -> Rol asignado: ${rol}`);
+                }
+                // Rol user genérico
+                else if (roleLower === "user") {
+                  rol = "user";
+                  console.log(`Mensaje #${index} - Rol user: ${msg.role}`);
+                }
+                // Cualquier otro rol se mantiene como está
+                else {
+                  rol = msg.role;
+                  console.log(`Mensaje #${index} - Rol desconocido mantenido: ${msg.role}`);
+                }
               } 
               // 2. Verificar campo sender si role no está presente
               else if (msg.sender && ["assistant", "ai", "bot"].includes(msg.sender.toLowerCase())) {
@@ -264,11 +281,15 @@ export default function ConversacionDetallePage() {
           
           setMensajes(mensajesFormateados);
           
-          // Calcular estadísticas
+          // Calcular estadísticas - ACTUALIZADO PARA NUEVOS ROLES
           setStatsLoading(true);
           const totalMensajes = mensajesFormateados.length;
-          const userMensajes = mensajesFormateados.filter((m: Message) => m.role === "user").length;
-          const assistantMensajes = mensajesFormateados.filter((m: Message) => m.role === "assistant").length;
+          const userMensajes = mensajesFormateados.filter((m: Message) => 
+            m.role === "user" || m.role === "customer"
+          ).length;
+          const assistantMensajes = mensajesFormateados.filter((m: Message) => 
+            m.role === "assistant" || m.role === "ai_agent" || m.role === "dealership_worker"
+          ).length;
           
           setStats({
             total: totalMensajes,
