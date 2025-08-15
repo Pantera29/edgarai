@@ -257,7 +257,8 @@ async function processReminders(request: Request) {
             body: JSON.stringify({
               reminder_id: reminder.reminder_id,
               template_type: reminder.reminder_type,
-              dealership_id: reminder.dealership_id
+              dealership_id: reminder.dealership_id,
+              sender_type: 'ai_agent' // Proceso automático = AI Agent
             })
           });
           

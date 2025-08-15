@@ -522,7 +522,7 @@ export default function ConversacionDetallePage() {
     try {
       console.log('🚀 [UI] Enviando mensaje WhatsApp...');
       
-      const response = await fetch('/api/whatsapp/send-direct', {
+      const response = await fetch('/api/n8n/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -530,7 +530,8 @@ export default function ConversacionDetallePage() {
         body: JSON.stringify({
           phone_number: phoneNumber,
           message: whatsappMessage.trim(),
-          dealership_id: dataToken.dealership_id
+          dealership_id: dataToken.dealership_id,
+          sender_type: 'dealership_worker' // Envío desde conversaciones = Dealership Worker
         }),
       });
 

@@ -95,75 +95,146 @@ export async function POST(request: Request) {
     const supabase = createServerComponentClient({ cookies });
     
     // 1. Obtener y validar datos de entrada
-    const { reminder_id, template_type, dealership_id } = await request.json();
+    const { reminder_id, template_type, dealership_id, sender_type, phone_number, message } = await request.json();
     
-    console.log('📋 [N8N Send] Datos recibidos:', { reminder_id, template_type, dealership_id });
+    console.log('📋 [N8N Send] Datos recibidos:', { 
+      reminder_id, 
+      template_type, 
+      dealership_id, 
+      sender_type, 
+      has_phone: !!phone_number, 
+      has_message: !!message 
+    });
     
-    // Validar campos requeridos
-    if (!reminder_id || !template_type || !dealership_id) {
-      console.log('❌ [N8N Send] Campos faltantes');
+    // Validar campos requeridos según el tipo de envío
+    const isDirectMessage = phone_number && message;
+    const isReminder = reminder_id && template_type;
+    
+    if (!dealership_id) {
+      console.log('❌ [N8N Send] Campo dealership_id faltante');
       return NextResponse.json(
-        { success: false, error: 'Faltan campos requeridos: reminder_id, template_type, dealership_id' },
+        { success: false, error: 'Campo requerido: dealership_id' },
+        { status: 400 }
+      );
+    }
+    
+    if (!isDirectMessage && !isReminder) {
+      console.log('❌ [N8N Send] Campos faltantes - debe ser envío directo o recordatorio');
+      return NextResponse.json(
+        { success: false, error: 'Para envío directo: phone_number, message. Para recordatorio: reminder_id, template_type' },
         { status: 400 }
       );
     }
 
-    // 2. Obtener datos completos del recordatorio
-    console.log('🔍 [N8N Send] Obteniendo recordatorio:', reminder_id);
-    const { data: recordatorio, error: reminderError } = await supabase
-      .from('reminders')
-      .select(`
-        *,
-        client:client_id_uuid (names, phone_number, dealership_id),
-        vehicles:vehicle_id (make, model, year, license_plate, vin),
-        services:service_id (service_name),
-        appointment:appointment_id (appointment_date, appointment_time)
-      `)
-      .eq('reminder_id', reminder_id)
-      .single();
+    // 2. Procesar según el tipo de envío
+    let processedMessage: string;
+    let formattedPhone: string;
+    let clientId: string | undefined;
+    let vehicleId: string | undefined;
+    let appointmentId: string | undefined;
+    let serviceId: string | undefined;
 
-    if (reminderError || !recordatorio) {
-      console.error('❌ [N8N Send] Error al obtener recordatorio:', reminderError);
-      return NextResponse.json(
-        { success: false, error: 'Recordatorio no encontrado' },
-        { status: 404 }
-      );
+    if (isReminder) {
+      // LÓGICA PARA RECORDATORIOS
+      console.log('🔍 [N8N Send] Procesando recordatorio:', reminder_id);
+      
+      const { data: recordatorio, error: reminderError } = await supabase
+        .from('reminders')
+        .select(`
+          *,
+          client:client_id_uuid (names, phone_number, dealership_id),
+          vehicles:vehicle_id (make, model, year, license_plate, vin),
+          services:service_id (service_name),
+          appointment:appointment_id (appointment_date, appointment_time)
+        `)
+        .eq('reminder_id', reminder_id)
+        .single();
+
+      if (reminderError || !recordatorio) {
+        console.error('❌ [N8N Send] Error al obtener recordatorio:', reminderError);
+        return NextResponse.json(
+          { success: false, error: 'Recordatorio no encontrado' },
+          { status: 404 }
+        );
+      }
+
+      // Validar que el recordatorio pertenece al dealership correcto
+      if (recordatorio.client?.dealership_id !== dealership_id) {
+        console.log('❌ [N8N Send] Recordatorio no pertenece al dealership');
+        return NextResponse.json(
+          { success: false, error: 'Recordatorio no encontrado o sin acceso' },
+          { status: 403 }
+        );
+      }
+
+      console.log('✅ [N8N Send] Recordatorio obtenido:', {
+        clientName: recordatorio.client?.names,
+        vehicleModel: recordatorio.vehicles?.model,
+        vehicleVin: recordatorio.vehicles?.vin
+      });
+
+      // Obtener template de mensaje
+      console.log('📝 [N8N Send] Obteniendo template:', template_type);
+      const { data: template, error: templateError } = await supabase
+        .from('whatsapp_message_templates')
+        .select('message_template')
+        .eq('dealership_id', dealership_id)
+        .eq('reminder_type', template_type)
+        .eq('is_active', true)
+        .single();
+
+      if (templateError || !template) {
+        console.error('❌ [N8N Send] Error al obtener template:', templateError);
+        return NextResponse.json(
+          { success: false, error: 'Template de mensaje no encontrado para el tipo especificado' },
+          { status: 404 }
+        );
+      }
+
+      console.log('✅ [N8N Send] Template obtenido');
+
+      // Procesar variables del template
+      console.log('🔄 [N8N Send] Procesando variables del template');
+      
+      const templateData = {
+        client_name: recordatorio.client?.names || 'Cliente',
+        vehicle_make: recordatorio.vehicles?.make || '',
+        vehicle_model: recordatorio.vehicles?.model || '',
+        vehicle_year: recordatorio.vehicles?.year || '',
+        vehicle_vin: recordatorio.vehicles?.vin || '',
+        service_name: recordatorio.services?.service_name || 'servicio',
+        appointment_date: recordatorio.appointment?.appointment_date ? 
+          format(parseISO(recordatorio.appointment.appointment_date), 'dd/MM/yyyy') : '',
+        appointment_time: recordatorio.appointment?.appointment_time ? 
+          format(parseISO(`2000-01-01T${recordatorio.appointment.appointment_time}`), 'HH:mm') : ''
+      };
+
+      processedMessage = processTemplateWithConditionals(template.message_template, templateData);
+      formattedPhone = formatPhoneToN8n(recordatorio.client?.phone_number || '');
+      clientId = recordatorio.client_id_uuid;
+      vehicleId = recordatorio.vehicle_id;
+      appointmentId = recordatorio.appointment_id;
+      serviceId = recordatorio.service_id;
+
+    } else {
+      // LÓGICA PARA ENVÍOS DIRECTOS
+      console.log('📤 [N8N Send] Procesando envío directo');
+      
+      processedMessage = message;
+      formattedPhone = formatPhoneToN8n(phone_number);
+      
+      // Para envíos directos, intentar obtener client_id si es posible
+      if (phone_number) {
+        const { data: client } = await supabase
+          .from('customers')
+          .select('id')
+          .eq('phone_number', phone_number)
+          .eq('dealership_id', dealership_id)
+          .single();
+        
+        clientId = client?.id;
+      }
     }
-
-    // Validar que el recordatorio pertenece al dealership correcto
-    if (recordatorio.client?.dealership_id !== dealership_id) {
-      console.log('❌ [N8N Send] Recordatorio no pertenece al dealership');
-      return NextResponse.json(
-        { success: false, error: 'Recordatorio no encontrado o sin acceso' },
-        { status: 403 }
-      );
-    }
-
-    console.log('✅ [N8N Send] Recordatorio obtenido:', {
-      clientName: recordatorio.client?.names,
-      vehicleModel: recordatorio.vehicles?.model,
-      vehicleVin: recordatorio.vehicles?.vin
-    });
-
-    // 3. Obtener template de mensaje
-    console.log('📝 [N8N Send] Obteniendo template:', template_type);
-    const { data: template, error: templateError } = await supabase
-      .from('whatsapp_message_templates')
-      .select('message_template')
-      .eq('dealership_id', dealership_id)
-      .eq('reminder_type', template_type)
-      .eq('is_active', true)
-      .single();
-
-    if (templateError || !template) {
-      console.error('❌ [N8N Send] Error al obtener template:', templateError);
-      return NextResponse.json(
-        { success: false, error: 'Template de mensaje no encontrado para el tipo especificado' },
-        { status: 404 }
-      );
-    }
-
-    console.log('✅ [N8N Send] Template obtenido');
 
     // 4. Obtener whapi_id de dealership_mapping
     console.log('🔑 [N8N Send] Obteniendo whapi_id');
@@ -183,27 +254,7 @@ export async function POST(request: Request) {
 
     console.log('✅ [N8N Send] whapi_id obtenido');
 
-    // 5. Procesar variables del template
-    console.log('🔄 [N8N Send] Procesando variables del template');
-    
-    const templateData = {
-      client_name: recordatorio.client?.names || 'Cliente',
-      vehicle_make: recordatorio.vehicles?.make || '',
-      vehicle_model: recordatorio.vehicles?.model || '',
-      vehicle_year: recordatorio.vehicles?.year || '',
-      vehicle_vin: recordatorio.vehicles?.vin || '',
-      service_name: recordatorio.services?.service_name || 'servicio',
-      appointment_date: recordatorio.appointment?.appointment_date ? 
-        format(parseISO(recordatorio.appointment.appointment_date), 'dd/MM/yyyy') : '',
-      appointment_time: recordatorio.appointment?.appointment_time ? 
-        format(parseISO(`2000-01-01T${recordatorio.appointment.appointment_time}`), 'HH:mm') : ''
-    };
-
-    const processedMessage = processTemplateWithConditionals(template.message_template, templateData);
-    console.log('✅ [N8N Send] Template procesado:', processedMessage);
-
-    // 6. Formatear número de teléfono
-    const formattedPhone = formatPhoneToN8n(recordatorio.client?.phone_number || '');
+    console.log('✅ [N8N Send] Mensaje procesado:', processedMessage);
     console.log('📞 [N8N Send] Número formateado:', formattedPhone);
 
     // Validar formato del número
@@ -222,11 +273,12 @@ export async function POST(request: Request) {
       message: processedMessage,
       whapi_id: mapping.whapi_id,
       to: formattedPhone,
-      client_id: recordatorio.client_id_uuid,
       dealership_id,
-      ...(recordatorio.vehicle_id ? { vehicle_id: recordatorio.vehicle_id } : {}),
-      ...(recordatorio.appointment_id ? { appointment_id: recordatorio.appointment_id } : {}),
-      ...(recordatorio.service_id ? { service_id: recordatorio.service_id } : {})
+      sender_type: sender_type || 'ai_agent', // Default a ai_agent si no se especifica
+      ...(clientId ? { client_id: clientId } : {}),
+      ...(vehicleId ? { vehicle_id: vehicleId } : {}),
+      ...(appointmentId ? { appointment_id: appointmentId } : {}),
+      ...(serviceId ? { service_id: serviceId } : {})
     };
 
     const response = await fetch('https://n8n.edgarai.com.mx/webhook/outbound', {
@@ -286,21 +338,23 @@ export async function POST(request: Request) {
     //   console.error('💥 [N8N Send] Error inesperado al procesar para historial_chat:', e);
     // }
 
-    // 9. Actualizar estado del recordatorio
-    console.log('📝 [N8N Send] Actualizando estado del recordatorio a "sent"');
-    const { error: updateError } = await supabase
-      .from('reminders')
-      .update({ 
-        status: 'sent',
-        sent_date: new Date().toISOString()
-      })
-      .eq('reminder_id', reminder_id);
+    // 9. Actualizar estado del recordatorio (solo si es un recordatorio)
+    if (isReminder) {
+      console.log('📝 [N8N Send] Actualizando estado del recordatorio a "sent"');
+      const { error: updateError } = await supabase
+        .from('reminders')
+        .update({ 
+          status: 'sent',
+          sent_date: new Date().toISOString()
+        })
+        .eq('reminder_id', reminder_id);
 
-    if (updateError) {
-      console.error('❌ [N8N Send] Error al actualizar estado del recordatorio:', updateError);
-      // No fallar el proceso si no se puede actualizar el estado
-    } else {
-      console.log('✅ [N8N Send] Estado del recordatorio actualizado');
+      if (updateError) {
+        console.error('❌ [N8N Send] Error al actualizar estado del recordatorio:', updateError);
+        // No fallar el proceso si no se puede actualizar el estado
+      } else {
+        console.log('✅ [N8N Send] Estado del recordatorio actualizado');
+      }
     }
 
     // 10. Retornar respuesta exitosa (misma interfaz que WhatsApp)
