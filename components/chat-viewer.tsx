@@ -109,8 +109,8 @@ export function ChatViewer({
                 className={cn(
                   "rounded-lg p-3",
                   message.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
+                    ? "bg-gray-100 text-gray-800 border border-gray-200" // Cliente - Gris con borde
+                    : "bg-blue-600 text-white" // Agente de AI - Azul más fuerte
                 )}
               >
                 <p className="text-sm whitespace-pre-wrap break-words">
@@ -122,7 +122,7 @@ export function ChatViewer({
               </p>
             </div>
             {message.role === "user" && (
-              <Avatar className="h-8 w-8 bg-primary flex items-center justify-center">
+              <Avatar className="h-8 w-8 bg-gray-400 flex items-center justify-center">
                 {userAvatar}
               </Avatar>
             )}
