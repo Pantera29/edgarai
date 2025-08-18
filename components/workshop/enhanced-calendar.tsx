@@ -34,10 +34,12 @@ export function EnhancedCalendar({
     console.log('EnhancedCalendar - Bloqueos recibidos:', blockedDates);
     console.log('EnhancedCalendar - Horarios operativos:', operatingHours);
 
-    // Obtener los días no laborables
-    const inactiveDays = operatingHours
-      .filter(h => !h.is_working_day)
-      .map(h => h.day_of_week);
+    // Obtener los días no laborables (días donde NINGÚN workshop trabaja)
+    const inactiveDays = Array.from(new Set(operatingHours.map(h => h.day_of_week)))
+      .filter(dayOfWeek => {
+        const daySchedules = operatingHours.filter(h => h.day_of_week === dayOfWeek);
+        return !daySchedules.some(h => h.is_working_day);
+      });
 
     console.log('Días no laborables de BD:', inactiveDays); // Debug
 
@@ -144,7 +146,13 @@ export function EnhancedCalendar({
     // Usar la misma lógica de conversión
     const dayOfWeek = date.getDay() === 0 ? 1 : date.getDay() + 1;
     const dateStr = format(date, 'yyyy-MM-dd');
-    const isWorkingDay = operatingHours.find(h => h.day_of_week === dayOfWeek)?.is_working_day;
+    
+    // Buscar TODOS los horarios para este día
+    const daySchedules = operatingHours.filter(h => h.day_of_week === dayOfWeek);
+    
+    // Un día es laborable si AL MENOS UN workshop trabaja ese día
+    const isWorkingDay = daySchedules.some(h => h.is_working_day);
+    
     const blockInfo = blockedDates.find(b => b.date === dateStr);
 
     // Debug para verificar
@@ -152,7 +160,8 @@ export function EnhancedCalendar({
       date: dateStr,
       dayOfWeek,
       isWorkingDay,
-      schedules: operatingHours
+      daySchedules,
+      allSchedules: operatingHours
     });
 
     if (!isWorkingDay) {
