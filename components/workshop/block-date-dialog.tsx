@@ -52,13 +52,30 @@ export default function BlockDateDialog({
     // Convertir día de la semana (0-6) al formato de la base de datos (1-7)
     const dayOfWeek = date.getDay();
     const dbDayOfWeek = dayOfWeek === 0 ? 1 : dayOfWeek + 1;
+    
+    // Buscar TODOS los horarios para este día
+    const daySchedules = operatingHours.filter(h => h.day_of_week === dbDayOfWeek);
+    
+    // Un día es laborable si AL MENOS UN workshop trabaja ese día
+    const isWorkingDay = daySchedules.some(h => h.is_working_day);
+    
+    // Para mostrar información, usar el primer horario que trabaje, o el primero disponible
+    const workingSchedule = daySchedules.find(h => h.is_working_day) || daySchedules[0];
+    
     console.log('Día de la semana:', {
       date,
       jsDay: dayOfWeek,
       dbDay: dbDayOfWeek,
-      schedule: operatingHours.find(h => h.day_of_week === dbDayOfWeek)
+      daySchedules,
+      isWorkingDay,
+      workingSchedule
     });
-    return operatingHours.find(h => h.day_of_week === dbDayOfWeek);
+    
+    // Retornar un objeto con la información consolidada
+    return workingSchedule ? {
+      ...workingSchedule,
+      is_working_day: isWorkingDay
+    } : undefined;
   };
 
   const currentSchedule = getDaySchedule(date);
@@ -76,7 +93,13 @@ export default function BlockDateDialog({
         setMotivo('');
         setDiaCompleto(true);
         
-        if (selectedDate.isNonWorkingDay) {
+        // Verificar si el día seleccionado es laborable usando la nueva lógica
+        const dayOfWeek = selectedDate.date.getDay();
+        const dbDayOfWeek = dayOfWeek === 0 ? 1 : dayOfWeek + 1;
+        const daySchedules = operatingHours.filter(h => h.day_of_week === dbDayOfWeek);
+        const isWorkingDay = daySchedules.some(h => h.is_working_day);
+        
+        if (!isWorkingDay) {
           toast({
             title: "¡Error!",
             description: "Este día está configurado como no operativo en los horarios regulares del taller. Por favor selecciona otro día.",
