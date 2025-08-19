@@ -265,6 +265,41 @@ export interface Database {
           updated_at?: string
         }
       }
+      phone_agent_settings: {
+        Row: {
+          id: string
+          phone_number: string
+          dealership_id: string
+          agent_active: boolean
+          notes: string | null
+          created_at: string
+          updated_at: string
+          created_by: string
+          updated_by: string
+        }
+        Insert: {
+          id?: string
+          phone_number: string
+          dealership_id: string
+          agent_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string
+          updated_by?: string
+        }
+        Update: {
+          id?: string
+          phone_number?: string
+          dealership_id?: string
+          agent_active?: boolean
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+          created_by?: string
+          updated_by?: string
+        }
+      }
     }
     Functions: {
       get_admin_conversations_with_evaluations: {
