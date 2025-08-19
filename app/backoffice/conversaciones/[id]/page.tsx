@@ -27,10 +27,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, AlertCircle } from "lucide-react";
+import { ArrowLeft, RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, AlertCircle, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { markConversationAsRead } from '@/utils/conversation-helpers';
+import { ClienteContextPanel } from '@/components/cliente-context-panel';
 
 interface Conversation {
   id: string;
@@ -602,7 +603,8 @@ export default function ConversacionDetallePage() {
             <RefreshCcw className="h-4 w-4" />
             Actualizar
           </Button>
-          <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+          {/* Botón "Cambiar estado" oculto temporalmente */}
+          {/* <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">Cambiar estado</Button>
             </DialogTrigger>
@@ -634,7 +636,7 @@ export default function ConversacionDetallePage() {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+          </Dialog> */}
         </div>
       </div>
 
@@ -642,21 +644,20 @@ export default function ConversacionDetallePage() {
         {/* Panel de información */}
         <Card className="p-4 md:col-span-1 flex flex-col">
           <h2 className="text-xl font-bold mb-4">Información</h2>
-          
-          <div className="mb-4">
-            <p className="text-sm text-muted-foreground mb-1">Identificador</p>
-            <p className="font-medium">{conversacion.user_identifier}</p>
-          </div>
-          
-          <div className="mb-4">
-            <p className="text-sm text-muted-foreground mb-1">Estado</p>
-            <div>{getStatusBadge(conversacion.status)}</div>
-          </div>
 
           {conversacion.client && (
             <>
               <div className="mb-4">
-                <p className="text-sm text-muted-foreground mb-1">Cliente</p>
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-sm text-muted-foreground">Cliente</p>
+                  <button
+                    onClick={() => verPerfilCliente(conversacion.client_id!)}
+                    className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 transition-colors"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Ver perfil completo
+                  </button>
+                </div>
                 <div className="flex items-center gap-2">
                   <p className="font-medium">{conversacion.client.names}</p>
                   {conversacion.client.agent_active === false && (
@@ -678,10 +679,7 @@ export default function ConversacionDetallePage() {
             </>
           )}
 
-          <div className="mb-4">
-            <p className="text-sm text-muted-foreground mb-1">Canal</p>
-            <div>{getChannelBadge(conversacion.channel)}</div>
-          </div>
+
 
           {/* Mostrar campos nuevos si están disponibles */}
           {conversacion.client_intent && (
@@ -703,6 +701,14 @@ export default function ConversacionDetallePage() {
               <p className="text-sm text-muted-foreground mb-1">Modelo IA</p>
               <p className="text-sm">{conversacion.ai_model}</p>
             </div>
+          )}
+
+          {/* Panel de contexto del cliente */}
+          {conversacion.client_id && dataToken?.dealership_id && (
+            <ClienteContextPanel 
+              clientId={conversacion.client_id} 
+              dealershipId={dataToken.dealership_id}
+            />
           )}
 
           <Separator className="my-4" />
