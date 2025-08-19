@@ -497,7 +497,7 @@ export default function ConversacionesAccionHumanaPage() {
                     </TableCell>
                     <TableCell>
                       <div className="text-sm text-muted-foreground">
-                        {formatDateTime(getLastCustomerMessageTimestamp(conversacion.messages)?.toISOString() || conversacion.updated_at)}
+                        {formatDateTime(getLastCustomerMessageTimestamp(conversacion.messages || [])?.toISOString() || conversacion.updated_at)}
                       </div>
                     </TableCell>
                     <TableCell>
