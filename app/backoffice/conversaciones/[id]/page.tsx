@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { markConversationAsRead } from '@/utils/conversation-helpers';
 
 interface Conversation {
   id: string;
@@ -326,6 +327,8 @@ export default function ConversacionDetallePage() {
   useEffect(() => {
     if (dataToken && conversationId) {
       cargarConversacion();
+      // Marcar como leída al abrir la conversación
+      markConversationAsRead(conversationId);
     }
   }, [dataToken, conversationId]);
 
