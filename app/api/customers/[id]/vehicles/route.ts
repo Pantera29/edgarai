@@ -9,9 +9,27 @@ export async function GET(
   try {
     const supabase = createServerComponentClient({ cookies });
     const clientId = params.id;
+    const { searchParams } = new URL(request.url);
+    const limitParam = searchParams.get('limit');
+
+    // Validar y convertir el parámetro limit
+    let limit: number | null = null;
+    if (limitParam) {
+      const parsedLimit = parseInt(limitParam);
+      if (!isNaN(parsedLimit) && parsedLimit > 0 && parsedLimit <= 100) {
+        limit = parsedLimit;
+      } else {
+        console.log('⚠️ Parámetro limit inválido:', limitParam);
+        return NextResponse.json(
+          { message: 'Invalid limit parameter. Must be a number between 1 and 100.' },
+          { status: 400 }
+        );
+      }
+    }
 
     console.log('🚗 Obteniendo vehículos del cliente:', {
       clientId,
+      limit,
       url: request.url
     });
 
@@ -50,13 +68,22 @@ export async function GET(
       );
     }
 
-    // Obtener todos los vehículos del cliente
-    console.log('🔍 Obteniendo vehículos del cliente:', clientId);
-    const { data: vehicles, error: vehiclesError } = await supabase
+    // Construir la consulta base
+    let query = supabase
       .from('vehicles')
       .select('*')
       .eq('client_id', clientId)
-      .order('make', { ascending: true });
+      .order('created_at', { ascending: false }); // Ordenar por fecha de creación descendente
+
+    // Aplicar límite si se proporciona
+    if (limit) {
+      console.log('🔍 Aplicando límite de resultados:', limit);
+      query = query.limit(limit);
+    }
+
+    // Obtener vehículos del cliente
+    console.log('🔍 Obteniendo vehículos del cliente:', clientId);
+    const { data: vehicles, error: vehiclesError } = await query;
 
     if (vehiclesError) {
       console.error('❌ Error al obtener vehículos:', {
@@ -71,10 +98,15 @@ export async function GET(
 
     console.log('✅ Vehículos obtenidos exitosamente:', {
       clientId,
-      count: vehicles?.length || 0
+      count: vehicles?.length || 0,
+      limit: limit || 'unlimited'
     });
 
-    return NextResponse.json({ vehicles });
+    return NextResponse.json({ 
+      vehicles,
+      total: vehicles?.length || 0,
+      limit: limit || 'unlimited'
+    });
   } catch (error) {
     console.error('💥 Error inesperado:', {
       error: error instanceof Error ? {

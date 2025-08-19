@@ -50,6 +50,30 @@ export async function GET(
     }
 
     console.log('📊 Construyendo consulta a Supabase...');
+    
+    // Obtener el dealership_id del cliente para filtrar las citas
+    const { data: clientData, error: clientError } = await supabase
+      .from('client')
+      .select('dealership_id')
+      .eq('id', clientId)
+      .single();
+
+    if (clientError) {
+      console.error('❌ Error al obtener dealership_id del cliente:', clientError);
+      return NextResponse.json(
+        { message: 'Error al obtener información del cliente' },
+        { status: 500 }
+      );
+    }
+
+    if (!clientData?.dealership_id) {
+      console.log('❌ Cliente sin dealership_id:', clientId);
+      return NextResponse.json(
+        { message: 'Cliente sin dealership asignado' },
+        { status: 400 }
+      );
+    }
+
     // Construir la consulta base
     let query = supabase
       .from('appointment')
@@ -61,6 +85,7 @@ export async function GET(
         notes,
         service_id,
         vehicle_id,
+        dealership_id,
         services:service_id (
           id_uuid,
           service_name,
@@ -76,6 +101,7 @@ export async function GET(
         )
       `)
       .eq('client_id', clientId)
+      .eq('dealership_id', clientData.dealership_id)
       .order('appointment_date', { ascending: false });
 
     // Aplicar filtro por estado si se proporciona
