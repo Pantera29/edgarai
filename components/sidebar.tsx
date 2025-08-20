@@ -88,7 +88,7 @@ const menuItems: MenuItem[] = [
         icon: MessageSquare
       },
       {
-        title: "Acción Humana",
+        title: "Necesita Atención",
         href: "/backoffice/conversaciones/accion-humana",
         icon: AlertTriangle
       }
