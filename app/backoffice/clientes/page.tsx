@@ -5,7 +5,7 @@ import { ClientesTable } from "@/components/clientes-table";
 import { supabase } from "@/lib/supabase";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Search } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -26,6 +26,8 @@ import Link from "next/link";
 import { verifyToken } from "../../jwt/token";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/ui/use-toast";
+import { useClientSearch } from "@/hooks/useClientSearch";
+import { useDebouncedCallback } from 'use-debounce';
 
 interface Cliente {
   id: string;
@@ -92,6 +94,16 @@ const router = useRouter();
   const [totalClientes, setTotalClientes] = useState(0);
   const [loading, setLoading] = useState(false);
   const [clienteId, setClienteId] = useState<string | null>(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [isSearchActive, setIsSearchActive] = useState(false);
+  
+  // Hook de búsqueda inteligente
+  const { 
+    clients: searchResults, 
+    loading: hookLoading, 
+    error: searchError, 
+    searchClients 
+  } = useClientSearch((dataToken as any)?.dealership_id || '');
   const [showNuevoCliente, setShowNuevoCliente] = useState(false);
   const [nuevoCliente, setNuevoCliente] = useState<NuevoCliente>({
     names: "",
@@ -99,13 +111,39 @@ const router = useRouter();
     phone_number: "",
   });
 
-  // Efecto para recargar los clientes cuando cambien los filtros
+  // Búsqueda inteligente con debounce
+  const debouncedSearch = useDebouncedCallback(async (searchTerm: string) => {
+    if (searchTerm.trim()) {
+      setIsSearchActive(true);
+      setSearchLoading(true);
+      try {
+        await searchClients(searchTerm);
+      } catch (error) {
+        console.error('Error en búsqueda:', error);
+      } finally {
+        setSearchLoading(false);
+      }
+    } else {
+      setIsSearchActive(false);
+      // Si no hay búsqueda, recargar clientes normales
+      if (dataToken && (dataToken as any).dealership_id) {
+        cargarClientes((dataToken as any).dealership_id);
+      }
+    }
+  }, 300);
+
+  // Efecto para la búsqueda inteligente
   useEffect(() => {
-    // Solo recargar si ya tenemos el dealership_id
-    if (dataToken && (dataToken as any).dealership_id) {
+    debouncedSearch(busqueda);
+  }, [busqueda, debouncedSearch]);
+
+  // Efecto para recargar los clientes cuando cambien los filtros (sin búsqueda)
+  useEffect(() => {
+    // Solo recargar si ya tenemos el dealership_id y no estamos en modo búsqueda
+    if (dataToken && (dataToken as any).dealership_id && !isSearchActive) {
       cargarClientes((dataToken as any).dealership_id);
     }
-  }, [busqueda, filtroEstado, pagina]);
+  }, [filtroEstado, pagina, isSearchActive]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -176,10 +214,35 @@ const router = useRouter();
     }
   };
 
-  // Solo mantener el filtro por clienteId cuando sea necesario
-  const clientesAMostrar = clienteId 
-    ? clientes.filter(cliente => cliente.id === clienteId)
-    : clientes;
+  // Determinar qué clientes mostrar basado en el modo de búsqueda
+  const clientesAMostrar = (() => {
+    if (clienteId) {
+      // Si hay un cliente específico seleccionado, mostrarlo
+      return clientes.filter(cliente => cliente.id === clienteId);
+    }
+    
+    if (isSearchActive && searchResults.length > 0) {
+      // Si estamos en modo búsqueda, mostrar resultados de búsqueda
+      // Convertir los resultados de búsqueda al formato esperado
+      return searchResults.map(client => ({
+        id: client.id,
+        names: client.names,
+        email: client.email || '',
+        phone_number: client.phone_number,
+        external_id: client.external_id || null,
+        estado: "activo" as const,
+        agent_active: client.agent_active ?? true
+      }));
+    }
+    
+    if (isSearchActive && searchResults.length === 0 && busqueda.trim()) {
+      // Si estamos buscando pero no hay resultados, mostrar array vacío
+      return [];
+    }
+    
+    // Por defecto, mostrar la lista normal paginada
+    return clientes;
+  })();
 
   const limpiarFiltro = () => {
     setClienteId(null);
@@ -287,12 +350,34 @@ const router = useRouter();
       </div>
       <div className="flex items-center justify-between">
         <div className="flex flex-1 items-center space-x-2">
-          <Input
-            placeholder="Buscar clientes..."
-            className="w-[150px] lg:w-[250px]"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
+          <div className="relative w-[150px] lg:w-[250px]">
+            <Input
+              placeholder="Buscar por nombre o teléfono..."
+              className="w-full pr-8"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+            {(searchLoading || hookLoading) && (
+              <div className="absolute right-2 top-1/2 transform -translate-y-1/2">
+                <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
+              </div>
+            )}
+          </div>
+          {isSearchActive && (
+            <div className="text-sm text-muted-foreground">
+              {searchResults.length > 0 
+                ? `${searchResults.length} resultado(s) encontrado(s)`
+                : busqueda.trim() 
+                  ? "No se encontraron resultados"
+                  : "Escriba para buscar"
+              }
+            </div>
+          )}
+          {searchError && (
+            <div className="text-sm text-red-500">
+              Error en búsqueda: {searchError}
+            </div>
+          )}
         </div>
       </div>
 
@@ -303,29 +388,53 @@ const router = useRouter();
         onClienteDeleted={handleClienteUpdated}
       />
 
-      <div className="flex justify-between items-center">
-        <div className="text-sm text-muted-foreground">
-          Mostrando {((pagina - 1) * ITEMS_PER_PAGE) + 1} -{" "}
-          {Math.min(pagina * ITEMS_PER_PAGE, totalClientes)} de {totalClientes}{" "}
-          clientes
-        </div> 
-        <div className="flex gap-2">
+      {!isSearchActive && (
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-muted-foreground">
+            Mostrando {((pagina - 1) * ITEMS_PER_PAGE) + 1} -{" "}
+            {Math.min(pagina * ITEMS_PER_PAGE, totalClientes)} de {totalClientes}{" "}
+            clientes
+          </div> 
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              disabled={pagina === 1}
+              onClick={() => setPagina((p) => p - 1)}
+            >
+              Anterior
+            </Button>
+            <Button
+              variant="outline"
+              disabled={pagina * ITEMS_PER_PAGE >= totalClientes}
+              onClick={() => setPagina((p) => p + 1)}
+            >
+              Siguiente
+            </Button>
+          </div>
+        </div>
+      )}
+      
+      {isSearchActive && (
+        <div className="flex justify-between items-center">
+          <div className="text-sm text-muted-foreground">
+            {searchResults.length > 0 
+              ? `Mostrando ${searchResults.length} resultado(s) de búsqueda`
+              : busqueda.trim() 
+                ? "No se encontraron clientes que coincidan con la búsqueda"
+                : "Escriba para buscar clientes"
+            }
+          </div>
           <Button
             variant="outline"
-            disabled={pagina === 1}
-            onClick={() => setPagina((p) => p - 1)}
+            onClick={() => {
+              setBusqueda("");
+              setIsSearchActive(false);
+            }}
           >
-            Anterior
-          </Button>
-          <Button
-            variant="outline"
-            disabled={pagina * ITEMS_PER_PAGE >= totalClientes}
-            onClick={() => setPagina((p) => p + 1)}
-          >
-            Siguiente
+            Limpiar búsqueda
           </Button>
         </div>
-      </div>
+      )}
 
       {clienteId && (
         <Button variant="outline" onClick={limpiarFiltro}>
