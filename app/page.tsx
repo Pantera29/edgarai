@@ -308,7 +308,7 @@ export default function LandingPage() {
     <div className="min-h-screen bg-white pt-[64px] overflow-x-hidden">
       {/* Navbar con diseño tipo Flai */}
       <nav className="py-4 px-6 fixed w-full top-0 bg-white z-50">
-        <div className="max-w-6xl mx-auto flex items-center">
+        <div className="max-w-6xl mx-auto relative flex items-center">
           {/* Logo a la izquierda */}
           <div className="flex items-center cursor-pointer" onClick={() => scrollToSection('hero')} role="button" aria-label="Ir al inicio">
             <div className="text-2xl font-bold text-black">
@@ -316,8 +316,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Navegación centrada - solo en desktop */}
-          <div className="hidden md:flex items-center gap-8 mx-auto">
+          {/* Navegación centrada respecto a toda la pantalla - solo en desktop */}
+          <div className="hidden md:flex items-center gap-8 absolute left-1/2 transform -translate-x-1/2">
             <button
               onClick={() => scrollToSection('mia-en-accion')}
               className="text-gray-600 hover:text-black font-work-sans transition-colors"
@@ -330,10 +330,16 @@ export default function LandingPage() {
             >
               Cómo funciona
             </button>
+            <button
+              onClick={() => scrollToSection('faqs')}
+              className="text-gray-600 hover:text-black font-work-sans transition-colors"
+            >
+              FAQs
+            </button>
           </div>
 
           {/* CTA y Login a la derecha */}
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 ml-auto">
             <a 
               href="https://wa.me/525575131257?text=Hola%2C%20quiero%20agendar%20una%20demo%20de%20MuviAI"
               target="_blank"
@@ -378,6 +384,15 @@ export default function LandingPage() {
                   className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black"
                 >
                   Cómo funciona
+                </button>
+                <button 
+                  onClick={() => {
+                    scrollToSection('faqs');
+                    setMobileMenuOpen(false);
+                  }}
+                  className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black"
+                >
+                  FAQs
                 </button>
                 <a 
                   href="https://wa.me/525575131257?text=Hola%2C%20quiero%20agendar%20una%20demo%20de%20MuviAI"
@@ -890,7 +905,7 @@ export default function LandingPage() {
       */}
 
       {/* Sección de FAQs */}
-      <section className="relative py-20 bg-transparent">
+      <section id="faqs" className="relative py-20 bg-transparent">
         {/* gradientes removidos */}
         <div className="relative max-w-4xl mx-auto px-6">
           <h2 className="text-4xl font-moranga font-bold text-center mb-12">Preguntas Frecuentes</h2>
