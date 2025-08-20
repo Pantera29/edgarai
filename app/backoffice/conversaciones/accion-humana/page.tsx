@@ -16,6 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -36,7 +42,8 @@ import {
   CheckCircle,
   XCircle,
   RotateCcw,
-  Loader2
+  Loader2,
+  MoreHorizontal
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
@@ -390,17 +397,17 @@ export default function ConversacionesAccionHumanaPage() {
             onClick={limpiarFiltros}
             className={`inline-flex items-center px-4 py-2 rounded-full transition-all duration-200 hover:scale-105 hover:shadow-md ${
               busqueda === "" && filtroCanal === "todos" && filtroUrgencia === "todas"
-                ? "bg-red-100 border-2 border-red-300 shadow-md"
-                : "bg-red-50 border border-red-200 hover:bg-red-100"
+                ? "bg-gray-100 border-2 border-gray-300 shadow-md"
+                : "bg-gray-50 border border-gray-200 hover:bg-gray-100"
             }`}
           >
             <div className="flex items-center space-x-2">
-              <div className="rounded-full bg-red-100 p-1">
-                <AlertTriangle className="h-4 w-4 text-red-600" />
+              <div className="rounded-full bg-gray-100 p-1">
+                <AlertTriangle className="h-4 w-4 text-gray-600" />
               </div>
               <div className="flex items-center space-x-2">
-                <span className="text-sm font-medium text-red-900">Total que necesitan atención:</span>
-                <span className="text-lg font-bold text-red-700">{metricas.total_conversations}</span>
+                <span className="text-sm font-medium text-gray-900">Total que necesitan atención:</span>
+                <span className="text-lg font-bold text-gray-700">{metricas.total_conversations}</span>
               </div>
             </div>
           </button>
@@ -446,24 +453,24 @@ export default function ConversacionesAccionHumanaPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Canal</TableHead>
+                <TableHead className="hidden">Canal</TableHead>
                 <TableHead>Urgencia</TableHead>
                 <TableHead>Cliente</TableHead>
-                <TableHead>Identificador</TableHead>
-                <TableHead>Última Actividad</TableHead>
-                <TableHead>Acciones</TableHead>
+                <TableHead className="text-right">Última Actividad</TableHead>
+                <TableHead className="text-center"></TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10">
+                  <TableCell colSpan={5} className="text-center py-10">
                     Cargando conversaciones...
                   </TableCell>
                 </TableRow>
               ) : conversaciones.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-10">
+                  <TableCell colSpan={5} className="text-center py-10">
                     <div className="flex flex-col items-center space-y-2">
                       <CheckCircle className="h-8 w-8 text-green-500" />
                       <p className="text-muted-foreground">¡Excelente! No hay conversaciones que necesiten acción humana.</p>
@@ -473,7 +480,7 @@ export default function ConversacionesAccionHumanaPage() {
               ) : (
                 conversaciones.map((conversacion) => (
                   <TableRow key={conversacion.id} className="hover:bg-muted/50">
-                    <TableCell>
+                    <TableCell className="hidden">
                       <div className="flex items-center justify-center">
                         {getCanalIcon(conversacion.channel)}
                       </div>
@@ -486,52 +493,58 @@ export default function ConversacionesAccionHumanaPage() {
                         <div className="font-medium">
                           {conversacion.client_names || 'Sin cliente'}
                         </div>
-                        {conversacion.client_phone && (
-                          <div className="text-sm text-muted-foreground">
-                            {conversacion.client_phone}
-                          </div>
-                        )}
+                        <div className="text-sm text-muted-foreground font-mono">
+                          {conversacion.user_identifier}
+                        </div>
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="font-mono text-sm">
-                        {conversacion.user_identifier}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm text-muted-foreground">
+                    <TableCell className="text-right">
+                      <div className={`text-sm ${isConversationUnread(conversacion) ? 'text-green-500 font-medium' : 'text-muted-foreground'}`}>
                         {formatDateTime(getLastCustomerMessageTimestamp(conversacion.messages || [])?.toISOString() || conversacion.updated_at)}
                       </div>
                     </TableCell>
-                    <TableCell>
-                      <div className="flex space-x-2">
-                        <div className="flex items-center gap-2">
-                          {isConversationUnread(conversacion) && (
-                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => verDetalle(conversacion.id)}
-                          >
-                            <Eye className="h-4 w-4 mr-1" />
-                            Ver
-                          </Button>
-                        </div>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center">
+                        {isConversationUnread(conversacion) && (
+                          <div className="w-2 h-2 bg-green-500 rounded-full" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex space-x-2 justify-end">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => verDetalle(conversacion.id)}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          Ver
+                        </Button>
                         {conversacion.client_id && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => reactivarAgente(conversacion.client_id!, conversacion.client_names || 'Cliente')}
-                            disabled={reactivatingAgents.has(conversacion.client_id!)}
-                          >
-                            {reactivatingAgents.has(conversacion.client_id!) ? (
-                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            ) : (
-                              <RotateCcw className="h-4 w-4 mr-1" />
-                            )}
-                            Reactivar
-                          </Button>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-8 p-0"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={() => reactivarAgente(conversacion.client_id!, conversacion.client_names || 'Cliente')}
+                                disabled={reactivatingAgents.has(conversacion.client_id!)}
+                              >
+                                {reactivatingAgents.has(conversacion.client_id!) ? (
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                ) : (
+                                  <RotateCcw className="h-4 w-4 mr-2" />
+                                )}
+                                Reactivar agente
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         )}
                       </div>
                     </TableCell>
