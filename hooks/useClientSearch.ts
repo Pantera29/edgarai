@@ -7,6 +7,9 @@ interface ExtendedClient {
   id: string;
   names: string;
   phone_number: string;
+  email?: string;
+  external_id?: string | null;
+  agent_active?: boolean;
   dealership_id?: string;
 }
 
@@ -46,7 +49,7 @@ export const useClientSearch = (dealershipId: string) => {
       
       let supabaseQuery = supabase
         .from('client')
-        .select('id, names, phone_number, dealership_id')
+        .select('id, names, phone_number, email, external_id, agent_active, dealership_id')
         .eq('dealership_id', dealershipId);
       
       if (words.length > 0) {
@@ -58,7 +61,7 @@ export const useClientSearch = (dealershipId: string) => {
         // Agregar búsqueda por teléfono completo (OR)
         const phoneQuery = supabase
           .from('client')
-          .select('id, names, phone_number, dealership_id')
+          .select('id, names, phone_number, email, external_id, agent_active, dealership_id')
           .eq('dealership_id', dealershipId)
           .ilike('phone_number', `%${query}%`);
         
