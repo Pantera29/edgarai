@@ -253,7 +253,25 @@ export default function ConversacionesAccionHumanaPage() {
   const formatDateTime = (dateString: string) => {
     try {
       const fecha = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
-      return format(fecha, "dd/MM/yyyy HH:mm", { locale: es });
+      const ahora = new Date();
+      
+      // Obtener el inicio del día actual y del día anterior
+      const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+      const inicioAyer = new Date(inicioHoy);
+      inicioAyer.setDate(inicioAyer.getDate() - 1);
+      
+      // Si es de hoy, mostrar solo la hora
+      if (fecha >= inicioHoy) {
+        return format(fecha, "HH:mm", { locale: es });
+      }
+      
+      // Si es de ayer, mostrar "Ayer"
+      if (fecha >= inicioAyer && fecha < inicioHoy) {
+        return "Ayer";
+      }
+      
+      // Si es anterior, mostrar solo la fecha (sin hora)
+      return format(fecha, "dd/MM/yyyy", { locale: es });
     } catch (error) {
       return "Fecha inválida";
     }
