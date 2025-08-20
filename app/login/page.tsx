@@ -79,7 +79,7 @@ export default function LoginPage() {
       {/* Formulario de login con elevación */}
       <Card className="bg-white/95 rounded-xl shadow-2xl z-20 w-96 animate-fade-in-up">
         <CardHeader className="flex flex-col items-center pt-8 pb-4">
-          <h2 className="text-2xl font-bold text-center">MuviAI</h2>
+          <h2 className="text-2xl font-bold text-center">Muvi</h2>
           <p className="text-gray-500 text-sm">Panel de Administración</p>
         </CardHeader>
         
