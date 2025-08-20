@@ -289,6 +289,20 @@ export default function ConversacionesAccionHumanaPage() {
     }
   };
 
+  const limpiarFiltros = () => {
+    setBusqueda("");
+    setFiltroCanal("todos");
+    setFiltroUrgencia("todas");
+    setPagina(1);
+  };
+
+  const filtrarUrgentes = () => {
+    setBusqueda("");
+    setFiltroCanal("todos");
+    setFiltroUrgencia("urgent");
+    setPagina(1);
+  };
+
   const verDetalle = (id: string) => {
     router.push(`/backoffice/conversaciones/${id}?token=${token}&from=accion-humana`);
   };
@@ -360,98 +374,69 @@ export default function ConversacionesAccionHumanaPage() {
     <div className="px-4 py-6 space-y-6">
       <div className="mb-6">
         <div>
-          <h1 className="text-3xl font-bold">Conversaciones que Necesitan Acción</h1>
+          <h1 className="text-3xl font-bold">Conversaciones que Necesitan Atención</h1>
           <p className="text-muted-foreground mt-2">
-            Conversaciones donde el agente está inactivo y requieren intervención humana
+            Conversaciones donde el agente está inactivo y requieren intervención del equipo de atención.
           </p>
         </div>
       </div>
 
-      {/* Métricas */}
+      {/* Métricas en formato cápsula */}
       {(() => { console.log('🔍 Estado de métricas:', { loadingMetricas, metricas, hasMetricas: !!metricas }); return null; })()}
       {!loadingMetricas && metricas && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <Card className="p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">
-                Total que Necesitan Acción
-              </h3>
-              <div className="rounded-md bg-red-100 p-1">
+        <div className="flex flex-wrap gap-3 mb-6">
+          {/* Cápsula Total - Clickeable para limpiar filtros */}
+          <button 
+            onClick={limpiarFiltros}
+            className={`inline-flex items-center px-4 py-2 rounded-full transition-all duration-200 hover:scale-105 hover:shadow-md ${
+              busqueda === "" && filtroCanal === "todos" && filtroUrgencia === "todas"
+                ? "bg-red-100 border-2 border-red-300 shadow-md"
+                : "bg-red-50 border border-red-200 hover:bg-red-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <div className="rounded-full bg-red-100 p-1">
                 <AlertTriangle className="h-4 w-4 text-red-600" />
               </div>
-            </div>
-            <div className="flex items-center">
-              <div className="text-3xl font-bold">{metricas.total_conversations}</div>
-            </div>
-            <div className="mt-3">
-              <p className="text-xs text-muted-foreground">
-                <Users className="inline h-3 w-3 mr-1" />
-                Requieren intervención humana
-              </p>
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">
-                Urgentes (≤24h)
-              </h3>
-              <div className="rounded-md bg-orange-100 p-1">
-                <AlertTriangle className="h-4 w-4 text-orange-600" />
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-red-900">Total que necesitan atención:</span>
+                <span className="text-lg font-bold text-red-700">{metricas.total_conversations}</span>
               </div>
             </div>
-            <div className="flex items-center">
-              <div className="text-3xl font-bold text-orange-600">{metricas.urgent_count}</div>
+          </button>
+
+          {/* Cápsula Urgentes - Clickeable para filtrar urgentes */}
+          <button 
+            onClick={filtrarUrgentes}
+            className={`inline-flex items-center px-4 py-2 rounded-full transition-all duration-200 hover:scale-105 hover:shadow-md ${
+              filtroUrgencia === "urgent" && busqueda === "" && filtroCanal === "todos"
+                ? "bg-orange-100 border-2 border-orange-300 shadow-md"
+                : "bg-orange-50 border border-orange-200 hover:bg-orange-100"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <div className="rounded-full bg-orange-100 p-1">
+                <Clock className="h-4 w-4 text-orange-600" />
+              </div>
+              <div className="flex items-center space-x-2">
+                <span className="text-sm font-medium text-orange-900">Urgentes (≤24h):</span>
+                <span className="text-lg font-bold text-orange-700">{metricas.urgent_count}</span>
+              </div>
             </div>
-            <div className="mt-3">
-              <p className="text-xs text-muted-foreground">
-                <Clock className="inline h-3 w-3 mr-1" />
-                Requieren atención inmediata
-              </p>
-            </div>
-          </Card>
+          </button>
         </div>
       )}
 
       {/* Filtros */}
       <Card className="p-4 shadow-sm border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por usuario, cliente, teléfono o email..."
-              className="pl-8"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-            />
-          </div>
-          
-          <Select
-            value={filtroCanal}
-            onValueChange={setFiltroCanal}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Canal" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los canales</SelectItem>
-              <SelectItem value="whatsapp">WhatsApp</SelectItem>
-              <SelectItem value="phone">Llamadas</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={filtroUrgencia}
-            onValueChange={setFiltroUrgencia}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Urgencia" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas las urgencias</SelectItem>
-              <SelectItem value="urgent">Urgentes (≤24h)</SelectItem>
-            </SelectContent>
-          </Select>
+        <div className="relative max-w-md">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por usuario, cliente, teléfono o email..."
+            className="pl-8"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
         </div>
       </Card>
 
