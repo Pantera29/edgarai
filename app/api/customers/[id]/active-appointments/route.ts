@@ -59,6 +59,7 @@ export async function GET(
         notes,
         service_id,
         vehicle_id,
+        specific_service_id,
         services:service_id (
           id_uuid,
           service_name,
@@ -71,6 +72,25 @@ export async function GET(
           model,
           license_plate,
           year
+        ),
+        specific_services:specific_service_id (
+          id,
+          service_name,
+          price,
+          kilometers,
+          months,
+          additional_price,
+          additional_description,
+          includes_additional,
+          model:vehicle_models (
+            name,
+            make:vehicle_makes (
+              name
+            )
+          ),
+          service:services (
+            service_name
+          )
         )
       `)
       .eq('client_id', clientId)
