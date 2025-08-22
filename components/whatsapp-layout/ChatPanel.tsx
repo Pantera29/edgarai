@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { ChatViewer } from "@/components/chat-viewer";
 import { Card } from "@/components/ui/card";
@@ -100,6 +100,9 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   
   // Estado para reactivación de agentes
   const [reactivatingAgent, setReactivatingAgent] = useState(false);
+  
+  // Referencia para el contenedor de mensajes
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   
   const { toast } = useToast();
 
@@ -517,6 +520,27 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     }
   };
 
+  // Función para hacer scroll al final de la conversación
+  const scrollToBottom = () => {
+    // Usar la función global del ChatViewer
+    if ((window as any).scrollChatToBottom) {
+      setTimeout(() => {
+        (window as any).scrollChatToBottom();
+      }, 100); // Pequeño delay para asegurar que el DOM se haya actualizado
+    }
+  };
+
+  // Función para manejar el toggle del formulario de WhatsApp
+  const toggleWhatsappForm = () => {
+    const newShowState = !showWhatsappForm;
+    setShowWhatsappForm(newShowState);
+    
+    // Si se está mostrando el formulario, hacer scroll al final
+    if (newShowState) {
+      scrollToBottom();
+    }
+  };
+
   const enviarWhatsApp = async () => {
     // Determinar el número de teléfono a usar
     const phoneNumber = conversacion?.client?.phone_number || conversacion?.user_identifier;
@@ -615,6 +639,8 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
         }
         
         setWhatsappMessage("");
+        // Hacer scroll al final después de enviar el mensaje
+        scrollToBottom();
       } else {
         console.error('❌ [UI] Error al enviar mensaje:', result.error);
         toast({
@@ -901,8 +927,8 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           )}
 
           {/* ChatViewer con altura flexible */}
-          <div className="flex-1 overflow-hidden">
-            <ChatViewer messages={mensajes} />
+          <div ref={messagesContainerRef} className="flex-1 overflow-hidden">
+            <ChatViewer messages={mensajes} onScrollToBottom={true} />
           </div>
           
           {/* Formulario de WhatsApp */}
@@ -946,7 +972,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setShowWhatsappForm(!showWhatsappForm)}
+                      onClick={toggleWhatsappForm}
                       className="text-xs"
                     >
                       {showWhatsappForm ? "Ocultar" : "Mostrar"}

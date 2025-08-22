@@ -23,6 +23,39 @@ import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { getLastCustomerMessageTimestamp, isConversationUnread } from '@/utils/conversation-helpers';
 
+// Importar el tipo para la conversión
+interface ConversacionAccionHumana {
+  id: string;
+  user_identifier: string;
+  client_id: string | null;
+  dealership_id: string;
+  status: string;
+  channel: string;
+  created_at: string;
+  updated_at: string;
+  duration_seconds?: number;
+  ended_reason?: string;
+  was_successful?: boolean;
+  conversation_summary?: string;
+  conversation_summary_translated?: string;
+  client_intent?: string;
+  agent_name?: string;
+  ai_model?: string;
+  outcome_type?: string;
+  follow_up_notes?: string;
+  customer_satisfaction?: string;
+  agent_performance?: string;
+  client_names?: string;
+  client_email?: string;
+  client_phone?: string;
+  client_agent_active?: boolean;
+  hours_since_last_activity: number;
+  urgency_level: 'urgent' | 'normal';
+  messages?: any[];
+  last_read_at?: string | null;
+  total_count: number;
+}
+
 interface ConversacionItem {
   id: string;
   user_identifier: string;
@@ -389,7 +422,22 @@ export default function ConversacionesListaPage() {
   const [dataToken, setDataToken] = useState<any>(null);
   
   // Estado compartido para la conversación seleccionada
-  const { selectedConversationId, selectConversation } = useSelectedConversation();
+  const { selectedConversationId, selectConversation: originalSelectConversation } = useSelectedConversation();
+  
+  // Función adaptadora para convertir ConversacionItem a ConversacionAccionHumana
+  const selectConversation = (conversation: ConversacionItem) => {
+    // Crear un objeto compatible con ConversacionAccionHumana
+    const adaptedConversation: ConversacionAccionHumana = {
+      ...conversation,
+      client_id: conversation.client ? 'temp-id' : null, // Placeholder
+      dealership_id: dataToken?.dealership_id || '',
+      created_at: conversation.updated_at, // Usar updated_at como fallback
+      hours_since_last_activity: 0, // Placeholder
+      urgency_level: 'normal', // Placeholder
+      total_count: 0 // Placeholder
+    };
+    originalSelectConversation(adaptedConversation);
+  };
 
   useEffect(() => {
     if (typeof window !== "undefined") {
