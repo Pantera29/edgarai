@@ -19,7 +19,6 @@ interface ChatViewerProps {
   userAvatar?: React.ReactNode;
   assistantAvatar?: React.ReactNode;
   className?: string;
-  onScrollToBottom?: () => void;
 }
 
 export function ChatViewer({
@@ -27,7 +26,6 @@ export function ChatViewer({
   userAvatar = <User className="h-6 w-6 text-white" />,
   assistantAvatar = <Bot className="h-6 w-6 text-primary" />,
   className,
-  onScrollToBottom,
 }: ChatViewerProps) {
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -48,11 +46,9 @@ export function ChatViewer({
 
   // Exponer la función de scroll al componente padre
   useEffect(() => {
-    if (onScrollToBottom) {
-      // Crear una función global que el padre pueda llamar
-      (window as any).scrollChatToBottom = scrollToBottom;
-    }
-  }, [onScrollToBottom]);
+    // Crear una función global que el padre pueda llamar
+    (window as any).scrollChatToBottom = scrollToBottom;
+  }, []);
 
   // Scroll automático al final cuando se cargan mensajes
   useEffect(() => {

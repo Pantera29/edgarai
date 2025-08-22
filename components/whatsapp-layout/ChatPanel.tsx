@@ -928,7 +928,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
 
           {/* ChatViewer con altura flexible */}
           <div ref={messagesContainerRef} className="flex-1 overflow-hidden">
-            <ChatViewer messages={mensajes} onScrollToBottom={true} />
+            <ChatViewer messages={mensajes} />
           </div>
           
           {/* Formulario de WhatsApp */}
