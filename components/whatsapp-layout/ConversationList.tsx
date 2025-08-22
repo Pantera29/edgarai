@@ -146,7 +146,7 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
         // Aplicar filtro de no leídos en el cliente si está activo
         let conversacionesFiltradas = data;
         if (filtroNoLeidos) {
-          conversacionesFiltradas = data.filter(conversacion => isConversationUnread(conversacion));
+          conversacionesFiltradas = data.filter((conversacion: any) => isConversationUnread(conversacion));
         }
         
         setConversaciones(conversacionesFiltradas);
@@ -263,7 +263,7 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
                 <div className="rounded-full bg-green-100 p-0.5">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 </div>
-                <span className="font-medium text-green-900">No leídos: {conversaciones.filter(c => isConversationUnread(c)).length}</span>
+                <span className="font-medium text-green-900">No leídos: {conversaciones.filter((c: any) => isConversationUnread(c)).length}</span>
               </div>
             </button>
           </div>
@@ -315,7 +315,7 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
                           {conversacion.client_names || 'Sin cliente'}
                         </p>
                       </div>
-                      <p className={`text-xs ${isConversationUnread(conversacion) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
+                      <p className={`text-xs ${isConversationUnread(conversacion as any) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
                         {formatDateTime(getLastCustomerMessageTimestamp(conversacion.messages || [])?.toISOString() || conversacion.updated_at)}
                       </p>
                     </div>
@@ -325,7 +325,7 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
                       <p className="text-xs text-muted-foreground font-mono truncate">
                         {conversacion.user_identifier}
                       </p>
-                      {isConversationUnread(conversacion) && (
+                      {isConversationUnread(conversacion as any) && (
                         <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />
                       )}
                     </div>
