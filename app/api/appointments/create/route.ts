@@ -242,7 +242,7 @@ export async function POST(request: Request) {
           message: 'Missing required parameters. Please provide: client_id OR (phone/phone_number + dealership_id) OR (phone/phone_number + service_id), vehicle_id, service_id (or specific_service_id), appointment_date, appointment_time.',
           received: {
             client_id: !!client_id,
-            phone: !!phone,
+            phone: !!phoneToUse,
             phone_number: !!phone_number,
             vehicle_id: !!vehicle_id,
             service_id: !!service_id,
