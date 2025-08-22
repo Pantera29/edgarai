@@ -1,6 +1,7 @@
 -- MIGRACIÓN: Corregir lógica de urgencia basada en mensajes del cliente
 -- Fecha: 2024-12-03
--- Objetivo: Basar urgencia y ordenamiento en último mensaje del cliente, no en updated_at
+-- Objetivo: Basar urgencia y ordenamiento en último mensaje del cliente, no en updated_at,
+--           y soportar roles 'user' y 'customer' para mensajes de cliente
 
 -- Eliminar la función existente para recrearla con la lógica corregida
 DROP FUNCTION IF EXISTS get_conversations_needing_human_action(UUID, TEXT, TEXT, TEXT, INTEGER, INTEGER);
@@ -109,11 +110,11 @@ BEGIN
       -- Campos para indicadores de mensajes no leídos
       cc.messages,
       cc.last_read_at,
-      -- Calcular timestamp del último mensaje del cliente
+      -- Calcular timestamp del último mensaje del cliente (SOPORTE PARA AMBOS ROLES: 'user' Y 'customer')
       (
         SELECT MAX((msg->>'created_at')::TIMESTAMPTZ)
         FROM jsonb_array_elements(cc.messages) AS msg
-        WHERE msg->>'role' = 'customer'
+        WHERE msg->>'role' IN ('user', 'customer')
       ) as last_customer_message_time
     FROM chat_conversations cc
     LEFT JOIN client c ON cc.client_id = c.id
@@ -193,4 +194,4 @@ END;
 $$;
 
 -- Comentario para la función actualizada
-COMMENT ON FUNCTION get_conversations_needing_human_action IS 'Obtiene conversaciones que necesitan acción humana con urgencia basada en último mensaje del cliente - VERSIÓN CORREGIDA';
+COMMENT ON FUNCTION get_conversations_needing_human_action IS 'Obtiene conversaciones que necesitan acción humana con urgencia basada en último mensaje del cliente (soporta role=user y role=customer) - VERSIÓN CORREGIDA';

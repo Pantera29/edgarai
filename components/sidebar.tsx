@@ -221,6 +221,7 @@ export function Sidebar() {
   const token : string | null =  searchParams?.get('token') || null;
 
   const [isCollapsed, setIsCollapsed] = useState(false)
+  const [wasManuallyCollapsed, setWasManuallyCollapsed] = useState(false)
   
   const isSectionActive = (item: MenuItem) => {
     if (!item.items) return false
@@ -243,6 +244,24 @@ export function Sidebar() {
       }
     })
   }, [pathname])
+
+  // Auto-colapsar cuando entramos a páginas específicas
+  useEffect(() => {
+    const shouldAutoCollapse = pathname.startsWith("/backoffice/conversaciones/accion-humana")
+    console.log('🔄 Sidebar - pathname:', pathname, 'shouldAutoCollapse:', shouldAutoCollapse)
+    
+    if (shouldAutoCollapse) {
+      // Si estamos entrando a la página de acción humana
+      console.log('✅ Sidebar - Colapsando automáticamente')
+      setWasManuallyCollapsed(isCollapsed) // Recordar el estado anterior
+      setIsCollapsed(true)
+    } else if (wasManuallyCollapsed !== null) {
+      // Si estamos saliendo de la página de acción humana
+      console.log('🔄 Sidebar - Restaurando estado original:', wasManuallyCollapsed)
+      setIsCollapsed(wasManuallyCollapsed)
+      setWasManuallyCollapsed(null) // Resetear el estado
+    }
+  }, [pathname, isCollapsed, wasManuallyCollapsed])
 
   const toggleSection = (sectionTitle: string) => {
     setExpandedSections(prev => 
@@ -411,8 +430,16 @@ export function Sidebar() {
           </button>
           
           <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            onClick={() => {
+              if (!pathname.startsWith("/backoffice/conversaciones/accion-humana")) {
+                setIsCollapsed(!isCollapsed)
+              }
+            }}
+            disabled={pathname.startsWith("/backoffice/conversaciones/accion-humana")}
+            className={cn(
+              "p-2 hover:bg-gray-100 rounded-full transition-colors",
+              pathname.startsWith("/backoffice/conversaciones/accion-humana") && "opacity-50 cursor-not-allowed"
+            )}
           >
             {isCollapsed ? (
               <ChevronRight className="h-5 w-5" />
