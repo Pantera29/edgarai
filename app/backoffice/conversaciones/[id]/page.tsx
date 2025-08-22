@@ -107,6 +107,16 @@ export default function ConversacionDetallePage() {
   const [whatsappMessage, setWhatsappMessage] = useState("");
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const [showWhatsappForm, setShowWhatsappForm] = useState(false);
+  
+  // Estado para el agente de IA
+  const [agentStatus, setAgentStatus] = useState<{
+    agent_active: boolean;
+    loading: boolean;
+  }>({
+    agent_active: true,
+    loading: false
+  });
+  
   const { toast } = useToast();
 
   const conversationId = params.id as string;
@@ -177,6 +187,11 @@ export default function ConversacionDetallePage() {
         agentActive: conversacionData?.client?.agent_active,
         phoneNumber: conversacionData?.client?.phone_number
       });
+      
+      // Verificar estado del agente de IA si tenemos los datos necesarios
+      if (conversacionData?.client?.phone_number && dataToken?.dealership_id) {
+        verificarEstadoAgente(conversacionData.client.phone_number, dataToken.dealership_id);
+      }
       
       if (conversacionData) {
         setNuevoEstado(conversacionData.status);
@@ -509,6 +524,31 @@ export default function ConversacionDetallePage() {
     return intents[intent as keyof typeof intents] || intent;
   };
 
+  // Función para verificar el estado del agente de IA
+  const verificarEstadoAgente = async (phoneNumber: string, dealershipId: string) => {
+    if (!phoneNumber || !dealershipId) return;
+    
+    setAgentStatus(prev => ({ ...prev, loading: true }));
+    
+    try {
+      const response = await fetch(`/api/agent-control?phone_number=${phoneNumber}&dealership_id=${dealershipId}`);
+      const result = await response.json();
+      
+      if (response.ok) {
+        setAgentStatus({
+          agent_active: result.agent_active,
+          loading: false
+        });
+      } else {
+        console.warn('⚠️ [UI] Error al verificar estado del agente:', result.error);
+        setAgentStatus(prev => ({ ...prev, loading: false }));
+      }
+    } catch (error) {
+      console.error('💥 [UI] Error verificando estado del agente:', error);
+      setAgentStatus(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   const enviarWhatsApp = async () => {
     // Determinar el número de teléfono a usar
     const phoneNumber = conversacion?.client?.phone_number || conversacion?.user_identifier;
@@ -526,6 +566,7 @@ export default function ConversacionDetallePage() {
     try {
       console.log('🚀 [UI] Enviando mensaje WhatsApp...');
       
+      // 1. Enviar mensaje WhatsApp
       const response = await fetch('/api/n8n/send', {
         method: 'POST',
         headers: {
@@ -543,10 +584,68 @@ export default function ConversacionDetallePage() {
 
       if (result.success) {
         console.log('✅ [UI] Mensaje enviado exitosamente');
-        toast({
-          title: "Mensaje enviado",
-          description: "El mensaje de WhatsApp se envió correctamente",
-        });
+        
+        // 2. Verificar estado del agente y desactivarlo si es necesario
+        try {
+          console.log('🤖 [UI] Verificando estado del agente...');
+          
+          // Verificar estado actual del agente
+          const agentStatusResponse = await fetch(`/api/agent-control?phone_number=${phoneNumber}&dealership_id=${dataToken.dealership_id}`);
+          const agentStatus = await agentStatusResponse.json();
+          
+          if (agentStatus.agent_active) {
+            console.log('🤖 [UI] Agente está activo, procediendo a desactivarlo...');
+            
+            // Desactivar el agente
+            const deactivateResponse = await fetch('/api/agent-control', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                phone_number: phoneNumber,
+                dealership_id: dataToken.dealership_id,
+                agent_active: false,
+                notes: 'Desactivado automáticamente al enviar mensaje desde conversaciones',
+                updated_by: 'dealership_worker'
+              }),
+            });
+
+            const deactivateResult = await deactivateResponse.json();
+            
+            if (deactivateResult.success) {
+              console.log('✅ [UI] Agente desactivado exitosamente');
+              // Actualizar el estado local del agente
+              setAgentStatus({
+                agent_active: false,
+                loading: false
+              });
+              toast({
+                title: "Mensaje enviado y agente desactivado",
+                description: "El mensaje se envió correctamente y el agente de IA fue desactivado para este cliente",
+              });
+            } else {
+              console.warn('⚠️ [UI] Error al desactivar agente:', deactivateResult.error);
+              toast({
+                title: "Mensaje enviado",
+                description: "El mensaje se envió correctamente, pero hubo un problema al desactivar el agente de IA",
+              });
+            }
+          } else {
+            console.log('🤖 [UI] Agente ya está desactivado, no es necesario desactivarlo');
+            toast({
+              title: "Mensaje enviado",
+              description: "El mensaje de WhatsApp se envió correctamente",
+            });
+          }
+        } catch (agentError) {
+          console.error('💥 [UI] Error verificando/desactivando agente:', agentError);
+          toast({
+            title: "Mensaje enviado",
+            description: "El mensaje se envió correctamente, pero hubo un problema al gestionar el agente de IA",
+          });
+        }
+        
         setWhatsappMessage("");
       } else {
         console.error('❌ [UI] Error al enviar mensaje:', result.error);
@@ -660,12 +759,6 @@ export default function ConversacionDetallePage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <p className="font-medium">{conversacion.client.names}</p>
-                  {conversacion.client.agent_active === false && (
-                    <Badge variant="destructive" className="text-xs">
-                      <AlertCircle className="h-3 w-3 mr-1" />
-                      Necesita acción
-                    </Badge>
-                  )}
                 </div>
               </div>
               
@@ -882,13 +975,32 @@ export default function ConversacionDetallePage() {
                   </div>
                   
                   <div className="flex items-center gap-2">
-                    {/* Badge de advertencia si necesita acción */}
-                    {conversacion.client?.agent_active === false && (
-                      <Badge variant="destructive" className="text-xs">
-                        <AlertCircle className="h-3 w-3 mr-1" />
-                        Necesita acción
+                    {/* Indicador del estado del agente de IA */}
+                    {agentStatus.loading ? (
+                      <Badge variant="outline" className="text-xs">
+                        <RefreshCcw className="h-3 w-3 mr-1 animate-spin" />
+                        Verificando agente...
+                      </Badge>
+                    ) : (
+                      <Badge 
+                        variant={agentStatus.agent_active ? "default" : "secondary"} 
+                        className={`text-xs ${agentStatus.agent_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}
+                      >
+                        {agentStatus.agent_active ? (
+                          <>
+                            <div className="w-2 h-2 bg-green-500 rounded-full mr-1" />
+                            Agente activo
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-2 h-2 bg-gray-400 rounded-full mr-1" />
+                            Agente desactivado
+                          </>
+                        )}
                       </Badge>
                     )}
+                    
+
                     
                     {/* Botón para expandir/contraer */}
                     <Button
