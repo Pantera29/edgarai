@@ -134,8 +134,6 @@ export function ClienteContextPanel({ clientId, dealershipId }: ClienteContextPa
 
   return (
     <div className="space-y-4">
-      <Separator />
-      
       {/* Sección de Vehículos */}
       <div>
         <div className="flex items-center gap-2 mb-3">
