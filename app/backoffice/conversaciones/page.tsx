@@ -318,22 +318,6 @@ export default function ConversacionesPage() {
     <div className="px-4 py-6 space-y-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">Dashboard de Conversaciones</h1>
-        <div className="flex space-x-2">
-          <Button 
-            variant="outline" 
-            onClick={() => router.push(`/backoffice/conversaciones/accion-humana?token=${token}`)}
-            className="flex items-center space-x-2"
-          >
-            <AlertTriangle className="h-4 w-4" />
-            <span>Acción Humana</span>
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => router.push(`/backoffice/conversaciones/lista?token=${token}`)}
-          >
-            Ver Lista
-          </Button>
-        </div>
       </div>
 
       {/* KPIs */}
@@ -432,12 +416,12 @@ export default function ConversacionesPage() {
 
       {/* NUEVO: Métricas de Agents in Action */}
       <div className="space-y-4">
-        <h2 className="text-xl font-semibold">🤖 Agents in Action - Métricas del Mes</h2>
+        <h2 className="text-xl font-semibold">🤖 Agentes en Acción - Métricas del Mes</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {/* Unique Customers */}
+          {/* Clientes Únicos */}
           <Card className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Unique Customers</h3>
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Clientes Únicos</h3>
               <div className="rounded-md bg-blue-100 p-1">
                 <Users className="h-4 w-4 text-blue-600" />
               </div>
@@ -453,10 +437,10 @@ export default function ConversacionesPage() {
             </div>
           </Card>
           
-          {/* Appointments del AI */}
+          {/* Citas del AI */}
           <Card className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Appointments</h3>
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Citas</h3>
               <div className="rounded-md bg-green-100 p-1">
                 <Calendar className="h-4 w-4 text-green-600" />
               </div>
@@ -472,10 +456,10 @@ export default function ConversacionesPage() {
             </div>
           </Card>
           
-          {/* % Without Transfers */}
+          {/* % Sin Transferencias */}
           <Card className="p-6">
             <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">% Without Transfers</h3>
+              <h3 className="tracking-tight text-sm font-medium text-muted-foreground">% Sin Transferencias a Asesor</h3>
               <div className="rounded-md bg-purple-100 p-1">
                 <TrendingUp className="h-4 w-4 text-purple-600" />
               </div>
