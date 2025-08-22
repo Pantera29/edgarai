@@ -15,17 +15,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { WhatsAppStyleLayout } from "@/components/whatsapp-layout/WhatsAppStyleLayout";
+import { ChatPanel } from "@/components/whatsapp-layout/ChatPanel";
+import { useSelectedConversation } from "@/hooks/useSelectedConversation";
 import { Eye, Search, MessageSquare, Phone } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
+import { getLastCustomerMessageTimestamp, isConversationUnread } from '@/utils/conversation-helpers';
 
 interface ConversacionItem {
   id: string;
@@ -40,6 +36,8 @@ interface ConversacionItem {
   channel?: string;
   ended_reason?: string;
   was_successful?: boolean;
+  messages?: any[];
+  last_read_at?: string | null;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -63,11 +61,16 @@ const WhatsAppIcon = ({ className }: { className?: string }) => {
 const conversationsCache = new Map<string, { data: any, timestamp: number }>();
 const CACHE_TTL = 2 * 60 * 1000; // 2 minutos
 
-export default function ConversacionesListaPage() {
-  const router = useRouter();
-  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
-  const [token, setToken] = useState<string>("");
-  const [dataToken, setDataToken] = useState<any>(null);
+// Componente para la lista de conversaciones (lado izquierdo)
+function ConversationList({ 
+  dataToken, 
+  onConversationSelect, 
+  selectedConversationId 
+}: { 
+  dataToken: any; 
+  onConversationSelect: (conversation: ConversacionItem) => void; 
+  selectedConversationId?: string; 
+}) {
   const [conversaciones, setConversaciones] = useState<ConversacionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalConversaciones, setTotalConversaciones] = useState(0);
@@ -75,51 +78,20 @@ export default function ConversacionesListaPage() {
   
   // Filtros
   const [busqueda, setBusqueda] = useState("");
-  const [filtroEstado, setFiltroEstado] = useState("todos");
   const [filtroCanal, setFiltroCanal] = useState("todos");
   const [filtroRazonFinalizacion, setFiltroRazonFinalizacion] = useState("todas");
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      setSearchParams(params);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (searchParams) {
-      const tokenValue = searchParams.get("token");
-      if (tokenValue) {
-        setToken(tokenValue);
-        const verifiedDataToken = verifyToken(tokenValue);
-        
-        if (
-          !verifiedDataToken ||
-          typeof verifiedDataToken !== "object" ||
-          Object.keys(verifiedDataToken).length === 0 ||
-          !(verifiedDataToken as any).dealership_id
-        ) {
-          router.push("/login");
-          return;
-        }
-        
-        setDataToken(verifiedDataToken || {});
-      }
-    }
-  }, [searchParams, router]);
 
   useEffect(() => {
     if (dataToken) {
       cargarConversaciones();
     }
-  }, [dataToken, busqueda, filtroEstado, filtroCanal, filtroRazonFinalizacion]);
+  }, [dataToken, busqueda, filtroCanal, filtroRazonFinalizacion]);
 
   const cargarConversaciones = async () => {
     setLoading(true);
     try {
       // Detectar si hay filtros aplicados
       const sinFiltros = !busqueda && 
-                         filtroEstado === 'todos' && 
                          filtroCanal === 'todos' && 
                          filtroRazonFinalizacion === 'todas';
       
@@ -144,7 +116,7 @@ export default function ConversacionesListaPage() {
       const rpcParams = {
         dealership_id_param: dataToken.dealership_id,
         search_query: busqueda || null,
-        p_status_filter: filtroEstado,
+        p_status_filter: 'todos', // Mantener el parámetro pero con valor por defecto
         channel_filter: filtroCanal,
         ended_reason_filter: filtroRazonFinalizacion
       };
@@ -187,55 +159,49 @@ export default function ConversacionesListaPage() {
     }
   };
 
-  // Función para invalidar cache cuando sea necesario
-  const invalidarCache = () => {
-    const cacheKey = `conversations-${dataToken.dealership_id}-base`;
-    conversationsCache.delete(cacheKey);
-    console.log('🗑️ Cache de conversaciones invalidado');
-  };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "active":
-        return <Badge className="bg-green-500">Activa</Badge>;
-      case "closed":
-        return <Badge className="bg-gray-500">Cerrada</Badge>;
-      case "pending":
-        return <Badge className="bg-yellow-500">Pendiente</Badge>;
-      case "completed":
-        return <Badge className="bg-blue-500">Completada</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
-    }
-  };
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString: string, messages?: any[]) => {
     try {
+      // Si tenemos mensajes, usar el último mensaje del cliente (como en acción humana)
+      if (messages && messages.length > 0) {
+        const lastCustomerMessageTime = getLastCustomerMessageTimestamp(messages);
+        if (lastCustomerMessageTime) {
+          dateString = lastCustomerMessageTime.toISOString();
+        }
+      }
+      
       const fecha = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
-      const fechaFormateada = format(fecha, "yyyy-MM-dd HH:mm", { locale: es });
-      console.log('📅 Formateando fecha:', dateString, '→', fechaFormateada);
-      return fechaFormateada;
+      const ahora = new Date();
+      
+      // Obtener el inicio del día actual y del día anterior
+      const inicioHoy = new Date(ahora.getFullYear(), ahora.getMonth(), ahora.getDate());
+      const inicioAyer = new Date(inicioHoy);
+      inicioAyer.setDate(inicioAyer.getDate() - 1);
+      
+      // Si es de hoy, mostrar solo la hora
+      if (fecha >= inicioHoy) {
+        return format(fecha, "HH:mm", { locale: es });
+      }
+      
+      // Si es de ayer, mostrar "Ayer"
+      if (fecha >= inicioAyer && fecha < inicioHoy) {
+        return "Ayer";
+      }
+      
+      // Si es anterior, mostrar solo la fecha (sin hora)
+      return format(fecha, "dd/MM/yyyy", { locale: es });
     } catch (error) {
       return "Fecha inválida";
     }
   };
-
-  const verDetalle = (id: string) => {
-    router.push(`/backoffice/conversaciones/${id}?token=${token}`);
-  };
-
-  // La paginación ahora se calcula en el cliente
-  const totalPaginas = Math.ceil(totalConversaciones / ITEMS_PER_PAGE);
-  const inicio = (pagina - 1) * ITEMS_PER_PAGE;
-  const fin = inicio + ITEMS_PER_PAGE;
-  const conversacionesEnPagina = conversaciones.slice(inicio, fin);
 
   const getCanalIcon = (channel?: string) => {
     switch (channel) {
       case 'phone':
         return <Phone className="h-4 w-4 mr-1 text-blue-500" />;
       case 'whatsapp':
-        console.log('�� Renderizando icono WhatsApp en lista de conversaciones');
+        console.log('📱 Renderizando icono WhatsApp en lista de conversaciones');
         return <WhatsAppIcon className="h-4 w-4 mr-1 text-green-500" />;
       default:
         return <MessageSquare className="h-4 w-4 mr-1 text-green-500" />;
@@ -255,171 +221,234 @@ export default function ConversacionesListaPage() {
     }
   };
 
+  // La paginación ahora se calcula en el cliente
+  const totalPaginas = Math.ceil(totalConversaciones / ITEMS_PER_PAGE);
+  const inicio = (pagina - 1) * ITEMS_PER_PAGE;
+  const fin = inicio + ITEMS_PER_PAGE;
+  const conversacionesEnPagina = conversaciones.slice(inicio, fin);
+
   return (
-    <div className="px-4 py-6 space-y-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Lista de Conversaciones</h1>
+    <div className="h-full flex flex-col">
+      {/* Header con título */}
+      <div className="p-4 border-b bg-white">
+        <div>
+          <h1 className="text-xl font-bold">Lista de Conversaciones</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Todas las conversaciones del sistema
+          </p>
+        </div>
       </div>
 
-      <Card className="p-4 shadow-sm border-slate-200">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="relative">
-            <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Buscar por usuario, cliente, teléfono o email..."
-              className="pl-8"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-            />
-          </div>
-          
-          <Select
-            value={filtroEstado}
-            onValueChange={setFiltroEstado}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todas</SelectItem>
-              <SelectItem value="active">Activas</SelectItem>
-              <SelectItem value="closed">Cerradas</SelectItem>
-              <SelectItem value="pending">Pendientes</SelectItem>
-            </SelectContent>
-          </Select>
-          
-          <Select
-            value={filtroCanal}
-            onValueChange={setFiltroCanal}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Canal" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos los canales</SelectItem>
-              <SelectItem value="whatsapp">WhatsApp</SelectItem>
-              <SelectItem value="phone">Llamadas</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <Select
-            value={filtroRazonFinalizacion}
-            onValueChange={setFiltroRazonFinalizacion}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Razón de finalización" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todas">Todas las razones</SelectItem>
-              <SelectItem value="customer-ended-call">Cliente finalizó la llamada</SelectItem>
-              <SelectItem value="assistant-ended-call">Asistente finalizó la llamada</SelectItem>
-              <SelectItem value="silence-timed-out">Tiempo de silencio agotado</SelectItem>
-              <SelectItem value="voicemail">Buzón de voz</SelectItem>
-              <SelectItem value="assistant-forwarded-call">Llamada transferida por asistente</SelectItem>
-            </SelectContent>
-          </Select>
+      {/* Filtros */}
+      <div className="p-4 bg-white border-b space-y-3">
+        <div className="relative">
+          <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Buscar por usuario, cliente, teléfono o email..."
+            className="pl-8 h-9"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
         </div>
-      </Card>
+        
+                 <div className="grid grid-cols-2 gap-2">
+           <Select
+             value={filtroCanal}
+             onValueChange={setFiltroCanal}
+           >
+             <SelectTrigger className="h-9 text-xs">
+               <SelectValue placeholder="Canal" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="todos">Todos</SelectItem>
+               <SelectItem value="whatsapp">WhatsApp</SelectItem>
+               <SelectItem value="phone">Llamadas</SelectItem>
+             </SelectContent>
+           </Select>
 
-      <div className="border rounded-md overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Canal</TableHead>
-              <TableHead>Identificador</TableHead>
-              <TableHead>Cliente</TableHead>
-              <TableHead>Última actividad</TableHead>
-              <TableHead>Estado</TableHead>
-              <TableHead>Razón de finalización</TableHead>
-              <TableHead>Acciones</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-10">
-                  Cargando conversaciones...
-                </TableCell>
-              </TableRow>
-            ) : conversacionesEnPagina.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={7} className="text-center py-10">
-                  No se encontraron conversaciones
-                </TableCell>
-              </TableRow>
-            ) : (
-              conversacionesEnPagina.map((conversacion: ConversacionItem) => (
-                <TableRow key={conversacion.id}>
-                  <TableCell className="w-10">
-                    {getCanalIcon(conversacion.channel)}
-                  </TableCell>
-                  <TableCell className="font-medium">
-                    {conversacion.user_identifier}
-                  </TableCell>
-                  <TableCell>
-                    {conversacion.client ? (
-                      <div>
-                        <div className="font-semibold">{conversacion.client.names}</div>
-                        <div className="text-sm text-muted-foreground">{conversacion.client.phone_number}</div>
+           <Select
+             value={filtroRazonFinalizacion}
+             onValueChange={setFiltroRazonFinalizacion}
+           >
+             <SelectTrigger className="h-9 text-xs">
+               <SelectValue placeholder="Razón" />
+             </SelectTrigger>
+             <SelectContent>
+               <SelectItem value="todas">Todas</SelectItem>
+               <SelectItem value="customer-ended-call">Cliente finalizó</SelectItem>
+               <SelectItem value="assistant-ended-call">Asistente finalizó</SelectItem>
+               <SelectItem value="silence-timed-out">Silencio</SelectItem>
+               <SelectItem value="voicemail">Buzón de voz</SelectItem>
+               <SelectItem value="assistant-forwarded-call">Transferida</SelectItem>
+             </SelectContent>
+           </Select>
+         </div>
+      </div>
+
+      {/* Lista de Conversaciones */}
+      <div className="flex-1 overflow-y-auto bg-white">
+        {loading ? (
+          <div className="p-8 text-center">
+            <p>Cargando conversaciones...</p>
+          </div>
+        ) : conversacionesEnPagina.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-muted-foreground">No se encontraron conversaciones</p>
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100">
+            {conversacionesEnPagina.map((conversacion: ConversacionItem) => (
+              <div
+                key={conversacion.id}
+                onClick={() => onConversationSelect(conversacion)}
+                className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                  selectedConversationId === conversacion.id ? 'bg-blue-50 border-r-4 border-blue-500' : ''
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex-1 min-w-0">
+                                                              {/* Fila superior: Cliente y hora */}
+                     <div className="flex items-center justify-between mb-1">
+                       <div className="flex items-center gap-2">
+                         <p className="font-medium text-sm truncate">
+                           {conversacion.client?.names || 'Sin cliente'}
+                         </p>
+                       </div>
+                       <p className={`text-xs ${isConversationUnread(conversacion) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
+                         {formatDateTime(conversacion.updated_at, conversacion.messages)}
+                       </p>
+                     </div>
+                     
+                     {/* Fila inferior: Usuario, canal e indicador de leído */}
+                     <div className="flex items-center justify-between">
+                       <div className="flex items-center gap-2">
+                         {getCanalIcon(conversacion.channel)}
+                         <p className="text-xs text-muted-foreground font-mono truncate">
+                           {conversacion.user_identifier}
+                         </p>
+                       </div>
+                       {isConversationUnread(conversacion) && (
+                         <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />
+                       )}
+                     </div>
+                    
+                    {/* Razón de finalización si existe */}
+                    {conversacion.ended_reason && (
+                      <div className="mt-1">
+                        <p className="text-xs text-muted-foreground">
+                          {traducirRazonFinalizacion(conversacion.ended_reason)}
+                        </p>
                       </div>
-                    ) : (
-                      <span className="text-muted-foreground">Sin cliente asociado</span>
                     )}
-                  </TableCell>
-                  <TableCell>
-                    {formatDateTime(conversacion.updated_at)}
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(conversacion.status)}
-                  </TableCell>
-                  <TableCell>
-                    {conversacion.ended_reason ? (
-                      <span className="text-sm text-muted-foreground">{traducirRazonFinalizacion(conversacion.ended_reason)}</span>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">-</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => verDetalle(conversacion.id)}
-                      className="flex items-center gap-1"
-                    >
-                      <Eye className="h-4 w-4" />
-                      Ver detalles
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
-      {totalPaginas > 1 && (
-        <div className="flex justify-between items-center">
-          <div className="text-sm text-muted-foreground">
-            Mostrando {((pagina - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(pagina * ITEMS_PER_PAGE, totalConversaciones)} de {totalConversaciones} conversaciones
+        {/* Paginación */}
+        {totalPaginas > 1 && (
+          <div className="p-4 border-t bg-white">
+            <div className="flex items-center justify-between">
+              <div className="text-xs text-muted-foreground">
+                {((pagina - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(pagina * ITEMS_PER_PAGE, totalConversaciones)} de {totalConversaciones}
+              </div>
+              <div className="flex space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPagina(pagina - 1)}
+                  disabled={pagina === 1}
+                  className="h-7 text-xs"
+                >
+                  Anterior
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPagina(pagina + 1)}
+                  disabled={pagina === totalPaginas}
+                  className="h-7 text-xs"
+                >
+                  Siguiente
+                </Button>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setPagina((p) => Math.max(p - 1, 1))}
-              disabled={pagina <= 1}
-            >
-              Anterior
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => setPagina((p) => Math.min(p + 1, totalPaginas))}
-              disabled={pagina >= totalPaginas}
-            >
-              Siguiente
-            </Button>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
+  );
+}
+
+export default function ConversacionesListaPage() {
+  const router = useRouter();
+  const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
+  const [token, setToken] = useState<string>("");
+  const [dataToken, setDataToken] = useState<any>(null);
+  
+  // Estado compartido para la conversación seleccionada
+  const { selectedConversationId, selectConversation } = useSelectedConversation();
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setSearchParams(params);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (searchParams) {
+      const tokenValue = searchParams.get("token");
+      if (tokenValue) {
+        setToken(tokenValue);
+        const verifiedDataToken = verifyToken(tokenValue);
+        
+        if (
+          !verifiedDataToken ||
+          typeof verifiedDataToken !== "object" ||
+          Object.keys(verifiedDataToken).length === 0 ||
+          !(verifiedDataToken as any).dealership_id
+        ) {
+          router.push("/login");
+          return;
+        }
+        
+        setDataToken(verifiedDataToken || {});
+      }
+    }
+  }, [searchParams, router]);
+
+  const handleNavigateToClient = (clientId: string) => {
+    router.push(`/backoffice/clientes/${clientId}?token=${token}`);
+  };
+
+  // No renderizar nada hasta que tengamos el token verificado
+  if (!dataToken) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <p>Verificando acceso...</p>
+      </div>
+    );
+  }
+
+  return (
+    <WhatsAppStyleLayout
+      conversationList={
+        <ConversationList
+          dataToken={dataToken}
+          onConversationSelect={selectConversation}
+          selectedConversationId={selectedConversationId}
+        />
+      }
+      chatPanel={
+        <ChatPanel
+          conversationId={selectedConversationId}
+          dataToken={dataToken}
+          onNavigateToClient={handleNavigateToClient}
+        />
+      }
+    />
   );
 } 

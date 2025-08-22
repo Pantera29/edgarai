@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, ExternalLink } from "lucide-react";
+import { RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, ExternalLink, Loader2, RotateCcw } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { markConversationAsRead } from '@/utils/conversation-helpers';
@@ -97,6 +97,9 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     agent_active: true,
     loading: false
   });
+  
+  // Estado para reactivación de agentes
+  const [reactivatingAgent, setReactivatingAgent] = useState(false);
   
   const { toast } = useToast();
 
@@ -456,6 +459,64 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     }
   };
 
+  const reactivarAgente = async () => {
+    if (!conversacion?.client?.phone_number || !dataToken?.dealership_id) {
+      toast({
+        title: "Error",
+        description: "No se puede reactivar: faltan datos del cliente",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log('🔄 Iniciando reactivación de agente para:', conversacion.client.names);
+    
+    setReactivatingAgent(true);
+
+    try {
+      const response = await fetch('/api/clients/reactivate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          client_id: conversacion.client_id 
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.log('❌ Error reactivando agente:', result.error);
+        toast({
+          title: "Error",
+          description: `Error reactivando agente: ${result.error}`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      console.log('✅ Agente reactivado exitosamente:', result);
+      toast({
+        title: "Agente reactivado",
+        description: `Agente reactivado exitosamente para ${conversacion.client.names}`,
+      });
+      
+      // Recargar la conversación para actualizar el estado
+      await cargarConversacion();
+      
+    } catch (error) {
+      console.log('❌ Error inesperado reactivando agente:', error);
+      toast({
+        title: "Error",
+        description: "Error inesperado reactivando agente",
+        variant: "destructive",
+      });
+    } finally {
+      setReactivatingAgent(false);
+    }
+  };
+
   const enviarWhatsApp = async () => {
     // Determinar el número de teléfono a usar
     const phoneNumber = conversacion?.client?.phone_number || conversacion?.user_identifier;
@@ -611,6 +672,24 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Botón de reactivar agente - solo mostrar si el agente está inactivo */}
+          {conversacion.client_id && !agentStatus.agent_active && (
+            <Button
+              variant="default"
+              size="sm"
+              onClick={reactivarAgente}
+              disabled={reactivatingAgent}
+              className="text-xs bg-blue-600 hover:bg-blue-700"
+            >
+              {reactivatingAgent ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <RotateCcw className="h-3 w-3 mr-1" />
+              )}
+              Reactivar agente
+            </Button>
+          )}
+          
           {conversacion.client_id && onNavigateToClient && (
             <Button
               variant="outline"
