@@ -221,7 +221,7 @@ export function Sidebar() {
   const token : string | null =  searchParams?.get('token') || null;
 
   const [isCollapsed, setIsCollapsed] = useState(false)
-  const [wasManuallyCollapsed, setWasManuallyCollapsed] = useState(false)
+  const [wasManuallyCollapsed, setWasManuallyCollapsed] = useState<boolean | null>(null)
   
   const isSectionActive = (item: MenuItem) => {
     if (!item.items) return false
