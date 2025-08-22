@@ -431,6 +431,7 @@ export default function ConversacionesListaPage() {
       ...conversation,
       client_id: conversation.client ? 'temp-id' : null, // Placeholder
       dealership_id: dataToken?.dealership_id || '',
+      channel: conversation.channel || 'whatsapp', // Default a 'whatsapp' si es undefined
       created_at: conversation.updated_at, // Usar updated_at como fallback
       hours_since_last_activity: 0, // Placeholder
       urgency_level: 'normal', // Placeholder
