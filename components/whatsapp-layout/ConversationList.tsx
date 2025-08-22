@@ -6,19 +6,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { 
   Search, 
   AlertTriangle, 
   Clock, 
-  Loader2,
-  MoreHorizontal,
-  RotateCcw,
   CheckCircle
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
@@ -79,30 +70,28 @@ interface ConversationListProps {
   selectedConversationId?: string;
 }
 
-const ITEMS_PER_PAGE = 20;
+// Sin paginación para acción humana - cargar todas las conversaciones
 
 export function ConversationList({ dataToken, onConversationSelect, selectedConversationId }: ConversationListProps) {
   const [conversaciones, setConversaciones] = useState<ConversacionAccionHumana[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalConversaciones, setTotalConversaciones] = useState(0);
-  const [pagina, setPagina] = useState(1);
   const [metricas, setMetricas] = useState<MetricasAccionHumana | null>(null);
   const [loadingMetricas, setLoadingMetricas] = useState(true);
   
   // Filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroCanal, setFiltroCanal] = useState("todos");
-  const [filtroUrgencia, setFiltroUrgencia] = useState("todas");
+  const [filtroNoLeidos, setFiltroNoLeidos] = useState(false);
   
-  // Estado para reactivación de agentes
-  const [reactivatingAgents, setReactivatingAgents] = useState<Set<string>>(new Set());
+
 
   useEffect(() => {
     if (dataToken) {
       cargarMetricas();
       cargarConversaciones();
     }
-  }, [dataToken, busqueda, filtroCanal, filtroUrgencia, pagina]);
+  }, [dataToken, busqueda, filtroCanal, filtroNoLeidos]);
 
   const cargarMetricas = async () => {
     setLoadingMetricas(true);
@@ -136,10 +125,10 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
       const rpcParams = {
         p_dealership_id: dataToken.dealership_id,
         p_channel_filter: filtroCanal === "todos" ? null : filtroCanal,
-        p_urgency_filter: filtroUrgencia === "todas" ? 'all' : filtroUrgencia,
+        p_urgency_filter: 'all', // Siempre cargar todas las conversaciones
         p_search_query: busqueda || null,
-        p_limit_rows: ITEMS_PER_PAGE,
-        p_offset_rows: (pagina - 1) * ITEMS_PER_PAGE
+        p_limit_rows: 1000, // Cargar todas las conversaciones
+        p_offset_rows: 0
       };
 
       console.log('🚀 Llamando a get_conversations_needing_human_action con:', rpcParams);
@@ -154,8 +143,14 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
       console.log('✅ Conversaciones cargadas:', data?.length || 0);
       
       if (data && data.length > 0) {
-        setConversaciones(data);
-        setTotalConversaciones(data[0].total_count || 0);
+        // Aplicar filtro de no leídos en el cliente si está activo
+        let conversacionesFiltradas = data;
+        if (filtroNoLeidos) {
+          conversacionesFiltradas = data.filter(conversacion => isConversationUnread(conversacion));
+        }
+        
+        setConversaciones(conversacionesFiltradas);
+        setTotalConversaciones(conversacionesFiltradas.length);
       } else {
         setConversaciones([]);
         setTotalConversaciones(0);
@@ -209,65 +204,18 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
   const limpiarFiltros = () => {
     setBusqueda("");
     setFiltroCanal("todos");
-    setFiltroUrgencia("todas");
-    setPagina(1);
+    setFiltroNoLeidos(false);
   };
 
-  const filtrarUrgentes = () => {
+  const filtrarNoLeidos = () => {
     setBusqueda("");
     setFiltroCanal("todos");
-    setFiltroUrgencia("urgent");
-    setPagina(1);
+    setFiltroNoLeidos(true);
   };
 
-  const reactivarAgente = async (clientId: string, clientName: string) => {
-    if (!clientId) {
-      console.log('❌ No se puede reactivar: client_id no disponible');
-      return;
-    }
 
-    console.log('🔄 Iniciando reactivación de agente para:', clientName);
-    
-    // Agregar a la lista de agentes siendo reactivados
-    setReactivatingAgents(prev => new Set(prev).add(clientId));
 
-    try {
-      const response = await fetch('/api/clients/reactivate', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ client_id: clientId }),
-      });
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        console.log('❌ Error reactivando agente:', result.error);
-        alert(`Error reactivando agente: ${result.error}`);
-        return;
-      }
-
-      console.log('✅ Agente reactivado exitosamente:', result);
-      alert(`Agente reactivado exitosamente para ${clientName}`);
-      
-      // Recargar la lista de conversaciones
-      await cargarConversaciones();
-      
-    } catch (error) {
-      console.log('❌ Error inesperado reactivando agente:', error);
-      alert('Error inesperado reactivando agente');
-    } finally {
-      // Remover de la lista de agentes siendo reactivados
-      setReactivatingAgents(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(clientId);
-        return newSet;
-      });
-    }
-  };
-
-  const totalPaginas = Math.ceil(totalConversaciones / ITEMS_PER_PAGE);
 
   return (
     <div className="h-full flex flex-col">
@@ -289,7 +237,7 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
             <button 
               onClick={limpiarFiltros}
               className={`inline-flex items-center px-3 py-1.5 rounded-full transition-all duration-200 hover:scale-105 text-xs ${
-                busqueda === "" && filtroCanal === "todos" && filtroUrgencia === "todas"
+                busqueda === "" && filtroCanal === "todos" && !filtroNoLeidos
                   ? "bg-gray-100 border-2 border-gray-300 shadow-md"
                   : "bg-gray-50 border border-gray-200 hover:bg-gray-100"
               }`}
@@ -302,20 +250,20 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
               </div>
             </button>
 
-            {/* Cápsula Urgentes - Clickeable para filtrar urgentes */}
+            {/* Cápsula No Leídos - Clickeable para filtrar no leídos */}
             <button 
-              onClick={filtrarUrgentes}
+              onClick={filtrarNoLeidos}
               className={`inline-flex items-center px-3 py-1.5 rounded-full transition-all duration-200 hover:scale-105 text-xs ${
-                filtroUrgencia === "urgent" && busqueda === "" && filtroCanal === "todos"
-                  ? "bg-orange-100 border-2 border-orange-300 shadow-md"
-                  : "bg-orange-50 border border-orange-200 hover:bg-orange-100"
+                filtroNoLeidos && busqueda === "" && filtroCanal === "todos"
+                  ? "bg-green-100 border-2 border-green-300 shadow-md"
+                  : "bg-green-50 border border-green-200 hover:bg-green-100"
               }`}
             >
               <div className="flex items-center space-x-1">
-                <div className="rounded-full bg-orange-100 p-0.5">
-                  <Clock className="h-3 w-3 text-orange-600" />
+                <div className="rounded-full bg-green-100 p-0.5">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 </div>
-                <span className="font-medium text-orange-900">Urgentes: {metricas.urgent_count}</span>
+                <span className="font-medium text-green-900">No leídos: {conversaciones.filter(c => isConversationUnread(c)).length}</span>
               </div>
             </button>
           </div>
@@ -360,95 +308,35 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
               >
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    {/* Fila superior: Cliente y urgencia */}
+                    {/* Fila superior: Cliente y hora */}
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <p className="font-medium text-sm truncate">
                           {conversacion.client_names || 'Sin cliente'}
                         </p>
-                        {isConversationUnread(conversacion) && (
-                          <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />
-                        )}
                       </div>
-                      {getUrgencyBadge(conversacion.urgency_level)}
-                    </div>
-                    
-                    {/* Fila inferior: Usuario y timestamp */}
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground font-mono truncate">
-                        {conversacion.user_identifier}
-                      </p>
                       <p className={`text-xs ${isConversationUnread(conversacion) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
                         {formatDateTime(getLastCustomerMessageTimestamp(conversacion.messages || [])?.toISOString() || conversacion.updated_at)}
                       </p>
                     </div>
-                  </div>
-                  
-                  {/* Menú de acciones */}
-                  {conversacion.client_id && (
-                    <div className="ml-2 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                          >
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => reactivarAgente(conversacion.client_id!, conversacion.client_names || 'Cliente')}
-                            disabled={reactivatingAgents.has(conversacion.client_id!)}
-                          >
-                            {reactivatingAgents.has(conversacion.client_id!) ? (
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                            ) : (
-                              <RotateCcw className="h-4 w-4 mr-2" />
-                            )}
-                            Reactivar agente
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    
+                    {/* Fila inferior: Usuario e indicador de leído */}
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground font-mono truncate">
+                        {conversacion.user_identifier}
+                      </p>
+                      {isConversationUnread(conversacion) && (
+                        <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {/* Paginación */}
-        {totalPaginas > 1 && (
-          <div className="p-4 border-t bg-white">
-            <div className="flex items-center justify-between">
-              <div className="text-xs text-muted-foreground">
-                {((pagina - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(pagina * ITEMS_PER_PAGE, totalConversaciones)} de {totalConversaciones}
-              </div>
-              <div className="flex space-x-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPagina(pagina - 1)}
-                  disabled={pagina === 1}
-                  className="h-7 text-xs"
-                >
-                  Anterior
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPagina(pagina + 1)}
-                  disabled={pagina === totalPaginas}
-                  className="h-7 text-xs"
-                >
-                  Siguiente
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
+
       </div>
     </div>
   );
