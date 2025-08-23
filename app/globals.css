@@ -99,56 +99,53 @@
     background: #94a3b8;
   }
 
-  /* Estilos para scroll en SelectContent */
-  .select-content-scrollable {
-    max-height: 200px !important;
-    overflow-y: auto !important;
+  /* Estilos personalizados para scrollbars de conversaciones y chat */
+  .conversation-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 #f1f5f9;
+    scrollbar-color: #94a3b8 #ffffff;
   }
 
-  .select-content-scrollable::-webkit-scrollbar {
+  .conversation-scrollbar::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .conversation-scrollbar::-webkit-scrollbar-track {
+    background: #ffffff;
+    border-radius: 4px;
+  }
+
+  .conversation-scrollbar::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 4px;
+    border: 1px solid #f1f5f9;
+  }
+
+  .conversation-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+  }
+
+  /* Scrollbar más sutil para el chat */
+  .chat-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #94a3b8 #ffffff;
+  }
+
+  .chat-scrollbar::-webkit-scrollbar {
     width: 6px;
   }
 
-  .select-content-scrollable::-webkit-scrollbar-track {
-    background: #f1f5f9;
+  .chat-scrollbar::-webkit-scrollbar-track {
+    background: #ffffff;
     border-radius: 3px;
   }
 
-  .select-content-scrollable::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-  }
-
-  .select-content-scrollable::-webkit-scrollbar-thumb:hover {
+  .chat-scrollbar::-webkit-scrollbar-thumb {
     background: #94a3b8;
-  }
-
-  /* Estilos para scroll en modales */
-  .modal-scrollable {
-    max-height: 60vh !important;
-    overflow-y: auto !important;
-    scrollbar-width: thin;
-    scrollbar-color: #cbd5e1 #f1f5f9;
-  }
-
-  .modal-scrollable::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .modal-scrollable::-webkit-scrollbar-track {
-    background: #f1f5f9;
     border-radius: 3px;
   }
 
-  .modal-scrollable::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 3px;
-  }
-
-  .modal-scrollable::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+  .chat-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
   }
 }
 

@@ -257,7 +257,14 @@ export function Sidebar() {
       return result
     }
     
-    // Para otros elementos, usar startsWith
+    // Para URLs que terminan en /conversaciones (KPIs), usar comparación exacta
+    if (href === '/backoffice/conversaciones') {
+      const result = pathname === href || pathname === href + '/'
+      console.log(`🔍 isActive check (KPIs): pathname="${pathname}" href="${href}" result=${result}`)
+      return result
+    }
+    
+    // Para otros elementos, usar startsWith pero solo si no es una subruta de conversaciones
     const result = pathname === href || pathname.startsWith(href + '/')
     console.log(`🔍 isActive check: pathname="${pathname}" href="${href}" result=${result}`)
     return result

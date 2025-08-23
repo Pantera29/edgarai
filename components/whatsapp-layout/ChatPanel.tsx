@@ -743,7 +743,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       <div className="flex-1 flex overflow-hidden">
         {/* Panel de información lateral (colapsible) */}
         <Card className="w-80 border-r border-t-0 rounded-none flex flex-col bg-gray-50">
-          <div className="p-4 space-y-4 overflow-y-auto">
+          <div className="p-4 space-y-4 overflow-y-auto conversation-scrollbar">
             
             {/* Información del cliente removida - se muestra en el header del chat */}
 

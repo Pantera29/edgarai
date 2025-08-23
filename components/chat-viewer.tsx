@@ -102,6 +102,34 @@ export function ChatViewer({
     return role === "assistant" || role === "ai_agent" || role === "dealership_worker";
   };
 
+  // Función para obtener la etiqueta del remitente
+  const getSenderLabel = (role: string) => {
+    switch (role) {
+      case "ai_agent":
+        return "Enviado por Agente IA";
+      case "dealership_worker":
+        return "Enviado por Asesor";
+      case "assistant":
+        return "Enviado por Asistente";
+      default:
+        return null; // No mostrar etiqueta para mensajes del cliente
+    }
+  };
+
+  // Función para obtener el color de la etiqueta según el rol
+  const getLabelColor = (role: string) => {
+    switch (role) {
+      case "ai_agent":
+        return "text-blue-600"; // Azul para Agente IA
+      case "dealership_worker":
+        return "text-green-600"; // Verde para Asesor
+      case "assistant":
+        return "text-blue-600"; // Azul para Asistente genérico
+      default:
+        return "text-gray-600";
+    }
+  };
+
   // Función para obtener el estilo del mensaje según el rol
   const getMessageStyle = (role: string) => {
     switch (role) {
@@ -154,7 +182,7 @@ export function ChatViewer({
     <div 
       ref={chatContainerRef}
       className={cn(
-        "flex flex-col gap-4 p-4 overflow-y-auto h-full",
+        "flex flex-col gap-4 p-4 overflow-y-auto h-full chat-scrollbar",
         className
       )}
     >
@@ -165,41 +193,63 @@ export function ChatViewer({
           </p>
         </div>
       ) : (
-        messages.map((message) => (
-          <div
-            key={message.id}
-            className={cn(
-              "flex gap-3 max-w-[80%]",
-              isUserMessage(message.role) ? "ml-auto" : "mr-auto"
-            )}
-          >
-            {isAssistantMessage(message.role) && (
-              <Avatar className={cn("h-8 w-8 flex items-center justify-center", getAvatarColor(message.role))}>
-                {getAvatar(message.role)}
-              </Avatar>
-            )}
-            <div>
-              <div
-                className={cn(
-                  "rounded-lg p-3",
-                  getMessageStyle(message.role)
+        messages.map((message) => {
+          const senderLabel = getSenderLabel(message.role);
+          const isAssistant = isAssistantMessage(message.role);
+          const isUser = isUserMessage(message.role);
+          
+          return (
+            <div
+              key={message.id}
+              className={cn(
+                "flex gap-3 max-w-[80%]",
+                isAssistant ? "ml-auto" : "mr-auto" // Invertir la lógica: asistentes a la derecha, usuarios a la izquierda
+              )}
+            >
+              {/* Avatar del cliente (solo si es mensaje del cliente) */}
+              {isUser && (
+                <Avatar className={cn("h-8 w-8 flex items-center justify-center", getAvatarColor(message.role))}>
+                  {getAvatar(message.role)}
+                </Avatar>
+              )}
+              
+              <div className="flex-1">
+                {/* Etiqueta del remitente */}
+                {senderLabel && (
+                  <div className="mb-1">
+                    <p className={cn("text-xs font-medium", getLabelColor(message.role))}>
+                      {senderLabel}
+                    </p>
+                  </div>
                 )}
-              >
-                <p className="text-sm whitespace-pre-wrap break-words">
-                  {formatMessageContent(message.content)}
+                
+                {/* Burbuja del mensaje */}
+                <div
+                  className={cn(
+                    "rounded-lg p-3",
+                    getMessageStyle(message.role)
+                  )}
+                >
+                  <p className="text-sm whitespace-pre-wrap break-words">
+                    {formatMessageContent(message.content)}
+                  </p>
+                </div>
+                
+                {/* Timestamp */}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {formatMessageDate(message.created_at)}
                 </p>
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {formatMessageDate(message.created_at)}
-              </p>
+              
+              {/* Avatar del asistente (solo si es mensaje del asistente) */}
+              {isAssistant && (
+                <Avatar className={cn("h-8 w-8 flex items-center justify-center", getAvatarColor(message.role))}>
+                  {getAvatar(message.role)}
+                </Avatar>
+              )}
             </div>
-            {isUserMessage(message.role) && (
-              <Avatar className={cn("h-8 w-8 flex items-center justify-center", getAvatarColor(message.role))}>
-                {getAvatar(message.role)}
-              </Avatar>
-            )}
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );
