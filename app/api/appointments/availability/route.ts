@@ -796,9 +796,14 @@ export async function GET(request: Request) {
       }
     }
     
+    // Calcular el nombre del día en español
+    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const dayName = dayNames[jsDay];
+
     return NextResponse.json({ 
       availableSlots,
-      totalSlots: availableSlots.length
+      totalSlots: availableSlots.length,
+      dayName
     });
   } catch (error) {
     console.error('Unexpected error:', error);
