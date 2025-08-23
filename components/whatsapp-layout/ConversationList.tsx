@@ -284,7 +284,7 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
       </div>
 
       {/* Lista de Conversaciones */}
-      <div className="flex-1 overflow-y-auto bg-white">
+      <div className="flex-1 overflow-y-auto bg-white conversation-scrollbar">
         {loading ? (
           <div className="p-8 text-center">
             <p>Cargando conversaciones...</p>
