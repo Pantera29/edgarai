@@ -101,6 +101,9 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   // Estado para reactivación de agentes
   const [reactivatingAgent, setReactivatingAgent] = useState(false);
   
+  // Estado para indicar actualización automática
+  const [isAutoUpdating, setIsAutoUpdating] = useState(false);
+  
   // Referencia para el contenedor de mensajes
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
@@ -109,7 +112,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   // Cargar conversación cuando cambia el ID
   useEffect(() => {
     if (conversationId && dataToken) {
-      cargarConversacion();
+      cargarConversacion(true); // true = es la primera carga, marcar como leída
     } else {
       // Limpiar estado cuando no hay conversación seleccionada
       setConversacion(null);
@@ -117,7 +120,29 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     }
   }, [conversationId, dataToken]);
 
-  const cargarConversacion = async () => {
+  // Actualización automática de la conversación abierta cada 20 segundos
+  useEffect(() => {
+    if (!conversationId || !dataToken) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        // Solo actualizar si la conversación está abierta
+        if (conversacion) {
+          console.log('🔄 Actualizando conversación abierta automáticamente...');
+          setIsAutoUpdating(true);
+          await cargarConversacion(false); // false = no marcar como leída en actualización automática
+        }
+      } catch (error) {
+        console.error('Error en actualización automática de conversación:', error);
+      } finally {
+        setIsAutoUpdating(false);
+      }
+    }, 20000); // 20 segundos
+    
+    return () => clearInterval(interval);
+  }, [conversationId, dataToken, conversacion]);
+
+  const cargarConversacion = async (markAsRead: boolean = false) => {
     if (!conversationId) return;
     
     setLoading(true);
@@ -295,8 +320,10 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
         setStatsLoading(false);
       }
       
-      // Marcar como leída al abrir la conversación
-      markConversationAsRead(conversationId);
+      // Marcar como leída solo cuando se abre la conversación por primera vez
+      if (markAsRead) {
+        markConversationAsRead(conversationId);
+      }
       
     } catch (error) {
       console.error("Error cargando conversación:", error);
@@ -698,6 +725,14 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
         </div>
         
         <div className="flex items-center gap-2">
+          {/* Indicador de actualización automática */}
+          {isAutoUpdating && (
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              Actualizando...
+            </div>
+          )}
+          
           {/* Botón de reactivar agente - solo mostrar si el agente está inactivo */}
           {conversacion.client_id && !agentStatus.agent_active && (
             <Button
@@ -731,7 +766,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           <Button 
             variant="outline" 
             size="sm"
-            onClick={cargarConversacion}
+            onClick={() => cargarConversacion(false)} // false = no marcar como leída en actualización manual
             className="text-xs"
           >
             <RefreshCcw className="h-3 w-3 mr-1" />

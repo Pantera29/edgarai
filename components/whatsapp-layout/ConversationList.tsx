@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { isConversationUnread, getLastCustomerMessageTimestamp } from '@/utils/conversation-helpers';
+import { isConversationUnread, getLastCustomerMessageTimestamp, truncateClientName, getFullClientName } from '@/utils/conversation-helpers';
 
 interface ConversacionAccionHumana {
   id: string;
@@ -48,6 +48,8 @@ interface ConversacionAccionHumana {
   // Campos para indicadores de mensajes no leídos
   messages?: any[];
   last_read_at?: string | null;
+  // Campo para el último mensaje (nuevo desde la función RPC)
+  last_message_time?: string | null;
   // Total count para paginación
   total_count: number;
 }
@@ -84,7 +86,9 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
   const [filtroCanal, setFiltroCanal] = useState("todos");
   const [filtroNoLeidos, setFiltroNoLeidos] = useState(false);
   
-
+  // Estados para actualización automática
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
 
   useEffect(() => {
     if (dataToken) {
@@ -92,6 +96,30 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
       cargarConversaciones();
     }
   }, [dataToken, busqueda, filtroCanal, filtroNoLeidos]);
+
+  // Hook para actualización automática cada 20 segundos
+  useEffect(() => {
+    if (!dataToken) return;
+    
+    const interval = setInterval(async () => {
+      setIsUpdating(true);
+      
+      try {
+        // Actualizar métricas y conversaciones en background
+        await Promise.all([
+          cargarMetricas(),
+          cargarConversaciones()
+        ]);
+        setLastUpdateTime(new Date());
+      } catch (error) {
+        console.error('Error en actualización automática:', error);
+      } finally {
+        setIsUpdating(false);
+      }
+    }, 20000); // 20 segundos
+    
+    return () => clearInterval(interval);
+  }, [dataToken]);
 
   const cargarMetricas = async () => {
     setLoadingMetricas(true);
@@ -174,8 +202,11 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
     }
   };
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (conversacion: ConversacionAccionHumana) => {
     try {
+      // Usar el nuevo campo last_message_time de la función RPC
+      let dateString = conversacion.last_message_time || conversacion.updated_at;
+      
       const fecha = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
       const ahora = new Date();
       
@@ -219,13 +250,31 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header con título */}
+      {/* Header con título e indicadores de actualización */}
       <div className="p-4 border-b bg-white">
-        <div>
-          <h1 className="text-xl font-bold">Conversaciones que Necesitan Atención</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Conversaciones donde el agente está inactivo
-          </p>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h1 className="text-xl font-bold">Conversaciones que Necesitan Atención</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Conversaciones donde el agente está inactivo
+            </p>
+          </div>
+          
+          {/* Indicadores de actualización automática */}
+          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+            {isUpdating && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                Actualizando...
+              </div>
+            )}
+            
+            {lastUpdateTime && !isUpdating && (
+              <div className="text-xs text-muted-foreground text-right">
+                Últ. actualización: {format(lastUpdateTime, 'HH:mm')}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -310,13 +359,16 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
                   <div className="flex-1 min-w-0">
                     {/* Fila superior: Cliente y hora */}
                     <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-sm truncate">
-                          {conversacion.client_names || 'Sin cliente'}
+                      <div className="flex-1 min-w-0 mr-2">
+                        <p 
+                          className="font-medium text-sm truncate"
+                          title={getFullClientName(conversacion.client_names)}
+                        >
+                          {truncateClientName(conversacion.client_names)}
                         </p>
                       </div>
-                      <p className={`text-xs ${isConversationUnread(conversacion as any) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
-                        {formatDateTime(getLastCustomerMessageTimestamp(conversacion.messages || [])?.toISOString() || conversacion.updated_at)}
+                      <p className={`text-xs flex-shrink-0 ${isConversationUnread(conversacion as any) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
+                        {formatDateTime(conversacion)}
                       </p>
                     </div>
                     

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { verifyToken } from "../../../jwt/token";
@@ -21,7 +21,7 @@ import { useSelectedConversation } from "@/hooks/useSelectedConversation";
 import { Eye, Search, MessageSquare, Phone } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
-import { getLastCustomerMessageTimestamp, isConversationUnread } from '@/utils/conversation-helpers';
+import { getLastCustomerMessageTimestamp, isConversationUnread, truncateClientName, getFullClientName } from '@/utils/conversation-helpers';
 
 // Importar el tipo para la conversión
 interface ConversacionAccionHumana {
@@ -71,6 +71,7 @@ interface ConversacionItem {
   was_successful?: boolean;
   messages?: any[];
   last_read_at?: string | null;
+  last_message_time?: string | null;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -94,6 +95,100 @@ const WhatsAppIcon = ({ className }: { className?: string }) => {
 const conversationsCache = new Map<string, { data: any, timestamp: number }>();
 const CACHE_TTL = 2 * 60 * 1000; // 2 minutos
 
+// Hook para actualización silenciosa con indicadores visuales
+const useSilentUpdates = (dataToken: any, cargarConversaciones: () => Promise<void>) => {
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
+  
+  useEffect(() => {
+    if (!dataToken) return;
+    
+    const interval = setInterval(async () => {
+      setIsUpdating(true);
+      
+      try {
+        // Actualizar en background
+        await cargarConversaciones();
+        setLastUpdateTime(new Date());
+      } catch (error) {
+        console.error('Error en actualización automática:', error);
+      } finally {
+        setIsUpdating(false);
+      }
+    }, 20000); // 20 segundos
+    
+    return () => clearInterval(interval);
+  }, [dataToken, cargarConversaciones]);
+  
+  return { isUpdating, lastUpdateTime };
+};
+
+// Hook para actualización inteligente solo de cambios
+const useSmartPolling = (dataToken: any, setConversaciones: React.Dispatch<React.SetStateAction<ConversacionItem[]>>) => {
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  
+  useEffect(() => {
+    if (!dataToken) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        // Usar la función existente get_filtered_conversations para obtener todas las conversaciones
+        // y luego comparar con las existentes para detectar cambios
+        const { data, error } = await supabase.rpc('get_filtered_conversations', {
+          dealership_id_param: dataToken.dealership_id,
+          search_query: null,
+          p_status_filter: 'todos',
+          channel_filter: 'todos',
+          ended_reason_filter: 'todas'
+        });
+        
+        if (error) {
+          console.error('Error en polling inteligente:', error);
+          return;
+        }
+        
+        if (data && data.length > 0) {
+          console.log('🔄 Verificando cambios en conversaciones...');
+          
+          // Actualizar las conversaciones existentes
+          setConversaciones(prev => {
+            const updated = [...prev];
+            let hasChanges = false;
+            
+            data.forEach(newConv => {
+              const index = updated.findIndex(c => c.id === newConv.id);
+              if (index >= 0) {
+                // Verificar si la conversación cambió
+                const oldConv = updated[index];
+                if (JSON.stringify(oldConv) !== JSON.stringify(newConv)) {
+                  updated[index] = newConv;
+                  hasChanges = true;
+                }
+              } else {
+                // Nueva conversación - agregar al inicio
+                updated.unshift(newConv);
+                hasChanges = true;
+              }
+            });
+            
+            if (hasChanges) {
+              console.log('🔄 Se detectaron cambios en las conversaciones');
+            }
+            
+            return updated;
+          });
+        }
+        
+        setLastUpdate(new Date());
+      } catch (error) {
+        console.error('Error en polling inteligente:', error);
+      }
+    }, 20000); // 20 segundos
+    
+    return () => clearInterval(interval);
+  }, [dataToken, setConversaciones, lastUpdate]);
+};
+
 // Componente para la lista de conversaciones (lado izquierdo)
 function ConversationList({ 
   dataToken, 
@@ -114,13 +209,7 @@ function ConversationList({
   const [filtroCanal, setFiltroCanal] = useState("todos");
   const [filtroRazonFinalizacion, setFiltroRazonFinalizacion] = useState("todas");
 
-  useEffect(() => {
-    if (dataToken) {
-      cargarConversaciones();
-    }
-  }, [dataToken, busqueda, filtroCanal, filtroRazonFinalizacion]);
-
-  const cargarConversaciones = async () => {
+  const cargarConversaciones = useCallback(async () => {
     setLoading(true);
     try {
       // Detectar si hay filtros aplicados
@@ -190,19 +279,24 @@ function ConversationList({
     } finally {
       setLoading(false);
     }
-  };
+  }, [dataToken, busqueda, filtroCanal, filtroRazonFinalizacion]);
+
+  // Hooks para actualización automática (después de definir cargarConversaciones)
+  const { isUpdating, lastUpdateTime } = useSilentUpdates(dataToken, cargarConversaciones);
+  useSmartPolling(dataToken, setConversaciones);
+
+  useEffect(() => {
+    if (dataToken) {
+      cargarConversaciones();
+    }
+  }, [dataToken, busqueda, filtroCanal, filtroRazonFinalizacion]);
 
 
 
-  const formatDateTime = (dateString: string, messages?: any[]) => {
+  const formatDateTime = (conversacion: ConversacionItem) => {
     try {
-      // Si tenemos mensajes, usar el último mensaje del cliente (como en acción humana)
-      if (messages && messages.length > 0) {
-        const lastCustomerMessageTime = getLastCustomerMessageTimestamp(messages);
-        if (lastCustomerMessageTime) {
-          dateString = lastCustomerMessageTime.toISOString();
-        }
-      }
+      // Usar el nuevo campo last_message_time de la función RPC
+      let dateString = conversacion.last_message_time || conversacion.updated_at;
       
       const fecha = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
       const ahora = new Date();
@@ -262,13 +356,31 @@ function ConversationList({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header con título */}
+      {/* Header con título e indicadores de actualización */}
       <div className="p-4 border-b bg-white">
-        <div>
-          <h1 className="text-xl font-bold">Lista de Conversaciones</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Todas las conversaciones del sistema
-          </p>
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <h1 className="text-xl font-bold">Lista de Conversaciones</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Todas las conversaciones del sistema
+            </p>
+          </div>
+          
+          {/* Indicadores de actualización automática */}
+          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+            {isUpdating && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                Actualizando...
+              </div>
+            )}
+            
+            {lastUpdateTime && !isUpdating && (
+              <div className="text-xs text-muted-foreground text-right">
+                Últ. actualización: {format(lastUpdateTime, 'HH:mm')}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -342,13 +454,16 @@ function ConversationList({
                   <div className="flex-1 min-w-0">
                                                               {/* Fila superior: Cliente y hora */}
                      <div className="flex items-center justify-between mb-1">
-                       <div className="flex items-center gap-2">
-                         <p className="font-medium text-sm truncate">
-                           {conversacion.client?.names || 'Sin cliente'}
+                       <div className="flex-1 min-w-0 mr-2">
+                         <p 
+                           className="font-medium text-sm truncate"
+                           title={getFullClientName(conversacion.client?.names)}
+                         >
+                           {truncateClientName(conversacion.client?.names)}
                          </p>
                        </div>
-                       <p className={`text-xs ${isConversationUnread(conversacion) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
-                         {formatDateTime(conversacion.updated_at, conversacion.messages)}
+                       <p className={`text-xs flex-shrink-0 ${isConversationUnread(conversacion) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
+                         {formatDateTime(conversacion)}
                        </p>
                      </div>
                      
