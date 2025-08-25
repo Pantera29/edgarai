@@ -565,39 +565,6 @@ function ConversationList({
             onChange={(e) => setBusqueda(e.target.value)}
           />
         </div>
-        
-                 <div className="grid grid-cols-2 gap-2">
-           <Select
-             value={filtroCanal}
-             onValueChange={setFiltroCanal}
-           >
-             <SelectTrigger className="h-9 text-xs">
-               <SelectValue placeholder="Canal" />
-             </SelectTrigger>
-             <SelectContent>
-               <SelectItem value="todos">Todos</SelectItem>
-               <SelectItem value="whatsapp">WhatsApp</SelectItem>
-               <SelectItem value="phone">Llamadas</SelectItem>
-             </SelectContent>
-           </Select>
-
-           <Select
-             value={filtroRazonFinalizacion}
-             onValueChange={setFiltroRazonFinalizacion}
-           >
-             <SelectTrigger className="h-9 text-xs">
-               <SelectValue placeholder="Razón" />
-             </SelectTrigger>
-             <SelectContent>
-               <SelectItem value="todas">Todas</SelectItem>
-               <SelectItem value="customer-ended-call">Cliente finalizó</SelectItem>
-               <SelectItem value="assistant-ended-call">Asistente finalizó</SelectItem>
-               <SelectItem value="silence-timed-out">Silencio</SelectItem>
-               <SelectItem value="voicemail">Buzón de voz</SelectItem>
-               <SelectItem value="assistant-forwarded-call">Transferida</SelectItem>
-             </SelectContent>
-           </Select>
-         </div>
       </div>
 
       {/* Lista de Conversaciones */}

@@ -232,8 +232,7 @@ export function Sidebar() {
 
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
 
-  // Debug: Log current pathname
-  console.log('🔍 Sidebar - Current pathname:', pathname);
+
 
   useEffect(() => {
     // El código dentro de useEffect se ejecuta solo en el lado del cliente
@@ -252,22 +251,16 @@ export function Sidebar() {
   const isActive = (href: string) => {
     // Para el dashboard, usar comparación exacta (con y sin barra final)
     if (href === '/backoffice') {
-      const result = pathname === href || pathname === href + '/'
-      console.log(`🔍 isActive check (dashboard): pathname="${pathname}" href="${href}" result=${result}`)
-      return result
+      return pathname === href || pathname === href + '/'
     }
     
     // Para URLs que terminan en /conversaciones (KPIs), usar comparación exacta
     if (href === '/backoffice/conversaciones') {
-      const result = pathname === href || pathname === href + '/'
-      console.log(`🔍 isActive check (KPIs): pathname="${pathname}" href="${href}" result=${result}`)
-      return result
+      return pathname === href || pathname === href + '/'
     }
     
     // Para otros elementos, usar startsWith pero solo si no es una subruta de conversaciones
-    const result = pathname === href || pathname.startsWith(href + '/')
-    console.log(`🔍 isActive check: pathname="${pathname}" href="${href}" result=${result}`)
-    return result
+    return pathname === href || pathname.startsWith(href + '/')
   }
 
   const hasActiveChild = (item: MenuItem) => {
@@ -293,16 +286,13 @@ export function Sidebar() {
   // Auto-colapsar cuando entramos a páginas específicas
   useEffect(() => {
     const shouldAutoCollapse = pathname.startsWith("/backoffice/conversaciones/accion-humana")
-    console.log('🔄 Sidebar - pathname:', pathname, 'shouldAutoCollapse:', shouldAutoCollapse)
     
     if (shouldAutoCollapse) {
       // Si estamos entrando a la página de acción humana
-      console.log('✅ Sidebar - Colapsando automáticamente')
       setWasManuallyCollapsed(isCollapsed) // Recordar el estado anterior
       setIsCollapsed(true)
     } else if (wasManuallyCollapsed !== null) {
       // Si estamos saliendo de la página de acción humana
-      console.log('🔄 Sidebar - Restaurando estado original:', wasManuallyCollapsed)
       setIsCollapsed(wasManuallyCollapsed)
       setWasManuallyCollapsed(null) // Resetear el estado
     }
