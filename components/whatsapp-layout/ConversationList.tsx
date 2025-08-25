@@ -46,7 +46,14 @@ interface ConversacionAccionHumana {
   hours_since_last_activity: number;
   urgency_level: 'urgent' | 'normal';
   // Campos para indicadores de mensajes no leídos
-  messages?: any[];
+  messages?: Array<{
+    id?: string;
+    content?: string;
+    role?: string;
+    created_at?: string;
+    timestamp?: string;
+    time?: string;
+  }>;
   last_read_at?: string | null;
   // Campo para el último mensaje (nuevo desde la función RPC)
   last_message_time?: string | null;
@@ -67,7 +74,7 @@ interface MetricasAccionHumana {
 }
 
 interface ConversationListProps {
-  dataToken: any;
+  dataToken: { dealership_id: string };
   onConversationSelect: (conversation: ConversacionAccionHumana) => void;
   selectedConversationId?: string;
 }
@@ -174,7 +181,7 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
         // Aplicar filtro de no leídos en el cliente si está activo
         let conversacionesFiltradas = data;
         if (filtroNoLeidos) {
-          conversacionesFiltradas = data.filter((conversacion: any) => isConversationUnread(conversacion));
+          conversacionesFiltradas = data.filter((conversacion: ConversacionAccionHumana) => isConversationUnread(conversacion));
         }
         
         setConversaciones(conversacionesFiltradas);
@@ -312,7 +319,7 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
                 <div className="rounded-full bg-green-100 p-0.5">
                   <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 </div>
-                <span className="font-medium text-green-900">No leídos: {conversaciones.filter((c: any) => isConversationUnread(c)).length}</span>
+                <span className="font-medium text-green-900">No leídos: {conversaciones.filter((c: ConversacionAccionHumana) => isConversationUnread(c)).length}</span>
               </div>
             </button>
           </div>
