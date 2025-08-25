@@ -15,13 +15,21 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { WhatsAppStyleLayout } from "@/components/whatsapp-layout/WhatsAppStyleLayout";
 import { ChatPanel } from "@/components/whatsapp-layout/ChatPanel";
 import { useSelectedConversation } from "@/hooks/useSelectedConversation";
-import { Eye, Search, MessageSquare, Phone } from "lucide-react";
+import { Eye, Search, MessageSquare, Phone, Loader2, MessageCircle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { getLastCustomerMessageTimestamp, isConversationUnread, truncateClientName, getFullClientName } from '@/utils/conversation-helpers';
+import { useToast } from "@/hooks/use-toast";
 
 // Importar el tipo para la conversión
 interface ConversacionAccionHumana {
@@ -86,6 +94,14 @@ interface ConversacionItem {
   }>;
   last_read_at?: string | null;
   last_message_time?: string | null;
+}
+
+interface Cliente {
+  id: string;
+  names: string;
+  email: string;
+  phone_number: string;
+  agent_active: boolean;
 }
 
 const ITEMS_PER_PAGE = 10;
@@ -218,10 +234,20 @@ function ConversationList({
   const [totalConversaciones, setTotalConversaciones] = useState(0);
   const [pagina, setPagina] = useState(1);
   
+  // Estados para nueva conversación
+  const [showNewConversationModal, setShowNewConversationModal] = useState(false);
+  const [clientesDisponibles, setClientesDisponibles] = useState<Cliente[]>([]);
+  const [clienteSeleccionado, setClienteSeleccionado] = useState<Cliente | null>(null);
+  const [busquedaCliente, setBusquedaCliente] = useState("");
+  const [loadingClientes, setLoadingClientes] = useState(false);
+  const [creatingConversation, setCreatingConversation] = useState(false);
+  
   // Filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroCanal, setFiltroCanal] = useState("todos");
   const [filtroRazonFinalizacion, setFiltroRazonFinalizacion] = useState("todas");
+
+  const { toast } = useToast();
 
   const cargarConversaciones = useCallback(async () => {
     setLoading(true);
@@ -294,6 +320,123 @@ function ConversationList({
       setLoading(false);
     }
   }, [dataToken, busqueda, filtroCanal, filtroRazonFinalizacion]);
+
+  // Función para cargar clientes disponibles (sin conversaciones activas)
+  const cargarClientesDisponibles = async () => {
+    setLoadingClientes(true);
+    try {
+      // Obtener clientes del dealership
+      const { data: clientes, error: clientesError } = await supabase
+        .from('client')
+        .select('id, names, email, phone_number, agent_active')
+        .eq('dealership_id', dataToken.dealership_id)
+        .eq('agent_active', true)
+        .not('phone_number', 'is', null)
+        .not('phone_number', 'eq', '');
+
+      if (clientesError) throw clientesError;
+
+      // Obtener conversaciones activas para filtrar
+      const { data: conversacionesActivas, error: conversacionesError } = await supabase
+        .from('chat_conversations')
+        .select('client_id')
+        .eq('dealership_id', dataToken.dealership_id)
+        .eq('status', 'active');
+
+      if (conversacionesError) throw conversacionesError;
+
+      // Filtrar clientes que no tienen conversaciones activas
+      const clientesConConversacionesActivas = new Set(
+        conversacionesActivas?.map(c => c.client_id) || []
+      );
+
+      const clientesFiltrados = clientes?.filter(cliente => 
+        !clientesConConversacionesActivas.has(cliente.id)
+      ) || [];
+
+      setClientesDisponibles(clientesFiltrados);
+    } catch (error) {
+      console.error('Error cargando clientes:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudieron cargar los clientes disponibles."
+      });
+    } finally {
+      setLoadingClientes(false);
+    }
+  };
+
+  // Función para crear nueva conversación
+  const crearNuevaConversacion = async () => {
+    if (!clienteSeleccionado) return;
+
+    setCreatingConversation(true);
+    try {
+      // Crear nueva conversación
+      const { data: nuevaConversacion, error: conversacionError } = await supabase
+        .from('chat_conversations')
+        .insert({
+          user_identifier: clienteSeleccionado.phone_number,
+          client_id: clienteSeleccionado.id,
+          dealership_id: dataToken.dealership_id,
+          status: 'active',
+          channel: 'whatsapp',
+          messages: []
+        })
+        .select()
+        .single();
+
+      if (conversacionError) throw conversacionError;
+
+      // Cerrar modal y limpiar estado
+      setShowNewConversationModal(false);
+      setClienteSeleccionado(null);
+      setBusquedaCliente("");
+      
+      // Recargar conversaciones
+      await cargarConversaciones();
+
+      // Seleccionar la nueva conversación
+      if (nuevaConversacion) {
+        const conversacionAdaptada: ConversacionItem = {
+          id: nuevaConversacion.id,
+          user_identifier: nuevaConversacion.user_identifier,
+          client: {
+            names: clienteSeleccionado.names,
+            phone_number: clienteSeleccionado.phone_number,
+            email: clienteSeleccionado.email
+          },
+          updated_at: nuevaConversacion.created_at,
+          status: 'active',
+          channel: 'whatsapp'
+        };
+        onConversationSelect(conversacionAdaptada);
+      }
+
+      toast({
+        title: "Conversación creada",
+        description: `Nueva conversación iniciada con ${clienteSeleccionado.names}`
+      });
+
+    } catch (error) {
+      console.error('Error creando conversación:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo crear la conversación. Intente nuevamente."
+      });
+    } finally {
+      setCreatingConversation(false);
+    }
+  };
+
+  // Filtrar clientes por búsqueda
+  const clientesFiltrados = clientesDisponibles.filter(cliente =>
+    cliente.names.toLowerCase().includes(busquedaCliente.toLowerCase()) ||
+    (cliente.email && cliente.email.toLowerCase().includes(busquedaCliente.toLowerCase())) ||
+    (cliente.phone_number && cliente.phone_number.includes(busquedaCliente))
+  );
 
   // Hooks para actualización automática (después de definir cargarConversaciones)
   const { isUpdating, lastUpdateTime } = useSilentUpdates(dataToken, cargarConversaciones);
@@ -382,6 +525,19 @@ function ConversationList({
           
           {/* Indicadores de actualización automática */}
           <div className="flex items-center gap-2 flex-shrink-0 ml-4">
+            {/* Botón Nueva Conversación estilo WhatsApp Web */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                setShowNewConversationModal(true);
+                cargarClientesDisponibles();
+              }}
+              className="h-8 w-8 p-0 hover:bg-gray-100"
+            >
+              <MessageCircle className="h-5 w-5" />
+            </Button>
+            
             {isUpdating && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
@@ -540,6 +696,84 @@ function ConversationList({
           </div>
         )}
       </div>
+
+      {/* Modal Nueva Conversación */}
+      <Dialog open={showNewConversationModal} onOpenChange={setShowNewConversationModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nueva conversación</DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* Búsqueda de clientes */}
+            <div className="relative">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar cliente por nombre, email o teléfono..."
+                className="pl-8"
+                value={busquedaCliente}
+                onChange={(e) => setBusquedaCliente(e.target.value)}
+              />
+            </div>
+
+            {/* Lista de clientes */}
+            <div className="max-h-60 overflow-y-auto space-y-2">
+              {loadingClientes ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="ml-2 text-sm text-muted-foreground">Cargando clientes...</span>
+                </div>
+              ) : clientesFiltrados.length === 0 ? (
+                <div className="text-center py-4 text-sm text-muted-foreground">
+                  {busquedaCliente ? 'No se encontraron clientes' : 'No hay clientes disponibles'}
+                </div>
+              ) : (
+                clientesFiltrados.map((cliente) => (
+                  <div
+                    key={cliente.id}
+                    onClick={() => setClienteSeleccionado(cliente)}
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                      clienteSeleccionado?.id === cliente.id
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className="font-medium text-sm">{cliente.names}</div>
+                    {cliente.email && (
+                      <div className="text-xs text-muted-foreground">{cliente.email}</div>
+                    )}
+                    {cliente.phone_number && (
+                      <div className="text-xs text-muted-foreground">{cliente.phone_number}</div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowNewConversationModal(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={crearNuevaConversacion}
+              disabled={!clienteSeleccionado || creatingConversation}
+            >
+              {creatingConversation ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Creando...
+                </>
+              ) : (
+                'Crear conversación'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
