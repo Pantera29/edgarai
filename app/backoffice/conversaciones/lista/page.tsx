@@ -51,7 +51,14 @@ interface ConversacionAccionHumana {
   client_agent_active?: boolean;
   hours_since_last_activity: number;
   urgency_level: 'urgent' | 'normal';
-  messages?: any[];
+  messages?: Array<{
+    id?: string;
+    content?: string;
+    role?: string;
+    created_at?: string;
+    timestamp?: string;
+    time?: string;
+  }>;
   last_read_at?: string | null;
   total_count: number;
 }
@@ -69,7 +76,14 @@ interface ConversacionItem {
   channel?: string;
   ended_reason?: string;
   was_successful?: boolean;
-  messages?: any[];
+  messages?: Array<{
+    id?: string;
+    content?: string;
+    role?: string;
+    created_at?: string;
+    timestamp?: string;
+    time?: string;
+  }>;
   last_read_at?: string | null;
   last_message_time?: string | null;
 }
@@ -92,11 +106,11 @@ const WhatsAppIcon = ({ className }: { className?: string }) => {
 };
 
 // Cache simple en memoria - solo para queries sin filtros (fuera del componente)
-const conversationsCache = new Map<string, { data: any, timestamp: number }>();
+const conversationsCache = new Map<string, { data: ConversacionItem[], timestamp: number }>();
 const CACHE_TTL = 2 * 60 * 1000; // 2 minutos
 
 // Hook para actualización silenciosa con indicadores visuales
-const useSilentUpdates = (dataToken: any, cargarConversaciones: () => Promise<void>) => {
+const useSilentUpdates = (dataToken: { dealership_id: string }, cargarConversaciones: () => Promise<void>) => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
   
@@ -124,7 +138,7 @@ const useSilentUpdates = (dataToken: any, cargarConversaciones: () => Promise<vo
 };
 
 // Hook para actualización inteligente solo de cambios
-const useSmartPolling = (dataToken: any, setConversaciones: React.Dispatch<React.SetStateAction<ConversacionItem[]>>) => {
+const useSmartPolling = (dataToken: { dealership_id: string }, setConversaciones: React.Dispatch<React.SetStateAction<ConversacionItem[]>>) => {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
   
   useEffect(() => {
@@ -155,8 +169,8 @@ const useSmartPolling = (dataToken: any, setConversaciones: React.Dispatch<React
             const updated = [...prev];
             let hasChanges = false;
             
-            data.forEach(newConv => {
-              const index = updated.findIndex(c => c.id === newConv.id);
+            data.forEach((newConv: ConversacionItem) => {
+              const index = updated.findIndex((c: ConversacionItem) => c.id === newConv.id);
               if (index >= 0) {
                 // Verificar si la conversación cambió
                 const oldConv = updated[index];
@@ -195,7 +209,7 @@ function ConversationList({
   onConversationSelect, 
   selectedConversationId 
 }: { 
-  dataToken: any; 
+  dataToken: { dealership_id: string }; 
   onConversationSelect: (conversation: ConversacionItem) => void; 
   selectedConversationId?: string; 
 }) {
