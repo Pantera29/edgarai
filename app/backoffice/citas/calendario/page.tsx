@@ -135,6 +135,10 @@ export default function CalendarioCitasPage() {
 
       if (error) throw error
 
+      // LOG TEMPORAL: Mostrar datos exactos de las citas cargadas
+      console.log('📅 Citas cargadas para vista diaria:', data);
+      console.log('📅 Rango de fechas solicitado:', { start, end });
+
       const formattedEvents = data.map(appointment => {
         const date = appointment.appointment_date
         const time = appointment.appointment_time
@@ -243,8 +247,14 @@ export default function CalendarioCitasPage() {
   }
 
   const handleDatesSet = (arg: any) => {
-    const start = format(arg.view.currentStart, 'yyyy-MM-dd')
-    const end = format(arg.view.currentEnd, 'yyyy-MM-dd')
+    let start = format(arg.view.currentStart, 'yyyy-MM-dd')
+    let end = format(arg.view.currentEnd, 'yyyy-MM-dd')
+    
+    // Si estamos en vista de día, usar solo el día de inicio
+    if (arg.view.type === 'timeGridDay') {
+      end = start  // Usar el mismo día para inicio y fin
+    }
+    
     setCurrentRange({ start, end })
     updateCalendarTitle()
     if (dataToken && (dataToken as any).dealership_id) {
