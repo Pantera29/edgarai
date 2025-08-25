@@ -42,3 +42,18 @@ export const markConversationAsRead = async (conversationId: string) => {
   
   return { error };
 };
+
+// Función para truncar nombres de clientes de manera inteligente
+export const truncateClientName = (name: string, maxLength: number = 30): string => {
+  if (!name || name.length <= maxLength) {
+    return name;
+  }
+  
+  // Si el nombre es muy largo, truncar y agregar "..."
+  return name.substring(0, maxLength) + '...';
+};
+
+// Función para obtener el nombre completo para tooltip
+export const getFullClientName = (name: string): string => {
+  return name || 'Sin cliente';
+};
