@@ -307,7 +307,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-white pt-[64px] overflow-x-hidden">
       {/* Navbar con diseño tipo Flai */}
-      <nav className="py-4 px-6 fixed w-full top-0 bg-white z-50">
+      <nav className="py-4 px-4 md:px-6 fixed w-full top-0 bg-white z-50">
         <div className="max-w-6xl mx-auto relative flex items-center">
           {/* Logo a la izquierda */}
           <div className="flex items-center cursor-pointer" onClick={() => scrollToSection('hero')} role="button" aria-label="Ir al inicio">
@@ -338,8 +338,8 @@ export default function LandingPage() {
             </button>
           </div>
 
-          {/* CTA y Login a la derecha */}
-          <div className="flex items-center gap-4 ml-auto">
+          {/* CTA y Login a la derecha - solo en desktop */}
+          <div className="hidden md:flex items-center gap-4 ml-auto">
             <a 
               href="https://wa.me/525575131257?text=Hola%2C%20quiero%20agendar%20una%20demo%20de%20MuviAI"
               target="_blank"
@@ -356,23 +356,32 @@ export default function LandingPage() {
           {/* Botón hamburguesa para móvil */}
           <button 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden flex flex-col gap-1"
+            className="md:hidden flex flex-col gap-1 p-2 rounded-lg hover:bg-gray-100 transition-colors ml-auto"
+            aria-label="Abrir menú de navegación"
           >
-            <div className="w-6 h-[2px] bg-gray-800"></div>
-            <div className="w-6 h-[2px] bg-gray-800"></div>
-            <div className="w-6 h-[2px] bg-gray-800"></div>
+            <div className={`w-6 h-[2px] bg-gray-800 transition-all duration-300 ${mobileMenuOpen ? 'rotate-45 translate-y-1' : ''}`}></div>
+            <div className={`w-6 h-[2px] bg-gray-800 transition-all duration-300 ${mobileMenuOpen ? 'opacity-0' : ''}`}></div>
+            <div className={`w-6 h-[2px] bg-gray-800 transition-all duration-300 ${mobileMenuOpen ? '-rotate-45 -translate-y-1' : ''}`}></div>
           </button>
+
+          {/* Overlay para cerrar menú móvil */}
+          {mobileMenuOpen && (
+            <div 
+              className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+              onClick={() => setMobileMenuOpen(false)}
+            />
+          )}
 
           {/* Menú móvil */}
           {mobileMenuOpen && (
-            <div className="absolute top-full left-0 right-0 bg-white border-b shadow-lg md:hidden">
+            <div className="absolute top-full left-0 right-0 bg-white border-b shadow-lg md:hidden z-50 animate-slideDown">
               <div className="p-6 space-y-4">
                 <button 
                   onClick={() => {
                     scrollToSection('mia-en-accion');
                     setMobileMenuOpen(false);
                   }}
-                  className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black"
+                  className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Qué hacemos
                 </button>
@@ -381,7 +390,7 @@ export default function LandingPage() {
                     scrollToSection('caracteristicas');
                     setMobileMenuOpen(false);
                   }}
-                  className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black"
+                  className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cómo funciona
                 </button>
@@ -390,7 +399,7 @@ export default function LandingPage() {
                     scrollToSection('faqs');
                     setMobileMenuOpen(false);
                   }}
-                  className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black"
+                  className="block w-full text-left text-lg font-work-sans text-gray-600 hover:text-black py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   FAQs
                 </button>
@@ -398,10 +407,17 @@ export default function LandingPage() {
                   href="https://wa.me/525575131257?text=Hola%2C%20quiero%20agendar%20una%20demo%20de%20MuviAI"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block bg-primary text-white px-4 py-3 rounded-lg text-center text-lg font-work-sans"
+                  className="block bg-primary text-white px-4 py-3 rounded-lg text-center text-lg font-work-sans hover:bg-primary/90 transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Agendar demo
+                </a>
+                <a 
+                  href="/login"
+                  className="block text-center text-lg font-work-sans text-gray-600 hover:text-black py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Login Agencia
                 </a>
               </div>
             </div>
@@ -410,17 +426,17 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section id="hero" className="relative pt-16 md:pt-20 pb-6 md:pb-8 bg-white min-h-[calc(100vh-64px)]">
+      <section id="hero" className="relative pt-16 md:pt-16 lg:pt-20 pb-6 md:pb-8 bg-white min-h-[calc(100vh-64px)]">
         {/* Refuerzos de gradiente locales (suaves) */}
         {/* gradientes removidos */}
-        <div className="relative max-w-5xl mx-auto px-6">
+        <div className="relative max-w-5xl mx-auto px-6 md:px-6">
           <div className="flex flex-col items-center text-center">
             {/* Título, descripción y botón CTA centrados */}
             <div className="flex flex-col items-center">
-              <h1 className="text-5xl lg:text-7xl leading-tight font-moranga font-semibold tracking-tight mb-6">
+              <h1 className="text-4xl md:text-5xl lg:text-7xl leading-tight font-moranga font-semibold tracking-tight mb-6 mx-8 md:mx-0">
                 <span className="text-[#0f172a]">Convierte cada llamada y chat en citas confirmadas con IA</span>
               </h1>
-              <p className="text-xl text-[#64748b] mb-10 font-work-sans">
+              <p className="text-lg md:text-xl text-[#64748b] mb-8 md:mb-10 font-work-sans">
                 Mía, tu agente de IA para WhatsApp y teléfono, agenda 24/7, envía recordatorios y da seguimiento.
               </p>
               
@@ -437,7 +453,7 @@ export default function LandingPage() {
               </div>
 
               {/* Marquee de eventos (contenedor anclado al viewport para evitar desbordes) */}
-              <div className="mt-32 relative left-1/2 -translate-x-1/2 w-screen max-w-screen overflow-hidden space-y-3 opacity-70 pointer-events-none px-6">
+              <div className="mt-16 md:mt-32 relative left-1/2 -translate-x-1/2 w-screen max-w-screen overflow-hidden space-y-3 opacity-70 pointer-events-none px-12 md:px-6">
                 {/* Fila 1 - izquierda */}
                 <div className="relative overflow-hidden w-full">
                   <div className="marquee-left inline-flex gap-3 whitespace-nowrap will-change-transform">
@@ -494,10 +510,10 @@ export default function LandingPage() {
         <div className="relative max-w-7xl mx-auto px-6">
           <h2 className="text-3xl md:text-4xl font-moranga font-semibold text-gray-900 text-center mb-8 md:mb-10">Mía en acción</h2>
           <div className="flex justify-center">
-            <div className="relative w-fit">
+            <div className="relative w-fit flex flex-col items-center">
               {/* Wrapper con ancho real escalado para layout correcto */}
-              <div className="relative w-[246px] md:w-[277px] h-[570px] shrink-0">
-                <div className="w-[320px] md:w-[360px] scale-[0.77] origin-top-left">
+              <div className="relative w-[280px] md:w-[277px] h-[570px] shrink-0">
+                <div className="w-[360px] md:w-[360px] scale-[0.78] md:scale-[0.77] origin-top-left">
                   {/* Bisel del iPhone */}
                   <div className="relative h-[740px] rounded-[44px] bg-black shadow-2xl">
                     {/* Borde/bisel */}
@@ -688,14 +704,14 @@ export default function LandingPage() {
                 </div>
               </div>
               {/* Panel lateral con títulos y descripciones sincronizados */}
-              <div className="mt-6 md:mt-0 md:absolute md:left-[calc(100%+28px)] md:top-1/2 md:-translate-y-1/2 flex flex-col items-start gap-6 w-[340px] md:w-[520px]">
+              <div className="mt-8 md:mt-0 md:absolute md:left-[calc(100%+28px)] md:top-1/2 md:-translate-y-1/2 flex flex-col items-center md:items-start gap-6 w-full max-w-sm md:w-[520px]">
                 {flowsMeta.map((flow) => {
                   const isActive = casoActivo === flow.key;
                   return (
-                    <div key={flow.key} className="transition-all duration-300">
-                      <div className="flex items-center gap-3">
+                    <div key={flow.key} className="transition-all duration-300 w-full md:w-auto text-center md:text-left">
+                      <div className="flex items-center gap-3 justify-center md:justify-start">
                         <span className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-sm font-semibold flex-shrink-0 ${isActive ? 'bg-gray-900 text-white' : 'bg-gray-300 text-gray-700'}`}>{flow.number}</span>
-                        <h4 className={`font-moranga text-2xl md:text-[28px] leading-tight ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>{flow.title}</h4>
+                        <h4 className={`font-moranga text-xl md:text-[28px] leading-tight ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>{flow.title}</h4>
                       </div>
                       <p className={`mt-2 font-work-sans text-base md:text-lg leading-relaxed ${isActive ? 'text-gray-700' : 'text-gray-500/80'}`}>{flow.description}</p>
                     </div>
@@ -708,108 +724,112 @@ export default function LandingPage() {
       </section>
 
       {/* Sección Dashboard Preview */}
-      <section id="caracteristicas" className="relative py-12 md:py-14 bg-transparent">
+      <section id="caracteristicas" className="relative py-8 md:py-12 lg:py-14 bg-transparent">
         {/* gradientes removidos */}
-        <div className="relative max-w-7xl mx-auto px-8">
+        <div className="relative max-w-7xl mx-auto px-4 md:px-8">
           {/* Header */}
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-moranga font-semibold text-gray-900 mb-6">
+          <div className="text-center mb-12 md:mb-16">
+            <h2 className="text-3xl md:text-4xl font-moranga font-semibold text-gray-900 mb-4 md:mb-6">
               Ve todo desde un solo lugar
             </h2>
-            <p className="text-xl text-gray-600 font-work-sans max-w-3xl mx-auto">
+            <p className="text-lg md:text-xl text-gray-600 font-work-sans max-w-3xl mx-auto">
               El dashboard de Muvi te da control total sobre Mía y visibilidad completa de tu operación.
             </p>
           </div>
           
           {/* Dashboard Mockup + Features */}
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
+          <div className="grid lg:grid-cols-2 gap-8 md:gap-16 items-center">
             {/* Dashboard Mockup */}
             <div className="order-2 lg:order-1">
               {/* Dashboard Container */}
               <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden hover:shadow-3xl transition-all duration-300">
                 {/* Header del Dashboard */}
-                <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+                <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-4 md:px-6 py-4">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-white font-semibold font-work-sans">Dashboard Muvi</h3>
+                    <h3 className="text-white font-semibold font-work-sans text-sm md:text-base">Dashboard Muvi</h3>
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                      <span className="text-blue-100 text-sm font-work-sans">Mía en línea</span>
+                      <span className="text-blue-100 text-xs md:text-sm font-work-sans">Mía en línea</span>
                     </div>
                   </div>
                 </div>
                 
                 {/* Dashboard Content */}
-                <div className="p-6 space-y-6">
+                <div className="p-4 md:p-6 space-y-4 md:space-y-6">
                   {/* Métricas Row - Basado en dashboard real */}
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-sm font-medium text-gray-700 font-work-sans">Estado de Citas</h4>
-                        <span className="text-green-600">📅</span>
+                  <div className="grid grid-cols-3 gap-2 md:gap-4">
+                    <div className="bg-gray-50 rounded-lg p-3 md:p-4">
+                      <div className="flex items-center justify-between mb-2 md:mb-3">
+                        <h4 className="text-xs md:text-sm font-medium text-gray-700 font-work-sans">Estado de Citas</h4>
+                        <span className="text-green-600 text-[10px] md:text-xs">📅</span>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-1 md:space-y-2">
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600 font-work-sans">Pendientes</span>
-                          <span className="text-lg font-bold text-gray-600 font-work-sans">5</span>
+                          <span className="text-xs md:text-sm text-gray-600 font-work-sans">Pendientes</span>
+                          <span className="text-sm md:text-lg font-bold text-gray-600 font-work-sans">5</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600 font-work-sans">Confirmadas</span>
-                          <span className="text-lg font-bold text-blue-600 font-work-sans">8</span>
+                          <span className="text-xs md:text-sm text-gray-600 font-work-sans">Confirmadas</span>
+                          <span className="text-sm md:text-lg font-bold text-blue-600 font-work-sans">8</span>
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm text-gray-600 font-work-sans">Finalizadas</span>
-                          <span className="text-lg font-bold text-green-600 font-work-sans">3</span>
+                          <span className="text-xs md:text-sm text-gray-600 font-work-sans">Finalizadas</span>
+                          <span className="text-sm md:text-lg font-bold text-green-600 font-work-sans">3</span>
                         </div>
                       </div>
                     </div>
                     
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-gray-700 font-work-sans">Satisfacción</h4>
-                        <span className="text-green-600">📊</span>
+                    <div className="bg-gray-50 rounded-lg p-3 md:p-4 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs md:text-sm font-medium text-gray-700 font-work-sans">Satisfacción</h4>
+                          <span className="text-green-600 text-[10px] md:text-xs">📊</span>
+                        </div>
+                        <div className="text-lg md:text-2xl font-bold text-blue-600 font-work-sans">72</div>
+                        <div className="text-xs md:text-sm text-gray-600 font-work-sans">NPS</div>
                       </div>
-                      <div className="text-2xl font-bold text-blue-600 font-work-sans">72</div>
-                      <div className="text-sm text-gray-600 font-work-sans">NPS</div>
                       <div className="flex items-center mt-1">
-                        <span className="text-green-600 text-xs font-work-sans">+45% ↗</span>
+                        <span className="text-green-600 text-xs font-work-sans">+35% ↗</span>
                       </div>
                     </div>
                     
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <h4 className="text-sm font-medium text-gray-700 font-work-sans">Ocupación</h4>
-                        <span className="text-blue-600">⚙️</span>
+                    <div className="bg-gray-50 rounded-lg p-3 md:p-4 flex flex-col justify-between">
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="text-xs md:text-sm font-medium text-gray-700 font-work-sans">Ocupación</h4>
+                          <span className="text-blue-600 text-[10px] md:text-xs">⚙️</span>
+                        </div>
+                        <div className="text-lg md:text-2xl font-bold text-blue-600 font-work-sans">67%</div>
+                        <div className="text-xs md:text-sm text-gray-600 font-work-sans">del Taller</div>
                       </div>
-                      <div className="text-2xl font-bold text-blue-600 font-work-sans">67%</div>
-                      <div className="text-sm text-gray-600 font-work-sans">del Taller</div>
                       <div className="text-xs text-green-600 font-work-sans">Buena utilización</div>
                     </div>
                   </div>
                   
                   {/* Gráfico de Tendencias */}
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-4">
+                  <div className="bg-gray-50 rounded-lg p-3 md:p-4">
+                    <div className="flex items-center justify-between mb-3 md:mb-4">
                       <div>
-                        <h4 className="font-semibold text-gray-900 font-work-sans">Tendencia de Citas</h4>
-                        <p className="text-sm text-gray-600 font-work-sans">Comparación con el mes anterior</p>
+                        <h4 className="font-semibold text-gray-900 font-work-sans text-sm md:text-base">Tendencia de Citas</h4>
+                        <p className="text-xs md:text-sm text-gray-600 font-work-sans">Comparación con el mes anterior</p>
                       </div>
-                      <div className="text-sm text-gray-600 font-work-sans">+25%</div>
+                      <div className="text-xs md:text-sm text-gray-600 font-work-sans">+25%</div>
                     </div>
                     
                     {/* Simulación de gráfico simple */}
-                    <div className="h-24 flex items-end justify-between gap-1">
-                      <div className="bg-blue-300 w-2" style={{height: '60%'}}></div>
-                      <div className="bg-blue-400 w-2" style={{height: '40%'}}></div>
-                      <div className="bg-blue-500 w-2" style={{height: '80%'}}></div>
-                      <div className="bg-blue-400 w-2" style={{height: '55%'}}></div>
-                      <div className="bg-blue-600 w-2" style={{height: '90%'}}></div>
-                      <div className="bg-blue-500 w-2" style={{height: '70%'}}></div>
-                      <div className="bg-blue-400 w-2" style={{height: '65%'}}></div>
-                      <div className="bg-blue-600 w-2" style={{height: '95%'}}></div>
-                      <div className="bg-blue-500 w-2" style={{height: '75%'}}></div>
-                      <div className="bg-blue-400 w-2" style={{height: '50%'}}></div>
-                      <div className="bg-blue-500 w-2" style={{height: '85%'}}></div>
-                      <div className="bg-blue-600 w-2" style={{height: '100%'}}></div>
+                    <div className="h-16 md:h-24 flex items-end justify-between gap-1">
+                      <div className="bg-blue-300 w-1 md:w-2" style={{height: '60%'}}></div>
+                      <div className="bg-blue-400 w-1 md:w-2" style={{height: '40%'}}></div>
+                      <div className="bg-blue-500 w-1 md:w-2" style={{height: '80%'}}></div>
+                      <div className="bg-blue-400 w-1 md:w-2" style={{height: '55%'}}></div>
+                      <div className="bg-blue-600 w-1 md:w-2" style={{height: '90%'}}></div>
+                      <div className="bg-blue-500 w-1 md:w-2" style={{height: '70%'}}></div>
+                      <div className="bg-blue-400 w-1 md:w-2" style={{height: '65%'}}></div>
+                      <div className="bg-blue-600 w-1 md:w-2" style={{height: '95%'}}></div>
+                      <div className="bg-blue-500 w-1 md:w-2" style={{height: '75%'}}></div>
+                      <div className="bg-blue-400 w-1 md:w-2" style={{height: '50%'}}></div>
+                      <div className="bg-blue-500 w-1 md:w-2" style={{height: '85%'}}></div>
+                      <div className="bg-blue-600 w-1 md:w-2" style={{height: '100%'}}></div>
                     </div>
                     
                     <div className="flex justify-between mt-2 text-xs text-gray-500 font-work-sans">
@@ -824,44 +844,44 @@ export default function LandingPage() {
             </div>
             
             {/* Features List */}
-            <div className="order-1 lg:order-2 space-y-8">
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <span className="text-2xl">📊</span>
+            <div className="order-1 lg:order-2 space-y-6 md:space-y-8">
+              <div className="flex items-start gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <span className="text-xl md:text-2xl">📊</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2 font-work-sans">
+                  <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-2 font-work-sans">
                     Métricas en tiempo real
                   </h3>
-                  <p className="text-gray-600 font-work-sans">
+                  <p className="text-gray-600 font-work-sans text-sm md:text-base">
                     Ve cuántas citas se han agendado, conversaciones activas y nivel de satisfacción de tus clientes.
                   </p>
                 </div>
               </div>
               
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <span className="text-2xl">💬</span>
+              <div className="flex items-start gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <span className="text-xl md:text-2xl">💬</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2 font-work-sans">
+                  <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-2 font-work-sans">
                     Control total de Mía
                   </h3>
-                  <p className="text-gray-600 font-work-sans">
+                  <p className="text-gray-600 font-work-sans text-sm md:text-base">
                     Pausa, activa o ajusta cómo responde Mía. Tú tienes el control completo de tu asistente virtual.
                   </p>
                 </div>
               </div>
               
-              <div className="flex items-start gap-4">
-                <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <span className="text-2xl">📅</span>
+              <div className="flex items-start gap-3 md:gap-4">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <span className="text-xl md:text-2xl">📅</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2 font-work-sans">
+                  <h3 className="text-lg md:text-xl font-semibold text-gray-900 mb-2 font-work-sans">
                     Historial completo
                   </h3>
-                  <p className="text-gray-600 font-work-sans">
+                  <p className="text-gray-600 font-work-sans text-sm md:text-base">
                     Revisa todas las conversaciones, citas agendadas y el rendimiento de Mía desde un solo lugar.
                   </p>
                 </div>
@@ -905,19 +925,19 @@ export default function LandingPage() {
       */}
 
       {/* Sección de FAQs */}
-      <section id="faqs" className="relative py-20 bg-transparent">
+      <section id="faqs" className="relative py-12 md:py-20 bg-transparent">
         {/* gradientes removidos */}
-        <div className="relative max-w-4xl mx-auto px-6">
-          <h2 className="text-4xl font-moranga font-bold text-center mb-12">Preguntas Frecuentes</h2>
-          <div className="space-y-4">
+        <div className="relative max-w-4xl mx-auto px-4 md:px-6">
+          <h2 className="text-3xl md:text-4xl font-moranga font-bold text-center mb-8 md:mb-12">Preguntas Frecuentes</h2>
+          <div className="space-y-3 md:space-y-4">
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button 
                 onClick={() => setOpenFaq(openFaq === 'faq1' ? '' : 'faq1')}
-                className="w-full flex items-center justify-between p-6 text-left bg-white hover:bg-gray-100"
+                className="w-full flex items-center justify-between p-4 md:p-6 text-left bg-white hover:bg-gray-100 transition-colors"
               >
-                <h3 className="text-xl font-bold font-work-sans">¿Cómo funciona Mía?</h3>
+                <h3 className="text-lg md:text-xl font-bold font-work-sans">¿Cómo funciona Mía?</h3>
                 <svg 
-                  className={`w-6 h-6 transform transition-transform ${openFaq === 'faq1' ? 'rotate-180' : ''}`} 
+                  className={`w-5 h-5 md:w-6 md:h-6 transform transition-transform ${openFaq === 'faq1' ? 'rotate-180' : ''}`} 
                   fill="none" 
                   viewBox="0 0 24 24" 
                   stroke="currentColor"
@@ -926,7 +946,7 @@ export default function LandingPage() {
                 </svg>
               </button>
               {openFaq === 'faq1' && (
-                <div className="p-6 pt-0 text-gray-600 animate-slideDown font-work-sans">
+                <div className="p-4 md:p-6 pt-0 text-gray-600 animate-slideDown font-work-sans text-sm md:text-base">
                   Mía utiliza inteligencia artificial avanzada para gestionar llamadas, agendar citas y dar seguimiento a tus clientes de manera automática, 24/7.
                 </div>
               )}
@@ -935,11 +955,11 @@ export default function LandingPage() {
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button 
                 onClick={() => setOpenFaq(openFaq === 'faq2' ? '' : 'faq2')}
-                className="w-full flex items-center justify-between p-6 text-left bg-white hover:bg-gray-100"
+                className="w-full flex items-center justify-between p-4 md:p-6 text-left bg-white hover:bg-gray-100 transition-colors"
               >
-                <h3 className="text-xl font-bold font-work-sans">¿Cuánto tiempo toma la implementación?</h3>
+                <h3 className="text-lg md:text-xl font-bold font-work-sans">¿Cuánto tiempo toma la implementación?</h3>
                 <svg 
-                  className={`w-6 h-6 transform transition-transform ${openFaq === 'faq2' ? 'rotate-180' : ''}`} 
+                  className={`w-5 h-5 md:w-6 md:h-6 transform transition-transform ${openFaq === 'faq2' ? 'rotate-180' : ''}`} 
                   fill="none" 
                   viewBox="0 0 24 24" 
                   stroke="currentColor"
@@ -948,7 +968,7 @@ export default function LandingPage() {
                 </svg>
               </button>
               {openFaq === 'faq2' && (
-                <div className="p-6 pt-0 text-gray-600 animate-slideDown font-work-sans">
+                <div className="p-4 md:p-6 pt-0 text-gray-600 animate-slideDown font-work-sans text-sm md:text-base">
                   La implementación es rápida y sencilla, en menos de 24 horas Mía estará funcionando en tu concesionario.
                 </div>
               )}
@@ -957,11 +977,11 @@ export default function LandingPage() {
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button 
                 onClick={() => setOpenFaq(openFaq === 'faq3' ? '' : 'faq3')}
-                className="w-full flex items-center justify-between p-6 text-left bg-white hover:bg-gray-100"
+                className="w-full flex items-center justify-between p-4 md:p-6 text-left bg-white hover:bg-gray-100 transition-colors"
               >
-                <h3 className="text-xl font-bold font-work-sans">¿Se integra con mi sistema actual?</h3>
+                <h3 className="text-lg md:text-xl font-bold font-work-sans">¿Se integra con mi sistema actual?</h3>
                 <svg 
-                  className={`w-6 h-6 transform transition-transform ${openFaq === 'faq3' ? 'rotate-180' : ''}`} 
+                  className={`w-5 h-5 md:w-6 md:h-6 transform transition-transform ${openFaq === 'faq3' ? 'rotate-180' : ''}`} 
                   fill="none" 
                   viewBox="0 0 24 24" 
                   stroke="currentColor"
@@ -970,7 +990,7 @@ export default function LandingPage() {
                 </svg>
               </button>
               {openFaq === 'faq3' && (
-                <div className="p-6 pt-0 text-gray-600 animate-slideDown font-work-sans">
+                <div className="p-4 md:p-6 pt-0 text-gray-600 animate-slideDown font-work-sans text-sm md:text-base">
                   Sí, Mía se integra con los sistemas más populares de gestión de concesionarios y CRMs del mercado.
                 </div>
               )}
@@ -979,11 +999,11 @@ export default function LandingPage() {
             <div className="border border-gray-200 rounded-lg overflow-hidden">
               <button 
                 onClick={() => setOpenFaq(openFaq === 'faq4' ? '' : 'faq4')}
-                className="w-full flex items-center justify-between p-6 text-left bg-white hover:bg-gray-100"
+                className="w-full flex items-center justify-between p-4 md:p-6 text-left bg-white hover:bg-gray-100 transition-colors"
               >
-                <h3 className="text-xl font-bold font-work-sans">¿Qué soporte ofrecen?</h3>
+                <h3 className="text-lg md:text-xl font-bold font-work-sans">¿Qué soporte ofrecen?</h3>
                 <svg 
-                  className={`w-6 h-6 transform transition-transform ${openFaq === 'faq4' ? 'rotate-180' : ''}`} 
+                  className={`w-5 h-5 md:w-6 md:h-6 transform transition-transform ${openFaq === 'faq4' ? 'rotate-180' : ''}`} 
                   fill="none" 
                   viewBox="0 0 24 24" 
                   stroke="currentColor"
@@ -992,7 +1012,7 @@ export default function LandingPage() {
                 </svg>
               </button>
               {openFaq === 'faq4' && (
-                <div className="p-6 pt-0 text-gray-600 animate-slideDown font-work-sans">
+                <div className="p-4 md:p-6 pt-0 text-gray-600 animate-slideDown font-work-sans text-sm md:text-base">
                   Ofrecemos soporte técnico 24/7 y un equipo dedicado para asegurar que Mía funcione perfectamente en tu negocio.
                 </div>
               )}
