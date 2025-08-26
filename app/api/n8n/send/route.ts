@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
 import { format, parseISO } from "date-fns";
+import { verifyToken } from "../../../jwt/token";
 
 /**
  * Formatea un número de teléfono al formato requerido por N8N (521XXXXXXXXXX)
@@ -94,7 +95,28 @@ export async function POST(request: Request) {
     
     const supabase = createServerComponentClient({ cookies });
     
-    // 1. Obtener y validar datos de entrada
+    // 1. Extraer token de autorización y obtener información del usuario
+    const authHeader = request.headers.get('authorization');
+    const token = authHeader?.replace('Bearer ', '') || null;
+    let userInfo = null;
+    
+    if (token) {
+      try {
+        userInfo = verifyToken(token);
+        console.log('👤 [N8N Send] Información del usuario extraída:', {
+          id: userInfo?.id,
+          names: userInfo?.names,
+          surnames: userInfo?.surnames
+        });
+      } catch (error) {
+        console.warn('⚠️ [N8N Send] Error al verificar token:', error);
+        // No fallar el proceso si el token es inválido
+      }
+    } else {
+      console.log('ℹ️ [N8N Send] No se encontró token de autorización');
+    }
+    
+    // 2. Obtener y validar datos de entrada
     const { reminder_id, template_type, dealership_id, sender_type, phone_number, message } = await request.json();
     
     console.log('📋 [N8N Send] Datos recibidos:', { 
@@ -278,8 +300,16 @@ export async function POST(request: Request) {
       ...(clientId ? { client_id: clientId } : {}),
       ...(vehicleId ? { vehicle_id: vehicleId } : {}),
       ...(appointmentId ? { appointment_id: appointmentId } : {}),
-      ...(serviceId ? { service_id: serviceId } : {})
+      ...(serviceId ? { service_id: serviceId } : {}),
+      ...(userInfo?.id ? { sender_user_id: userInfo.id } : {}),
+      ...(userInfo ? { sender_name: `${userInfo.names} ${userInfo.surnames}` } : {})
     };
+
+    console.log('📋 [N8N Send] Payload completo:', {
+      ...payload,
+      sender_user_id: userInfo?.id || 'No disponible',
+      sender_name: userInfo ? `${userInfo.names} ${userInfo.surnames}` : 'No disponible'
+    });
 
     const response = await fetch('https://n8n.edgarai.com.mx/webhook/outbound', {
       method: 'POST',
@@ -313,7 +343,7 @@ export async function POST(request: Request) {
     // Guardar mensaje en el historial de chat
     // console.log('📝 [N8N Send] Guardando mensaje en historial_chat...');
     // try {
-    //   const chatId = get10DigitPhoneNumber(recordatorio.client?.phone_number || '');
+    //   const chatId = get10DigitPhoneNumber(recordatorio?.client?.phone_number || phone_number || '');
     //   const n8nMessageId = responseData.id || responseData.message_id || null;
 
     //   const { error: historyError } = await supabase
@@ -325,14 +355,16 @@ export async function POST(request: Request) {
     //       processed: true,
     //       status: 'active',
     //       agente: true,
-    //       dealership_id: dealership_id
+    //       dealership_id: dealership_id,
+    //       sender_user_id: userInfo?.id || null, // ← NUEVO: ID del usuario que envía
+    //       sender_name: userInfo ? `${userInfo.names} ${userInfo.surnames}` : null // ← NUEVO: Nombre del usuario
     //     });
 
     //   if (historyError) {
     //     console.error('❌ [N8N Send] Error al guardar en historial_chat:', historyError);
     //     // No se falla la petición, solo se loguea el error
     //   } else {
-    //     console.log('✅ [N8N Send] Mensaje guardado en historial_chat');
+    //     console.log('✅ [N8N Send] Mensaje guardado en historial_chat con información del usuario');
     //   }
     // } catch (e) {
     //   console.error('💥 [N8N Send] Error inesperado al procesar para historial_chat:', e);
