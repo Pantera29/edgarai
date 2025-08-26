@@ -1319,6 +1319,10 @@ export default function RecordatoriosPage() {
     try {
       console.log('🚀 Iniciando envío de WhatsApp...');
       
+      // Obtener el token de la URL para la autorización
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
       const reminderId = seleccionados[0];
       const recordatorio = recordatorios.find(r => r.reminder_id === reminderId);
       
@@ -1350,7 +1354,8 @@ export default function RecordatoriosPage() {
       const response = await fetch('/api/n8n/send', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }) // ← NUEVO: Incluir token de autorización
         },
         body: JSON.stringify({
           reminder_id: reminderId,

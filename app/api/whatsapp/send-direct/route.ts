@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { verifyToken } from "../../../jwt/token";
 
 /**
  * Formatea un número de teléfono al formato requerido por Whapi
@@ -75,6 +76,29 @@ export async function POST(request: Request) {
         { success: false, error: 'El mensaje no puede estar vacío' },
         { status: 400 }
       );
+    }
+
+    // 1.5. Obtener información del usuario del token de autenticación
+    console.log('👤 [WhatsApp Direct] Obteniendo información del usuario...');
+    const authHeader = request.headers.get('authorization');
+    let userInfo = null;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      userInfo = verifyToken(token);
+      console.log('✅ [WhatsApp Direct] Información del usuario obtenida:', {
+        id: userInfo?.id,
+        names: userInfo?.names,
+        surnames: userInfo?.surnames
+      });
+    } else {
+      console.log('⚠️ [WhatsApp Direct] No se encontró token de autorización, continuando sin información de usuario');
+    }
+
+    // Validar que userInfo tenga los datos necesarios
+    const hasValidUserInfo = userInfo && userInfo.id && userInfo.names && userInfo.surnames;
+    if (!hasValidUserInfo) {
+      console.log('⚠️ [WhatsApp Direct] Información de usuario incompleta o inválida, continuando sin información de usuario');
     }
 
     console.log('✅ [WhatsApp Direct] Validación de datos completada');
@@ -181,14 +205,16 @@ export async function POST(request: Request) {
           processed: true,
           status: 'active',
           agente: true,
-          dealership_id: dealership_id
+          dealership_id: dealership_id,
+          sender_user_id: hasValidUserInfo ? userInfo.id : null, // ← NUEVO: Solo usar si es válido
+          sender_name: hasValidUserInfo ? `${userInfo.names} ${userInfo.surnames}` : null // ← NUEVO: Solo usar si es válido
         });
 
       if (historyError) {
         console.error('❌ [WhatsApp Direct] Error al guardar en historial_chat:', historyError);
         // No se falla la petición, solo se loguea el error
       } else {
-        console.log('✅ [WhatsApp Direct] Mensaje guardado en historial_chat');
+        console.log('✅ [WhatsApp Direct] Mensaje guardado en historial_chat con información del usuario');
       }
     } catch (e) {
       console.error('💥 [WhatsApp Direct] Error inesperado al procesar para historial_chat:', e);

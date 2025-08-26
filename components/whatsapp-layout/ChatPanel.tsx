@@ -64,6 +64,8 @@ interface Message {
   content: string;
   role: "user" | "assistant" | "customer" | "ai_agent" | "dealership_worker";
   created_at: string;
+  sender_user_id?: number; // ← NUEVO: ID del usuario que envió el mensaje
+  sender_name?: string; // ← NUEVO: Nombre del usuario que envió el mensaje
 }
 
 interface ChatPanelProps {
@@ -276,7 +278,9 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
               conversation_id: conversationId,
               content: contenido,
               role: rol,
-              created_at: createdAt
+              created_at: createdAt,
+              sender_user_id: (typeof msg === 'object' && msg.sender_user_id) ? msg.sender_user_id : undefined,
+              sender_name: (typeof msg === 'object' && msg.sender_name) ? msg.sender_name : undefined
             };
             
             console.log(`Mensaje #${index} formateado:`, msgFormateado);
@@ -585,11 +589,16 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     try {
       console.log('🚀 [UI] Enviando mensaje WhatsApp...');
       
+      // Obtener el token de la URL para la autorización
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
       // 1. Enviar mensaje WhatsApp
       const response = await fetch('/api/n8n/send', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }) // ← NUEVO: Incluir token de autorización
         },
         body: JSON.stringify({
           phone_number: phoneNumber,

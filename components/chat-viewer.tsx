@@ -12,6 +12,8 @@ interface Message {
   content: string;
   role: "user" | "assistant" | "customer" | "ai_agent" | "dealership_worker";
   created_at: string;
+  sender_user_id?: number;
+  sender_name?: string;
 }
 
 interface ChatViewerProps {
@@ -103,12 +105,20 @@ export function ChatViewer({
   };
 
   // Función para obtener la etiqueta del remitente
-  const getSenderLabel = (role: string) => {
+  const getSenderLabel = (message: any) => {
+    const role = message.role;
+    
     switch (role) {
       case "ai_agent":
         return "Enviado por Agente IA";
       case "dealership_worker":
-        return "Enviado por Asesor";
+        // Si tenemos el nombre del usuario, mostrarlo; si no, usar el label genérico
+        const senderName = message.sender_name;
+        if (senderName && senderName.trim() !== '' && senderName !== 'null' && senderName !== 'undefined') {
+          return `Enviado por ${senderName}`;
+        } else {
+          return "Enviado por Asesor";
+        }
       case "assistant":
         return "Enviado por Asistente";
       default:
@@ -117,7 +127,9 @@ export function ChatViewer({
   };
 
   // Función para obtener el color de la etiqueta según el rol
-  const getLabelColor = (role: string) => {
+  const getLabelColor = (message: any) => {
+    const role = message.role;
+    
     switch (role) {
       case "ai_agent":
         return "text-blue-600"; // Azul para Agente IA
@@ -131,7 +143,9 @@ export function ChatViewer({
   };
 
   // Función para obtener el estilo del mensaje según el rol
-  const getMessageStyle = (role: string) => {
+  const getMessageStyle = (message: any) => {
+    const role = message.role;
+    
     switch (role) {
       case "customer":
       case "user":
@@ -194,7 +208,7 @@ export function ChatViewer({
         </div>
       ) : (
         messages.map((message) => {
-          const senderLabel = getSenderLabel(message.role);
+          const senderLabel = getSenderLabel(message);
           const isAssistant = isAssistantMessage(message.role);
           const isUser = isUserMessage(message.role);
           
@@ -217,7 +231,7 @@ export function ChatViewer({
                 {/* Etiqueta del remitente */}
                 {senderLabel && (
                   <div className="mb-1">
-                    <p className={cn("text-xs font-medium", getLabelColor(message.role))}>
+                    <p className={cn("text-xs font-medium", getLabelColor(message))}>
                       {senderLabel}
                     </p>
                   </div>
@@ -227,7 +241,7 @@ export function ChatViewer({
                 <div
                   className={cn(
                     "rounded-lg p-3",
-                    getMessageStyle(message.role)
+                    getMessageStyle(message)
                   )}
                 >
                   <p className="text-sm whitespace-pre-wrap break-words">
