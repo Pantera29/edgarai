@@ -5,10 +5,18 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { getBaseUrl } from "@/lib/utils"
 import { verifyToken } from '@/app/jwt/token'
 import { useEffect, useState } from "react"
-import { toast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 
 interface PageProps {
   params: {
@@ -18,6 +26,7 @@ interface PageProps {
 
 export default function EditarClientePage({ params }: PageProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [searchParams, setSearchParams] = useState<URLSearchParams | null>(null);
   const [token, setToken] = useState<string>("");
   const [dataToken, setDataToken] = useState<object>({});
@@ -28,6 +37,8 @@ export default function EditarClientePage({ params }: PageProps) {
     external_id: ""
   });
   const [loading, setLoading] = useState(true);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -123,16 +134,52 @@ export default function EditarClientePage({ params }: PageProps) {
       });
 
       const result = await response.json();
+      
+      console.log('🔍 Respuesta del endpoint:', {
+        status: response.status,
+        ok: response.ok,
+        result: result,
+        timestamp: new Date().toISOString()
+      });
 
       if (!response.ok) {
-        toast({
-          variant: "destructive",
-          title: "Error",
-          description: result.message || "No se pudo actualizar el cliente."
+        // Manejar diferentes tipos de errores
+        let errorMessage = result.message || "No se pudo actualizar el cliente.";
+        
+        if (response.status === 409) {
+          // Error de duplicado
+          errorMessage = result.message || "Ya existe otro cliente con los mismos datos.";
+        } else if (response.status === 400) {
+          // Error de validación
+          errorMessage = result.message || "Los datos proporcionados no son válidos.";
+        } else if (response.status === 404) {
+          // Cliente no encontrado
+          errorMessage = "El cliente no fue encontrado.";
+        } else if (response.status === 500) {
+          // Error del servidor
+          errorMessage = "Error interno del servidor. Por favor, intente más tarde.";
+        }
+        
+        console.log('❌ Mostrando toast de error:', {
+          status: response.status,
+          errorMessage: errorMessage,
+          timestamp: new Date().toISOString()
         });
+        
+        try {
+          toast({
+            variant: "destructive",
+            title: "Error",
+            description: errorMessage
+          });
+          console.log('✅ Toast llamado exitosamente');
+        } catch (toastError) {
+          console.error('❌ Error al mostrar toast:', toastError);
+        }
         return;
       }
 
+      console.log('✅ Mostrando toast de éxito');
       toast({
         title: "Cliente actualizado",
         description: "Los datos del cliente han sido actualizados exitosamente."
@@ -147,6 +194,66 @@ export default function EditarClientePage({ params }: PageProps) {
         title: "Error",
         description: "No se pudo actualizar el cliente. Por favor, intente nuevamente."
       });
+    }
+  };
+
+  const handleDelete = async () => {
+    setDeleting(true);
+    
+    try {
+      const response = await fetch(`/api/customers/delete/${params.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      const result = await response.json();
+
+      console.log('🗑️ Respuesta de eliminación:', {
+        status: response.status,
+        ok: response.ok,
+        result: result,
+        timestamp: new Date().toISOString()
+      });
+
+      if (!response.ok) {
+        let errorMessage = result.message || "No se pudo eliminar el cliente.";
+        
+        if (response.status === 409) {
+          // Error de dependencias (citas o conversaciones)
+          errorMessage = result.message || "No se puede eliminar el cliente porque tiene datos asociados.";
+        } else if (response.status === 404) {
+          errorMessage = "El cliente no fue encontrado.";
+        } else if (response.status === 500) {
+          errorMessage = "Error interno del servidor. Por favor, intente más tarde.";
+        }
+        
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: errorMessage
+        });
+        return;
+      }
+
+      toast({
+        title: "Cliente eliminado",
+        description: result.message || "El cliente ha sido eliminado exitosamente."
+      });
+
+      // Redirigir a la página de clientes
+      router.push(`/backoffice/clientes?token=${token}`);
+    } catch (error) {
+      console.error('Error al eliminar cliente:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo eliminar el cliente. Por favor, intente nuevamente."
+      });
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
     }
   };
 
@@ -203,8 +310,45 @@ export default function EditarClientePage({ params }: PageProps) {
           >
             Cancelar
           </Button>
+          <Button 
+            type="button" 
+            variant="destructive"
+            onClick={() => setShowDeleteConfirm(true)}
+            disabled={deleting}
+          >
+            {deleting ? "Eliminando..." : "Eliminar Cliente"}
+          </Button>
         </div>
       </form>
+
+      {/* Diálogo de confirmación de eliminación */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar eliminación</DialogTitle>
+            <DialogDescription>
+              ¿Estás seguro de que quieres eliminar al cliente "{formData.names}"? 
+              Esta acción no se puede deshacer.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDeleteConfirm(false)}
+              disabled={deleting}
+            >
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+            >
+              {deleting ? "Eliminando..." : "Sí, eliminar"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 } 
