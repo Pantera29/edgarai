@@ -176,29 +176,72 @@ export async function PATCH(
       if (normalizedPhone) orConditions.push(`phone_number.eq.${normalizedPhone}`);
       if (email && email.trim() !== "") orConditions.push(`email.eq.${email}`);
 
+      console.log('🔍 Verificando duplicados:', {
+        client_id: clientId,
+        dealership_id: clientExists.dealership_id,
+        phone_number: normalizedPhone,
+        email: email,
+        or_conditions: orConditions,
+        timestamp: new Date().toISOString()
+      });
+
       const { data: existingClients, error: searchError } = await supabase
         .from("client")
-        .select("id")
+        .select("id, phone_number, email")
         .eq("dealership_id", clientExists.dealership_id)
         .or(orConditions.join(","))
         .neq("id", clientId);
 
       if (searchError) {
+        console.error('❌ Error al verificar duplicados:', {
+          client_id: clientId,
+          error: searchError.message,
+          timestamp: new Date().toISOString()
+        });
         return NextResponse.json(
           { message: 'Error consultando la base de datos para duplicados.' },
           { status: 500 }
         );
       }
 
-      if (existingClients && existingClients.length > 1) {
+      console.log('🔍 Resultado de verificación de duplicados:', {
+        client_id: clientId,
+        existing_clients_count: existingClients?.length || 0,
+        existing_clients: existingClients,
+        timestamp: new Date().toISOString()
+      });
+
+      if (existingClients && existingClients.length > 0) {
+        // Determinar qué campo está duplicado para dar un mensaje más específico
+        const duplicateFields = [];
+        if (normalizedPhone) {
+          const phoneDuplicate = existingClients.some(client => client.phone_number === normalizedPhone);
+          if (phoneDuplicate) duplicateFields.push('teléfono');
+        }
+        if (email && email.trim() !== "") {
+          const emailDuplicate = existingClients.some(client => client.email === email);
+          if (emailDuplicate) duplicateFields.push('email');
+        }
+        
+        const fieldNames = duplicateFields.join(' y ');
+        
+        console.log('❌ Cliente duplicado detectado:', {
+          client_id: clientId,
+          duplicate_fields: duplicateFields,
+          existing_clients: existingClients,
+          error_message: `Ya existe otro cliente con el mismo ${fieldNames} en esta agencia.`,
+          timestamp: new Date().toISOString()
+        });
+        
         return NextResponse.json(
-          { message: 'Ya existen múltiples clientes con este teléfono o email en esta agencia. Contacta a soporte para resolver la duplicidad.' },
-          { status: 409 }
-        );
-      }
-      if (existingClients && existingClients.length === 1) {
-        return NextResponse.json(
-          { message: 'Ya existe otro cliente con este teléfono o email en esta agencia.' },
+          { 
+            message: `Ya existe otro cliente con el mismo ${fieldNames} en esta agencia.`,
+            error_code: 'DUPLICATE_CLIENT',
+            details: {
+              duplicate_fields: duplicateFields,
+              existing_clients_count: existingClients.length
+            }
+          },
           { status: 409 }
         );
       }
