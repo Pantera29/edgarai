@@ -432,16 +432,27 @@ export default function LandingPage() {
         <div className="relative max-w-5xl mx-auto px-6 md:px-6">
           <div className="flex flex-col items-center text-center">
             {/* Título, descripción y botón CTA centrados */}
-            <div className="flex flex-col items-center">
-              <h1 className="text-4xl md:text-5xl lg:text-7xl leading-tight font-moranga font-semibold tracking-tight mb-6 mx-8 md:mx-0">
-                <span className="text-[#0f172a]">Convierte cada llamada y chat en citas confirmadas con IA</span>
-              </h1>
-              <p className="text-lg md:text-xl text-[#64748b] mb-8 md:mb-10 font-work-sans">
-                Mía, tu agente de IA para WhatsApp y teléfono, agenda 24/7, envía recordatorios y da seguimiento.
-              </p>
+                      <div className="flex flex-col items-center space-y-4">
+            {/* Eyebrow text */}
+            <div className="inline-flex items-center px-4 py-2 rounded-full bg-blue-50 text-blue-700 text-sm font-medium border border-blue-200">
+              🚗 Para concesionarios y talleres
+            </div>
+            
+            {/* Título principal */}
+            <h1 className="text-4xl md:text-5xl lg:text-7xl leading-tight font-moranga font-semibold tracking-tight mb-6 mx-8 md:mx-0">
+              <span className="text-[#0f172a]"><span className="text-blue-600">Recupera tu tiempo</span> con IA que agenda, recuerda y mide satisfacción por ti</span>
+            </h1>
+            
+            {/* Subtítulo */}
+            <p className="text-lg md:text-xl text-[#64748b] mb-8 md:mb-10 font-work-sans max-w-4xl font-normal">
+              Citas, recordatorios, NPS y métricas en una plataforma integrada
+            </p>
+              
+              {/* Espacio entre subtítulo y CTA - un renglón */}
+              <div className="h-8 md:h-10"></div>
               
               {/* Botón CTA centrado */}
-              <div>
+              <div className="flex flex-col items-center">
                 <a 
                   href="https://wa.me/525575131257?text=Hola%2C%20quiero%20agendar%20una%20demo%20de%20MuviAI"
                   target="_blank"
@@ -452,8 +463,11 @@ export default function LandingPage() {
                 </a>
               </div>
 
+              {/* Espacio adicional - dos renglones */}
+              <div className="h-12 md:h-15"></div>
+
               {/* Marquee de eventos (contenedor anclado al viewport para evitar desbordes) */}
-              <div className="mt-16 md:mt-32 relative left-1/2 -translate-x-1/2 w-screen max-w-screen overflow-hidden space-y-3 opacity-70 pointer-events-none px-12 md:px-6">
+              <div className="relative left-1/2 -translate-x-1/2 w-screen max-w-screen overflow-hidden space-y-3 opacity-70 pointer-events-none px-12 md:px-6">
                 {/* Fila 1 - izquierda */}
                 <div className="relative overflow-hidden w-full">
                   <div className="marquee-left inline-flex gap-3 whitespace-nowrap will-change-transform">
@@ -711,7 +725,7 @@ export default function LandingPage() {
                     <div key={flow.key} className="transition-all duration-300 w-full md:w-auto text-center md:text-left">
                       <div className="flex items-center gap-3 justify-center md:justify-start">
                         <span className={`inline-flex items-center justify-center h-7 w-7 rounded-md text-sm font-semibold flex-shrink-0 ${isActive ? 'bg-gray-900 text-white' : 'bg-gray-300 text-gray-700'}`}>{flow.number}</span>
-                        <h4 className={`font-moranga text-xl md:text-[28px] leading-tight ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>{flow.title}</h4>
+                        <h4 className={`font-moranga text-xl md:text-[28px] leading-tight whitespace-nowrap ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>{flow.title}</h4>
                       </div>
                       <p className={`mt-2 font-work-sans text-base md:text-lg leading-relaxed ${isActive ? 'text-gray-700' : 'text-gray-500/80'}`}>{flow.description}</p>
                     </div>
