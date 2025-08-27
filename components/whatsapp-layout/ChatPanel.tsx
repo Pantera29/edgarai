@@ -75,23 +75,13 @@ interface ChatPanelProps {
 }
 
 export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: ChatPanelProps) {
-  const [conversacion, setConversacion] = useState<Conversation | null>(null);
+  // ===== ESTADOS DE ACTUALIZACIÓN FRECUENTE (cada 20s) =====
   const [mensajes, setMensajes] = useState<Message[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [statsLoading, setStatsLoading] = useState(false);
   const [stats, setStats] = useState({
     total: 0,
     user: 0,
     assistant: 0
   });
-  const [expandedSummary, setExpandedSummary] = useState(false);
-  
-  // Estados para envío de WhatsApp
-  const [whatsappMessage, setWhatsappMessage] = useState("");
-  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
-  const [showWhatsappForm, setShowWhatsappForm] = useState(false);
-  
-  // Estado para el agente de IA
   const [agentStatus, setAgentStatus] = useState<{
     agent_active: boolean;
     loading: boolean;
@@ -99,12 +89,21 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     agent_active: true,
     loading: false
   });
+  const [isAutoUpdating, setIsAutoUpdating] = useState(false);
+  
+  // ===== ESTADOS DE CARGA ÚNICA (solo al abrir conversación) =====
+  const [conversacion, setConversacion] = useState<Conversation | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [expandedSummary, setExpandedSummary] = useState(false);
+  
+  // Estados para envío de WhatsApp
+  const [whatsappMessage, setWhatsappMessage] = useState("");
+  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const [showWhatsappForm, setShowWhatsappForm] = useState(false);
   
   // Estado para reactivación de agentes
   const [reactivatingAgent, setReactivatingAgent] = useState(false);
-  
-  // Estado para indicar actualización automática
-  const [isAutoUpdating, setIsAutoUpdating] = useState(false);
   
   // Referencia para el contenedor de mensajes
   const messagesContainerRef = useRef<HTMLDivElement>(null);
@@ -135,10 +134,10 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     }
   }, [shouldRestoreFocus, cursorPosition]);
 
-  // Cargar conversación cuando cambia el ID
+  // Cargar datos estáticos cuando cambia el ID de conversación
   useEffect(() => {
     if (conversationId && dataToken) {
-      cargarConversacion(true); // true = es la primera carga, marcar como leída
+      cargarDatosEstaticos(true); // true = es la primera carga, marcar como leída
     } else {
       // Limpiar estado cuando no hay conversación seleccionada
       setConversacion(null);
@@ -149,7 +148,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     }
   }, [conversationId, dataToken]);
 
-  // Actualización automática de la conversación abierta cada 20 segundos
+  // Actualización automática de datos dinámicos cada 20 segundos
   useEffect(() => {
     if (!conversationId || !dataToken) return;
     
@@ -157,14 +156,14 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       try {
         // Solo actualizar si la conversación está abierta
         if (conversacion) {
-          console.log('🔄 Actualizando conversación abierta automáticamente...');
+          console.log('🔄 Actualizando datos dinámicos automáticamente...');
           setIsAutoUpdating(true);
           
           // Preservar si el textarea tenía foco antes de la actualización
           const hadFocus = textareaRef.current === document.activeElement;
           const currentCursorPos = textareaRef.current?.selectionStart || null;
           
-          await cargarConversacion(false); // false = no marcar como leída en actualización automática
+          await actualizarDatosDinamicos(); // Solo actualizar mensajes y estadísticas
           
           // Marcar que se debe restaurar el foco después del re-render
           if (hadFocus && currentCursorPos !== null) {
@@ -173,7 +172,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           }
         }
       } catch (error) {
-        console.error('Error en actualización automática de conversación:', error);
+        console.error('Error en actualización automática de datos dinámicos:', error);
       } finally {
         setIsAutoUpdating(false);
       }
@@ -182,12 +181,13 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     return () => clearInterval(interval);
   }, [conversationId, dataToken, conversacion]);
 
-  const cargarConversacion = async (markAsRead: boolean = false) => {
+  // ===== FUNCIÓN PARA DATOS ESTÁTICOS (carga única) =====
+  const cargarDatosEstaticos = async (markAsRead: boolean = false) => {
     if (!conversationId) return;
     
     setLoading(true);
     try {
-      // Obtener detalles de la conversación
+      // Obtener detalles de la conversación (datos estáticos)
       const { data: conversacionData, error: conversacionError } = await supabase
         .from("chat_conversations")
         .select(`
@@ -212,7 +212,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       setConversacion(conversacionData);
       
       // Debug: Log para verificar los datos del cliente
-      console.log('🔍 [DEBUG] Datos de la conversación:', {
+      console.log('🔍 [DEBUG] Datos estáticos de la conversación:', {
         hasClient: !!conversacionData?.client,
         clientData: conversacionData?.client,
         agentActive: conversacionData?.client?.agent_active,
@@ -224,142 +224,9 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
         verificarEstadoAgente(conversacionData.client.phone_number, dataToken.dealership_id);
       }
 
-      // Extraer mensajes del campo JSONB
-      try {
-        if (conversacionData && conversacionData.messages) {
-          const mensajesArray = Array.isArray(conversacionData.messages) 
-            ? conversacionData.messages 
-            : [];
-          
-          console.log("Array de mensajes original:", mensajesArray);
-          
-          // Transformar los mensajes al formato esperado
-          const mensajesFormateados = mensajesArray.map((msg: any, index: number) => {
-            console.log(`Procesando mensaje #${index}:`, msg);
-            
-            // Determinar el contenido del mensaje
-            let contenido = "";
-            if (typeof msg === 'object') {
-              if (msg.content !== undefined) {
-                contenido = msg.content;
-              } else if (msg.text !== undefined) {
-                contenido = msg.text;
-              } else if (msg.message !== undefined) {
-                contenido = msg.message;
-              }
-            } else if (typeof msg === 'string') {
-              contenido = msg;
-            }
-            
-            // Si no hay contenido, usar un placeholder
-            if (!contenido || contenido.trim() === '') {
-              contenido = "[Contenido no disponible]";
-            }
-            
-            // Determinar el rol del mensaje - LÓGICA ACTUALIZADA PARA NUEVOS ROLES
-            let rol = "user"; // Valor por defecto
-            
-            if (typeof msg === 'object') {
-              // 1. Verificar campo role - NUEVOS ROLES ESPECÍFICOS
-              if (msg.role) {
-                const roleLower = msg.role.toLowerCase();
-                
-                // Roles específicos del nuevo sistema
-                if (["customer", "ai_agent", "dealership_worker"].includes(msg.role)) {
-                  rol = msg.role; // Usar el rol específico tal como está
-                  console.log(`Mensaje #${index} - Rol específico: ${msg.role}`);
-                }
-                // Roles genéricos antiguos (mantener compatibilidad)
-                else if (["assistant", "bot", "system", "ai"].includes(roleLower)) {
-                  rol = "assistant";
-                  console.log(`Mensaje #${index} - Rol genérico: ${msg.role} -> Rol asignado: ${rol}`);
-                }
-                // Rol user genérico
-                else if (roleLower === "user") {
-                  rol = "user";
-                  console.log(`Mensaje #${index} - Rol user: ${msg.role}`);
-                }
-                // Cualquier otro rol se mantiene como está
-                else {
-                  rol = msg.role;
-                  console.log(`Mensaje #${index} - Rol desconocido mantenido: ${msg.role}`);
-                }
-              } 
-              // 2. Verificar campo sender si role no está presente
-              else if (msg.sender && ["assistant", "ai", "bot"].includes(msg.sender.toLowerCase())) {
-                rol = "assistant";
-                console.log(`Mensaje #${index} - Sender: ${msg.sender} -> Rol asignado: ${rol}`);
-              }
-              // 3. Para transcripciones de llamadas, verificar si es una línea con prefijo
-              else if (contenido.startsWith("AI:")) {
-                rol = "assistant";
-                contenido = contenido.substring(3).trim();
-                console.log(`Mensaje #${index} - Detectado prefijo AI -> Rol asignado: ${rol}`);
-              }
-            }
-            
-            // Determinar la fecha de creación
-            let createdAt = new Date().toISOString();
-            
-            if (typeof msg === 'object') {
-              if (msg.created_at) {
-                createdAt = msg.created_at;
-              } else if (msg.timestamp) {
-                createdAt = msg.timestamp;
-              } else if (msg.time) {
-                createdAt = new Date(msg.time).toISOString();
-              }
-            }
-            
-            const msgFormateado = {
-              id: (typeof msg === 'object' && msg.id) ? msg.id : `msg-${index}`,
-              conversation_id: conversationId,
-              content: contenido,
-              role: rol,
-              created_at: createdAt,
-              sender_user_id: (typeof msg === 'object' && msg.sender_user_id) ? msg.sender_user_id : undefined,
-              sender_name: (typeof msg === 'object' && msg.sender_name) ? msg.sender_name : undefined
-            };
-            
-            console.log(`Mensaje #${index} formateado:`, msgFormateado);
-            return msgFormateado;
-          });
-          
-          setMensajes(mensajesFormateados);
-          
-          // Calcular estadísticas - ACTUALIZADO PARA NUEVOS ROLES
-          setStatsLoading(true);
-          const totalMensajes = mensajesFormateados.length;
-          const userMensajes = mensajesFormateados.filter((m: Message) => 
-            m.role === "user" || m.role === "customer"
-          ).length;
-          const assistantMensajes = mensajesFormateados.filter((m: Message) => 
-            m.role === "assistant" || m.role === "ai_agent" || m.role === "dealership_worker"
-          ).length;
-          
-          setStats({
-            total: totalMensajes,
-            user: userMensajes,
-            assistant: assistantMensajes
-          });
-        } else {
-          setMensajes([]);
-          setStats({
-            total: 0,
-            user: 0,
-            assistant: 0
-          });
-        }
-      } catch (error) {
-        console.error("Error procesando mensajes:", error);
-        setMensajes([]);
-        setStats({
-          total: 0,
-          user: 0,
-          assistant: 0
-        });
-      } finally {
-        setStatsLoading(false);
+      // Cargar mensajes iniciales (solo en la primera carga)
+      if (conversacionData && conversacionData.messages) {
+        await actualizarDatosDinamicos();
       }
       
       // Marcar como leída solo cuando se abre la conversación por primera vez
@@ -371,6 +238,123 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       console.error("Error cargando conversación:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ===== FUNCIÓN PARA DATOS DINÁMICOS (actualización frecuente) =====
+  const actualizarDatosDinamicos = async () => {
+    if (!conversationId) return;
+    
+    try {
+      // Obtener solo los datos que cambian frecuentemente
+      const { data: conversacionData, error: conversacionError } = await supabase
+        .from("chat_conversations")
+        .select(`
+          messages,
+          last_read_at,
+          updated_at
+        `)
+        .eq("id", conversationId)
+        .single();
+
+      if (conversacionError) throw conversacionError;
+
+      // Actualizar solo mensajes y estadísticas
+      if (conversacionData && conversacionData.messages) {
+        const mensajesArray = Array.isArray(conversacionData.messages) 
+          ? conversacionData.messages 
+          : [];
+        
+        // Transformar los mensajes al formato esperado
+        const mensajesFormateados = mensajesArray.map((msg: any, index: number) => {
+          // Determinar el contenido del mensaje
+          let contenido = "";
+          if (typeof msg === 'object') {
+            if (msg.content !== undefined) {
+              contenido = msg.content;
+            } else if (msg.text !== undefined) {
+              contenido = msg.text;
+            } else if (msg.message !== undefined) {
+              contenido = msg.message;
+            }
+          } else if (typeof msg === 'string') {
+            contenido = msg;
+          }
+          
+          if (!contenido || contenido.trim() === '') {
+            contenido = "[Contenido no disponible]";
+          }
+          
+          // Determinar el rol del mensaje
+          let rol = "user";
+          if (typeof msg === 'object') {
+            if (msg.role) {
+              const roleLower = msg.role.toLowerCase();
+              if (["customer", "ai_agent", "dealership_worker"].includes(msg.role)) {
+                rol = msg.role;
+              } else if (["assistant", "bot", "system", "ai"].includes(roleLower)) {
+                rol = "assistant";
+              } else if (roleLower === "user") {
+                rol = "user";
+              } else {
+                rol = msg.role;
+              }
+            } else if (msg.sender && ["assistant", "ai", "bot"].includes(msg.sender.toLowerCase())) {
+              rol = "assistant";
+            } else if (contenido.startsWith("AI:")) {
+              rol = "assistant";
+              contenido = contenido.substring(3).trim();
+            }
+          }
+          
+          // Determinar la fecha de creación
+          let createdAt = new Date().toISOString();
+          if (typeof msg === 'object') {
+            if (msg.created_at) {
+              createdAt = msg.created_at;
+            } else if (msg.timestamp) {
+              createdAt = msg.timestamp;
+            } else if (msg.time) {
+              createdAt = new Date(msg.time).toISOString();
+            }
+          }
+          
+          return {
+            id: (typeof msg === 'object' && msg.id) ? msg.id : `msg-${index}`,
+            conversation_id: conversationId,
+            content: contenido,
+            role: rol,
+            created_at: createdAt,
+            sender_user_id: (typeof msg === 'object' && msg.sender_user_id) ? msg.sender_user_id : undefined,
+            sender_name: (typeof msg === 'object' && msg.sender_name) ? msg.sender_name : undefined
+          };
+        });
+        
+        setMensajes(mensajesFormateados);
+        
+        // Calcular estadísticas
+        const totalMensajes = mensajesFormateados.length;
+        const userMensajes = mensajesFormateados.filter((m: Message) => 
+          m.role === "user" || m.role === "customer"
+        ).length;
+        const assistantMensajes = mensajesFormateados.filter((m: Message) => 
+          m.role === "assistant" || m.role === "ai_agent" || m.role === "dealership_worker"
+        ).length;
+        
+        setStats({
+          total: totalMensajes,
+          user: userMensajes,
+          assistant: assistantMensajes
+        });
+      }
+      
+      // Verificar estado del agente si es necesario
+      if (conversacion?.client?.phone_number && dataToken?.dealership_id) {
+        verificarEstadoAgente(conversacion.client.phone_number, dataToken.dealership_id);
+      }
+      
+    } catch (error) {
+      console.error("Error actualizando datos dinámicos:", error);
     }
   };
 
@@ -813,7 +797,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           <Button 
             variant="outline" 
             size="sm"
-            onClick={() => cargarConversacion(false)} // false = no marcar como leída en actualización manual
+            onClick={() => actualizarDatosDinamicos()} // Solo actualizar datos dinámicos
             className="text-xs"
           >
             <RefreshCcw className="h-3 w-3 mr-1" />
