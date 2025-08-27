@@ -323,7 +323,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
             id: (typeof msg === 'object' && msg.id) ? msg.id : `msg-${index}`,
             conversation_id: conversationId,
             content: contenido,
-            role: rol,
+            role: rol as "user" | "assistant" | "customer" | "ai_agent" | "dealership_worker",
             created_at: createdAt,
             sender_user_id: (typeof msg === 'object' && msg.sender_user_id) ? msg.sender_user_id : undefined,
             sender_name: (typeof msg === 'object' && msg.sender_name) ? msg.sender_name : undefined
