@@ -109,7 +109,31 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   // Referencia para el contenedor de mensajes
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
+  // Referencia para preservar el foco del textarea
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Estado para preservar la posición del cursor
+  const [cursorPosition, setCursorPosition] = useState<number | null>(null);
+  
+  // Estado para forzar la restauración del foco
+  const [shouldRestoreFocus, setShouldRestoreFocus] = useState(false);
+  
   const { toast } = useToast();
+  
+  // Handler para preservar la posición del cursor
+  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setWhatsappMessage(e.target.value);
+    setCursorPosition(e.target.selectionStart);
+  };
+  
+  // useEffect para restaurar el foco después de re-renders
+  useEffect(() => {
+    if (shouldRestoreFocus && textareaRef.current && cursorPosition !== null) {
+      textareaRef.current.focus();
+      textareaRef.current.setSelectionRange(cursorPosition, cursorPosition);
+      setShouldRestoreFocus(false);
+    }
+  }, [shouldRestoreFocus, cursorPosition]);
 
   // Cargar conversación cuando cambia el ID
   useEffect(() => {
@@ -119,6 +143,9 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       // Limpiar estado cuando no hay conversación seleccionada
       setConversacion(null);
       setMensajes([]);
+      setWhatsappMessage(""); // Solo limpiar el mensaje cuando se cambia de conversación
+      setCursorPosition(null); // Limpiar posición del cursor
+      setShouldRestoreFocus(false); // Limpiar flag de restauración
     }
   }, [conversationId, dataToken]);
 
@@ -132,7 +159,18 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
         if (conversacion) {
           console.log('🔄 Actualizando conversación abierta automáticamente...');
           setIsAutoUpdating(true);
+          
+          // Preservar si el textarea tenía foco antes de la actualización
+          const hadFocus = textareaRef.current === document.activeElement;
+          const currentCursorPos = textareaRef.current?.selectionStart || null;
+          
           await cargarConversacion(false); // false = no marcar como leída en actualización automática
+          
+          // Marcar que se debe restaurar el foco después del re-render
+          if (hadFocus && currentCursorPos !== null) {
+            setCursorPosition(currentCursorPos);
+            setShouldRestoreFocus(true);
+          }
         }
       } catch (error) {
         console.error('Error en actualización automática de conversación:', error);
@@ -1031,9 +1069,10 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
                       Enviar a: {conversacion.client?.phone_number || conversacion.user_identifier}
                     </p>
                     <Textarea
+                      ref={textareaRef}
                       placeholder="Escribe tu mensaje aquí..."
                       value={whatsappMessage}
-                      onChange={(e) => setWhatsappMessage(e.target.value)}
+                      onChange={handleTextareaChange}
                       className="min-h-[80px] resize-none"
                       disabled={sendingWhatsapp}
                     />
