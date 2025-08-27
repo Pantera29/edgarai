@@ -559,7 +559,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       });
       
       // Recargar la conversación para actualizar el estado
-      await cargarConversacion();
+      await actualizarDatosDinamicos();
       
     } catch (error) {
       console.log('❌ Error inesperado reactivando agente:', error);
