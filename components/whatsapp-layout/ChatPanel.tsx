@@ -220,8 +220,8 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       });
       
       // Verificar estado del agente de IA si tenemos los datos necesarios
-      if (conversacionData?.client?.phone_number && dataToken?.dealership_id) {
-        verificarEstadoAgente(conversacionData.client.phone_number, dataToken.dealership_id);
+      if (conversacionData?.user_identifier && dataToken?.dealership_id) {
+        verificarEstadoAgente(conversacionData.user_identifier, dataToken.dealership_id);
       }
 
       // Cargar mensajes iniciales (solo en la primera carga)
@@ -349,8 +349,8 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       }
       
       // Verificar estado del agente si es necesario
-      if (conversacion?.client?.phone_number && dataToken?.dealership_id) {
-        verificarEstadoAgente(conversacion.client.phone_number, dataToken.dealership_id);
+      if (conversacion?.user_identifier && dataToken?.dealership_id) {
+        verificarEstadoAgente(conversacion.user_identifier, dataToken.dealership_id);
       }
       
     } catch (error) {
@@ -490,7 +490,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     return intents[intent as keyof typeof intents] || intent;
   };
 
-  // Función para verificar el estado del agente de IA
+  // Función para verificar el estado del agente de IA usando phone_agent_settings
   const verificarEstadoAgente = async (phoneNumber: string, dealershipId: string) => {
     if (!phoneNumber || !dealershipId) return;
     
@@ -516,27 +516,31 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   };
 
   const reactivarAgente = async () => {
-    if (!conversacion?.client?.phone_number || !dataToken?.dealership_id) {
+    if (!conversacion?.user_identifier || !dataToken?.dealership_id) {
       toast({
         title: "Error",
-        description: "No se puede reactivar: faltan datos del cliente",
+        description: "No se puede reactivar: faltan datos del teléfono o agencia",
         variant: "destructive",
       });
       return;
     }
 
-    console.log('🔄 Iniciando reactivación de agente para:', conversacion.client.names);
+    console.log('🔄 Iniciando reactivación de agente para:', conversacion.user_identifier);
     
     setReactivatingAgent(true);
 
     try {
-      const response = await fetch('/api/clients/reactivate', {
+      const response = await fetch('/api/agent-control', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          client_id: conversacion.client_id 
+        body: JSON.stringify({
+          phone_number: conversacion.user_identifier,
+          dealership_id: dataToken.dealership_id,
+          agent_active: true,
+          notes: 'Reactivado manualmente desde conversación',
+          updated_by: 'user'
         }),
       });
 
@@ -555,11 +559,11 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       console.log('✅ Agente reactivado exitosamente:', result);
       toast({
         title: "Agente reactivado",
-        description: `Agente reactivado exitosamente para ${conversacion.client.names}`,
+        description: `Agente reactivado exitosamente para ${conversacion.user_identifier}`,
       });
       
-      // Recargar la conversación para actualizar el estado
-      await actualizarDatosDinamicos();
+      // Recargar estado del agente
+      await verificarEstadoAgente(conversacion.user_identifier, dataToken.dealership_id);
       
     } catch (error) {
       console.log('❌ Error inesperado reactivando agente:', error);
@@ -765,7 +769,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           )}
           
           {/* Botón de reactivar agente - solo mostrar si el agente está inactivo */}
-          {conversacion.client_id && !agentStatus.agent_active && (
+          {conversacion.user_identifier && !agentStatus.agent_active && (
             <Button
               variant="default"
               size="sm"
