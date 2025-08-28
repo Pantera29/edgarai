@@ -123,11 +123,15 @@ export function ClienteContextPanel({ clientId, dealershipId }: ClienteContextPa
     return estados[status] || { label: status, variant: 'outline' };
   };
 
-  // Formatear fecha
+  // Formatear fecha tal como viene de la base de datos
   const formatDate = (dateString: string) => {
     try {
-      return format(new Date(dateString), 'dd/MM/yyyy', { locale: es });
+      // La fecha ya viene en el formato correcto desde la base de datos
+      // Solo necesitamos formatearla para mostrar
+      const fecha = new Date(dateString + 'T00:00:00'); // Agregar tiempo para evitar conversiones
+      return format(fecha, 'dd/MM/yyyy', { locale: es });
     } catch (error) {
+      console.error('Error formateando fecha:', error, 'Fecha original:', dateString);
       return 'Fecha inválida';
     }
   };
