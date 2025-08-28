@@ -277,6 +277,71 @@ export async function PATCH(
       );
     }
 
+    // Migrar automáticamente agent_active a phone_agent_settings si se actualizó
+    if (agent_active !== undefined) {
+      console.log('🔄 Migrando agent_active a phone_agent_settings:', {
+        client_id: clientId,
+        agent_active: agent_active,
+        timestamp: new Date().toISOString()
+      });
+
+      try {
+        // Obtener datos del cliente para la migración
+        const { data: clientData } = await supabase
+          .from('client')
+          .select('phone_number, dealership_id')
+          .eq('id', clientId)
+          .single();
+
+        if (clientData && clientData.phone_number && clientData.dealership_id) {
+          // Migrar a phone_agent_settings
+          const { error: migrationError } = await supabase
+            .from('phone_agent_settings')
+            .upsert({
+              phone_number: clientData.phone_number,
+              dealership_id: clientData.dealership_id,
+              agent_active: agent_active,
+              notes: `Migrado desde client.agent_active - ${agent_active ? 'activado' : 'desactivado'} manualmente`,
+              updated_by: 'migration',
+              updated_at: new Date().toISOString()
+            }, {
+              onConflict: 'phone_number,dealership_id'
+            });
+
+          if (migrationError) {
+            console.error('⚠️ Error en migración a phone_agent_settings:', {
+              client_id: clientId,
+              error: migrationError.message,
+              timestamp: new Date().toISOString()
+            });
+            // No fallar la operación principal, solo log del error
+          } else {
+            console.log('✅ Migración a phone_agent_settings exitosa:', {
+              client_id: clientId,
+              phone_number: clientData.phone_number,
+              dealership_id: clientData.dealership_id,
+              agent_active: agent_active,
+              timestamp: new Date().toISOString()
+            });
+          }
+        } else {
+          console.warn('⚠️ No se pudo migrar agent_active - datos de cliente incompletos:', {
+            client_id: clientId,
+            has_phone: !!clientData?.phone_number,
+            has_dealership: !!clientData?.dealership_id,
+            timestamp: new Date().toISOString()
+          });
+        }
+      } catch (migrationError) {
+        console.error('⚠️ Error inesperado en migración a phone_agent_settings:', {
+          client_id: clientId,
+          error: migrationError instanceof Error ? migrationError.message : 'Unknown error',
+          timestamp: new Date().toISOString()
+        });
+        // No fallar la operación principal, solo log del error
+      }
+    }
+
     console.log('✅ Cliente actualizado exitosamente:', {
       client_id: clientId,
       updated_fields: Object.keys(updateData),

@@ -163,14 +163,20 @@ export async function POST(request: Request) {
       try {
         console.log(`🔄 [CRON-DEACTIVATE] Procesando cliente: ${client.id} (${client.names})`);
         
-        // Llamar al endpoint de actualización de cliente
+        // Llamar al endpoint de agent-control para desactivar el agente
         const baseUrl = process.env.NODE_ENV === 'production' ? 'https://edgarai.vercel.app' : 'http://localhost:3000';
-        const updateResponse = await fetch(`${baseUrl}/api/customers/update/${client.id}`, {
-          method: 'PATCH',
+        const updateResponse = await fetch(`${baseUrl}/api/agent-control`, {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ agent_active: false })
+          body: JSON.stringify({
+            phone_number: client.phone_number,
+            dealership_id: client.dealership_id,
+            agent_active: false,
+            notes: 'Desactivado automáticamente por cron job - cliente con cita hoy',
+            updated_by: 'cron'
+          })
         });
 
         if (updateResponse.ok) {
