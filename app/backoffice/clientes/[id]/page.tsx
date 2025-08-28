@@ -19,7 +19,7 @@ import {
   CalendarDays,
   Car as CarIcon
 } from "lucide-react"
-import { format } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { es } from "date-fns/locale"
 import { getBaseUrl } from '@/lib/utils'
 
@@ -228,7 +228,7 @@ export default function ClientePage({ params }: PageProps) {
         </div>
         <div>
           <h1 className="text-3xl font-bold">{cliente.names}</h1>
-          <p className="text-muted-foreground">Cliente desde {format(new Date(cliente.created_at), 'PPP', { locale: es })}</p>
+          <p className="text-muted-foreground">Cliente desde {format(parseISO(cliente.created_at), 'PPP', { locale: es })}</p>
         </div>
       </div>
 
@@ -301,7 +301,7 @@ export default function ClientePage({ params }: PageProps) {
                             <div className="text-right">
                               <div className="text-sm font-medium">Último servicio</div>
                               <div className="text-xs text-muted-foreground">
-                                {format(new Date(vehiculo.last_service_date), 'dd/MM/yyyy', { locale: es })}
+                                {format(parseISO(vehiculo.last_service_date), 'dd/MM/yyyy', { locale: es })}
                               </div>
                             </div>
                           )}
@@ -350,7 +350,7 @@ export default function ClientePage({ params }: PageProps) {
                               {getEstadoCita(cita.status).label}
                             </Badge>
                             <div className="text-xs text-muted-foreground mt-1">
-                              {format(new Date(cita.appointment_date), 'dd/MM/yyyy', { locale: es })}
+                              {format(parseISO(cita.appointment_date), 'dd/MM/yyyy', { locale: es })}
                             </div>
                           </div>
                         </div>
@@ -433,7 +433,7 @@ export default function ClientePage({ params }: PageProps) {
                               <div className="text-sm">
                                 <span className="font-medium">Último servicio:</span>
                                 <div className="text-muted-foreground">
-                                  {ultimoServicio.services.service_name} - {format(new Date(ultimoServicio.appointment_date), 'dd/MM/yyyy', { locale: es })}
+                                  {ultimoServicio.services.service_name} - {format(parseISO(ultimoServicio.appointment_date), 'dd/MM/yyyy', { locale: es })}
                                 </div>
                               </div>
                             </div>
@@ -484,7 +484,7 @@ export default function ClientePage({ params }: PageProps) {
                             {cita.vehicles.make} {cita.vehicles.model} • {cita.vehicles.license_plate || 'Sin placa'}
                           </div>
                           <div className="text-xs text-muted-foreground">
-                            {format(new Date(cita.appointment_date), 'EEEE dd/MM/yyyy', { locale: es })} a las {cita.appointment_time}
+                            {format(parseISO(cita.appointment_date), 'EEEE dd/MM/yyyy', { locale: es })} a las {cita.appointment_time}
                           </div>
                         </div>
                       </div>
