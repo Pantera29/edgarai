@@ -164,14 +164,20 @@ export async function POST(request: Request) {
       try {
         console.log(`🔄 [CRON-REACTIVATE] Procesando cliente: ${client.id} (${client.names})`);
         
-        // Llamar al endpoint de actualización de cliente
+        // Llamar al endpoint de agent-control para reactivar el agente
         const baseUrl = process.env.NODE_ENV === 'production' ? 'https://edgarai.vercel.app' : 'http://localhost:3000';
-        const updateResponse = await fetch(`${baseUrl}/api/customers/update/${client.id}`, {
-          method: 'PATCH',
+        const updateResponse = await fetch(`${baseUrl}/api/agent-control`, {
+          method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ agent_active: true })
+          body: JSON.stringify({
+            phone_number: client.phone_number,
+            dealership_id: client.dealership_id,
+            agent_active: true,
+            notes: 'Reactivado automáticamente por cron job - cliente con cita ayer',
+            updated_by: 'cron'
+          })
         });
 
         if (updateResponse.ok) {

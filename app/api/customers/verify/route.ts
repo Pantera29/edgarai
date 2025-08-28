@@ -190,7 +190,7 @@ export async function GET(request: Request) {
             name: client.names,
             email: client.email,
             phone_number: client.phone_number,
-            agent_active: client.agent_active,
+            agent_active: client.agent_active, // Para múltiples clientes mantenemos el valor original por simplicidad
             created_at: client.created_at,
             dealership_id: client.dealership_id
           }))
@@ -201,12 +201,52 @@ export async function GET(request: Request) {
 
     // Caso: exactamente un cliente encontrado
     const client = data[0];
+    
+    // Obtener estado del agente desde phone_agent_settings (nueva implementación)
+    let agentActive = client.agent_active; // fallback al valor original
+    
+    if (client.phone_number && client.dealership_id) {
+      try {
+        const { data: agentSettings } = await supabase
+          .from('phone_agent_settings')
+          .select('agent_active')
+          .eq('phone_number', client.phone_number)
+          .eq('dealership_id', client.dealership_id)
+          .single();
+
+        if (agentSettings) {
+          agentActive = agentSettings.agent_active;
+          console.log('✅ Estado del agente obtenido desde phone_agent_settings:', {
+            client_id: client.id,
+            phone_number: client.phone_number,
+            agent_active: agentActive,
+            source: 'phone_agent_settings'
+          });
+        } else {
+          console.log('ℹ️ No se encontró configuración en phone_agent_settings, usando fallback:', {
+            client_id: client.id,
+            phone_number: client.phone_number,
+            agent_active: agentActive,
+            source: 'client.agent_active (fallback)'
+          });
+        }
+      } catch (error) {
+        console.warn('⚠️ Error consultando phone_agent_settings, usando fallback:', {
+          client_id: client.id,
+          phone_number: client.phone_number,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          fallback_agent_active: agentActive
+        });
+        // Mantener el valor de fallback
+      }
+    }
+
     console.log('✅ Cliente encontrado:', {
       id: client.id,
       name: client.names,
       email: client.email,
       phone_number: client.phone_number,
-      agent_active: client.agent_active,
+      agent_active: agentActive,
       dealership_id: client.dealership_id
     });
 
@@ -219,7 +259,7 @@ export async function GET(request: Request) {
         name: client.names,
         email: client.email,
         phone_number: client.phone_number,
-        agent_active: client.agent_active,
+        agent_active: agentActive,
         dealership_id: client.dealership_id
       },
       phone,
