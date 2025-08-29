@@ -91,11 +91,30 @@ export const useClientSearch = (dealershipId: string) => {
           index === self.findIndex(c => c.id === client.id)
         );
         
-        console.log('✅ Resultados de búsqueda:', uniqueResults.length, 'clientes encontrados');
-        console.log('📊 Resultados completos:', uniqueResults);
+
+
+        // Obtener los agent_active actualizados de phone_agent_settings
+        const phoneNumbers = uniqueResults.map(client => client.phone_number);
+        const { data: agentSettingsData } = await supabase
+          .from("phone_agent_settings")
+          .select("phone_number, agent_active")
+          .eq("dealership_id", dealershipId)
+          .in("phone_number", phoneNumbers);
+
+        // Crear un mapa para acceso rápido
+        const agentSettingsMap = new Map();
+        (agentSettingsData || []).forEach(setting => {
+          agentSettingsMap.set(setting.phone_number, setting.agent_active);
+        });
+
+        // Actualizar agent_active con los valores de phone_agent_settings
+        const updatedResults = uniqueResults.map(client => ({
+          ...client,
+          agent_active: agentSettingsMap.get(client.phone_number) ?? client.agent_active ?? true
+        }));
 
         // Combinar resultados de búsqueda con clientes seleccionados previamente
-        const searchResults = uniqueResults;
+        const searchResults = updatedResults;
         const combinedResults = [...selectedClients];
         
         // Agregar resultados de búsqueda que no estén ya en selectedClients
@@ -105,7 +124,7 @@ export const useClientSearch = (dealershipId: string) => {
           }
         });
 
-        console.log('📋 Resultados combinados finales:', combinedResults.length, 'clientes');
+
         setClients(combinedResults);
         return;
       }

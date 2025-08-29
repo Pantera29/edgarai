@@ -37,6 +37,7 @@ interface Cliente {
   external_id?: string | null;
   estado?: "activo" | "inactivo";
   agent_active: boolean;
+  dealership_id: string;
 }
 
 interface NuevoCliente {
@@ -182,6 +183,23 @@ const router = useRouter();
 
       if (error) throw error;
 
+
+
+      // Obtener los agent_active actualizados de phone_agent_settings
+      const phoneNumbers = (data || []).map(cliente => cliente.phone_number);
+      
+      const { data: agentSettingsData } = await supabase
+        .from("phone_agent_settings")
+        .select("phone_number, agent_active")
+        .eq("dealership_id", dealershipIdFromToken)
+        .in("phone_number", phoneNumbers);
+
+      // Crear un mapa para acceso rápido
+      const agentSettingsMap = new Map();
+      (agentSettingsData || []).forEach(setting => {
+        agentSettingsMap.set(setting.phone_number, setting.agent_active);
+      });
+
       const clientesMapeados: Cliente[] = (data || []).map((cliente) => ({
         id: cliente.id,
         names: cliente.names,
@@ -189,7 +207,9 @@ const router = useRouter();
         phone_number: cliente.phone_number,
         external_id: cliente.external_id,
         estado: cliente.estado,
-        agent_active: cliente.agent_active ?? true // valor por defecto true
+        // Priorizar phone_agent_settings.agent_active, fallback a client.agent_active
+        agent_active: agentSettingsMap.get(cliente.phone_number) ?? cliente.agent_active ?? true,
+        dealership_id: cliente.dealership_id
       }));
 
       setClientes(clientesMapeados);
@@ -231,7 +251,9 @@ const router = useRouter();
         phone_number: client.phone_number,
         external_id: client.external_id || null,
         estado: "activo" as const,
-        agent_active: client.agent_active ?? true
+        // Los resultados de búsqueda ya vienen con el agent_active correcto del endpoint verify
+        agent_active: client.agent_active ?? true,
+        dealership_id: client.dealership_id
       }));
     }
     
