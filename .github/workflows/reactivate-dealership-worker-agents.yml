@@ -1,0 +1,16 @@
+name: EdgarAI Reactivar Agentes Dealership Worker
+
+on:
+  schedule:
+    # Reactivar agentes todos los días a las 9:00 AM (Ciudad de México)
+    - cron: '0 15 * * *'  # UTC-6 = 9:00 AM Ciudad de México
+  workflow_dispatch:
+
+jobs:
+  call-reactivate-dealership-worker-agents:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call reactivate dealership worker agents endpoint
+        run: |
+          curl -v -L -X POST "https://edgarai.vercel.app/api/cron/reactivate-dealership-worker-agents/" \
+            -H "Content-Type: application/json"
