@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     // Verificar si el cliente existe y obtener su información
     const { data: clientExists, error: checkError } = await supabase
       .from('client')
-      .select('id, dealership_id, agent_active, names, phone_number')
+      .select('id, dealership_id, names, phone_number')
       .eq('id', client_id)
       .maybeSingle();
 
@@ -45,37 +45,66 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verificar si el agente ya está activo
-    if (clientExists.agent_active) {
-      console.log('⚠️ Agente ya está activo para cliente:', client_id);
+    // Verificar si el agente ya está activo usando el nuevo endpoint
+    try {
+      const checkResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/agent-control?client_id=${client_id}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+        if (checkData.agent_active) {
+          console.log('⚠️ Agente ya está activo para cliente:', client_id);
+          return NextResponse.json(
+            { error: 'Agent is already active for this client' },
+            { status: 400 }
+          );
+        }
+      }
+    } catch (checkError) {
+      console.warn('⚠️ No se pudo verificar estado actual del agente, continuando con reactivación:', checkError);
+    }
+
+    // Usar el nuevo endpoint agent-control para reactivar el agente
+    const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/agent-control`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        client_id: client_id,
+        agent_active: true,
+        notes: 'Reactivado desde endpoint legacy /api/clients/reactivate',
+        updated_by: 'legacy_reactivate_endpoint'
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.log('❌ Error reactivando agente via agent-control:', errorData);
       return NextResponse.json(
-        { error: 'Agent is already active for this client' },
-        { status: 400 }
+        { error: 'Error reactivating agent', details: errorData.message || `HTTP ${response.status}` },
+        { status: response.status }
       );
     }
 
-    // Actualizar el agente a activo
-    const { data, error } = await supabase
-      .from('client')
-      .update({ agent_active: true })
-      .eq('id', client_id)
-      .select()
-      .single();
-
-    if (error) {
-      console.log('❌ Error actualizando agente:', error);
-      return NextResponse.json(
-        { error: 'Error updating agent status', details: error.message },
-        { status: 500 }
-      );
-    }
-
-    console.log('✅ Agente reactivado exitosamente:', data);
+    const result = await response.json();
+    console.log('✅ Agente reactivado exitosamente via agent-control:', result);
 
     return NextResponse.json({
       success: true,
       message: 'Agent reactivated successfully',
-      client: data
+      client: {
+        id: clientExists.id,
+        names: clientExists.names,
+        phone_number: clientExists.phone_number,
+        dealership_id: clientExists.dealership_id,
+        agent_active: true
+      },
+      agent_control_result: result
     });
 
   } catch (error) {

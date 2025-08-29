@@ -1,12 +1,14 @@
-# Endpoints de Cron para Activación/Desactivación de Agentes AI
+# Endpoints de Cron para Activación/Desactivación de Agentes AI ✅ MIGRADOS
 
 ## Descripción General
 
 Se han implementado dos endpoints de cron para gestionar automáticamente la activación y desactivación de agentes AI basándose en las citas de los clientes. Esto resuelve el problema de conflictos cuando tanto el agente AI como los mecánicos responden al mismo número de WhatsApp.
 
+**✅ ESTADO ACTUAL:** Ambos endpoints han sido migrados para usar el nuevo sistema centralizado `/api/agent-control` y la tabla `phone_agent_settings`.
+
 ## Endpoints Implementados
 
-### 1. Reactivar Agentes - `/api/cron/reactivate-agents`
+### 1. Reactivar Agentes - `/api/cron/reactivate-agents` ✅ MIGRADO
 
 **Propósito:** Reactiva agentes AI para clientes que tuvieron citas ayer (cualquier status).
 
@@ -25,11 +27,11 @@ Se han implementado dos endpoints de cron para gestionar automáticamente la act
 - Busca todos los clientes que tuvieron citas ayer (fecha = ayer, cualquier status)
 - Si se proporciona `dealership_id`: filtra solo clientes de ese dealership
 - Si NO se proporciona `dealership_id`: procesa clientes de todos los dealerships
-- Para cada cliente encontrado, llama al endpoint `PATCH /api/customers/update/{client_id}` con `{ agent_active: true }`
+- **NUEVO:** Para cada cliente encontrado, llama al endpoint `POST /api/agent-control` con `{ agent_active: true }`
 - Genera logs detallados de cada operación
 - Retorna resumen con cantidad procesada y resultados
 
-### 2. Desactivar Agentes - `/api/cron/deactivate-agents`
+### 2. Desactivar Agentes - `/api/cron/deactivate-agents` ✅ MIGRADO
 
 **Propósito:** Desactiva agentes AI para clientes que tienen citas hoy (solo status 'pending' o 'confirmed').
 
@@ -48,9 +50,35 @@ Se han implementado dos endpoints de cron para gestionar automáticamente la act
 - Busca clientes que tienen citas HOY con status 'pending' o 'confirmed'
 - Si se proporciona `dealership_id`: filtra solo clientes de ese dealership
 - Si NO se proporciona `dealership_id`: procesa clientes de todos los dealerships
-- Para cada cliente encontrado, llama al endpoint `PATCH /api/customers/update/{client_id}` con `{ agent_active: false }`
+- **NUEVO:** Para cada cliente encontrado, llama al endpoint `POST /api/agent-control` con `{ agent_active: false }`
 - Genera logs detallados de cada operación
 - Retorna resumen con cantidad procesada y resultados
+
+## 🔄 Cambios en la Migración
+
+### Antes (Legacy):
+```typescript
+// Actualizaba directamente client.agent_active
+const { data, error } = await supabase
+  .from('client')
+  .update({ agent_active: true })
+  .eq('id', client_id);
+```
+
+### Después (Migrado):
+```typescript
+// Usa el endpoint centralizado /api/agent-control
+const response = await fetch('/api/agent-control', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    client_id: client_id,
+    agent_active: true,
+    notes: 'Reactivado automáticamente por cron job',
+    updated_by: 'cron_reactivate'
+  })
+});
+```
 
 ## Estructura de Respuesta
 
@@ -107,79 +135,34 @@ Ambos endpoints retornan la misma estructura de respuesta:
 0 8 * * * curl -X POST https://tu-dominio.com/api/cron/deactivate-agents
 ```
 
-## Características Técnicas
+## 🎉 Beneficios de la Migración
 
-### Validaciones
-- **Formato UUID:** Valida que el `dealership_id` sea un UUID válido si se proporciona
-- **Fechas:** Calcula automáticamente las fechas en zona horaria de Ciudad de México (ayer para reactivación, hoy para desactivación)
-- **Status:** Filtra por status específicos según el caso
+### Centralización
+- **Fuente única de verdad:** Todos los cambios pasan por `/api/agent-control`
+- **Consistencia:** Mismo formato para todas las operaciones de `agent_active`
+- **Auditoría:** Tracking completo de cambios con notas y `updated_by`
 
-### Manejo de Errores
-- **Continuidad:** Si falla un cliente, continúa con los demás
-- **Logs detallados:** Cada operación se registra con emojis y timestamps
-- **Timeout:** Maneja timeouts en las llamadas al endpoint de update
-- **Idempotencia:** Los endpoints pueden ejecutarse múltiples veces sin problemas
+### Trazabilidad
+- **Notas automáticas:** Cada operación incluye contexto ("Reactivado automáticamente por cron job")
+- **Usuario tracking:** Se registra `cron_reactivate` o `cron_deactivate` como `updated_by`
+- **Timestamps:** Fechas exactas de cada cambio
 
-### Performance
-- **Clientes únicos:** Procesa cada cliente solo una vez, incluso si tiene múltiples citas el mismo día
-- **Batch processing:** Procesa clientes secuencialmente para evitar sobrecarga
-- **Duración:** Mide y reporta el tiempo de ejecución
+### Robustez
+- **Validación centralizada:** Todas las validaciones están en `/api/agent-control`
+- **Manejo de errores:** Consistente en todas las operaciones
+- **Fallback:** Mantiene compatibilidad con `client.agent_active` si es necesario
 
-### Logs y Debugging
-Los endpoints generan logs detallados con emojis para fácil identificación:
+## 📊 Logging Mejorado
 
-```
-🚀 [CRON-REACTIVATE] Iniciando reactivación de agentes AI
-🏢 [CRON-REACTIVATE] Procesando dealership específico: abc123
-📅 [CRON-REACTIVATE] Buscando citas del: 2025-01-12
-📊 [CRON-REACTIVATE] Procesando 15 clientes únicos
-🔄 [CRON-REACTIVATE] Procesando cliente: uuid123 (Juan Pérez)
-✅ [CRON-REACTIVATE] Cliente uuid123 reactivado exitosamente
-🎯 [CRON-REACTIVATE] Proceso completado: 15 procesados, 14 exitosos, 1 error
+Los cron jobs ahora incluyen logs más detallados sobre la migración:
+
+```typescript
+console.log('🔄 [CRON-REACTIVATE] Iniciando reactivación de agentes...');
+console.log('📊 [CRON-REACTIVATE] Procesando cliente:', client_id);
+console.log('✅ [CRON-REACTIVATE] Agente reactivado via /api/agent-control');
+console.log('❌ [CRON-REACTIVATE] Error reactivando agente:', error);
 ```
 
-## Casos Edge Considerados
+## 🚀 Estado Actual
 
-1. **Cliente con múltiples citas:** Se procesa solo una vez por día
-2. **Citas canceladas:** Se incluyen en la reactivación (cualquier status)
-3. **Clientes inexistentes:** Se maneja el error y continúa con los demás
-4. **Endpoint de update falla:** Se registra el error y continúa
-5. **Dealership_id inválido:** Se valida el formato antes de procesar
-6. **Dealership sin clientes:** Retorna respuesta exitosa con 0 procesados
-
-## Integración con Sistema Existente
-
-- **Reutiliza endpoint existente:** Usa `PATCH /api/customers/update/{client_id}` para actualizar `agent_active`
-- **Mantiene consistencia:** Sigue los mismos patrones de logging y manejo de errores
-- **No duplica lógica:** Aprovecha la validación y lógica existente del endpoint de update
-
-## Monitoreo y Alertas
-
-Los endpoints están diseñados para ser monitoreados fácilmente:
-
-- **Logs estructurados:** Fáciles de filtrar y analizar
-- **Métricas detalladas:** Cantidad procesada, exitosos, errores
-- **Timestamps:** Para tracking de ejecución
-- **Duración:** Para monitoreo de performance
-
-## Pruebas
-
-Para probar los endpoints manualmente:
-
-```bash
-# Probar reactivación
-curl -X POST http://localhost:3000/api/cron/reactivate-agents \
-  -H "Content-Type: application/json" \
-  -d '{"dealership_id":"tu-uuid-dealership"}'
-
-# Probar desactivación
-curl -X POST http://localhost:3000/api/cron/deactivate-agents \
-  -H "Content-Type: application/json" \
-  -d '{"dealership_id":"tu-uuid-dealership"}'
-```
-
-## Archivos Creados
-
-- `app/api/cron/reactivate-agents/route.ts` - Endpoint de reactivación
-- `app/api/cron/deactivate-agents/route.ts` - Endpoint de desactivación
-- `README-cron-agents-activation.md` - Esta documentación
+**✅ MIGRACIÓN COMPLETADA:** Los cron jobs están completamente migrados y funcionando con el nuevo sistema centralizado. Todos los cambios de `agent_active` ahora se registran en `phone_agent_settings` con trazabilidad completa.

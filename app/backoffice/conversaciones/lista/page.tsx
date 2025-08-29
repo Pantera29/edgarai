@@ -30,6 +30,7 @@ import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { getLastCustomerMessageTimestamp, isConversationUnread, truncateClientName, getFullClientName } from '@/utils/conversation-helpers';
 import { useToast } from "@/hooks/use-toast";
+import { useDebouncedCallback } from 'use-debounce';
 
 // Importar el tipo para la conversión
 interface ConversacionAccionHumana {
@@ -241,6 +242,12 @@ function ConversationList({
   const [busquedaCliente, setBusquedaCliente] = useState("");
   const [loadingClientes, setLoadingClientes] = useState(false);
   const [creatingConversation, setCreatingConversation] = useState(false);
+  const [estadisticasFiltrado, setEstadisticasFiltrado] = useState<{
+    totalClientes: number;
+    clientesDisponibles: number;
+    clientesConConversacionesActivas: number;
+    clientesConAgenteDesactivado: number;
+  } | null>(null);
   
   // Filtros
   const [busqueda, setBusqueda] = useState("");
@@ -248,6 +255,12 @@ function ConversationList({
   const [filtroRazonFinalizacion, setFiltroRazonFinalizacion] = useState("todas");
 
   const { toast } = useToast();
+
+  // Función debounced para búsqueda de clientes
+  const buscarClientesDebounced = useDebouncedCallback(
+    (query: string) => buscarClientesDisponibles(query),
+    300
+  );
 
   const cargarConversaciones = useCallback(async () => {
     setLoading(true);
@@ -321,47 +334,181 @@ function ConversationList({
     }
   }, [dataToken, busqueda, filtroCanal, filtroRazonFinalizacion]);
 
-  // Función para cargar clientes disponibles (sin conversaciones activas)
-  const cargarClientesDisponibles = async () => {
+  // Función para buscar clientes disponibles (búsqueda por demanda)
+  const buscarClientesDisponibles = async (query: string = '') => {
     setLoadingClientes(true);
     try {
-      // Obtener clientes del dealership
-      const { data: clientes, error: clientesError } = await supabase
+      console.log('🔍 Buscando clientes con query:', query, 'para dealership:', dataToken.dealership_id);
+      
+      // Si la consulta está vacía, no mostrar nada
+      if (!query.trim()) {
+        setClientesDisponibles([]);
+        setEstadisticasFiltrado(null);
+        setLoadingClientes(false);
+        return;
+      }
+
+      // Dividir la consulta en palabras individuales
+      const words = query.trim().split(/\s+/).filter(word => word.length > 0);
+      
+      let supabaseQuery = supabase
         .from('client')
         .select('id, names, email, phone_number, agent_active')
         .eq('dealership_id', dataToken.dealership_id)
-        .eq('agent_active', true)
         .not('phone_number', 'is', null)
         .not('phone_number', 'eq', '');
+      
+      if (words.length > 0) {
+        // Aplicar filtros para cada palabra del nombre (AND)
+        words.forEach(word => {
+          supabaseQuery = supabaseQuery.filter('names', 'ilike', `%${word}%`);
+        });
+        
+        // Agregar búsqueda por teléfono completo (OR)
+        const phoneQuery = supabase
+          .from('client')
+          .select('id, names, email, phone_number, agent_active')
+          .eq('dealership_id', dataToken.dealership_id)
+          .not('phone_number', 'is', null)
+          .not('phone_number', 'eq', '')
+          .ilike('phone_number', `%${query}%`);
+        
+        // Ejecutar ambas consultas
+        const [nameResults, phoneResults] = await Promise.all([
+          supabaseQuery.limit(20).order('names'),
+          phoneQuery.limit(20).order('names')
+        ]);
+        
+        if (nameResults.error) throw nameResults.error;
+        if (phoneResults.error) throw phoneResults.error;
+        
+        // Combinar resultados únicos
+        const allResults = [...(nameResults.data || []), ...(phoneResults.data || [])];
+        const uniqueResults = allResults.filter((client, index, self) => 
+          index === self.findIndex(c => c.id === client.id)
+        );
 
-      if (clientesError) throw clientesError;
+        // Obtener configuración de agentes desde phone_agent_settings
+        const phoneNumbers = uniqueResults.map(client => client.phone_number);
+        const { data: agentSettings, error: agentSettingsError } = await supabase
+          .from('phone_agent_settings')
+          .select('phone_number, agent_active')
+          .eq('dealership_id', dataToken.dealership_id)
+          .in('phone_number', phoneNumbers);
 
-      // Obtener conversaciones activas para filtrar
-      const { data: conversacionesActivas, error: conversacionesError } = await supabase
-        .from('chat_conversations')
-        .select('client_id')
-        .eq('dealership_id', dataToken.dealership_id)
-        .eq('status', 'active');
+        if (agentSettingsError) throw agentSettingsError;
 
-      if (conversacionesError) throw conversacionesError;
+        // Crear mapa para lookup rápido del estado del agente
+        const agentSettingsMap = new Map(
+          agentSettings?.map(setting => [setting.phone_number, setting.agent_active]) || []
+        );
 
-      // Filtrar clientes que no tienen conversaciones activas
-      const clientesConConversacionesActivas = new Set(
-        conversacionesActivas?.map(c => c.client_id) || []
-      );
+        // Obtener conversaciones activas para filtrar
+        const { data: conversacionesActivas, error: conversacionesError } = await supabase
+          .from('chat_conversations')
+          .select('client_id')
+          .eq('dealership_id', dataToken.dealership_id)
+          .eq('status', 'active');
 
-      const clientesFiltrados = clientes?.filter(cliente => 
-        !clientesConConversacionesActivas.has(cliente.id)
-      ) || [];
+        if (conversacionesError) throw conversacionesError;
 
-      setClientesDisponibles(clientesFiltrados);
+        // Filtrar clientes que no tienen conversaciones activas Y tienen agente activo
+        const clientesConConversacionesActivas = new Set(
+          conversacionesActivas?.map(c => c.client_id) || []
+        );
+
+        let clientesConConversacionesActivasCount = 0;
+        let clientesConAgenteDesactivadoCount = 0;
+
+        const clientesFiltrados = uniqueResults.filter(cliente => {
+          // Verificar que no tenga conversaciones activas
+          const noTieneConversacionesActivas = !clientesConConversacionesActivas.has(cliente.id);
+          if (!noTieneConversacionesActivas) {
+            clientesConConversacionesActivasCount++;
+          }
+          
+          // Verificar que tenga agente activo (priorizar phone_agent_settings sobre client.agent_active)
+          const agentActive = agentSettingsMap.get(cliente.phone_number) ?? cliente.agent_active ?? true;
+          if (!agentActive) {
+            clientesConAgenteDesactivadoCount++;
+          }
+          
+          return noTieneConversacionesActivas && agentActive;
+        });
+
+        // Guardar resultados y estadísticas
+        setClientesDisponibles(clientesFiltrados);
+        setEstadisticasFiltrado({
+          totalClientes: uniqueResults.length,
+          clientesDisponibles: clientesFiltrados.length,
+          clientesConConversacionesActivas: clientesConConversacionesActivasCount,
+          clientesConAgenteDesactivado: clientesConAgenteDesactivadoCount
+        });
+        
+        console.log('📊 [DEBUG] Búsqueda completada:', {
+          query,
+          totalEncontrados: uniqueResults.length,
+          clientesDisponibles: clientesFiltrados.length,
+          clientesConConversacionesActivas: clientesConConversacionesActivasCount,
+          clientesConAgenteDesactivado: clientesConAgenteDesactivadoCount
+        });
+      } else {
+        // Si no hay palabras, solo buscar por teléfono
+        const { data, error } = await supabaseQuery
+          .ilike('phone_number', `%${query}%`)
+          .limit(20)
+          .order('names');
+
+        if (error) throw error;
+
+        // Aplicar los mismos filtros
+        const { data: agentSettings, error: agentSettingsError } = await supabase
+          .from('phone_agent_settings')
+          .select('phone_number, agent_active')
+          .eq('dealership_id', dataToken.dealership_id)
+          .in('phone_number', data?.map(c => c.phone_number) || []);
+
+        if (agentSettingsError) throw agentSettingsError;
+
+        const agentSettingsMap = new Map(
+          agentSettings?.map(setting => [setting.phone_number, setting.agent_active]) || []
+        );
+
+        const { data: conversacionesActivas, error: conversacionesError } = await supabase
+          .from('chat_conversations')
+          .select('client_id')
+          .eq('dealership_id', dataToken.dealership_id)
+          .eq('status', 'active');
+
+        if (conversacionesError) throw conversacionesError;
+
+        const clientesConConversacionesActivas = new Set(
+          conversacionesActivas?.map(c => c.client_id) || []
+        );
+
+        const clientesFiltrados = (data || []).filter(cliente => {
+          const noTieneConversacionesActivas = !clientesConConversacionesActivas.has(cliente.id);
+          const agentActive = agentSettingsMap.get(cliente.phone_number) ?? cliente.agent_active ?? true;
+          return noTieneConversacionesActivas && agentActive;
+        });
+
+        setClientesDisponibles(clientesFiltrados);
+        setEstadisticasFiltrado({
+          totalClientes: data?.length || 0,
+          clientesDisponibles: clientesFiltrados.length,
+          clientesConConversacionesActivas: 0,
+          clientesConAgenteDesactivado: 0
+        });
+      }
     } catch (error) {
-      console.error('Error cargando clientes:', error);
+      console.error('Error buscando clientes:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudieron cargar los clientes disponibles."
+        description: "No se pudieron buscar los clientes."
       });
+      setClientesDisponibles([]);
+      setEstadisticasFiltrado(null);
     } finally {
       setLoadingClientes(false);
     }
@@ -531,7 +678,9 @@ function ConversationList({
               size="sm"
               onClick={() => {
                 setShowNewConversationModal(true);
-                cargarClientesDisponibles();
+                setBusquedaCliente("");
+                setClientesDisponibles([]);
+                setEstadisticasFiltrado(null);
               }}
               className="h-8 w-8 p-0 hover:bg-gray-100"
             >
@@ -568,7 +717,7 @@ function ConversationList({
       </div>
 
       {/* Lista de Conversaciones */}
-      <div className="flex-1 overflow-y-auto bg-white">
+      <div className="flex-1 overflow-y-auto bg-white scrollbar-white">
         {loading ? (
           <div className="p-8 text-center">
             <p>Cargando conversaciones...</p>
@@ -679,20 +828,44 @@ function ConversationList({
                 placeholder="Buscar cliente por nombre, email o teléfono..."
                 className="pl-8"
                 value={busquedaCliente}
-                onChange={(e) => setBusquedaCliente(e.target.value)}
+                onChange={(e) => {
+                  setBusquedaCliente(e.target.value);
+                  buscarClientesDebounced(e.target.value);
+                }}
               />
             </div>
 
             {/* Lista de clientes */}
-            <div className="max-h-60 overflow-y-auto space-y-2">
+            <div className="max-h-60 overflow-y-auto space-y-2 scrollbar-white">
               {loadingClientes ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="h-4 w-4 animate-spin" />
                   <span className="ml-2 text-sm text-muted-foreground">Cargando clientes...</span>
                 </div>
               ) : clientesFiltrados.length === 0 ? (
-                <div className="text-center py-4 text-sm text-muted-foreground">
-                  {busquedaCliente ? 'No se encontraron clientes' : 'No hay clientes disponibles'}
+                <div className="text-center py-4 space-y-2">
+                  <div className="text-sm text-muted-foreground">
+                    {busquedaCliente ? 'No se encontraron clientes disponibles' : 'Escribe para buscar clientes'}
+                  </div>
+                  <div className="text-xs text-muted-foreground bg-gray-50 p-3 rounded-lg">
+                    <div className="font-medium mb-1">¿Por qué no aparecen todos los clientes?</div>
+                    <ul className="text-left space-y-1">
+                      <li>• Clientes con conversaciones activas</li>
+                      <li>• Clientes con agente AI desactivado</li>
+                      <li>• Clientes sin número de teléfono</li>
+                    </ul>
+                    {estadisticasFiltrado && (
+                      <div className="mt-2 pt-2 border-t border-gray-200">
+                        <div className="font-medium mb-1 text-left">Estadísticas:</div>
+                        <div className="space-y-1 text-xs text-left">
+                          <div>• Total clientes: {estadisticasFiltrado.totalClientes}</div>
+                          <div>• Disponibles: {estadisticasFiltrado.clientesDisponibles}</div>
+                          <div>• Con conversaciones activas: {estadisticasFiltrado.clientesConConversacionesActivas}</div>
+                          <div>• Con agente desactivado: {estadisticasFiltrado.clientesConAgenteDesactivado}</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 clientesFiltrados.map((cliente) => (
@@ -830,4 +1003,31 @@ export default function ConversacionesListaPage() {
       }
     />
   );
+}
+
+// Estilos CSS para scrollbar blanco
+const scrollbarStyles = `
+  .scrollbar-white::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .scrollbar-white::-webkit-scrollbar-track {
+    background: #ffffff;
+  }
+  
+  .scrollbar-white::-webkit-scrollbar-thumb {
+    background: #e5e7eb;
+    border-radius: 4px;
+  }
+  
+  .scrollbar-white::-webkit-scrollbar-thumb:hover {
+    background: #d1d5db;
+  }
+`;
+
+// Agregar estilos al head del documento
+if (typeof document !== 'undefined') {
+  const styleElement = document.createElement('style');
+  styleElement.textContent = scrollbarStyles;
+  document.head.appendChild(styleElement);
 } 
