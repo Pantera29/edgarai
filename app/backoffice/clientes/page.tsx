@@ -253,7 +253,7 @@ const router = useRouter();
         estado: "activo" as const,
         // Los resultados de búsqueda ya vienen con el agent_active correcto del endpoint verify
         agent_active: client.agent_active ?? true,
-        dealership_id: client.dealership_id
+        dealership_id: client.dealership_id || (dataToken as any)?.dealership_id || ''
       }));
     }
     
