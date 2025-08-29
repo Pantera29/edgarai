@@ -40,6 +40,7 @@ interface Cliente {
   phone_number: string
   external_id?: string | null
   agent_active: boolean
+  dealership_id: string
 }
 
 interface Props {
@@ -90,12 +91,25 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
     try {
       console.log('🔄 Actualizando estado del agente para cliente:', cliente.id);
       
-      const { error } = await supabase
-        .from('client')
-        .update({ agent_active: !cliente.agent_active })
-        .eq('id', cliente.id);
-      
-      if (error) throw error;
+      // Usar el nuevo endpoint agent-control para la solución definitiva
+      const response = await fetch('/api/agent-control', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          phone_number: cliente.phone_number,
+          dealership_id: cliente.dealership_id,
+          agent_active: !cliente.agent_active,
+          notes: `Cambiado manualmente desde tabla de clientes - ${!cliente.agent_active ? 'activado' : 'desactivado'}`,
+          updated_by: 'user'
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
       
       console.log('✅ Estado del agente actualizado correctamente');
       
