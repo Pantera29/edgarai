@@ -25,6 +25,7 @@ interface ConversacionAccionHumana {
   client_names?: string;
   client_email?: string;
   client_phone?: string;
+  // Estado del agente AI (prioriza phone_agent_settings.agent_active sobre client.agent_active)
   client_agent_active?: boolean;
   // Métricas de urgencia
   hours_since_last_activity: number;
