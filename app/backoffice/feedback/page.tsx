@@ -16,7 +16,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Search } from "lucide-react"
+import { Search, Eye } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "../../jwt/token"
@@ -30,6 +30,13 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { ChevronsLeft, ChevronsRight } from "lucide-react"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 
 const ITEMS_PER_PAGE = 25;
 
@@ -128,6 +135,32 @@ const columns = [
       )
     }
   },
+  {
+    accessorKey: "comments",
+    header: "Comentarios",
+    cell: ({ row }: { row: any }) => {
+      const comments = row.getValue("comments")
+      const hasComments = comments && comments.trim() !== ""
+      
+      return (
+        <div className="flex justify-center">
+          {hasComments ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => row.original.showComments?.(comments)}
+              className="h-8 w-8 p-0 hover:bg-blue-50"
+              title="Ver comentarios"
+            >
+              <Eye className="h-4 w-4 text-blue-600" />
+            </Button>
+          ) : (
+            <span className="text-muted-foreground text-sm">-</span>
+          )}
+        </div>
+      )
+    }
+  },
 ]
 
 interface Filters {
@@ -165,6 +198,10 @@ export default function FeedbackPage() {
   const [dataToken, setDataToken] = useState<object>({});
 
   const router = useRouter();
+
+  // Estado para el modal de comentarios
+  const [commentsModalOpen, setCommentsModalOpen] = useState(false);
+  const [selectedComments, setSelectedComments] = useState<string>("");
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -357,7 +394,8 @@ export default function FeedbackPage() {
       const formattedData = (allData || []).map(item => ({
         ...item,
         customer_name: item.client?.names || '-',
-        channel: item.appointment?.channel || null
+        channel: item.appointment?.channel || null,
+        showComments: showComments
       }));
 
       setData(formattedData);
@@ -379,6 +417,12 @@ export default function FeedbackPage() {
       fetchMetrics((dataToken as any).dealership_id);
     }
   }, [dataToken])
+
+  // Función para mostrar comentarios
+  const showComments = (comments: string) => {
+    setSelectedComments(comments);
+    setCommentsModalOpen(true);
+  };
 
   // Cargar datos de tabla cuando cambien filtros o página
   useEffect(() => {
@@ -648,6 +692,23 @@ export default function FeedbackPage() {
           </>
         )}
       </div>
+
+      {/* Modal de Comentarios */}
+      <Dialog open={commentsModalOpen} onOpenChange={setCommentsModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Comentarios del Cliente</DialogTitle>
+            <DialogDescription>
+              Comentarios asociados a esta respuesta NPS
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4">
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-gray-800 whitespace-pre-wrap">{selectedComments}</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 } 
