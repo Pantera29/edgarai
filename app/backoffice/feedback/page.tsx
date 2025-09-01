@@ -45,6 +45,49 @@ const columns = [
     header: "Cliente"
   },
   {
+    accessorKey: "channel",
+    header: "Canal",
+    cell: ({ row }: { row: any }) => {
+      const channel = row.getValue("channel")
+      if (!channel) return "-"
+      
+      let displayText = "";
+      let variant: "default" | "secondary" | "destructive" | "outline" = "default";
+      
+      switch(channel) {
+        case "whatsapp": 
+          displayText = "WhatsApp"; 
+          variant = "success";
+          break;
+        case "twilio": 
+          displayText = "Teléfono"; 
+          variant = "secondary";
+          break;
+        case "manual": 
+          displayText = "Manual"; 
+          variant = "outline";
+          break;
+        case "web": 
+          displayText = "Web"; 
+          variant = "default";
+          break;
+        case "agenteai": 
+          displayText = "Agente AI"; 
+          variant = "default";
+          break;
+        default: 
+          displayText = channel;
+          variant = "outline";
+      }
+      
+      return (
+        <Badge variant={variant}>
+          {displayText}
+        </Badge>
+      )
+    }
+  },
+  {
     accessorKey: "status",
     header: "Estado",
     cell: ({ row }: { row: any }) => (
@@ -90,6 +133,7 @@ const columns = [
 interface Filters {
   status: string
   classification: string
+  channel: string
   search: string
 }
 
@@ -162,8 +206,9 @@ export default function FeedbackPage() {
   const [metricsLoading, setMetricsLoading] = useState(true)
   const [npsMetrics, setNpsMetrics] = useState<NpsMetrics | null>(null)
   const [filters, setFilters] = useState<Filters>({
-    status: "todos",
-    classification: "todas",
+    status: "",
+    classification: "",
+    channel: "",
     search: ""
   })
   const [currentPage, setCurrentPage] = useState(1)
@@ -217,7 +262,7 @@ export default function FeedbackPage() {
       console.log('🔄 Cargando datos de tabla para página:', currentPage);
       console.log('🔍 [DEBUG] Filtros actuales:', filters);
       
-      // Construir query base con inner join para asegurar que solo traiga registros válidos
+      // Construir query base
       let query = supabase
         .from('nps')
         .select(`
@@ -225,19 +270,22 @@ export default function FeedbackPage() {
           client!inner (
             names,
             dealership_id
+          ),
+          appointment!inner (
+            channel
           )
         `)
 
       // Aplicar filtros ANTES del range
       query = query.eq('client.dealership_id', dealershipIdFromToken);
 
-      if (filters.status !== "todos") {
+      if (filters.status && filters.status !== "" && filters.status !== "todos") {
         const statusValue = filters.status === "pendiente" ? "pending" : "completed";
         query = query.eq('status', statusValue);
         console.log('🔍 [DEBUG] Aplicando filtro de status:', statusValue);
       }
 
-      if (filters.classification !== "todas") {
+      if (filters.classification && filters.classification !== "" && filters.classification !== "todas") {
         let classificationValue;
         switch (filters.classification) {
           case "promotor": classificationValue = "promoter"; break;
@@ -247,6 +295,13 @@ export default function FeedbackPage() {
         }
         query = query.eq('classification', classificationValue);
         console.log('🔍 [DEBUG] Aplicando filtro de clasificación:', classificationValue);
+      }
+
+      if (filters.channel && filters.channel !== "" && filters.channel !== "todos") {
+        // Solo mostrar registros que tienen cita asociada y el canal específico
+        query = query.not('appointment_id', 'is', null);
+        query = query.eq('appointment.channel', filters.channel);
+        console.log('🔍 [DEBUG] Aplicando filtro de canal:', filters.channel);
       }
 
       if (filters.search) {
@@ -290,11 +345,19 @@ export default function FeedbackPage() {
       // Debug: Ver los primeros 3 registros para entender la estructura
       if (allData && allData.length > 0) {
         console.log('🔍 [DEBUG] Primeros 3 registros de la tabla:', allData.slice(0, 3));
+        
+        // Debug específico para canales
+        console.log('🔍 [DEBUG] Canales encontrados:', allData.map(item => ({
+          customer_name: item.client?.names,
+          channel: item.appointment?.channel,
+          has_appointment: !!item.appointment
+        })));
       }
 
       const formattedData = (allData || []).map(item => ({
         ...item,
-        customer_name: item.client?.names || '-'
+        customer_name: item.client?.names || '-',
+        channel: item.appointment?.channel || null
       }));
 
       setData(formattedData);
@@ -327,7 +390,7 @@ export default function FeedbackPage() {
   // Resetear página cuando cambien los filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [filters.status, filters.classification, filters.search]);
+  }, [filters.status, filters.classification, filters.channel, filters.search]);
 
   // Lógica de paginación
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
@@ -452,11 +515,35 @@ export default function FeedbackPage() {
         </div>
 
         <Select
+          value={filters.channel}
+          onValueChange={(value) => setFilters(prev => ({ ...prev, channel: value }))}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Canal">
+              {filters.channel === "todos" ? "Canal" : filters.channel === "whatsapp" ? "WhatsApp" : 
+               filters.channel === "twilio" ? "Teléfono" : filters.channel === "manual" ? "Manual" : 
+               filters.channel === "web" ? "Web" : filters.channel === "agenteai" ? "Agente AI" : "Canal"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todos">Todos</SelectItem>
+            <SelectItem value="whatsapp">WhatsApp</SelectItem>
+            <SelectItem value="twilio">Teléfono</SelectItem>
+            <SelectItem value="manual">Manual</SelectItem>
+            <SelectItem value="web">Web</SelectItem>
+            <SelectItem value="agenteai">Agente AI</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Select
           value={filters.status}
           onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Estado" />
+            <SelectValue placeholder="Estado">
+              {filters.status === "todos" ? "Estado" : filters.status === "pendiente" ? "Pendiente" : 
+               filters.status === "completado" ? "Completado" : "Estado"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos</SelectItem>
@@ -470,7 +557,10 @@ export default function FeedbackPage() {
           onValueChange={(value) => setFilters(prev => ({ ...prev, classification: value }))}
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Clasificación" />
+            <SelectValue placeholder="Clasificación">
+              {filters.classification === "todas" ? "Clasificación" : filters.classification === "promotor" ? "Promotor" : 
+               filters.classification === "neutral" ? "Neutral" : filters.classification === "detractor" ? "Detractor" : "Clasificación"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todas">Todas</SelectItem>
