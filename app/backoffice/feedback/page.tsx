@@ -57,7 +57,7 @@ const columns = [
       switch(channel) {
         case "whatsapp": 
           displayText = "WhatsApp"; 
-          variant = "success";
+          variant = "default";
           break;
         case "twilio": 
           displayText = "Teléfono"; 
