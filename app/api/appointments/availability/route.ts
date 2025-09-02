@@ -5,6 +5,25 @@ import { format, parse, addMinutes, isBefore } from 'date-fns';
 import { zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
 import { resolveWorkshopId, getWorkshopConfiguration } from '@/lib/workshop-resolver';
 
+/**
+ * Endpoint de disponibilidad de citas
+ * 
+ * @param {string} date - Fecha en formato YYYY-MM-DD
+ * @param {string} service_id - ID del servicio (UUID)
+ * @param {string} specific_service_id - ID del servicio específico (UUID, alternativo a service_id)
+ * @param {string} dealership_id - ID del concesionario (UUID)
+ * @param {string} workshop_id - ID del taller (UUID, opcional)
+ * @param {string} exclude_appointment_id - ID de la cita a excluir de la verificación (UUID, opcional)
+ * 
+ * @description
+ * Este endpoint verifica la disponibilidad de horarios para un servicio en una fecha específica.
+ * El parámetro exclude_appointment_id es útil para excluir una cita específica durante
+ * operaciones de actualización, evitando que se considere como "ocupada" su propio horario.
+ * 
+ * @example
+ * GET /api/appointments/availability?date=2024-01-15&service_id=uuid&dealership_id=uuid&exclude_appointment_id=uuid
+ */
+
 export async function GET(request: Request) {
   try {
     const supabase = createServerComponentClient({ cookies });
@@ -14,6 +33,7 @@ export async function GET(request: Request) {
     const specific_service_id = searchParams.get('specific_service_id') || '';
     const dealershipId = searchParams.get('dealership_id');
     const workshopId = searchParams.get('workshop_id');
+    const excludeAppointmentId = searchParams.get('exclude_appointment_id'); // Optional: exclude specific appointment from availability check
 
     // Verificar si la solicitud viene del backoffice
     const isBackofficeRequest = request.headers.get('x-request-source') === 'backoffice';
@@ -82,6 +102,11 @@ export async function GET(request: Request) {
         { message: 'Date, service_id (or specific_service_id) and dealership_id parameters are required' },
         { status: 400 }
       );
+    }
+
+    // Log the exclude_appointment_id parameter for debugging
+    if (excludeAppointmentId) {
+      console.log('🔍 Excluding appointment from availability check:', excludeAppointmentId);
     }
 
     // 1. Obtener la duración del servicio y la configuración del taller
@@ -628,7 +653,8 @@ export async function GET(request: Request) {
 
     // Obtener citas filtradas por dealership_id y workshop_id específico
     // Excluir citas canceladas para no afectar la disponibilidad de slots
-    const { data: appointments, error: appointmentsError } = await supabase
+    // Excluir cita específica si se proporciona exclude_appointment_id (útil para updates)
+    let appointmentsQuery = supabase
       .from('appointment')
       .select(`
         id,
@@ -644,6 +670,14 @@ export async function GET(request: Request) {
       .eq('dealership_id', dealershipId)
       .eq('workshop_id', finalWorkshopId)
       .neq('status', 'cancelled');
+
+    // Excluir cita específica si se proporciona exclude_appointment_id
+    if (excludeAppointmentId) {
+      appointmentsQuery = appointmentsQuery.neq('id', excludeAppointmentId);
+      console.log('🔍 Excluyendo cita de la verificación de disponibilidad:', excludeAppointmentId);
+    }
+
+    const { data: appointments, error: appointmentsError } = await appointmentsQuery;
 
     if (appointmentsError) {
       console.error('Error fetching appointments:', {
@@ -1545,6 +1579,8 @@ async function checkAvailabilityForDate(
   }
 
   // 5. Verificar citas existentes
+  // Nota: Esta función no recibe exclude_appointment_id, por lo que no excluye citas específicas
+  // Solo se usa para búsqueda de próximas fechas, no para validación de disponibilidad
   const { data: appointments, error: appointmentsError } = await supabase
     .from('appointment')
     .select('appointment_time, service_id, services(duration_minutes)')

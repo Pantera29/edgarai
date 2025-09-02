@@ -5,6 +5,27 @@ import { createAutomaticReminder } from '@/lib/simple-reminder-creator';
 import { createConfirmationReminder } from '@/lib/confirmation-reminder-creator';
 import { resolveWorkshopId } from '@/lib/workshop-resolver';
 
+/**
+ * Endpoint de actualización de citas
+ * 
+ * @param {string} id - ID de la cita a actualizar (UUID)
+ * @body {object} updates - Campos a actualizar
+ *   - status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled'
+ *   - appointment_date: string (YYYY-MM-DD)
+ *   - appointment_time: string (HH:MM)
+ *   - notes: string
+ *   - service_id: string (UUID)
+ *   - workshop_id: string (UUID)
+ * 
+ * @description
+ * Este endpoint permite actualizar citas existentes. Cuando se cambia fecha, hora o taller,
+ * se verifica la disponibilidad excluyendo la cita actual para evitar conflictos.
+ * 
+ * @example
+ * PATCH /api/appointments/update/123e4567-e89b-12d3-a456-426614174000
+ * Body: { "status": "confirmed", "appointment_time": "14:00" }
+ */
+
 // Definimos los estados permitidos en inglés
 type AppointmentStatus = 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled';
 
@@ -108,6 +129,8 @@ export async function PATCH(
 
     // Si se está reprogramando (cambiando fecha u hora) O cambiando de taller
     // PERO NO cuando solo se está cancelando
+    // IMPORTANTE: La verificación de disponibilidad excluye la cita actual para evitar
+    // que se considere como "ocupada" su propio horario durante las actualizaciones
     if ((filteredUpdates.appointment_date || filteredUpdates.appointment_time || filteredUpdates.workshop_id) && 
         filteredUpdates.status !== 'cancelled') {
       console.log('🔍 Verificando disponibilidad para reprogramación o cambio de taller');
@@ -238,11 +261,13 @@ export async function PATCH(
       });
 
       // Verificar disponibilidad usando el endpoint de disponibilidad con workshop_id
+      // Incluir exclude_appointment_id para excluir la cita actual de la verificación
       const baseUrl = new URL(request.url).origin;
       const availabilityParams = new URLSearchParams({
         date: newDate,
         service_id: currentAppointment.service_id,
-        dealership_id: client.dealership_id
+        dealership_id: client.dealership_id,
+        exclude_appointment_id: appointmentId // Excluir la cita actual de la verificación
       });
 
       // Agregar workshop_id si se está especificando
@@ -256,6 +281,7 @@ export async function PATCH(
         url: availabilityUrl,
         dealership_id: client.dealership_id,
         workshop_id: newWorkshopId,
+        exclude_appointment_id: appointmentId,
         dealership_id_length: client.dealership_id?.length,
         dealership_id_last_chars: client.dealership_id?.slice(-4)
       });
@@ -276,7 +302,8 @@ export async function PATCH(
         params: {
           date: newDate,
           service_id: currentAppointment.service_id,
-          dealership_id: client.dealership_id
+          dealership_id: client.dealership_id,
+          exclude_appointment_id: appointmentId
         }
       });
 
