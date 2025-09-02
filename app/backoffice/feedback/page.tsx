@@ -20,7 +20,7 @@ import { Search, Eye } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "../../jwt/token"
-import { ArrowUp, ArrowDown, Clock, MessageSquare } from "lucide-react"
+import { ArrowUp, ArrowDown, Clock, MessageSquare, TrendingUp } from "lucide-react"
 import {
   Pagination,
   PaginationContent,
@@ -37,6 +37,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { ChartLineLabel } from "@/components/chart-line-label"
 
 const ITEMS_PER_PAGE = 25;
 
@@ -185,11 +186,19 @@ interface NpsMetrics {
   }
   trend: number
   pending_responses: number
+  total_sent: number
+  response_rate: number
   last_response: {
     date: string
     customer_name: string
     score: number
   } | null
+}
+
+interface MonthlyNpsData {
+  month: string
+  nps_score: number
+  total_responses: number
 }
 
 export default function FeedbackPage() {
@@ -202,6 +211,10 @@ export default function FeedbackPage() {
   // Estado para el modal de comentarios
   const [commentsModalOpen, setCommentsModalOpen] = useState(false);
   const [selectedComments, setSelectedComments] = useState<string>("");
+
+  // Estado para el gráfico de historial mensual
+  const [monthlyNpsData, setMonthlyNpsData] = useState<MonthlyNpsData[]>([]);
+  const [chartLoading, setChartLoading] = useState(true);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -230,9 +243,11 @@ export default function FeedbackPage() {
         if (verifiedDataToken?.dealership_id) {
           fetchMetrics(verifiedDataToken.dealership_id);
           fetchData(verifiedDataToken.dealership_id);
+          fetchMonthlyNpsData(verifiedDataToken.dealership_id);
         } else {
           fetchMetrics();
           fetchData();
+          fetchMonthlyNpsData();
         }
       }
     }
@@ -278,13 +293,79 @@ export default function FeedbackPage() {
         throw error;
       }
 
-      setNpsMetrics(metricsData);
+      // Calcular tasa de respuesta
+      const responseRateData = await calculateResponseRate(dealershipIdFromToken, metricsData);
+      
+      // Combinar métricas con tasa de respuesta
+      const enhancedMetrics = {
+        ...metricsData,
+        ...responseRateData
+      };
+
+      setNpsMetrics(enhancedMetrics);
       
     } catch (error) {
       console.error('❌ Error fatal obteniendo métricas:', error);
       setNpsMetrics(null);
     } finally {
       setMetricsLoading(false);
+    }
+  }
+
+  const calculateResponseRate = async (dealershipId: string, metricsData: any) => {
+    try {
+      // Obtener total de encuestas enviadas
+      const { data: totalData, error: totalError } = await supabase
+        .from('nps')
+        .select(`
+          id,
+          client!inner (
+            dealership_id
+          )
+        `)
+        .eq('client.dealership_id', dealershipId);
+
+      if (totalError || !totalData) {
+        console.error('❌ Error obteniendo total de encuestas:', totalError);
+        return { total_sent: 0, response_rate: 0 };
+      }
+
+      const totalSent = totalData.length;
+      
+      // Obtener total de encuestas completadas (de todos los meses)
+      const { data: completedData, error: completedError } = await supabase
+        .from('nps')
+        .select(`
+          id,
+          client!inner (
+            dealership_id
+          )
+        `)
+        .eq('client.dealership_id', dealershipId)
+        .eq('status', 'completed')
+        .not('score', 'is', null);
+
+      if (completedError || !completedData) {
+        console.error('❌ Error obteniendo encuestas completadas:', completedError);
+        return { total_sent: totalSent, response_rate: 0 };
+      }
+
+      const totalCompleted = completedData.length;
+      const responseRate = totalSent > 0 ? Math.round((totalCompleted / totalSent) * 100) : 0;
+
+      console.log('🔍 [DEBUG] Cálculo tasa de respuesta:', {
+        totalSent,
+        totalCompleted,
+        responseRate: `${responseRate}%`
+      });
+
+      return {
+        total_sent: totalSent,
+        response_rate: responseRate
+      };
+    } catch (error) {
+      console.error('❌ Error calculando tasa de respuesta:', error);
+      return { total_sent: 0, response_rate: 0 };
     }
   }
 
@@ -410,11 +491,100 @@ export default function FeedbackPage() {
     }
   }
 
+  const fetchMonthlyNpsData = async (dealershipIdFromToken?: string) => {
+    if (!dealershipIdFromToken) {
+      setChartLoading(false);
+      return;
+    }
+
+    setChartLoading(true);
+    try {
+      // Obtener datos de los últimos 12 meses
+      const twelveMonthsAgo = new Date();
+      twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 11);
+      twelveMonthsAgo.setDate(1); // Primer día del mes
+
+      const { data, error } = await supabase
+        .from('nps')
+        .select(`
+          created_at,
+          score,
+          status,
+          client!inner (
+            dealership_id
+          )
+        `)
+        .eq('client.dealership_id', dealershipIdFromToken)
+        .gte('created_at', twelveMonthsAgo.toISOString())
+        .eq('status', 'completed')
+        .not('score', 'is', null);
+
+      if (error) {
+        console.error('❌ Error obteniendo datos históricos de NPS:', error);
+        throw error;
+      }
+
+      // Agrupar por mes y calcular NPS
+      const monthlyData: { [key: string]: { scores: number[], total: number } } = {};
+      
+      data?.forEach(item => {
+        const monthKey = format(new Date(item.created_at), 'yyyy-MM');
+        if (!monthlyData[monthKey]) {
+          monthlyData[monthKey] = { scores: [], total: 0 };
+        }
+        monthlyData[monthKey].scores.push(item.score);
+        monthlyData[monthKey].total++;
+      });
+
+      console.log('🔍 [DEBUG] Datos agrupados por mes:', monthlyData);
+
+      // Convertir a array y calcular NPS score para cada mes
+      const monthlyNpsArray: MonthlyNpsData[] = Object.keys(monthlyData)
+        .sort()
+        .map(monthKey => {
+          const monthData = monthlyData[monthKey];
+          const promoters = monthData.scores.filter(score => score >= 9).length;
+          const detractors = monthData.scores.filter(score => score <= 6).length;
+          const npsScore = monthData.total > 0 ? Math.round(((promoters - detractors) / monthData.total) * 100) : 0;
+          
+          // Arreglar el formateo de fechas para que funcione correctamente con locale español
+          const [year, month] = monthKey.split('-');
+          const date = new Date(parseInt(year), parseInt(month) - 1, 1); // month - 1 porque JS cuenta desde 0
+          const formattedDate = format(date, 'MMM yyyy', { locale: es });
+          
+          console.log('🔍 [DEBUG] Procesando fecha:', {
+            monthKey,
+            year,
+            month,
+            date,
+            formattedDate
+          });
+          
+          return {
+            month: formattedDate,
+            nps_score: npsScore,
+            total_responses: monthData.total
+          };
+        });
+
+      console.log('🔍 [DEBUG] Array final de NPS mensual:', monthlyNpsArray);
+
+      setMonthlyNpsData(monthlyNpsArray);
+      
+    } catch (error) {
+      console.error('❌ Error fatal obteniendo datos históricos de NPS:', error);
+      setMonthlyNpsData([]);
+    } finally {
+      setChartLoading(false);
+    }
+  }
+
   // Cargar métricas solo cuando cambie el dealership_id
   useEffect(() => {
     if (dataToken && (dataToken as any).dealership_id) {
       console.log('🔄 Cargando métricas para dealership:', (dataToken as any).dealership_id);
       fetchMetrics((dataToken as any).dealership_id);
+      fetchMonthlyNpsData((dataToken as any).dealership_id);
     }
   }, [dataToken])
 
@@ -487,8 +657,6 @@ export default function FeedbackPage() {
                 "Cargando métricas..."
               ) : npsMetrics ? (
                 <>
-                  {Math.abs(npsMetrics.trend)}% vs. mes anterior
-                  <br />
                   {npsMetrics.current_month.promoters} promotores · {npsMetrics.current_month.detractors} detractores
                 </>
               ) : (
@@ -513,36 +681,48 @@ export default function FeedbackPage() {
           </div>
           <div className="mt-3">
             <p className="text-xs text-muted-foreground">
-              {metricsLoading ? "Cargando..." : "Esperando feedback de clientes"}
+              {metricsLoading ? "Cargando..." : (
+                <>
+                  Tasa de respuesta: {npsMetrics?.response_rate ?? 0}%
+                  <br />
+                  {npsMetrics?.total_sent ? `${npsMetrics.total_sent} encuestas enviadas` : "Esperando feedback de clientes"}
+                </>
+              )}
             </p>
           </div>
         </Card>
 
-        {/* Última Respuesta Card */}
+        {/* Gráfico de Historial Mensual de NPS */}
         <Card className="p-6">
           <div className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Última Respuesta</h3>
+            <h3 className="tracking-tight text-sm font-medium text-muted-foreground">Historial Mensual NPS</h3>
             <div className="rounded-md bg-green-100 p-1">
-              <MessageSquare className="h-4 w-4 text-green-600" />
+              <TrendingUp className="h-4 w-4 text-green-600" />
             </div>
           </div>
-          <div className="flex items-center">
-            <div className="text-3xl font-bold">
-              {metricsLoading ? "..." : (
-                npsMetrics?.last_response 
-                  ? format(new Date(npsMetrics.last_response.date), "dd MMM", { locale: es })
-                  : "Sin datos"
-              )}
-            </div>
-          </div>
-          <div className="mt-3">
-            <p className="text-xs text-muted-foreground">
-              {metricsLoading ? "Cargando..." : (
-                npsMetrics?.last_response 
-                  ? `${npsMetrics.last_response.customer_name} - ${npsMetrics.last_response.score}/10`
-                  : "No hay respuestas registradas"
-              )}
-            </p>
+          <div className="h-[120px] mt-2">
+            {chartLoading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="animate-spin h-6 w-6 border-2 border-primary border-t-transparent rounded-full" />
+              </div>
+            ) : monthlyNpsData.length > 0 ? (
+              <ChartLineLabel
+                data={monthlyNpsData}
+                index="month"
+                categories={["nps_score"]}
+                colors={["#10b981"]}
+                yAxisWidth={40}
+                showLegend={false}
+                showGrid={false}
+                showAnimation={true}
+                height={120}
+                className="w-full"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
+                Sin datos históricos
+              </div>
+            )}
           </div>
         </Card>
       </div>
