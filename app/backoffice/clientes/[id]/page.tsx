@@ -67,6 +67,10 @@ interface Cita {
     model: string;
     license_plate: string | null;
     year: number;
+    vin: string | null;
+  };
+  specific_services?: {
+    kilometers: number;
   };
 }
 
@@ -177,14 +181,30 @@ export default function ClientePage({ params }: PageProps) {
 
   // Obtener estado de cita en español
   const getEstadoCita = (status: string) => {
-    const estados: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
-      'pending': { label: 'Pendiente', variant: 'outline' },
-      'confirmed': { label: 'Confirmada', variant: 'secondary' },
-      'in_progress': { label: 'En Progreso', variant: 'default' },
-      'completed': { label: 'Completada', variant: 'default' },
-      'cancelled': { label: 'Cancelada', variant: 'destructive' }
+    switch (status) {
+      case 'pending':
+        return { label: 'Pendiente', variant: 'outline' as const }
+      case 'confirmed':
+        return { label: 'Confirmada', variant: 'secondary' as const }
+      case 'in_progress':
+        return { label: 'En Progreso', variant: 'default' as const }
+      case 'completed':
+        return { label: 'Completada', variant: 'default' as const }
+      case 'cancelled':
+        return { label: 'Cancelada', variant: 'destructive' as const }
+      default:
+        return { label: 'Desconocido', variant: 'outline' as const }
     }
-    return estados[status] || { label: status, variant: 'outline' }
+  }
+
+  const getVehicleIdentifier = (vehicle: { license_plate: string | null; vin: string | null }) => {
+    if (vehicle.vin) {
+      return `VIN: ${vehicle.vin}`
+    }
+    if (vehicle.license_plate) {
+      return vehicle.license_plate
+    }
+    return 'Sin identificación'
   }
 
   // Breadcrumbs con token
@@ -340,9 +360,14 @@ export default function ClientePage({ params }: PageProps) {
                       {citas.slice(0, 5).map(cita => (
                         <div key={cita.id} className="flex items-center justify-between p-3 border rounded-lg">
                           <div>
-                            <div className="font-medium">{cita.services.service_name}</div>
+                            <div className="font-medium">
+                              {cita.specific_services ? 
+                                `Servicio de ${cita.specific_services.kilometers.toLocaleString('es-ES')}kms` : 
+                                cita.services.service_name
+                              }
+                            </div>
                             <div className="text-sm text-muted-foreground">
-                              {cita.vehicles.make} {cita.vehicles.model}
+                              {cita.vehicles.make} {cita.vehicles.model} • {getVehicleIdentifier(cita.vehicles)}
                             </div>
                           </div>
                           <div className="text-right">
@@ -433,7 +458,10 @@ export default function ClientePage({ params }: PageProps) {
                               <div className="text-sm">
                                 <span className="font-medium">Último servicio:</span>
                                 <div className="text-muted-foreground">
-                                  {ultimoServicio.services.service_name} - {format(parseISO(ultimoServicio.appointment_date), 'dd/MM/yyyy', { locale: es })}
+                                  {ultimoServicio.specific_services ? 
+                                    `Servicio de ${ultimoServicio.specific_services.kilometers.toLocaleString('es-ES')}kms` : 
+                                    ultimoServicio.services.service_name
+                                  } - {format(parseISO(ultimoServicio.appointment_date), 'dd/MM/yyyy', { locale: es })}
                                 </div>
                               </div>
                             </div>
@@ -479,9 +507,14 @@ export default function ClientePage({ params }: PageProps) {
                           <CalendarDays className="h-5 w-5 text-primary" />
                         </div>
                         <div>
-                          <div className="font-medium">{cita.services.service_name}</div>
+                          <div className="font-medium">
+                            {cita.specific_services ? 
+                              `Servicio de ${cita.specific_services.kilometers.toLocaleString('es-ES')}kms` : 
+                              cita.services.service_name
+                            }
+                          </div>
                           <div className="text-sm text-muted-foreground">
-                            {cita.vehicles.make} {cita.vehicles.model} • {cita.vehicles.license_plate || 'Sin placa'}
+                            {cita.vehicles.make} {cita.vehicles.model} • {getVehicleIdentifier(cita.vehicles)}
                           </div>
                           <div className="text-xs text-muted-foreground">
                             {format(parseISO(cita.appointment_date), 'EEEE dd/MM/yyyy', { locale: es })} a las {cita.appointment_time}
