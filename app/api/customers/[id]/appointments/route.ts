@@ -98,7 +98,8 @@ export async function GET(
           make,
           model,
           license_plate,
-          year
+          year,
+          vin
         ),
         specific_services:specific_service_id (
           id,

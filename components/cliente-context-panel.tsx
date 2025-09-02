@@ -39,6 +39,10 @@ interface Cita {
     model: string;
     license_plate: string | null;
     year: number;
+    vin: string | null;
+  };
+  specific_services?: {
+    kilometers: number;
   };
 }
 
@@ -125,16 +129,23 @@ export function ClienteContextPanel({ clientId, dealershipId }: ClienteContextPa
 
   // Formatear fecha tal como viene de la base de datos
   const formatDate = (dateString: string) => {
-    try {
-      // La fecha ya viene en el formato correcto desde la base de datos
-      // Solo necesitamos formatearla para mostrar
-      const fecha = new Date(dateString + 'T00:00:00'); // Agregar tiempo para evitar conversiones
-      return format(fecha, 'dd/MM/yyyy', { locale: es });
-    } catch (error) {
-      console.error('Error formateando fecha:', error, 'Fecha original:', dateString);
-      return 'Fecha inválida';
-    }
+    const date = new Date(dateString);
+    return date.toLocaleDateString('es-ES', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
   };
+
+  const getVehicleIdentifier = (vehicle: { license_plate: string | null; vin: string | null }) => {
+    if (vehicle.vin) {
+      return `VIN: ${vehicle.vin}`
+    }
+    if (vehicle.license_plate) {
+      return vehicle.license_plate
+    }
+    return 'Sin identificación'
+  }
 
   return (
     <div className="space-y-4">
@@ -168,7 +179,7 @@ export function ClienteContextPanel({ clientId, dealershipId }: ClienteContextPa
                   <div>
                     <div className="font-medium text-sm">{vehiculo.make} {vehiculo.model}</div>
                     <div className="text-xs text-muted-foreground">
-                      {vehiculo.year} • {vehiculo.license_plate || 'Sin placa'}
+                      {vehiculo.year} • {getVehicleIdentifier(vehiculo)}
                     </div>
                   </div>
                   {vehiculo.last_service_date && (
@@ -214,9 +225,14 @@ export function ClienteContextPanel({ clientId, dealershipId }: ClienteContextPa
               <Card key={cita.id} className="p-3 border border-green-100 bg-green-50/30">
                 <div className="flex items-center justify-between">
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{cita.services.service_name}</div>
+                    <div className="font-medium text-sm truncate">
+                      {cita.specific_services ? 
+                        `Servicio de ${cita.specific_services.kilometers.toLocaleString('es-ES')}kms` : 
+                        cita.services.service_name
+                      }
+                    </div>
                     <div className="text-xs text-muted-foreground">
-                      {cita.vehicles.make} {cita.vehicles.model}
+                      {cita.vehicles.make} {cita.vehicles.model} • {getVehicleIdentifier(cita.vehicles)}
                     </div>
                   </div>
                   <div className="text-right ml-2">
