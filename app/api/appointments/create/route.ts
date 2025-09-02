@@ -7,6 +7,7 @@ import twilio from 'twilio';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { createConfirmationReminder } from '@/lib/confirmation-reminder-creator';
+import { verifyToken } from '@/app/jwt/token';
 console.log('🔍 [DEBUG] Import de confirmation-reminder-creator cargado exitosamente');
 
 // Cliente de Twilio
@@ -65,6 +66,62 @@ export async function POST(request: Request) {
     
     // Obtener datos del cuerpo de la solicitud
     const requestData = await request.json();
+    
+    // 🔍 DETECCIÓN AUTOMÁTICA DE USUARIO DEL BACKOFFICE
+    let userInfo = null;
+    let isBackofficeRequest = false;
+    
+    // Debug: Verificar todos los headers
+    console.log('🔍 [DEBUG] Headers recibidos:', {
+      authorization: request.headers.get('authorization'),
+      contentType: request.headers.get('content-type'),
+      userAgent: request.headers.get('user-agent')
+    });
+    
+    try {
+      const authHeader = request.headers.get('authorization');
+      console.log('🔍 [DEBUG] Auth header encontrado:', !!authHeader);
+      
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '');
+        console.log('🔍 [DEBUG] Token extraído (primeros 20 chars):', token.substring(0, 20) + '...');
+        
+        userInfo = verifyToken(token);
+        console.log('🔍 [DEBUG] Token verificado:', {
+          hasUserInfo: !!userInfo,
+          userInfoKeys: userInfo ? Object.keys(userInfo) : [],
+          hasEmail: userInfo?.email,
+          hasDealershipId: userInfo?.dealership_id
+        });
+        
+        // Verificar que el token contiene la información necesaria del backoffice
+        if (userInfo && userInfo.email && userInfo.dealership_id) {
+          isBackofficeRequest = true;
+          console.log('👤 [BACKOFFICE] Usuario autenticado:', {
+            email: userInfo.email,
+            names: userInfo.names,
+            surnames: userInfo.surnames,
+            dealership_id: userInfo.dealership_id,
+            action: 'appointment_creation'
+          });
+        } else {
+          console.log('⚠️ [DEBUG] Token no contiene información completa del backoffice:', {
+            hasEmail: !!userInfo?.email,
+            hasDealershipId: !!userInfo?.dealership_id,
+            userInfo: userInfo
+          });
+        }
+      } else {
+        console.log('⚠️ [DEBUG] No se encontró header Authorization válido');
+      }
+    } catch (error) {
+      console.log('⚠️ [AUTH] Error al verificar token, continuando como API externa:', error);
+    }
+    
+    console.log('🔍 [DEBUG] Estado final:', {
+      isBackofficeRequest,
+      hasUserInfo: !!userInfo
+    });
     
     const { 
       client_id, 
@@ -513,6 +570,36 @@ export async function POST(request: Request) {
         },
         { status: 500 }
       );
+    }
+
+    // 🔍 LOG ESTRUCTURADO PARA TRAZABILIDAD DEL BACKOFFICE
+    if (isBackofficeRequest && userInfo) {
+      const structuredLog = {
+        timestamp: new Date().toISOString(),
+        action: 'appointment_created',
+        source: 'backoffice',
+        user: {
+          email: userInfo.email,
+          names: userInfo.names,
+          surnames: userInfo.surnames,
+          dealership_id: userInfo.dealership_id
+        },
+        appointment: {
+          id: newAppointment?.id,
+          client_id: finalClientId,
+          vehicle_id: vehicle_id,
+          service_id: finalServiceId,
+          specific_service_id: specific_service_id || null,
+          appointment_date: appointment_date,
+          appointment_time: appointment_time,
+          channel: channel,
+          workshop_id: finalWorkshopId
+        }
+      };
+      
+      console.log('📊 [TRACE] Cita creada desde backoffice:', JSON.stringify(structuredLog, null, 2));
+    } else {
+      console.log('📊 [TRACE] Cita creada desde API externa');
     }
 
     // Logging de parámetros resueltos

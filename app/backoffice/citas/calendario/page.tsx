@@ -354,7 +354,10 @@ export default function CalendarioCitasPage() {
       // PATCH al endpoint
       const response = await fetch(`/api/appointments/update/${selectedCita.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // 🔍 Agregar token para trazabilidad
+        },
         body: JSON.stringify(nuevosDatos)
       });
       if (!response.ok) {
@@ -382,7 +385,10 @@ export default function CalendarioCitasPage() {
     try {
       const response = await fetch(`/api/appointments/update/${selectedCita.id}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // 🔍 Agregar token para trazabilidad
+        },
         body: JSON.stringify({
           status: 'cancelled',
           cancelled_at: new Date().toISOString()

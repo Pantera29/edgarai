@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { createAutomaticReminder } from '@/lib/simple-reminder-creator';
 import { createConfirmationReminder } from '@/lib/confirmation-reminder-creator';
 import { resolveWorkshopId } from '@/lib/workshop-resolver';
+import { verifyToken } from '@/app/jwt/token';
 
 /**
  * Endpoint de actualización de citas
@@ -36,6 +37,62 @@ export async function PATCH(
   try {
     const supabase = createServerComponentClient({ cookies });
     const appointmentId = params.id;
+    
+    // 🔍 DETECCIÓN AUTOMÁTICA DE USUARIO DEL BACKOFFICE
+    let userInfo = null;
+    let isBackofficeRequest = false;
+    
+    // Debug: Verificar todos los headers
+    console.log('🔍 [DEBUG] Headers recibidos:', {
+      authorization: request.headers.get('authorization'),
+      contentType: request.headers.get('content-type'),
+      userAgent: request.headers.get('user-agent')
+    });
+    
+    try {
+      const authHeader = request.headers.get('authorization');
+      console.log('🔍 [DEBUG] Auth header encontrado:', !!authHeader);
+      
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.replace('Bearer ', '');
+        console.log('🔍 [DEBUG] Token extraído (primeros 20 chars):', token.substring(0, 20) + '...');
+        
+        userInfo = verifyToken(token);
+        console.log('🔍 [DEBUG] Token verificado:', {
+          hasUserInfo: !!userInfo,
+          userInfoKeys: userInfo ? Object.keys(userInfo) : [],
+          hasEmail: userInfo?.email,
+          hasDealershipId: userInfo?.dealership_id
+        });
+        
+        // Verificar que el token contiene la información necesaria del backoffice
+        if (userInfo && userInfo.email && userInfo.dealership_id) {
+          isBackofficeRequest = true;
+          console.log('👤 [BACKOFFICE] Usuario autenticado:', {
+            email: userInfo.email,
+            names: userInfo.names,
+            surnames: userInfo.surnames,
+            dealership_id: userInfo.dealership_id,
+            action: 'appointment_update'
+          });
+        } else {
+          console.log('⚠️ [DEBUG] Token no contiene información completa del backoffice:', {
+            hasEmail: !!userInfo?.email,
+            hasDealershipId: !!userInfo?.dealership_id,
+            userInfo: userInfo
+          });
+        }
+      } else {
+        console.log('⚠️ [DEBUG] No se encontró header Authorization válido');
+      }
+    } catch (error) {
+      console.log('⚠️ [AUTH] Error al verificar token, continuando como API externa:', error);
+    }
+    
+    console.log('🔍 [DEBUG] Estado final:', {
+      isBackofficeRequest,
+      hasUserInfo: !!userInfo
+    });
     
     console.log('📅 Actualizando cita:', {
       id: appointmentId,
@@ -438,6 +495,34 @@ export async function PATCH(
       time: data.appointment_time,
       status: data.status
     });
+
+    // 🔍 LOG ESTRUCTURADO PARA TRAZABILIDAD DEL BACKOFFICE
+    if (isBackofficeRequest && userInfo) {
+      const structuredLog = {
+        timestamp: new Date().toISOString(),
+        action: 'appointment_updated',
+        source: 'backoffice',
+        user: {
+          email: userInfo.email,
+          names: userInfo.names,
+          surnames: userInfo.surnames,
+          dealership_id: userInfo.dealership_id
+        },
+        appointment: {
+          id: data.id,
+          previous_status: appointmentExists?.status,
+          new_status: data.status,
+          changes: filteredUpdates,
+          client_id: data.client?.id,
+          vehicle_id: data.vehicle?.id_uuid,
+          service_id: data.service?.id_uuid
+        }
+      };
+      
+      console.log('📊 [TRACE] Cita actualizada desde backoffice:', JSON.stringify(structuredLog, null, 2));
+    } else {
+      console.log('📊 [TRACE] Cita actualizada desde API externa');
+    }
 
     // NUEVO: Manejar recordatorios de confirmación en reagendamiento
     if (filteredUpdates.appointment_date) {

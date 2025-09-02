@@ -974,17 +974,29 @@ export default function NuevaReservaPage() {
       };
       
       console.log("Datos finales a enviar al endpoint:", appointmentData);
+      console.log("🔍 [DEBUG] Token a enviar:", {
+        hasToken: !!token,
+        tokenLength: token?.length,
+        tokenStart: token?.substring(0, 20) + '...'
+      });
       
       // Usar el endpoint de la API en lugar de inserción directa
       const response = await fetch('/api/appointments/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`, // 🔍 Agregar token para trazabilidad
         },
         body: JSON.stringify(appointmentData),
       });
 
       const result = await response.json();
+      console.log("🔍 [DEBUG] Respuesta del endpoint:", {
+        status: response.status,
+        ok: response.ok,
+        hasResult: !!result,
+        resultKeys: result ? Object.keys(result) : []
+      });
 
       if (!response.ok) {
         console.error("Error del endpoint:", result);
