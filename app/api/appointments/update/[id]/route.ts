@@ -306,7 +306,7 @@ export async function PATCH(
           availableSlots: availabilityData.availableSlots
         });
         return NextResponse.json(
-          { message: 'Time slot is not available. Please try a different time. You might check 30 minutes prior or after.' },
+          { message: 'This time slot is not available. Call /api/appointments/availability with the following parameters: date (YYYY-MM-DD), service_id (UUID), dealership_id (UUID), and optionally workshop_id (UUID) to get the list of available time slots.' },
           { status: 409 }
         );
       }
