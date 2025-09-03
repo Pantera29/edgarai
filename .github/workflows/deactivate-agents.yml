@@ -11,7 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call deactivate agents endpoint
-        run: |
-          curl -v -L -X POST "https://edgarai.vercel.app/api/cron/deactivate-agents/" \
-            -H "Content-Type: application/json" \
-            -d '{"dealership_id":"b8ecf479-16ed-4f38-a726-cc1617a1fcbf"}'
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: |
+            curl -v -L -X POST "https://edgarai.vercel.app/api/cron/deactivate-agents/" \
+              -H "Content-Type: application/json" \
+              -d '{"dealership_id":"b8ecf479-16ed-4f38-a726-cc1617a1fcbf"}'
