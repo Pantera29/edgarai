@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
-import { Car, Wrench, Calendar } from "lucide-react";
+import { Car, Wrench, Calendar, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 
@@ -49,15 +49,21 @@ interface Cita {
 interface ClienteContextPanelProps {
   clientId: string;
   dealershipId: string;
+  userIdentifier?: string; // ← NUEVO: Número de teléfono para consultar phone_agent_settings
 }
 
-export function ClienteContextPanel({ clientId, dealershipId }: ClienteContextPanelProps) {
+export function ClienteContextPanel({ clientId, dealershipId, userIdentifier }: ClienteContextPanelProps) {
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [citas, setCitas] = useState<Cita[]>([]);
   const [loadingVehiculos, setLoadingVehiculos] = useState(true);
   const [loadingCitas, setLoadingCitas] = useState(true);
   const [errorVehiculos, setErrorVehiculos] = useState<string | null>(null);
   const [errorCitas, setErrorCitas] = useState<string | null>(null);
+  
+  // ← NUEVO: Estados para la nota de acción humana
+  const [actionHumanNote, setActionHumanNote] = useState<string | null>(null);
+  const [loadingActionHumanNote, setLoadingActionHumanNote] = useState(false);
+  const [errorActionHumanNote, setErrorActionHumanNote] = useState<string | null>(null);
 
   // Cargar vehículos del cliente
   useEffect(() => {
@@ -115,6 +121,51 @@ export function ClienteContextPanel({ clientId, dealershipId }: ClienteContextPa
     }
   }, [clientId]);
 
+  // ← NUEVO: Cargar nota de acción humana
+  useEffect(() => {
+    const cargarNotaAccionHumana = async () => {
+      if (!userIdentifier || !dealershipId) {
+        console.log('ℹ️ [Context Panel] No se puede cargar nota - faltan datos:', { userIdentifier, dealershipId });
+        return;
+      }
+      
+      setLoadingActionHumanNote(true);
+      try {
+        console.log('🔄 [Context Panel] Cargando nota de acción humana para:', { userIdentifier, dealershipId });
+        
+        const response = await fetch(`/api/agent-control?phone_number=${userIdentifier}&dealership_id=${dealershipId}`);
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('📡 [Context Panel] Respuesta del API:', data);
+        
+        // Solo mostrar la nota si el agente está inactivo (necesita acción humana)
+        if (data.exists && !data.agent_active && data.notes) {
+          setActionHumanNote(data.notes);
+          console.log('✅ [Context Panel] Nota de acción humana cargada:', data.notes);
+        } else {
+          setActionHumanNote(null);
+          console.log('ℹ️ [Context Panel] No hay nota de acción humana o agente está activo:', {
+            exists: data.exists,
+            agent_active: data.agent_active,
+            has_notes: !!data.notes
+          });
+        }
+      } catch (error) {
+        console.error('❌ [Context Panel] Error cargando nota de acción humana:', error);
+        setErrorActionHumanNote('Error al cargar nota de acción humana');
+        setActionHumanNote(null);
+      } finally {
+        setLoadingActionHumanNote(false);
+      }
+    };
+
+    cargarNotaAccionHumana();
+  }, [userIdentifier, dealershipId]);
+
   // Obtener estado de cita en español con colores
   const getEstadoCita = (status: string) => {
     const estados: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -149,6 +200,41 @@ export function ClienteContextPanel({ clientId, dealershipId }: ClienteContextPa
 
   return (
     <div className="space-y-4">
+      {/* ← NUEVA SECCIÓN: Nota de Acción Humana */}
+      {userIdentifier && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <AlertTriangle className="h-4 w-4 text-amber-600" />
+            <p className="text-sm font-medium text-amber-700">Estado del Agente</p>
+          </div>
+          
+          {loadingActionHumanNote ? (
+            <Skeleton className="h-16" />
+          ) : errorActionHumanNote ? (
+            <div className="text-center py-3 text-muted-foreground">
+              <p className="text-xs">{errorActionHumanNote}</p>
+            </div>
+          ) : actionHumanNote ? (
+            <Card className="p-3 border border-amber-200 bg-amber-50/50">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-amber-800 mb-1">Requiere Acción Humana</p>
+                  <p className="text-xs text-amber-700 leading-relaxed">{actionHumanNote}</p>
+                </div>
+              </div>
+            </Card>
+          ) : (
+            <Card className="p-3 border border-green-200 bg-green-50/50">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                <p className="text-xs text-green-700">Agente AI activo</p>
+              </div>
+            </Card>
+          )}
+        </div>
+      )}
+
       {/* Sección de Vehículos */}
       <div>
         <div className="flex items-center gap-2 mb-3">

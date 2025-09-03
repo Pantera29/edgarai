@@ -844,6 +844,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
               <ClienteContextPanel 
                 clientId={conversacion.client_id} 
                 dealershipId={dataToken.dealership_id}
+                userIdentifier={conversacion.user_identifier}
               />
             )}
 
