@@ -17,6 +17,6 @@ jobs:
           max_attempts: 3
           retry_on: error
           command: |
-            curl --fail -v -L -X POST "https://edgarai.vercel.app/api/cron/deactvate-agents/" \
+            curl --fail -v -L -X POST "https://edgarai.vercel.app/api/cron/deactivate-agents/" \
               -H "Content-Type: application/json" \
               -d '{"dealership_id":"b8ecf479-16ed-4f38-a726-cc1617a1fcbf"}'
