@@ -144,7 +144,6 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
             <TableHead>Nombre</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Teléfono</TableHead>
-            <TableHead>External ID</TableHead>
             <TableHead>Estado Agente</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -155,7 +154,6 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
               <TableCell>{cliente.names}</TableCell>
               <TableCell>{cliente.email}</TableCell>
               <TableCell>{cliente.phone_number}</TableCell>
-              <TableCell>{cliente.external_id || '-'}</TableCell>
               <TableCell>
                 <Button
                   variant={cliente.agent_active ? "default" : "destructive"}

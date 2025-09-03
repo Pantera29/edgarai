@@ -229,8 +229,16 @@ const router = useRouter();
   // Función para recargar clientes cuando se actualiza el estado del agente
   const handleClienteUpdated = () => {
     console.log('🔄 Recargando clientes después de actualización...');
+    
+    // Recargar clientes normales
     if (dataToken && (dataToken as any).dealership_id) {
       cargarClientes((dataToken as any).dealership_id);
+    }
+    
+    // Si estamos en modo búsqueda activa, también recargar los resultados de búsqueda
+    if (isSearchActive && busqueda.trim()) {
+      console.log('🔍 Recargando búsqueda activa:', busqueda);
+      searchClients(busqueda);
     }
   };
 
