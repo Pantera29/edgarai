@@ -426,6 +426,7 @@ export async function PATCH(
             .select('id')
             .eq('service_id', filteredUpdates.service_id)
             .eq('appointment_date', appointmentDate)
+            .neq('status', 'cancelled') // Excluir citas canceladas
             .neq('id', appointmentId); // Excluir la cita actual
 
           if (countError) {
