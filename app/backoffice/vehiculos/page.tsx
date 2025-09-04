@@ -474,26 +474,39 @@ export default function VehiculosPage() {
                 </TableCell>
                 <TableCell>{vehiculo.vin || 'N/A'}</TableCell>
                 <TableCell>
-                  {vehiculo.id_uuid ? (
-                    <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}?token=${token}`}>
+                  <div className="flex items-center space-x-2">
+                    {vehiculo.id_uuid ? (
+                      <>
+                        <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}?token=${token}`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                          >
+                            Editar
+                          </Button>
+                        </Link>
+                        <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}/historial?token=${token}`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                          >
+                            Historial
+                          </Button>
+                        </Link>
+                      </>
+                    ) : (
                       <Button
                         variant="outline"
                         size="sm"
                         type="button"
+                        disabled
                       >
                         Editar
                       </Button>
-                    </Link>
-                  ) : (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      disabled
-                    >
-                      Editar
-                    </Button>
-                  )}
+                    )}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
