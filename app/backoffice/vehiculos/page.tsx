@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search } from "lucide-react"
+import { Search, History, Edit } from "lucide-react"
 import {
   Select,
   SelectContent,
@@ -477,22 +477,24 @@ export default function VehiculosPage() {
                   <div className="flex items-center space-x-2">
                     {vehiculo.id_uuid ? (
                       <>
-                        <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}?token=${token}`}>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            type="button"
-                          >
-                            Editar
-                          </Button>
-                        </Link>
                         <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}/historial?token=${token}`}>
                           <Button
                             variant="outline"
                             size="sm"
                             type="button"
                           >
+                            <History className="w-4 h-4 mr-2" />
                             Historial
+                          </Button>
+                        </Link>
+                        <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}?token=${token}`}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            type="button"
+                          >
+                            <Edit className="w-4 h-4 mr-2" />
+                            Editar
                           </Button>
                         </Link>
                       </>
@@ -503,6 +505,7 @@ export default function VehiculosPage() {
                         type="button"
                         disabled
                       >
+                        <Edit className="w-4 h-4 mr-2" />
                         Editar
                       </Button>
                     )}
