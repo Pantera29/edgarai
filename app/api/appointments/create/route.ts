@@ -407,13 +407,14 @@ export async function POST(request: Request) {
         dealershipId: finalDealershipId
       });
 
-      // Contar citas existentes para este servicio, fecha y concesionario
+      // Contar citas existentes para este servicio, fecha y concesionario (excluyendo canceladas)
       const { count: currentAppointmentsCount, error: countError } = await supabase
         .from('appointment')
         .select('*', { count: 'exact', head: false })
         .eq('service_id', finalServiceId)
         .eq('appointment_date', appointment_date)
-        .eq('dealership_id', finalDealershipId);
+        .eq('dealership_id', finalDealershipId)
+        .neq('status', 'cancelled');
 
       if (countError) {
         console.error('Error contando citas existentes para límite diario:', countError);
