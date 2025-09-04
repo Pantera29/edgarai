@@ -70,7 +70,9 @@ export async function GET(
       id: data.id_uuid,
       license_plate: data.license_plate,
       make: data.make,
-      model: data.model
+      model: data.model,
+      client_id: data.client_id,
+      client: data.client
     });
 
     return NextResponse.json(data);

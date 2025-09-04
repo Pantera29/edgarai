@@ -112,8 +112,8 @@ export async function PATCH(
       }
     }
 
-    // Si se va a actualizar license_plate, verificar que no exista ya
-    if (filteredUpdates.license_plate) {
+    // Si se va a actualizar license_plate, verificar que no exista ya (solo si no está vacío)
+    if (filteredUpdates.license_plate && filteredUpdates.license_plate.trim() !== '') {
       console.log('🔍 Verificando placa duplicada:', filteredUpdates.license_plate);
       const { data: plateExists, error: plateCheckError } = await supabase
         .from('vehicles')
@@ -145,8 +145,8 @@ export async function PATCH(
       }
     }
 
-    // Si se va a actualizar VIN, verificar que no exista ya
-    if (filteredUpdates.vin) {
+    // Si se va a actualizar VIN, verificar que no exista ya (solo si no está vacío)
+    if (filteredUpdates.vin && filteredUpdates.vin.trim() !== '') {
       console.log('🔍 Verificando VIN duplicado:', filteredUpdates.vin);
       const { data: vinExists, error: vinCheckError } = await supabase
         .from('vehicles')
@@ -176,6 +176,14 @@ export async function PATCH(
           { status: 409 }
         );
       }
+    }
+
+    // Convertir VIN y placa vacíos a null para evitar problemas con constraints únicos
+    if (filteredUpdates.vin === '') {
+      filteredUpdates.vin = null;
+    }
+    if (filteredUpdates.license_plate === '') {
+      filteredUpdates.license_plate = null;
     }
 
     // Actualizar el vehículo

@@ -487,7 +487,7 @@ export default function VehiculosPage() {
                             Historial
                           </Button>
                         </Link>
-                        <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}?token=${token}`}>
+                        <Link href={`/backoffice/vehiculos/${vehiculo.id_uuid}/editar?token=${token}`}>
                           <Button
                             variant="outline"
                             size="sm"
