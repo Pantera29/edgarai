@@ -28,12 +28,12 @@ export function ModelComboBox({
   const triggerRef = React.useRef<HTMLDivElement>(null);
 
   // Buscar el modelo seleccionado
-  const selectedModel = modelos.find(m => m.id === value);
+  const selectedModel = modelos?.find(m => m.id === value);
 
   // Filtrar modelos por búsqueda de nombre
   const filtered = search.trim() === ''
-    ? modelos
-    : modelos.filter(modelo =>
+    ? modelos || []
+    : (modelos || []).filter(modelo =>
         modelo.name.toLowerCase().includes(search.toLowerCase())
       );
 
