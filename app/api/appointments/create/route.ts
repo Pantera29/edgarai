@@ -129,6 +129,7 @@ export async function POST(request: Request) {
       service_id, 
       specific_service_id,    // ← NUEVO
       removed_additional,     // ← NUEVO
+      completion_notes,       // ← NUEVO
       appointment_date, 
       appointment_time,
       notes,
@@ -501,7 +502,8 @@ export async function POST(request: Request) {
         workshop_id: finalWorkshopId,
         notes: notes || null,
         channel: channel,
-        removed_additional: removed_additional || false  // ← NUEVO campo
+        removed_additional: removed_additional || false,  // ← NUEVO campo
+        completion_notes: completion_notes || null  // ← NUEVO campo
       }])
       .select(`
         *,

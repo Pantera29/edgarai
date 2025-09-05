@@ -64,6 +64,7 @@ export interface Database {
           channel: string
           created_at: string
           removed_additional: boolean
+          completion_notes: string | null
         }
         Insert: {
           id?: string
@@ -80,6 +81,7 @@ export interface Database {
           channel?: string
           created_at?: string
           removed_additional?: boolean
+          completion_notes?: string | null
         }
         Update: {
           id?: string
@@ -96,6 +98,7 @@ export interface Database {
           channel?: string
           created_at?: string
           removed_additional?: boolean
+          completion_notes?: string | null
         }
       }
       conversation_evaluations: {

@@ -34,6 +34,7 @@ interface Appointment {
     duration_minutes: number;
   };
   notes?: string;
+  completion_notes?: string;
 }
 
 interface DealershipInfo {
