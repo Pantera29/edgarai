@@ -76,6 +76,7 @@ export default function CalendarioCitasPage() {
   const [blockedDates, setBlockedDates] = useState<any[]>([])
   const [rescheduleStatus, setRescheduleStatus] = useState<string>("")
   const [cancelReason, setCancelReason] = useState("")
+  const [completionNotes, setCompletionNotes] = useState("")
   const [dealershipReady, setDealershipReady] = useState(false)
   
   // 1. Estados para talleres y filtro
@@ -125,6 +126,7 @@ export default function CalendarioCitasPage() {
           *,
           specific_service_id,
           removed_additional,
+          completion_notes,
           client:client_id (names, phone_number, email),
           vehicle:vehicle_id (make, model, license_plate, year),
           service:service_id (service_name, duration_minutes, price)
@@ -169,6 +171,7 @@ export default function CalendarioCitasPage() {
           workshop_id: appointment.workshop_id, // <-- NUEVO
           specific_service_id: appointment.specific_service_id, // <-- NUEVO
           removed_additional: appointment.removed_additional, // <-- AGREGADO
+          completion_notes: appointment.completion_notes, // <-- AGREGADO
           display: 'block' // <-- NUEVO: Para mostrar solo el horario de inicio
         } as CalendarEventWithServiceId
       }).filter((e): e is CalendarEventWithServiceId => !!e)
@@ -323,6 +326,8 @@ export default function CalendarioCitasPage() {
   useEffect(() => {
     if (selectedCita) {
       setRescheduleStatus(selectedCita.status || "pending")
+      // Cargar las notas de completado si la cita ya está completada
+      setCompletionNotes(selectedCita.completion_notes || "")
     }
   }, [selectedCita])
 
@@ -343,6 +348,11 @@ export default function CalendarioCitasPage() {
       // Incluir el cambio de estado si es diferente
       if (selectedCita.status !== rescheduleStatus) {
         nuevosDatos.status = rescheduleStatus;
+      }
+
+      // Incluir las notas de completado si el estado es "completed"
+      if (rescheduleStatus === "completed" && completionNotes.trim()) {
+        nuevosDatos.completion_notes = completionNotes.trim();
       }
 
       // Si no hay cambios, no hacer nada
@@ -368,6 +378,7 @@ export default function CalendarioCitasPage() {
       setSelectedCita(null)
       setSelectedDate(null)
       setSelectedSlot(null)
+      setCompletionNotes("")
       toast({ title: "Cita actualizada", description: "La cita ha sido actualizada exitosamente" })
       // Opcional: recargar eventos
       if (dataToken && (dataToken as any).dealership_id && currentRange) {
@@ -402,6 +413,7 @@ export default function CalendarioCitasPage() {
       setSelectedCita(null)
       setSelectedDate(null)
       setSelectedSlot(null)
+      setCompletionNotes("")
       toast({ title: "Cita cancelada", description: "La cita ha sido cancelada exitosamente" })
       // Opcional: recargar eventos
       if (dataToken && (dataToken as any).dealership_id && currentRange) {
@@ -676,6 +688,19 @@ export default function CalendarioCitasPage() {
                     </SelectContent>
                   </Select>
                 </div>
+                {rescheduleStatus === "completed" && (
+                  <>
+                    <div className="font-medium">Notas del servicio completado (opcional):</div>
+                    <div className="col-span-1">
+                      <Textarea
+                        placeholder="¿Qué se hizo? ¿Qué se encontró? ¿Recomendaciones para próxima visita?"
+                        value={completionNotes}
+                        onChange={(e) => setCompletionNotes(e.target.value)}
+                        className="min-h-[80px]"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
               <div className="flex-grow overflow-auto">
                 <AppointmentCalendar
@@ -727,6 +752,7 @@ export default function CalendarioCitasPage() {
                 setSelectedDate(null)
                 setSelectedSlot(null)
                 setSelectedCita(null)
+                setCompletionNotes("")
               }}
             >
               Cancelar
