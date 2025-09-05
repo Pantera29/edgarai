@@ -17,6 +17,7 @@ import { verifyToken } from '@/app/jwt/token';
  *   - notes: string
  *   - service_id: string (UUID)
  *   - workshop_id: string (UUID)
+ *   - completion_notes: string
  * 
  * @description
  * Este endpoint permite actualizar citas existentes. Cuando se cambia fecha, hora o taller,
@@ -144,7 +145,8 @@ export async function PATCH(
       'appointment_time',
       'notes',
       'service_id',
-      'workshop_id'
+      'workshop_id',
+      'completion_notes'
     ];
 
     // Filtrar solo los campos permitidos
@@ -161,7 +163,7 @@ export async function PATCH(
     if (Object.keys(filteredUpdates).length === 0) {
       console.log('❌ Error: No hay campos válidos para actualizar');
       return NextResponse.json(
-        { message: 'No valid fields to update. Please provide at least one of: status, appointment_date, appointment_time, notes, workshop_id.' },
+        { message: 'No valid fields to update. Please provide at least one of: status, appointment_date, appointment_time, notes, workshop_id, completion_notes.' },
         { status: 400 }
       );
     }

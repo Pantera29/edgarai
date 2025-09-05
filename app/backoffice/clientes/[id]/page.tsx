@@ -55,6 +55,7 @@ interface Cita {
   appointment_time: string;
   status: string;
   notes: string | null;
+  completion_notes: string | null;
   services: {
     id_uuid: string;
     service_name: string;

@@ -64,6 +64,8 @@ interface Appointment {
   appointment_time: string;
   client_id: string;
   service_id: string;
+  notes?: string | null;
+  completion_notes?: string | null;
   client?: {
     names: string;
   } | Array<{

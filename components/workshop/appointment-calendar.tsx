@@ -53,6 +53,8 @@ interface Appointment {
   appointment_date: string | null;
   appointment_time: string | null;
   status: string | null;
+  notes?: string | null;
+  completion_notes?: string | null;
   client?: {
     id: string;
     names: string;

@@ -83,6 +83,7 @@ export async function GET(
         appointment_time,
         status,
         notes,
+        completion_notes,
         service_id,
         vehicle_id,
         dealership_id,
