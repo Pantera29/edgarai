@@ -303,6 +303,41 @@ export interface Database {
           updated_by?: string
         }
       }
+      mechanics: {
+        Row: {
+          id: string
+          name: string
+          email: string | null
+          phone: string | null
+          specialties: string[] | null
+          is_active: boolean | null
+          dealership_id: string | null
+          workshop_id: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          name: string
+          email?: string | null
+          phone?: string | null
+          specialties?: string[] | null
+          is_active?: boolean | null
+          dealership_id?: string | null
+          workshop_id?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          name?: string
+          email?: string | null
+          phone?: string | null
+          specialties?: string[] | null
+          is_active?: boolean | null
+          dealership_id?: string | null
+          workshop_id?: string | null
+          created_at?: string | null
+        }
+      }
     }
     Functions: {
       get_admin_conversations_with_evaluations: {
