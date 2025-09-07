@@ -179,6 +179,31 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validar formato de teléfono si se proporciona
+    if (phone) {
+      const phoneRegex = /^\d{10}$/;
+      if (!phoneRegex.test(phone)) {
+        return NextResponse.json(
+          { error: 'El teléfono debe tener exactamente 10 dígitos numéricos' },
+          { status: 400 }
+        );
+      }
+
+      // Validar que el teléfono sea único
+      const { data: existingPhoneMechanic, error: phoneError } = await supabase
+        .from('mechanics')
+        .select('id, name')
+        .eq('phone', phone)
+        .single();
+
+      if (existingPhoneMechanic) {
+        return NextResponse.json(
+          { error: 'Ya existe un mecánico con este teléfono' },
+          { status: 409 }
+        );
+      }
+    }
+
     // Validar email único si se proporciona
     if (email) {
       const { data: existingMechanic, error: emailError } = await supabase
@@ -202,7 +227,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         email: email?.trim() || null,
         phone: phone?.trim() || null,
-        specialties: specialties || null,
+        specialties: specialties ? specialties.split(',').map(s => s.trim()).filter(s => s.length > 0) : null,
         is_active,
         dealership_id,
         workshop_id: workshop_id || null

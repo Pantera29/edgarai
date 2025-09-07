@@ -43,7 +43,8 @@ import {
   CalendarPlus,
   Clock,
   Cog,
-  Settings2
+  Settings2,
+  UserCog
 } from "lucide-react"
 
 interface SubMenuItem {
@@ -166,6 +167,11 @@ const menuItems: MenuItem[] = [
         title: "Servicios Específicos",
         href: "/backoffice/servicios-especificos",
         icon: Cog
+      },
+      {
+        title: "Mecánicos",
+        href: "/backoffice/mecanicos",
+        icon: UserCog
       }
     ]
   },
