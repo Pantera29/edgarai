@@ -90,7 +90,7 @@ export async function PUT(
     // Verificar que el mecánico existe
     const { data: existingMechanic, error: fetchError } = await supabase
       .from('mechanics')
-      .select('id, name, email, dealership_id')
+      .select('id, name, email, phone, dealership_id')
       .eq('id', params.id)
       .single();
 
