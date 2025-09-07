@@ -312,6 +312,101 @@ function ServiceComboBox({ servicios, onSelect, value }: { servicios: ExtendedSe
   );
 }
 
+// Componente para seleccionar mecánicos de forma similar al ServiceComboBox
+function MechanicComboBox({ mechanics, onSelect, value, loading }: { mechanics: any[], onSelect: (id: string) => void, value: string, loading: boolean }) {
+  const [open, setOpen] = React.useState(false);
+  const [search, setSearch] = React.useState('');
+  const triggerRef = React.useRef<HTMLDivElement>(null);
+
+  // Buscar el mecánico seleccionado
+  const selectedMechanic = mechanics.find(m => m.id === value);
+
+  // Filtrar mecánicos por búsqueda de nombre
+  const filtered = search.trim() === ''
+    ? mechanics
+    : mechanics.filter(mechanic =>
+        mechanic.name.toLowerCase().includes(search.toLowerCase())
+      );
+
+  // Cerrar el dropdown si se hace clic fuera
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [open]);
+
+  return (
+    <div className="relative w-full" ref={triggerRef}>
+      <button
+        type="button"
+        className="w-full border rounded-md px-3 py-2 text-left bg-white"
+        onClick={() => setOpen((prev) => !prev)}
+        disabled={loading}
+      >
+        {loading ? (
+          <div className="flex items-center">
+            <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-600 mr-2"></div>
+            Cargando mecánicos...
+          </div>
+        ) : selectedMechanic ? (
+          <div>
+            <span className="font-medium">{selectedMechanic.name}</span>
+            {selectedMechanic.specialties && selectedMechanic.specialties.length > 0 && (
+              <span className="text-gray-500"> - {selectedMechanic.specialties.join(', ')}</span>
+            )}
+          </div>
+        ) : (
+          "Selecciona un mecánico (opcional)"
+        )}
+      </button>
+      {open && !loading && (
+        <div className="absolute z-10 mt-1 w-full bg-white border rounded-md shadow-lg">
+          <input
+            type="text"
+            className="w-full px-3 py-2 border-b outline-none bg-white text-black"
+            placeholder="Buscar mecánico por nombre..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            autoFocus
+          />
+          <ul className="max-h-60 overflow-y-auto">
+            {filtered.length > 0 ? (
+              filtered.map((mechanic) => (
+                <li
+                  key={mechanic.id}
+                  className={`px-3 py-2 cursor-pointer hover:bg-blue-100 ${value === mechanic.id ? 'bg-blue-50 font-semibold' : ''}`}
+                  onClick={() => {
+                    onSelect(mechanic.id);
+                    setOpen(false);
+                    setSearch('');
+                  }}
+                >
+                  <div>
+                    <span className="font-medium">{mechanic.name}</span>
+                    {mechanic.specialties && mechanic.specialties.length > 0 && (
+                      <span className="text-gray-500"> - {mechanic.specialties.join(', ')}</span>
+                    )}
+                  </div>
+                </li>
+              ))
+            ) : (
+              <li className="px-3 py-2 text-gray-400">No se encontraron mecánicos</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Componente para seleccionar servicios específicos de forma similar al ServiceComboBox
 function SpecificServiceComboBox({ specificServices, onSelect, value }: { specificServices: any[], onSelect: (id: string) => void, value: string }) {
   const [open, setOpen] = React.useState(false);
@@ -456,6 +551,11 @@ export default function NuevaReservaPage() {
   const [allowPastDates, setAllowPastDates] = useState(false);
   const [selectedClientData, setSelectedClientData] = useState<ExtendedClient | null>(null);
 
+  // Estado para mecánicos
+  const [mechanics, setMechanics] = useState<any[]>([]);
+  const [selectedMechanic, setSelectedMechanic] = useState<string>('');
+  const [loadingMechanics, setLoadingMechanics] = useState(false);
+
   // Hook para búsqueda de clientes
   const { getClientById } = useClientSearch(verifiedDataToken?.dealership_id || '');
 
@@ -531,6 +631,21 @@ export default function NuevaReservaPage() {
     console.log('Texto del servicio seleccionado:', text);
     return text;
   }, [selectedService, filteredServices]);
+
+  // Obtener el texto del mecánico seleccionado
+  const selectedMechanicText = React.useMemo(() => {
+    if (!selectedMechanic) return "";
+    
+    const mechanic = mechanics.find(m => m.id === selectedMechanic);
+    if (!mechanic) return "";
+    
+    let text = mechanic.name;
+    if (mechanic.specialties && mechanic.specialties.length > 0) {
+      text += ` (${mechanic.specialties.join(', ')})`;
+    }
+    
+    return text;
+  }, [selectedMechanic, mechanics]);
 
   const handleSelectDate = (date: Date | undefined) => {
     if (date) {
@@ -748,6 +863,16 @@ export default function NuevaReservaPage() {
     }
   }, [selectedWorkshop]);
 
+  // Efecto para cargar mecánicos cuando cambia el taller seleccionado
+  useEffect(() => {
+    if (selectedWorkshop) {
+      loadMechanics(selectedWorkshop);
+    } else {
+      setMechanics([]);
+      setSelectedMechanic('');
+    }
+  }, [selectedWorkshop]);
+
   // Efecto para filtrar servicios cuando cambia el taller seleccionado
   useEffect(() => {
     if (!selectedWorkshop) {
@@ -885,6 +1010,48 @@ export default function NuevaReservaPage() {
     }
   }, [selectedSpecificService, specificServices]);
 
+  // Función para cargar mecánicos del taller seleccionado
+  const loadMechanics = async (workshopId: string) => {
+    if (!workshopId || !verifiedDataToken?.dealership_id) {
+      setMechanics([]);
+      setSelectedMechanic('');
+      return;
+    }
+
+    setLoadingMechanics(true);
+    try {
+      console.log('🔧 Cargando mecánicos para el taller:', workshopId);
+      
+      const response = await fetch(`/api/mechanics?workshop_id=${workshopId}&is_active=true`);
+      
+      if (!response.ok) {
+        throw new Error('Error al cargar mecánicos');
+      }
+      
+      const result = await response.json();
+      const mechanicsData = result.data || [];
+      
+      console.log('🔧 Mecánicos cargados:', mechanicsData.length);
+      setMechanics(mechanicsData);
+      
+      // Resetear mecánico seleccionado al cambiar de taller
+      setSelectedMechanic('');
+      
+    } catch (error) {
+      console.error('Error al cargar mecánicos:', error);
+      setMechanics([]);
+      setSelectedMechanic('');
+      
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error al cargar los mecánicos del taller"
+      });
+    } finally {
+      setLoadingMechanics(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -892,6 +1059,7 @@ export default function NuevaReservaPage() {
       cliente: selectedClient,
       vehiculo: selectedVehicle,
       taller: selectedWorkshop,
+      mecanico: selectedMechanic,
       servicio: selectedService,
       fecha: selectedDate,
       hora: selectedSlot,
@@ -909,6 +1077,12 @@ export default function NuevaReservaPage() {
       fecha: !selectedDate,
       hora: !selectedSlot
     };
+
+    // Validación opcional: si hay mecánicos disponibles, sugerir seleccionar uno
+    if (mechanics.length > 0 && !selectedMechanic) {
+      console.log("⚠️ Advertencia: Hay mecánicos disponibles pero no se seleccionó ninguno");
+      // No es un error crítico, solo una advertencia
+    }
     
     const faltanCampos = Object.values(camposFaltantes).some(Boolean);
     
@@ -972,7 +1146,9 @@ export default function NuevaReservaPage() {
         ...(selectedSpecificService ? { specific_service_id: selectedSpecificService } : {}),
         // Solo enviar removed_additional si el servicio tiene adicionales
         ...((selectedSpecificService && specificServices.find(s => s.id === selectedSpecificService)?.includes_additional)
-          ? { removed_additional: removedAdditional } : {})
+          ? { removed_additional: removedAdditional } : {}),
+        // Agregar mecánico asignado si se seleccionó uno
+        ...(selectedMechanic ? { assigned_mechanic_id: selectedMechanic } : {})
       };
       
       console.log("Datos finales a enviar al endpoint:", appointmentData);
@@ -1249,6 +1425,25 @@ export default function NuevaReservaPage() {
             </div>
           </div>
 
+          {/* Solo mostrar la sección de mecánico si hay mecánicos disponibles */}
+          {mechanics.length > 0 && (
+            <div className="grid grid-cols-12 items-center gap-4">
+              <Label htmlFor="mecanico" className="text-right col-span-1">Mecánico</Label>
+              <div className="col-span-11">
+                {loadingMechanics ? (
+                  <div className="text-sm text-muted-foreground">Cargando mecánicos...</div>
+                ) : (
+                  <MechanicComboBox
+                    mechanics={mechanics}
+                    onSelect={setSelectedMechanic}
+                    value={selectedMechanic}
+                    loading={loadingMechanics}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-12 items-center gap-4">
             <Label htmlFor="servicio" className="text-right col-span-1">Servicio</Label>
             <div className="col-span-11">
@@ -1400,6 +1595,13 @@ export default function NuevaReservaPage() {
                 <span className="font-medium">Taller:</span>
                 <span>{selectedWorkshopText || 'No seleccionado'}</span>
               </div>
+              {/* Solo mostrar mecánico en el resumen si hay uno seleccionado */}
+              {selectedMechanic && (
+                <div className="grid grid-cols-2">
+                  <span className="font-medium">Mecánico:</span>
+                  <span>{selectedMechanicText}</span>
+                </div>
+              )}
               <div className="grid grid-cols-2">
                 <span className="font-medium">Servicio:</span>
                 <span>{selectedServiceText || 'No seleccionado'}</span>
