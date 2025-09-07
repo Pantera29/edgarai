@@ -203,7 +203,7 @@ export async function PUT(
     if (name !== undefined) updateData.name = name.trim();
     if (email !== undefined) updateData.email = email?.trim() || null;
     if (phone !== undefined) updateData.phone = phone?.trim() || null;
-    if (specialties !== undefined) updateData.specialties = specialties ? specialties.split(',').map(s => s.trim()).filter(s => s.length > 0) : null;
+    if (specialties !== undefined) updateData.specialties = specialties ? specialties.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0) : null;
     if (is_active !== undefined) updateData.is_active = is_active;
     if (dealership_id !== undefined) updateData.dealership_id = dealership_id;
     if (workshop_id !== undefined) updateData.workshop_id = workshop_id;
