@@ -150,6 +150,36 @@ export async function PUT(
       }
     }
 
+    // Validar formato de teléfono si se proporciona
+    if (phone !== undefined) {
+      if (phone && phone.trim() !== '') {
+        const phoneRegex = /^\d{10}$/;
+        if (!phoneRegex.test(phone)) {
+          return NextResponse.json(
+            { error: 'El teléfono debe tener exactamente 10 dígitos numéricos' },
+            { status: 400 }
+          );
+        }
+
+        // Validar que el teléfono sea único (solo si es diferente al actual)
+        if (phone !== existingMechanic.phone) {
+          const { data: existingPhoneMechanic, error: phoneError } = await supabase
+            .from('mechanics')
+            .select('id, name')
+            .eq('phone', phone)
+            .neq('id', params.id)
+            .single();
+
+          if (existingPhoneMechanic) {
+            return NextResponse.json(
+              { error: 'Ya existe otro mecánico con este teléfono' },
+              { status: 409 }
+            );
+          }
+        }
+      }
+    }
+
     // Validar email único si se proporciona y es diferente al actual
     if (email && email !== existingMechanic.email) {
       const { data: existingEmailMechanic, error: emailError } = await supabase
@@ -173,7 +203,7 @@ export async function PUT(
     if (name !== undefined) updateData.name = name.trim();
     if (email !== undefined) updateData.email = email?.trim() || null;
     if (phone !== undefined) updateData.phone = phone?.trim() || null;
-    if (specialties !== undefined) updateData.specialties = specialties;
+    if (specialties !== undefined) updateData.specialties = specialties ? specialties.split(',').map(s => s.trim()).filter(s => s.length > 0) : null;
     if (is_active !== undefined) updateData.is_active = is_active;
     if (dealership_id !== undefined) updateData.dealership_id = dealership_id;
     if (workshop_id !== undefined) updateData.workshop_id = workshop_id;
