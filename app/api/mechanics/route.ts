@@ -227,7 +227,7 @@ export async function POST(request: NextRequest) {
         name: name.trim(),
         email: email?.trim() || null,
         phone: phone?.trim() || null,
-        specialties: specialties ? specialties.split(',').map(s => s.trim()).filter(s => s.length > 0) : null,
+        specialties: specialties ? specialties.split(',').map((s: string) => s.trim()).filter((s: string) => s.length > 0) : null,
         is_active,
         dealership_id,
         workshop_id: workshop_id || null
