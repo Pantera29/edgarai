@@ -130,6 +130,7 @@ export async function POST(request: Request) {
       specific_service_id,    // ← NUEVO
       removed_additional,     // ← NUEVO
       completion_notes,       // ← NUEVO
+      assigned_mechanic_id,   // ← NUEVO: ID del mecánico asignado
       appointment_date, 
       appointment_time,
       notes,
@@ -398,6 +399,50 @@ export async function POST(request: Request) {
       providedWorkshopId: workshop_id
     });
 
+    // 4.5. NUEVO: Validar mecánico asignado si se proporciona
+    if (assigned_mechanic_id) {
+      console.log('🔧 Validando mecánico asignado:', {
+        mechanicId: assigned_mechanic_id,
+        workshopId: finalWorkshopId,
+        dealershipId: finalDealershipId
+      });
+
+      const { data: mechanic, error: mechanicError } = await supabase
+        .from('mechanics')
+        .select('id, name, workshop_id, dealership_id, is_active')
+        .eq('id', assigned_mechanic_id)
+        .eq('workshop_id', finalWorkshopId)
+        .eq('dealership_id', finalDealershipId)
+        .eq('is_active', true)
+        .single();
+
+      if (mechanicError || !mechanic) {
+        console.log('❌ Mecánico no válido o no disponible:', {
+          mechanicId: assigned_mechanic_id,
+          error: mechanicError?.message,
+          workshopId: finalWorkshopId,
+          dealershipId: finalDealershipId
+        });
+
+        return NextResponse.json(
+          { 
+            message: 'El mecánico seleccionado no es válido o no está disponible en este taller',
+            error_type: 'INVALID_MECHANIC',
+            solution: 'Verifique que el mecánico existe, está activo y pertenece al taller seleccionado'
+          },
+          { status: 400 }
+        );
+      }
+
+      console.log('✅ Mecánico validado correctamente:', {
+        mechanicId: mechanic.id,
+        mechanicName: mechanic.name,
+        workshopId: mechanic.workshop_id
+      });
+    } else {
+      console.log('ℹ️ No se asignó mecánico a la cita (opcional)');
+    }
+
     // 5. NUEVO: Validar límite diario del servicio
     if (service.daily_limit !== null) {
       console.log('🔍 Validando límite diario para servicio:', {
@@ -503,7 +548,8 @@ export async function POST(request: Request) {
         notes: notes || null,
         channel: channel,
         removed_additional: removed_additional || false,  // ← NUEVO campo
-        completion_notes: completion_notes || null  // ← NUEVO campo
+        completion_notes: completion_notes || null,  // ← NUEVO campo
+        assigned_mechanic_id: assigned_mechanic_id || null  // ← NUEVO campo
       }])
       .select(`
         *,
@@ -596,7 +642,8 @@ export async function POST(request: Request) {
           appointment_date: appointment_date,
           appointment_time: appointment_time,
           channel: channel,
-          workshop_id: finalWorkshopId
+          workshop_id: finalWorkshopId,
+          assigned_mechanic_id: assigned_mechanic_id || null
         }
       };
       
