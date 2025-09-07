@@ -326,7 +326,7 @@ export default function MecanicosPage() {
           name: mecanicoSeleccionado.name.trim(),
           email: mecanicoSeleccionado.email?.trim() || null,
           phone: mecanicoSeleccionado.phone?.trim() || null,
-          specialties: mecanicoSeleccionado.specialties?.trim() || null,
+          specialties: mecanicoSeleccionado.specialties?.join(', ') || null,
           is_active: mecanicoSeleccionado.is_active,
           workshop_id: mecanicoSeleccionado.workshop_id || null
         })
