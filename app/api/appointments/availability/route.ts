@@ -1110,7 +1110,7 @@ function generateTimeSlots(
     });
     
     // Verificar si el slot está bloqueado
-    const isBlocked = blockedDate?.blocked_slots?.includes(timeStr);
+    const isBlocked = isTimeBlocked(timeStr, blockedDate);
     
     // Verificar capacidad total del día
     const totalMinutesAvailable = (closingMinutes - openingMinutes) * maxSimultaneous;
@@ -1166,6 +1166,9 @@ function generateTimeSlots(
     }, 0);
     const remainingMinutesAvailable = totalMinutesAvailable - totalMinutesBooked;
     const hasCapacity = remainingMinutesAvailable >= serviceDuration;
+    
+    // Si el slot está bloqueado (available: 0), no tiene capacidad
+    const isSlotBlocked = slot.available === 0;
 
     console.log('🔍 Análisis detallado de slot:', {
       slot: slot.time,
@@ -1268,6 +1271,15 @@ function generateTimeSlots(
       }
     }
 
+    // Verificar si el slot está bloqueado antes de agregarlo
+    if (isSlotBlocked) {
+      console.log('🚫 Slot descartado por estar bloqueado:', {
+        slot: slot.time,
+        reason: 'Slot marcado como no disponible por bloqueo de horario'
+      });
+      continue;
+    }
+
     console.log('✅ Slot agregado como disponible:', {
       slot: slot.time,
       hasCapacity,
@@ -1318,10 +1330,17 @@ function isTimeBlocked(time: string, blockedDate: any) {
     return blockedDate ? true : false;
   }
   
-  return (
-    time >= blockedDate.start_time && 
-    time <= blockedDate.end_time
-  );
+  // Si no hay start_time o end_time, no está bloqueado por rango
+  if (!blockedDate.start_time || !blockedDate.end_time) {
+    return false;
+  }
+  
+  // Convertir a minutos para comparación correcta
+  const timeMinutes = timeToMinutes(time);
+  const startMinutes = timeToMinutes(blockedDate.start_time);
+  const endMinutes = timeToMinutes(blockedDate.end_time);
+  
+  return timeMinutes >= startMinutes && timeMinutes <= endMinutes;
 }
 
 
