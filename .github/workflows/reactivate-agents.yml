@@ -7,11 +7,21 @@ on:
   workflow_dispatch:
 
 jobs:
-  call-reactivate-agents-endpoint:
+  call-reactivate-agents-endpoint-agency1:
     runs-on: ubuntu-latest
     steps:
-      - name: Call reactivate agents endpoint
+      - name: Call reactivate agents endpoint - Agencia 1
         run: |
           curl -v -L -X POST "https://edgarai.vercel.app/api/cron/reactivate-agents/" \
             -H "Content-Type: application/json" \
             -d '{"dealership_id":"b8ecf479-16ed-4f38-a726-cc1617a1fcbf"}'
+
+  call-reactivate-agents-endpoint-agency2:
+    runs-on: ubuntu-latest
+    needs: call-reactivate-agents-endpoint-agency1
+    steps:
+      - name: Call reactivate agents endpoint - Agencia 2
+        run: |
+          curl -v -L -X POST "https://edgarai.vercel.app/api/cron/reactivate-agents/" \
+            -H "Content-Type: application/json" \
+            -d '{"dealership_id":"6fa78291-c16a-4c78-9fe2-9e3695d24d48"}'
