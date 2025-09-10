@@ -95,6 +95,7 @@ interface ConversacionItem {
   }>;
   last_read_at?: string | null;
   last_message_time?: string | null;
+  client_agent_active?: boolean;
 }
 
 interface Cliente {
@@ -129,7 +130,6 @@ const CACHE_TTL = 2 * 60 * 1000; // 2 minutos
 // Hook para actualización silenciosa con indicadores visuales
 const useSilentUpdates = (dataToken: { dealership_id: string }, cargarConversaciones: () => Promise<void>) => {
   const [isUpdating, setIsUpdating] = useState(false);
-  const [lastUpdateTime, setLastUpdateTime] = useState<Date | null>(null);
   
   useEffect(() => {
     if (!dataToken) return;
@@ -140,7 +140,6 @@ const useSilentUpdates = (dataToken: { dealership_id: string }, cargarConversaci
       try {
         // Actualizar en background
         await cargarConversaciones();
-        setLastUpdateTime(new Date());
       } catch (error) {
         console.error('Error en actualización automática:', error);
       } finally {
@@ -151,7 +150,7 @@ const useSilentUpdates = (dataToken: { dealership_id: string }, cargarConversaci
     return () => clearInterval(interval);
   }, [dataToken, cargarConversaciones]);
   
-  return { isUpdating, lastUpdateTime };
+  return { isUpdating };
 };
 
 // Hook para actualización inteligente solo de cambios
@@ -163,9 +162,9 @@ const useSmartPolling = (dataToken: { dealership_id: string }, setConversaciones
     
     const interval = setInterval(async () => {
       try {
-        // Usar la función existente get_filtered_conversations para obtener todas las conversaciones
+        // Usar la nueva función get_all_conversations_with_agent_status para obtener todas las conversaciones
         // y luego comparar con las existentes para detectar cambios
-        const { data, error } = await supabase.rpc('get_filtered_conversations', {
+        const { data, error } = await supabase.rpc('get_all_conversations_with_agent_status', {
           dealership_id_param: dataToken.dealership_id,
           search_query: null,
           p_status_filter: 'todos',
@@ -249,6 +248,7 @@ function ConversationList({
     clientesConAgenteDesactivado: number;
   } | null>(null);
   
+  
   // Filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroCanal, setFiltroCanal] = useState("todos");
@@ -296,10 +296,10 @@ function ConversationList({
         ended_reason_filter: filtroRazonFinalizacion
       };
 
-      console.log('🚀 Llamando a la función RPC get_filtered_conversations con los parámetros:', rpcParams);
+      console.log('🚀 Llamando a la función RPC get_all_conversations_with_agent_status con los parámetros:', rpcParams);
       
-      // ✅ MANTENER RPC existente - no cambiar nada aquí
-      const { data, error } = await supabase.rpc('get_filtered_conversations', rpcParams);
+      // ✅ Usar nueva función que incluye client_agent_active
+      const { data, error } = await supabase.rpc('get_all_conversations_with_agent_status', rpcParams);
       
       if (error) {
         console.error("❌ Error en la llamada RPC:", JSON.stringify(error, null, 2));
@@ -586,7 +586,7 @@ function ConversationList({
   );
 
   // Hooks para actualización automática (después de definir cargarConversaciones)
-  const { isUpdating, lastUpdateTime } = useSilentUpdates(dataToken, cargarConversaciones);
+  const { isUpdating } = useSilentUpdates(dataToken, cargarConversaciones);
   useSmartPolling(dataToken, setConversaciones);
 
   useEffect(() => {
@@ -693,12 +693,6 @@ function ConversationList({
                 Actualizando...
               </div>
             )}
-            
-            {lastUpdateTime && !isUpdating && (
-              <div className="text-xs text-muted-foreground text-right">
-                Últ. actualización: {format(lastUpdateTime, 'HH:mm')}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -741,12 +735,19 @@ function ConversationList({
                                                               {/* Fila superior: Cliente y hora */}
                      <div className="flex items-center justify-between mb-1">
                        <div className="flex-1 min-w-0 mr-2">
-                         <p 
-                           className="font-medium text-sm truncate"
-                           title={getFullClientName(conversacion.client?.names)}
-                         >
-                           {truncateClientName(conversacion.client?.names)}
-                         </p>
+                         <div className="flex items-center gap-2">
+                           <p 
+                             className="font-medium text-sm truncate"
+                             title={getFullClientName(conversacion.client?.names)}
+                           >
+                             {truncateClientName(conversacion.client?.names)}
+                           </p>
+                           {conversacion.client_agent_active === false && (
+                             <span className="bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold flex-shrink-0">
+                               !
+                             </span>
+                           )}
+                         </div>
                        </div>
                        <p className={`text-xs flex-shrink-0 ${isConversationUnread(conversacion) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
                          {formatDateTime(conversacion)}
