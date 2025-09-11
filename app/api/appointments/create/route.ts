@@ -355,7 +355,7 @@ export async function POST(request: Request) {
     // 3. Verificar que el servicio existe
     const { data: service, error: serviceError } = await supabase
       .from('services')
-      .select('id_uuid, daily_limit, service_name')
+      .select('id_uuid, daily_limit, service_name, available_monday, available_tuesday, available_wednesday, available_thursday, available_friday, available_saturday, available_sunday')
       .eq('id_uuid', finalServiceId)  // ← Usar finalServiceId
       .maybeSingle();
 
