@@ -181,6 +181,19 @@ export function ClienteContextPanel({ clientId, dealershipId, userIdentifier }: 
 
   // Formatear fecha tal como viene de la base de datos
   const formatDate = (dateString: string) => {
+    // Si la fecha viene en formato YYYY-MM-DD, crear la fecha en zona horaria local
+    // para evitar problemas de conversión UTC
+    if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateString.split('-').map(Number);
+      const date = new Date(year, month - 1, day); // month - 1 porque Date usa 0-indexado
+      return date.toLocaleDateString('es-ES', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    }
+    
+    // Para otros formatos, usar el método original
     const date = new Date(dateString);
     return date.toLocaleDateString('es-ES', {
       day: '2-digit',
