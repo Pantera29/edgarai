@@ -1,0 +1,16 @@
+name: EdgarAI Reprogramar Recordatorios de Seguimiento
+
+on:
+  schedule:
+    # Reprogramar recordatorios diariamente a las 6:00 AM UTC (medianoche en Ciudad de México)
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  call-reprogram-followup-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call reprogram follow-up reminders endpoint
+        run: |
+          curl -v -L -X POST "https://edgarai.vercel.app/api/cron/cancel-followup-reminders/" \
+            -H "Content-Type: application/json"
