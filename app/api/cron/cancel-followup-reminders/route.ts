@@ -23,7 +23,7 @@ interface ProcessResult {
   client_id_uuid: string;
   success: boolean;
   error?: string;
-  appointment_id?: number;
+  appointment_id?: number | null;
   appointment_date?: string;
   old_reminder_date?: string;
   new_reminder_date?: string;
