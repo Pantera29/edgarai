@@ -67,22 +67,22 @@ export async function POST(request: Request) {
       console.log('🌍 [CRON-DEALERSHIP-WORKER-REACTIVATE] Procesando TODOS los dealerships');
     }
 
-    // Calcular fecha de hace más de dos días en zona horaria de Ciudad de México
+    // Calcular fecha de hace más de un día en zona horaria de Ciudad de México
     const today = new Date();
     const mexicoOffset = -6; // UTC-6 para Ciudad de México (sin horario de verano)
     const mexicoTime = new Date(today.getTime() + (mexicoOffset * 60 * 60 * 1000));
-    const twoDaysAgo = new Date(mexicoTime);
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const oneDayAgo = new Date(mexicoTime);
+    oneDayAgo.setDate(oneDayAgo.getDate() - 1);
 
-    console.log('📅 [CRON-DEALERSHIP-WORKER-REACTIVATE] Buscando agentes desactivados por dealership_worker antes del:', twoDaysAgo.toISOString(), '(Zona horaria: Ciudad de México)');
+    console.log('📅 [CRON-DEALERSHIP-WORKER-REACTIVATE] Buscando agentes desactivados por dealership_worker antes del:', oneDayAgo.toISOString(), '(Zona horaria: Ciudad de México)');
 
-    // Construir consulta para obtener agentes desactivados por dealership_worker hace más de dos días
+    // Construir consulta para obtener agentes desactivados por dealership_worker hace más de un día
     let query = supabase
       .from('phone_agent_settings')
       .select('*')
       .eq('agent_active', false)
       .eq('updated_by', 'dealership_worker')
-      .lt('updated_at', twoDaysAgo.toISOString());
+      .lt('updated_at', oneDayAgo.toISOString());
 
     // Aplicar filtro de dealership si se proporciona
     if (dealership_id) {
@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       console.log('ℹ️ [CRON-DEALERSHIP-WORKER-REACTIVATE] No se encontraron agentes para reactivar');
       return NextResponse.json({
         success: true,
-        message: 'No se encontraron agentes desactivados por dealership_worker hace más de dos días',
+        message: 'No se encontraron agentes desactivados por dealership_worker hace más de un día',
         dealership_id: dealership_id || null,
         processed_count: 0,
         success_count: 0,
@@ -141,7 +141,7 @@ export async function POST(request: Request) {
             phone_number: setting.phone_number,
             dealership_id: setting.dealership_id,
             agent_active: true,
-            notes: `Reactivado automáticamente por cron job - agente desactivado por dealership_worker hace más de dos días (${setting.updated_at})`,
+            notes: `Reactivado automáticamente por cron job - agente desactivado por dealership_worker hace más de un día (${setting.updated_at})`,
             updated_by: 'cron_dealership_worker_reactivate'
           })
         });
