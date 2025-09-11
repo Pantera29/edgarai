@@ -15,7 +15,8 @@ interface ReminderToCancel {
   reminder_date: string;
   dealership_id: string;
   appointment_id: number | null;
-  appointment_date: string;
+  future_appointment_id: number;
+  future_appointment_date: string;
 }
 
 interface ProcessResult {
@@ -77,38 +78,47 @@ export async function POST(request: Request) {
     // Consulta para encontrar recordatorios de seguimiento que deben reprogramarse
     console.log('📊 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Buscando recordatorios de seguimiento a reprogramar...');
 
-    // Primero obtener todos los recordatorios de seguimiento pendientes
-    let remindersQuery = supabase
+    console.log('🔍 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Ejecutando consulta optimizada...');
+
+    // Ejecutar consulta optimizada usando el cliente de Supabase
+    let query = supabase
       .from('reminders')
-      .select('*')
+      .select(`
+        reminder_id,
+        client_id_uuid,
+        reminder_date,
+        dealership_id,
+        appointment_id
+      `)
       .eq('reminder_type', 'follow_up')
-      .eq('status', 'pending');
+      .eq('status', 'pending')
+      .limit(100);
 
     // Aplicar filtro de dealership si se proporciona
     if (dealership_id) {
-      remindersQuery = remindersQuery.eq('dealership_id', dealership_id);
+      query = query.eq('dealership_id', dealership_id);
     }
 
-    const { data: allReminders, error: remindersError } = await remindersQuery;
+    const { data: remindersToReprogram, error: queryError } = await query;
 
-    if (remindersError) {
-      console.error('❌ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Error consultando recordatorios:', remindersError);
+    if (queryError) {
+      console.error('❌ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Error ejecutando consulta SQL:', queryError);
       return NextResponse.json(
         { 
           success: false,
           message: 'Error consultando recordatorios en la base de datos',
           error_code: 'DATABASE_QUERY_ERROR',
-          error_details: remindersError.message
+          error_details: queryError.message
         },
         { status: 500 }
       );
     }
 
-    if (!allReminders || allReminders.length === 0) {
-      console.log('ℹ️ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] No se encontraron recordatorios de seguimiento pendientes');
+    if (!remindersToReprogram || remindersToReprogram.length === 0) {
+      console.log('ℹ️ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] No se encontraron recordatorios de seguimiento para reprogramar');
       return NextResponse.json({
         success: true,
-        message: 'No se encontraron recordatorios de seguimiento pendientes',
+        message: 'No se encontraron recordatorios de seguimiento que requieran reprogramación',
         dealership_id: dealership_id || null,
         dry_run: dry_run,
         processed_count: 0,
@@ -121,38 +131,49 @@ export async function POST(request: Request) {
       });
     }
 
-    console.log(`📊 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Encontrados ${allReminders.length} recordatorios de seguimiento pendientes`);
+    console.log(`📊 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Datos obtenidos de Supabase: ${remindersToReprogram?.length || 0} recordatorios`);
 
-    // Para cada recordatorio, verificar si hay citas pendientes con fecha posterior
-    const remindersToReprogram: ReminderToCancel[] = [];
+    // Procesar cada recordatorio y buscar citas futuras
+    const processedReminders: ReminderToCancel[] = [];
+    
+    if (remindersToReprogram) {
+      for (const reminder of remindersToReprogram) {
+        // Buscar citas pendientes del cliente con fecha posterior al recordatorio
+        const { data: futureAppointments, error: appointmentsError } = await supabase
+          .from('appointment')
+          .select('id, appointment_date')
+          .eq('client_id', reminder.client_id_uuid)
+          .eq('status', 'pending')
+          .gt('appointment_date', reminder.reminder_date.split('T')[0])
+          .limit(1);
 
-    for (const reminder of allReminders) {
-      const { data: futureAppointments, error: appointmentsError } = await supabase
-        .from('appointment')
-        .select('id, appointment_date')
-        .eq('client_id', reminder.client_id_uuid)
-        .eq('status', 'pending')
-        .gt('appointment_date', reminder.reminder_date.split('T')[0]) // Comparar solo la fecha
-        .limit(1);
+        if (appointmentsError) {
+          console.error(`❌ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Error consultando citas para recordatorio ${reminder.reminder_id}:`, appointmentsError);
+          continue;
+        }
 
-      if (appointmentsError) {
-        console.error(`❌ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Error consultando citas para recordatorio ${reminder.reminder_id}:`, appointmentsError);
-        continue;
-      }
-
-      if (futureAppointments && futureAppointments.length > 0) {
-        remindersToReprogram.push({
-          reminder_id: reminder.reminder_id,
-          client_id_uuid: reminder.client_id_uuid,
-          reminder_date: reminder.reminder_date,
-          dealership_id: reminder.dealership_id,
-          appointment_id: reminder.appointment_id,
-          appointment_date: futureAppointments[0].appointment_date
-        });
+        if (futureAppointments && futureAppointments.length > 0) {
+          const appointment = futureAppointments[0];
+          console.log(`🔍 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: reminder_date=${reminder.reminder_date.split('T')[0]}, appointment_date=${appointment.appointment_date}, should_reprogram=true`);
+          
+          processedReminders.push({
+            reminder_id: reminder.reminder_id,
+            client_id_uuid: reminder.client_id_uuid,
+            reminder_date: reminder.reminder_date,
+            dealership_id: reminder.dealership_id,
+            appointment_id: reminder.appointment_id,
+            future_appointment_id: appointment.id,
+            future_appointment_date: appointment.appointment_date
+          });
+        } else {
+          console.log(`🔍 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: no tiene citas futuras`);
+        }
       }
     }
 
-    if (!remindersToReprogram || remindersToReprogram.length === 0) {
+    console.log(`📊 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Encontrados ${processedReminders.length} recordatorios para reprogramar`);
+
+    if (!processedReminders || processedReminders.length === 0) {
       console.log('ℹ️ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] No se encontraron recordatorios de seguimiento para reprogramar');
       return NextResponse.json({
         success: true,
@@ -175,12 +196,12 @@ export async function POST(request: Request) {
     const dealershipsAffected = new Set<string>();
 
     // Procesar cada recordatorio
-    for (const reminder of remindersToReprogram) {
+    for (const reminder of processedReminders) {
       try {
         console.log(`🔄 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Procesando recordatorio: ${reminder.reminder_id} (Cliente: ${reminder.client_id_uuid})`);
         
         // Calcular nueva fecha: 5 meses después de la cita
-        const appointmentDate = new Date(reminder.appointment_date);
+        const appointmentDate = new Date(reminder.future_appointment_date);
         const newReminderDate = new Date(appointmentDate);
         newReminderDate.setMonth(appointmentDate.getMonth() + 5); // 5 meses después
         
@@ -190,8 +211,8 @@ export async function POST(request: Request) {
             reminder_id: reminder.reminder_id,
             client_id_uuid: reminder.client_id_uuid,
             success: true,
-            appointment_id: reminder.appointment_id,
-            appointment_date: reminder.appointment_date,
+            appointment_id: reminder.future_appointment_id,
+            appointment_date: reminder.future_appointment_date,
             old_reminder_date: reminder.reminder_date,
             new_reminder_date: newReminderDate.toISOString()
           });
@@ -213,8 +234,8 @@ export async function POST(request: Request) {
               client_id_uuid: reminder.client_id_uuid,
               success: false,
               error: updateError.message,
-              appointment_id: reminder.appointment_id,
-              appointment_date: reminder.appointment_date,
+              appointment_id: reminder.future_appointment_id,
+              appointment_date: reminder.future_appointment_date,
               old_reminder_date: reminder.reminder_date,
               new_reminder_date: newReminderDate.toISOString()
             });
@@ -224,8 +245,8 @@ export async function POST(request: Request) {
               reminder_id: reminder.reminder_id,
               client_id_uuid: reminder.client_id_uuid,
               success: true,
-              appointment_id: reminder.appointment_id,
-              appointment_date: reminder.appointment_date,
+              appointment_id: reminder.future_appointment_id,
+              appointment_date: reminder.future_appointment_date,
               old_reminder_date: reminder.reminder_date,
               new_reminder_date: newReminderDate.toISOString()
             });
@@ -239,8 +260,8 @@ export async function POST(request: Request) {
           client_id_uuid: reminder.client_id_uuid,
           success: false,
           error: error instanceof Error ? error.message : 'Error inesperado',
-          appointment_id: reminder.appointment_id,
-          appointment_date: reminder.appointment_date,
+          appointment_id: reminder.future_appointment_id,
+          appointment_date: reminder.future_appointment_date,
           old_reminder_date: reminder.reminder_date
         });
       }
@@ -252,7 +273,7 @@ export async function POST(request: Request) {
     const durationMs = endTime.getTime() - startTime.getTime();
 
     console.log(`🎉 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Proceso completado:`, {
-      processed_count: remindersToReprogram.length,
+      processed_count: processedReminders.length,
       success_count: successCount,
       error_count: errorCount,
       duration_ms: durationMs,
@@ -267,7 +288,7 @@ export async function POST(request: Request) {
         : 'Recordatorios de seguimiento reprogramados exitosamente',
       dealership_id: dealership_id || null,
       dry_run: dry_run,
-      processed_count: remindersToReprogram.length,
+      processed_count: processedReminders.length,
       success_count: successCount,
       error_count: errorCount,
       timestamp: endTime.toISOString(),
