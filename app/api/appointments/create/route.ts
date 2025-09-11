@@ -443,7 +443,124 @@ export async function POST(request: Request) {
       console.log('ℹ️ No se asignó mecánico a la cita (opcional)');
     }
 
-    // 5. NUEVO: Validar límite diario del servicio
+    // 5. NUEVO: Validar día laborable y disponibilidad del servicio
+    console.log('🔍 Validando día laborable y disponibilidad del servicio:', {
+      serviceId: finalServiceId,
+      serviceName: service.service_name,
+      appointmentDate: appointment_date,
+      dealershipId: finalDealershipId,
+      workshopId: finalWorkshopId
+    });
+
+    // Obtener el día de la semana (0=Domingo, 1=Lunes, ..., 6=Sábado)
+    const appointmentDateObj = new Date(appointment_date + 'T00:00:00');
+    const dayOfWeek = appointmentDateObj.getDay();
+    
+    // Mapear días de JavaScript a nombres en inglés
+    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const dayName = dayNames[dayOfWeek];
+    
+    console.log('📅 Información del día:', {
+      appointmentDate: appointment_date,
+      dayOfWeek: dayOfWeek,
+      dayName: dayName
+    });
+
+    // 5.1. Validar disponibilidad del servicio para este día de la semana
+    const dayMap = [
+      'available_sunday',
+      'available_monday', 
+      'available_tuesday',
+      'available_wednesday',
+      'available_thursday',
+      'available_friday',
+      'available_saturday'
+    ];
+    const availableField = dayMap[dayOfWeek];
+    
+    if (!service[availableField as keyof typeof service]) {
+      console.log('❌ Servicio no disponible este día:', { 
+        serviceId: finalServiceId, 
+        serviceName: service.service_name,
+        dayName: dayName,
+        availableField: availableField,
+        isAvailable: service[availableField as keyof typeof service]
+      });
+      
+      return NextResponse.json(
+        { 
+          message: `Cannot create appointment: The service "${service.service_name}" is not available on ${dayName}s. Please select a different day of the week.`,
+          error_type: 'SERVICE_NOT_AVAILABLE_ON_DAY',
+          details: {
+            serviceName: service.service_name,
+            requestedDay: dayName,
+            serviceId: finalServiceId,
+            appointmentDate: appointment_date,
+            solution: 'Choose a different day when this service is available (Monday through Saturday)'
+          }
+        },
+        { status: 400 }
+      );
+    }
+
+    // 5.2. Validar si el día es laborable para la agencia
+    const { data: operatingSchedule, error: scheduleError } = await supabase
+      .from('operating_hours')
+      .select('is_working_day, opening_time, closing_time, reception_end_time')
+      .eq('dealership_id', finalDealershipId)
+      .eq('workshop_id', finalWorkshopId)
+      .eq('day_of_week', dayOfWeek === 0 ? 1 : dayOfWeek + 1) // Convertir a formato 1-7 (1=Domingo)
+      .maybeSingle();
+
+    if (scheduleError) {
+      console.error('Error verificando horario de operación:', scheduleError);
+      return NextResponse.json(
+        { 
+          message: 'Error checking dealership operating hours. Please try again or contact support.',
+          error_type: 'OPERATING_HOURS_ERROR'
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!operatingSchedule || !operatingSchedule.is_working_day) {
+      console.log('❌ Día no laborable para la agencia:', { 
+        dayName: dayName,
+        appointmentDate: appointment_date,
+        dealershipId: finalDealershipId,
+        workshopId: finalWorkshopId,
+        isWorkingDay: operatingSchedule?.is_working_day
+      });
+      
+      return NextResponse.json(
+        { 
+          message: `Cannot create appointment: The dealership is closed on ${dayName}s. Please select a different day when the workshop is open.`,
+          error_type: 'DEALERSHIP_CLOSED_ON_DAY',
+          details: {
+            requestedDay: dayName,
+            appointmentDate: appointment_date,
+            dealershipId: finalDealershipId,
+            workshopId: finalWorkshopId,
+            isWorkingDay: operatingSchedule?.is_working_day,
+            solution: 'Choose a different day when the dealership is open (Monday through Saturday)'
+          }
+        },
+        { status: 400 }
+      );
+    }
+
+    console.log('✅ Validaciones de día laborable y disponibilidad del servicio pasadas:', {
+      dayName: dayName,
+      serviceAvailable: true,
+      dealershipOpen: operatingSchedule.is_working_day,
+      operatingHours: {
+        opening: operatingSchedule.opening_time,
+        closing: operatingSchedule.closing_time,
+        receptionEnd: operatingSchedule.reception_end_time
+      }
+    });
+
+    // 5.3. Validar límite diario del servicio
     if (service.daily_limit !== null) {
       console.log('🔍 Validando límite diario para servicio:', {
         serviceId: finalServiceId,
@@ -465,7 +582,10 @@ export async function POST(request: Request) {
       if (countError) {
         console.error('Error contando citas existentes para límite diario:', countError);
         return NextResponse.json(
-          { message: 'Error verificando disponibilidad del servicio. Por favor, intenta nuevamente.' },
+          { 
+            message: 'Error checking service availability. Please try again or contact support.',
+            error_type: 'DAILY_LIMIT_CHECK_ERROR'
+          },
           { status: 500 }
         );
       }
@@ -491,12 +611,14 @@ export async function POST(request: Request) {
 
         return NextResponse.json(
           { 
-            message: 'Cannot create appointment: daily limit for this service has been reached for the dealership. Please select another date or contact the workshop.',
+            message: 'Cannot create appointment: Daily limit for this service has been reached for the dealership. Please select another date or contact the workshop.',
+            error_type: 'DAILY_LIMIT_EXCEEDED',
             details: {
               serviceName: service.service_name,
               currentAppointments: appointmentCount,
               dailyLimit: service.daily_limit,
-              appointmentDate: appointment_date
+              appointmentDate: appointment_date,
+              solution: 'Choose a different date or contact the workshop to check availability'
             }
           },
           { status: 409 }
