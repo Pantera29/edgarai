@@ -1301,16 +1301,36 @@ function generateTimeSlots(
       // Determinar si el servicio cabe si comienza en el horario máximo de recepción
       const serviceEndMinutes = receptionEndMinutes + serviceDuration;
       if (serviceEndMinutes <= closingMinutes) {
-        console.log('Forzando disponibilidad del último slot de recepción debido a capacidad total disponible:', {
-          slot: receptionEndTime,
-          remainingMinutesAvailable,
-          serviceDuration,
-          currentTime: currentTimeStr,
-          isPast: false
-        });
-        
-        // Añadir el horario máximo de recepción como disponible
-        availableSlots.push(receptionEndTime);
+        // 🔧 FIX: Verificar si ya hay una cita en el horario exacto de recepción
+        const exactReceptionTimeAppointments = appointments.filter(app => 
+          app.appointment_time === receptionEndTime
+        );
+
+        if (exactReceptionTimeAppointments.length > 0) {
+          console.log('🚫 No se puede forzar el último slot de recepción porque ya hay una cita:', {
+            receptionEndTime,
+            existingAppointments: exactReceptionTimeAppointments.length,
+            appointments: exactReceptionTimeAppointments.map(app => ({
+              id: app.id,
+              time: app.appointment_time,
+              client_id: app.client_id
+            })),
+            remainingMinutesAvailable,
+            serviceDuration
+          });
+          // No agregar el slot, dejar availableSlots vacío
+        } else {
+          console.log('✅ Forzando disponibilidad del último slot de recepción (sin conflictos):', {
+            slot: receptionEndTime,
+            remainingMinutesAvailable,
+            serviceDuration,
+            currentTime: currentTimeStr,
+            isPast: false
+          });
+          
+          // Añadir el horario máximo de recepción como disponible
+          availableSlots.push(receptionEndTime);
+        }
       }
     } else {
       console.log('No se puede forzar el último slot de recepción porque ya pasó:', {
