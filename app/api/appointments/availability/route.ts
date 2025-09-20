@@ -459,11 +459,88 @@ export async function GET(request: Request) {
       });
       return NextResponse.json({
         availableSlots: [],
-        message: `Day blocked: ${blockedDate.reason}`
+        message: `This date (${date}) is not available for appointments. Reason: ${blockedDate.reason}. Please try selecting a different date.`,
+        blocked: true,
+        reason: blockedDate.reason,
+        date: date
       });
     }
 
-    // 4.5. Verificar bloqueos por modelo específico
+    // 4.5. NUEVA VALIDACIÓN: Verificar límite total de citas por día para la agencia
+    console.log('🔍 Verificando límite total de citas por día...');
+    
+    // Buscar configuración de límite total para esta fecha y agencia
+    let dailyTotalLimitQuery = supabase
+      .from('blocked_dates')
+      .select('max_total_appointments, reason')
+      .eq('dealership_id', dealershipId)
+      .eq('date', date);
+    
+    // Manejar workshop_id: si es null en BD, usar is('workshop_id', null)
+    if (finalWorkshopId) {
+      dailyTotalLimitQuery = dailyTotalLimitQuery.or(`workshop_id.eq.${finalWorkshopId},workshop_id.is.null`);
+    } else {
+      dailyTotalLimitQuery = dailyTotalLimitQuery.is('workshop_id', null);
+    }
+    
+    const { data: dailyTotalLimit, error: dailyTotalLimitError } = await dailyTotalLimitQuery.maybeSingle();
+
+    if (dailyTotalLimitError) {
+      console.error('❌ Error verificando límite total diario:', dailyTotalLimitError.message);
+    }
+
+    // Si hay límite configurado para este día (NULL = sin límite, 0 = bloqueo completo, >0 = límite específico)
+    if (dailyTotalLimit?.max_total_appointments !== null && dailyTotalLimit?.max_total_appointments !== undefined) {
+      console.log('📊 Verificando límite total de citas:', {
+        date,
+        maxAllowed: dailyTotalLimit.max_total_appointments,
+        reason: dailyTotalLimit.reason,
+        dealershipId,
+        workshopId: finalWorkshopId
+      });
+
+      // Contar todas las citas existentes para esta fecha
+      const { data: existingAppointments, error: appointmentsError } = await supabase
+        .from('appointment')
+        .select('id, appointment_time')
+        .eq('appointment_date', date)
+        .eq('dealership_id', dealershipId)
+        .eq('workshop_id', finalWorkshopId)
+        .neq('status', 'cancelled');
+
+      if (appointmentsError) {
+        console.error('❌ Error contando citas existentes:', appointmentsError.message);
+      } else {
+        const totalAppointmentsForDate = existingAppointments?.length || 0;
+        
+        console.log('📊 Conteo de citas existentes:', {
+          date,
+          currentTotal: totalAppointmentsForDate,
+          maxAllowed: dailyTotalLimit.max_total_appointments,
+          reason: dailyTotalLimit.reason
+        });
+
+        if (totalAppointmentsForDate >= dailyTotalLimit.max_total_appointments) {
+          console.log('❌ Límite total diario alcanzado:', {
+            date,
+            currentTotal: totalAppointmentsForDate,
+            maxAllowed: dailyTotalLimit.max_total_appointments,
+            reason: dailyTotalLimit.reason
+          });
+          return NextResponse.json({
+            availableSlots: [],
+            message: `This date (${date}) has reached the maximum limit of ${dailyTotalLimit.max_total_appointments} appointments. Reason: ${dailyTotalLimit.reason || 'Maximum appointments exceeded'}. Please try selecting a different date.`,
+            limitReached: true,
+            currentTotal: totalAppointmentsForDate,
+            maxAllowed: dailyTotalLimit.max_total_appointments,
+            reason: dailyTotalLimit.reason,
+            date: date
+          });
+        }
+      }
+    }
+
+    // 4.6. Verificar bloqueos por modelo específico
     const vehicleMake = searchParams.get('vehicle_make');
     const vehicleModel = searchParams.get('vehicle_model');
     const vehicleId = searchParams.get('vehicle_id');

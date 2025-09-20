@@ -639,6 +639,109 @@ export async function POST(request: Request) {
       });
     }
 
+    // 5.4. NUEVA VALIDACIÓN: Límite total de citas por día para la agencia
+    console.log('🔍 Verificando límite total de citas por día para la agencia...');
+
+    // Buscar configuración de límite total para esta fecha y agencia
+    let dailyLimitQuery = supabase
+      .from('blocked_dates')
+      .select('max_total_appointments, reason')
+      .eq('dealership_id', finalDealershipId)
+      .eq('date', appointment_date);
+    
+    // Manejar workshop_id: si es null en BD, usar is('workshop_id', null)
+    if (finalWorkshopId) {
+      dailyLimitQuery = dailyLimitQuery.or(`workshop_id.eq.${finalWorkshopId},workshop_id.is.null`);
+    } else {
+      dailyLimitQuery = dailyLimitQuery.is('workshop_id', null);
+    }
+    
+    const { data: dailyLimit, error: dailyLimitError } = await dailyLimitQuery.maybeSingle();
+
+    if (dailyLimitError) {
+      console.error('Error verificando límite total diario:', dailyLimitError);
+      // Continuar sin bloquear - no es error crítico
+    }
+
+    // Si hay límite configurado para este día (NULL = sin límite, 0 = bloqueo completo, >0 = límite específico)
+    if (dailyLimit?.max_total_appointments !== null && dailyLimit?.max_total_appointments !== undefined) {
+      console.log('📊 Límite total configurado para este día:', {
+        date: appointment_date,
+        maxAppointments: dailyLimit.max_total_appointments,
+        reason: dailyLimit.reason,
+        dealershipId: finalDealershipId,
+        workshopId: finalWorkshopId
+      });
+
+      // Contar TODAS las citas existentes para esta fecha y agencia
+      const { count: totalAppointmentsCount, error: totalCountError } = await supabase
+        .from('appointment')
+        .select('*', { count: 'exact', head: false })
+        .eq('appointment_date', appointment_date)
+        .eq('dealership_id', finalDealershipId)
+        .eq('workshop_id', finalWorkshopId)
+        .neq('status', 'cancelled'); // Excluir canceladas
+
+      if (totalCountError) {
+        console.error('Error contando citas totales:', totalCountError);
+        return NextResponse.json(
+          { 
+            message: 'Error verificando disponibilidad. Intenta nuevamente.',
+            error_type: 'TOTAL_LIMIT_CHECK_ERROR'
+          },
+          { status: 500 }
+        );
+      }
+
+      const currentTotalCount = totalAppointmentsCount || 0;
+
+      console.log('📈 Conteo total de citas para límite diario:', {
+        currentTotal: currentTotalCount,
+        maxAllowed: dailyLimit.max_total_appointments,
+        wouldExceed: currentTotalCount >= dailyLimit.max_total_appointments
+      });
+
+      // Verificar si se excedería el límite total
+      if (currentTotalCount >= dailyLimit.max_total_appointments) {
+        console.log('❌ Límite total diario excedido:', {
+          date: appointment_date,
+          currentTotal: currentTotalCount,
+          maxAllowed: dailyLimit.max_total_appointments,
+          reason: dailyLimit.reason,
+          dealershipId: finalDealershipId,
+          workshopId: finalWorkshopId
+        });
+
+        return NextResponse.json(
+          { 
+            message: `Cannot schedule more appointments for ${appointment_date}. This date has reached the maximum limit of ${dailyLimit.max_total_appointments} appointments. Reason: ${dailyLimit.reason || 'Special limit configured'}. Please try selecting a different date.`,
+            error_type: 'DAILY_TOTAL_LIMIT_EXCEEDED',
+            details: {
+              date: appointment_date,
+              currentAppointments: currentTotalCount,
+              maxAllowed: dailyLimit.max_total_appointments,
+              reason: dailyLimit.reason || 'Special limit configured',
+              solution: 'Please select another available date'
+            }
+          },
+          { status: 409 }
+        );
+      }
+
+      console.log('✅ Límite total diario válido:', {
+        date: appointment_date,
+        currentTotal: currentTotalCount,
+        maxAllowed: dailyLimit.max_total_appointments,
+        remaining: dailyLimit.max_total_appointments - currentTotalCount
+      });
+    } else {
+      console.log('ℹ️ No hay límite total configurado para este día:', {
+        date: appointment_date,
+        dealershipId: finalDealershipId,
+        workshopId: finalWorkshopId
+      });
+    }
+
     // 6. Verificar disponibilidad antes de crear la cita
     const { data: existingAppointments, error: appointmentsError } = await supabase
       .from('appointment')

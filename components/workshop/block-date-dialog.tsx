@@ -40,9 +40,10 @@ export default function BlockDateDialog({
 }: BlockDateDialogProps) {
   const [date, setDate] = useState<Date | null>(null);
   const [motivo, setMotivo] = useState('');
-  const [diaCompleto, setDiaCompleto] = useState(true);
+  const [tipoBloqueo, setTipoBloqueo] = useState<'solo_limite' | 'dia_completo' | 'horario_parcial'>('solo_limite');
   const [horaInicio, setHoraInicio] = useState('09:00');
   const [horaFin, setHoraFin] = useState('18:00');
+  const [maxCitas, setMaxCitas] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const supabase = createClientComponentClient();
 
@@ -85,13 +86,23 @@ export default function BlockDateDialog({
       if (editingBlock) {
         setDate(parseISO(editingBlock.date));
         setMotivo(editingBlock.reason);
-        setDiaCompleto(editingBlock.full_day);
         setHoraInicio(editingBlock.start_time || '09:00');
         setHoraFin(editingBlock.end_time || '18:00');
+        setMaxCitas(editingBlock.max_total_appointments?.toString() || '');
+        
+        // Determinar el tipo de bloqueo basado en los datos existentes
+        if (editingBlock.full_day) {
+          setTipoBloqueo('dia_completo');
+        } else if (editingBlock.start_time && editingBlock.end_time) {
+          setTipoBloqueo('horario_parcial');
+        } else {
+          setTipoBloqueo('solo_limite');
+        }
       } else if (selectedDate) {
         setDate(selectedDate.date);
         setMotivo('');
-        setDiaCompleto(true);
+        setTipoBloqueo('solo_limite');
+        setMaxCitas('');
         
         // Verificar si el día seleccionado es laborable usando la nueva lógica
         const dayOfWeek = selectedDate.date.getDay();
@@ -122,7 +133,7 @@ export default function BlockDateDialog({
     console.log('Iniciando validación de horario:', {
       date,
       currentSchedule,
-      diaCompleto,
+      tipoBloqueo,
       horaInicio,
       horaFin
     });
@@ -144,8 +155,8 @@ export default function BlockDateDialog({
       return false;
     }
 
-    // Verificar que la hora de inicio sea menor que la hora de fin para bloqueos parciales
-    if (!diaCompleto && horaInicio && horaFin) {
+    // Solo validar horarios si es bloqueo parcial
+    if (tipoBloqueo === 'horario_parcial' && horaInicio && horaFin) {
       console.log('Validando horario parcial:', {
         horaInicio,
         horaFin,
@@ -175,6 +186,17 @@ export default function BlockDateDialog({
       }
     }
 
+    // Para solo límite, validar que se haya especificado un límite
+    if (tipoBloqueo === 'solo_limite' && (!maxCitas.trim() || parseInt(maxCitas.trim()) < 0)) {
+      console.log('Validación fallida: Límite de citas no válido');
+      toast({
+        title: "¡Error!",
+        description: "Para establecer solo un límite de citas, debes especificar un número válido (0 o mayor).",
+        variant: "destructive"
+      });
+      return false;
+    }
+
     console.log('Validación exitosa');
     return true;
   };
@@ -183,9 +205,10 @@ export default function BlockDateDialog({
     console.log('Iniciando guardado de bloqueo:', {
       date,
       motivo,
-      diaCompleto,
+      tipoBloqueo,
       horaInicio,
       horaFin,
+      maxCitas,
       editingBlock
     });
 
@@ -237,14 +260,16 @@ export default function BlockDateDialog({
       const normalizedDate = startOfDay(date);
 
       // Preparar datos para guardar
+      const maxAppointments = maxCitas.trim() ? parseInt(maxCitas.trim()) : null;
       const blockData = {
         block_id: editingBlock?.block_id || crypto.randomUUID(),
         dealership_id: verifiedData.dealership_id,
         date: format(normalizedDate, 'yyyy-MM-dd'),
         reason: motivo.trim(),
-        full_day: diaCompleto,
-        start_time: diaCompleto ? null : horaInicio,
-        end_time: diaCompleto ? null : horaFin,
+        full_day: tipoBloqueo === 'dia_completo',
+        start_time: tipoBloqueo === 'horario_parcial' ? horaInicio : null,
+        end_time: tipoBloqueo === 'horario_parcial' ? horaFin : null,
+        max_total_appointments: maxAppointments,
         created_at: editingBlock?.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
@@ -300,9 +325,10 @@ export default function BlockDateDialog({
             console.log('Datos del formulario:', {
               date,
               motivo,
-              diaCompleto,
+              tipoBloqueo,
               horaInicio,
               horaFin,
+              maxCitas,
               editingBlock
             });
 
@@ -362,16 +388,92 @@ export default function BlockDateDialog({
                 />
               </div>
               
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={diaCompleto}
-                  onCheckedChange={setDiaCompleto}
-                />
-                <Label>Día completo</Label>
+              <div className="grid gap-2">
+                <Label>Tipo de configuración</Label>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="solo_limite"
+                      name="tipoBloqueo"
+                      value="solo_limite"
+                      checked={tipoBloqueo === 'solo_limite'}
+                      onChange={(e) => setTipoBloqueo(e.target.value as any)}
+                      className="w-4 h-4"
+                    />
+                    <Label htmlFor="solo_limite" className="text-sm font-normal">
+                      Solo límite de citas (sin bloquear horarios)
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="horario_parcial"
+                      name="tipoBloqueo"
+                      value="horario_parcial"
+                      checked={tipoBloqueo === 'horario_parcial'}
+                      onChange={(e) => setTipoBloqueo(e.target.value as any)}
+                      className="w-4 h-4"
+                    />
+                    <Label htmlFor="horario_parcial" className="text-sm font-normal">
+                      Bloquear horario específico
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="radio"
+                      id="dia_completo"
+                      name="tipoBloqueo"
+                      value="dia_completo"
+                      checked={tipoBloqueo === 'dia_completo'}
+                      onChange={(e) => setTipoBloqueo(e.target.value as any)}
+                      className="w-4 h-4"
+                    />
+                    <Label htmlFor="dia_completo" className="text-sm font-normal">
+                      Bloquear día completo
+                    </Label>
+                  </div>
+                </div>
               </div>
+
+              {tipoBloqueo === 'solo_limite' && (
+                <div className="grid gap-2 p-4 bg-blue-50 rounded-lg border">
+                  <Label htmlFor="max_citas">Límite máximo de citas</Label>
+                  <Input
+                    id="max_citas"
+                    type="number"
+                    value={maxCitas}
+                    onChange={(e) => setMaxCitas(e.target.value)}
+                    placeholder="Ej: 5"
+                    min="0"
+                    required
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Número máximo de citas totales permitidas este día. Los horarios funcionan normalmente.
+                  </p>
+                </div>
+              )}
+
+              {(tipoBloqueo === 'horario_parcial' || tipoBloqueo === 'dia_completo') && (
+                <div className="grid gap-2">
+                  <Label htmlFor="max_citas_opcional">Límite máximo de citas (opcional)</Label>
+                  <Input
+                    id="max_citas_opcional"
+                    type="number"
+                    value={maxCitas}
+                    onChange={(e) => setMaxCitas(e.target.value)}
+                    placeholder="Ej: 5 (vacío = sin límite)"
+                    min="0"
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Límite adicional de citas. Dejar vacío para no limitar.
+                  </p>
+                </div>
+              )}
               
-              {!diaCompleto && (
-                <div className="grid gap-4">
+              {tipoBloqueo === 'horario_parcial' && (
+                <div className="grid gap-4 p-4 bg-red-50 rounded-lg border">
+                  <h4 className="font-medium">Horario a bloquear</h4>
                   <div className="grid gap-2">
                     <Label htmlFor="hora_inicio">Hora de inicio</Label>
                     <Input
@@ -379,6 +481,7 @@ export default function BlockDateDialog({
                       type="time"
                       value={horaInicio}
                       onChange={(e) => setHoraInicio(e.target.value)}
+                      required
                     />
                   </div>
                   <div className="grid gap-2">
@@ -388,6 +491,7 @@ export default function BlockDateDialog({
                       type="time"
                       value={horaFin}
                       onChange={(e) => setHoraFin(e.target.value)}
+                      required
                     />
                   </div>
                 </div>

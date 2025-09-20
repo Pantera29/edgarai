@@ -72,7 +72,7 @@ export default function BlockedDates() {
         .from('blocked_dates')
         .select('*')
         .eq('dealership_id', verifiedData.dealership_id)
-        .order('date');
+        .order('date', { ascending: false });
 
       if (blockedError) throw blockedError;
       setBlockedDates(blockedData || []);
@@ -224,6 +224,11 @@ export default function BlockedDates() {
                       {!block.full_day && (
                         <p className="text-sm">
                           {block.start_time} - {block.end_time}
+                        </p>
+                      )}
+                      {block.max_total_appointments !== null && block.max_total_appointments !== undefined && (
+                        <p className="text-sm font-medium text-blue-600">
+                          Límite: {block.max_total_appointments} citas máximo
                         </p>
                       )}
                     </div>

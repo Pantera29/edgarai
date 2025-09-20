@@ -66,6 +66,7 @@ export interface BlockedDate {
   full_day: boolean;
   start_time?: string | null;
   end_time?: string | null;
+  max_total_appointments?: number | null;
   created_at: string;
   updated_at: string;
 }
