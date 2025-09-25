@@ -296,15 +296,41 @@ export async function GET(request: Request) {
       ];
       const dayName = dayNames[jsDay];
       
-      return NextResponse.json({
-        availableSlots: [],
-        message: `The service "${service.service_name}" is not available on ${dayName}s. Please select another day of the week or contact the workshop to verify service availability.`,
-        error_code: 'SERVICE_NOT_AVAILABLE_ON_DAY',
-        details: {
-          service_id: finalServiceId,
-          day: dayName
-        }
-      });
+      // Buscar fechas alternativas donde el servicio esté disponible
+      console.log('🔍 Servicio no disponible este día, buscando próximas fechas...');
+      
+      try {
+        const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
+          date, finalServiceId, dealershipId, finalWorkshopId, supabase
+        );
+        
+        return NextResponse.json({
+          availableSlots: [],
+          message: `The service "${service.service_name}" is not available on ${dayName}s. Here are alternative dates when this service is available:`,
+          error_code: 'SERVICE_NOT_AVAILABLE_ON_DAY',
+          nextAvailableDates,
+          reason: 'SERVICE_NOT_AVAILABLE_ON_DAY',
+          details: {
+            service_id: finalServiceId,
+            day: dayName
+          },
+          searchInfo: {
+            daysChecked: Math.min(30, nextAvailableDates.length + 3),
+            maxSearchDays: 30
+          }
+        });
+      } catch (error) {
+        console.error('❌ Error buscando próximas fechas para servicio no disponible:', error);
+        return NextResponse.json({
+          availableSlots: [],
+          message: `The service "${service.service_name}" is not available on ${dayName}s. Please select another day of the week or contact the workshop to verify service availability.`,
+          error_code: 'SERVICE_NOT_AVAILABLE_ON_DAY',
+          details: {
+            service_id: finalServiceId,
+            day: dayName
+          }
+        });
+      }
     }
 
     const serviceDuration = service.duration_minutes;
@@ -423,10 +449,31 @@ export async function GET(request: Request) {
         });
       }
 
-      return NextResponse.json({
-        availableSlots: [],
-        message: `El día ${date.split('-').reverse().join('/')} no es un día laborable para este concesionario`
-      });
+      // Buscar fechas alternativas cuando no es día laborable
+      console.log('🔍 Día no laborable, buscando próximas fechas...');
+      
+      try {
+        const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
+          date, finalServiceId, dealershipId, finalWorkshopId, supabase
+        );
+        
+        return NextResponse.json({
+          availableSlots: [],
+          message: `El día ${date.split('-').reverse().join('/')} no es un día laborable para este concesionario. Here are alternative dates with availability:`,
+          nextAvailableDates,
+          reason: 'NO_OPERATING_HOURS',
+          searchInfo: {
+            daysChecked: Math.min(30, nextAvailableDates.length + 3),
+            maxSearchDays: 30
+          }
+        });
+      } catch (error) {
+        console.error('❌ Error buscando próximas fechas para día no laborable:', error);
+        return NextResponse.json({
+          availableSlots: [],
+          message: `El día ${date.split('-').reverse().join('/')} no es un día laborable para este concesionario`
+        });
+      }
     }
 
     // 4. Verificar si el día está bloqueado
@@ -457,13 +504,37 @@ export async function GET(request: Request) {
         dealershipId,
         blockedDate
       });
-      return NextResponse.json({
-        availableSlots: [],
-        message: `This date (${date}) is not available for appointments. Reason: ${blockedDate.reason}. Please try selecting a different date.`,
-        blocked: true,
-        reason: blockedDate.reason,
-        date: date
-      });
+      
+      // Buscar fechas alternativas disponibles
+      console.log('🔍 Día completamente bloqueado, buscando próximas fechas...');
+      
+      try {
+        const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
+          date, finalServiceId, dealershipId, finalWorkshopId, supabase
+        );
+        
+        return NextResponse.json({
+          availableSlots: [],
+          message: `This date (${date}) is not available for appointments. Reason: ${blockedDate.reason}. Here are alternative dates with availability:`,
+          nextAvailableDates,
+          blocked: true,
+          reason: 'DAY_BLOCKED',
+          date: date,
+          searchInfo: {
+            daysChecked: Math.min(30, nextAvailableDates.length + 3),
+            maxSearchDays: 30
+          }
+        });
+      } catch (error) {
+        console.error('❌ Error buscando próximas fechas para día bloqueado:', error);
+        return NextResponse.json({
+          availableSlots: [],
+          message: `This date (${date}) is not available for appointments. Reason: ${blockedDate.reason}. Please try selecting a different date.`,
+          blocked: true,
+          reason: blockedDate.reason,
+          date: date
+        });
+      }
     }
 
     // 4.5. NUEVA VALIDACIÓN: Verificar límite total de citas por día para la agencia
@@ -527,15 +598,40 @@ export async function GET(request: Request) {
             maxAllowed: dailyTotalLimit.max_total_appointments,
             reason: dailyTotalLimit.reason
           });
-          return NextResponse.json({
-            availableSlots: [],
-            message: `This date (${date}) has reached the maximum limit of ${dailyTotalLimit.max_total_appointments} appointments. Reason: ${dailyTotalLimit.reason || 'Maximum appointments exceeded'}. Please try selecting a different date.`,
-            limitReached: true,
-            currentTotal: totalAppointmentsForDate,
-            maxAllowed: dailyTotalLimit.max_total_appointments,
-            reason: dailyTotalLimit.reason,
-            date: date
-          });
+          // Buscar fechas alternativas cuando se alcanza el límite diario total
+          console.log('🔍 Límite diario total alcanzado, buscando próximas fechas...');
+          
+          try {
+            const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
+              date, finalServiceId, dealershipId, finalWorkshopId, supabase
+            );
+            
+            return NextResponse.json({
+              availableSlots: [],
+              message: `This date (${date}) has reached the maximum limit of ${dailyTotalLimit.max_total_appointments} appointments. Reason: ${dailyTotalLimit.reason || 'Maximum appointments exceeded'}. Here are alternative dates with availability:`,
+              nextAvailableDates,
+              limitReached: true,
+              currentTotal: totalAppointmentsForDate,
+              maxAllowed: dailyTotalLimit.max_total_appointments,
+              reason: 'DAILY_TOTAL_LIMIT_REACHED',
+              date: date,
+              searchInfo: {
+                daysChecked: Math.min(30, nextAvailableDates.length + 3),
+                maxSearchDays: 30
+              }
+            });
+          } catch (error) {
+            console.error('❌ Error buscando próximas fechas para límite diario total:', error);
+            return NextResponse.json({
+              availableSlots: [],
+              message: `This date (${date}) has reached the maximum limit of ${dailyTotalLimit.max_total_appointments} appointments. Reason: ${dailyTotalLimit.reason || 'Maximum appointments exceeded'}. Please try selecting a different date.`,
+              limitReached: true,
+              currentTotal: totalAppointmentsForDate,
+              maxAllowed: dailyTotalLimit.max_total_appointments,
+              reason: dailyTotalLimit.reason,
+              date: date
+            });
+          }
         }
       }
     }
@@ -1710,7 +1806,43 @@ async function checkAvailabilityForDate(
     return { availableSlots: [] };
   }
 
-  // 6. Verificar límite diario del servicio
+  // 6. Verificar límite diario total del concesionario
+  const { data: dailyTotalLimit, error: dailyTotalError } = await supabase
+    .from('blocked_dates')
+    .select('max_total_appointments, reason')
+    .eq('date', date)
+    .eq('dealership_id', dealershipId)
+    .eq('workshop_id', workshopId)
+    .not('max_total_appointments', 'is', null)
+    .maybeSingle();
+
+  if (dailyTotalError) {
+    console.error('❌ Error verificando límite diario total:', dailyTotalError.message);
+    return { availableSlots: [] };
+  }
+
+  if (dailyTotalLimit?.max_total_appointments) {
+    const totalAppointmentsForDate = appointments?.length || 0;
+    
+    console.log('🔍 Verificando límite diario total en búsqueda:', {
+      date,
+      maxAllowed: dailyTotalLimit.max_total_appointments,
+      currentTotal: totalAppointmentsForDate,
+      reason: dailyTotalLimit.reason
+    });
+    
+    if (totalAppointmentsForDate >= dailyTotalLimit.max_total_appointments) {
+      console.log('❌ Límite diario total alcanzado en búsqueda:', {
+        date,
+        currentTotal: totalAppointmentsForDate,
+        maxAllowed: dailyTotalLimit.max_total_appointments,
+        reason: dailyTotalLimit.reason
+      });
+      return { availableSlots: [] };
+    }
+  }
+
+  // 7. Verificar límite diario del servicio
   if (service.daily_limit) {
     const sameServiceAppointments = appointments?.filter((app: any) => 
       app.service_id === serviceId
@@ -1734,7 +1866,7 @@ async function checkAvailabilityForDate(
     }
   }
 
-  // 7. Calcular slots disponibles (versión simplificada)
+  // 8. Calcular slots disponibles (versión simplificada)
   const availableSlots = await calculateAvailableSlotsSimplified(
     date, appointments || [], serviceId, dealershipId, workshopId, supabase, schedule, service
   );
@@ -1998,10 +2130,11 @@ function generateBasicTimeSlots(
 // Función para obtener mensaje de indisponibilidad
 function getUnavailabilityMessage(reason: string): string {
   const messages: { [key: string]: string } = {
-    'SERVICE_NOT_AVAILABLE_ON_DAY': 'This service is not available on the selected day. Please choose another day of the week.',
+    'SERVICE_NOT_AVAILABLE_ON_DAY': 'This service is not available on the selected day. Here are alternative dates when this service is available:',
     'DAILY_LIMIT_REACHED': 'No availability for the requested date. The daily limit for this service has been reached. Here are alternative dates with availability:',
-    'DAY_BLOCKED': 'The requested date is blocked for appointments. Please select another date.',
-    'NO_OPERATING_HOURS': 'No operating hours configured for this dealership. Please contact the workshop.',
+    'DAY_BLOCKED': 'The requested date is blocked for appointments. Here are alternative dates with availability:',
+    'NO_OPERATING_HOURS': 'No operating hours configured for this dealership. Here are alternative dates with availability:',
+    'DAILY_TOTAL_LIMIT_REACHED': 'This date has reached the maximum limit of appointments. Here are alternative dates with availability:',
     'WORKSHOP_SERVICE_NOT_AVAILABLE': 'This service is not available at the selected workshop location. Please verify the workshop or contact the dealership.',
     'CAPACITY_FULL': 'No availability for the requested date. All time slots are fully booked. Here are alternative dates with availability:',
     'DEFAULT': 'No availability for the selected date. Here are alternative dates with availability:'
