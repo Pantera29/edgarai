@@ -317,7 +317,8 @@ export async function GET(request: Request) {
           searchInfo: {
             daysChecked: Math.min(30, nextAvailableDates.length + 3),
             maxSearchDays: 30
-          }
+          },
+          aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
         });
       } catch (error) {
         console.error('❌ Error buscando próximas fechas para servicio no disponible:', error);
@@ -465,7 +466,8 @@ export async function GET(request: Request) {
           searchInfo: {
             daysChecked: Math.min(30, nextAvailableDates.length + 3),
             maxSearchDays: 30
-          }
+          },
+          aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
         });
       } catch (error) {
         console.error('❌ Error buscando próximas fechas para día no laborable:', error);
@@ -523,7 +525,8 @@ export async function GET(request: Request) {
           searchInfo: {
             daysChecked: Math.min(30, nextAvailableDates.length + 3),
             maxSearchDays: 30
-          }
+          },
+          aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
         });
       } catch (error) {
         console.error('❌ Error buscando próximas fechas para día bloqueado:', error);
@@ -618,7 +621,8 @@ export async function GET(request: Request) {
               searchInfo: {
                 daysChecked: Math.min(30, nextAvailableDates.length + 3),
                 maxSearchDays: 30
-              }
+              },
+              aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
             });
           } catch (error) {
             console.error('❌ Error buscando próximas fechas para límite diario total:', error);
@@ -629,7 +633,8 @@ export async function GET(request: Request) {
               currentTotal: totalAppointmentsForDate,
               maxAllowed: dailyTotalLimit.max_total_appointments,
               reason: dailyTotalLimit.reason,
-              date: date
+              date: date,
+              aiInstruction: "To see available time slots for alternative dates, make a new request to the availability endpoint using a different date with the same service_id and dealership_id parameters."
             });
           }
         }
@@ -921,7 +926,8 @@ export async function GET(request: Request) {
             searchInfo: {
               daysChecked: Math.min(30, nextAvailableDates.length + 3),
               maxSearchDays: 30
-            }
+            },
+            aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
           });
         } catch (error) {
           console.error('❌ Error buscando próximas fechas:', error);
@@ -990,7 +996,8 @@ export async function GET(request: Request) {
           searchInfo: {
             daysChecked: Math.min(30, nextAvailableDates.length + 3), // Estimación
             maxSearchDays: 30
-          }
+          },
+          aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
         });
       } catch (error) {
         console.error('❌ Error buscando próximas fechas:', error);
