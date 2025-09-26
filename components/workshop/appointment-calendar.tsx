@@ -572,10 +572,18 @@ export function AppointmentCalendar({
         // Guardar el mensaje si existe
         setBackendMessage(response.data.message || null);
         
-        // Guardar próximas fechas disponibles si existen
-        if (response.data.nextAvailableDates) {
-          console.log('📅 Próximas fechas disponibles:', response.data.nextAvailableDates);
-          setNextAvailableDates(response.data.nextAvailableDates);
+        // Guardar próximo slot disponible si existe
+        if (response.data.nextAvailableSlot) {
+          console.log('📅 Próximo slot disponible:', response.data.nextAvailableSlot);
+          // Convertir nextAvailableSlot al formato esperado por el frontend
+          const nextSlot = response.data.nextAvailableSlot;
+          setNextAvailableDates([{
+            date: nextSlot.date,
+            availableSlots: 1,
+            timeSlots: [nextSlot.time],
+            dayName: nextSlot.dayName,
+            isWeekend: false
+          }]);
         } else {
           setNextAvailableDates(null);
         }

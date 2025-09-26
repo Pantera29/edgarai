@@ -300,26 +300,47 @@ export async function GET(request: Request) {
       console.log('🔍 Servicio no disponible este día, buscando próximas fechas...');
       
       try {
-        const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
-          date, finalServiceId, dealershipId, finalWorkshopId, supabase
+        const nextAvailableDates = await findNextAvailableDatesSmart(
+          date, finalServiceId, dealershipId, finalWorkshopId, supabase,
+          {
+            maxDays: 30,
+            minDates: 1,
+            maxDates: 1,
+            includeToday: false
+          }
         );
         
-        return NextResponse.json({
-          availableSlots: [],
-          message: `The service "${service.service_name}" is not available on ${dayName}s. Here are alternative dates when this service is available:`,
-          error_code: 'SERVICE_NOT_AVAILABLE_ON_DAY',
-          nextAvailableDates,
-          reason: 'SERVICE_NOT_AVAILABLE_ON_DAY',
-          details: {
-            service_id: finalServiceId,
-            day: dayName
-          },
-          searchInfo: {
-            daysChecked: Math.min(30, nextAvailableDates.length + 3),
-            maxSearchDays: 30
-          },
-          aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
-        });
+        if (nextAvailableDates.length > 0 && nextAvailableDates[0].timeSlots.length > 0) {
+          const firstSlot = nextAvailableDates[0];
+          return NextResponse.json({
+            availableSlots: [],
+            message: `The service "${service.service_name}" is not available on ${dayName}s.`,
+            error_code: 'SERVICE_NOT_AVAILABLE_ON_DAY',
+            nextAvailableSlot: {
+              date: firstSlot.date,
+              time: firstSlot.timeSlots[0],
+              dayName: firstSlot.dayName,
+              formattedDate: `${firstSlot.date.split('-').reverse().join('/')} (${firstSlot.dayName})`,
+              formattedTime: firstSlot.timeSlots[0].slice(0, 5)
+            },
+            reason: 'SERVICE_NOT_AVAILABLE_ON_DAY',
+            details: {
+              service_id: finalServiceId,
+              day: dayName
+            },
+            aiInstruction: `The next available appointment slot for this service is on ${firstSlot.date} at ${firstSlot.timeSlots[0].slice(0, 5)}. You can suggest this specific time slot to the user.`
+          });
+        } else {
+          return NextResponse.json({
+            availableSlots: [],
+            message: `The service "${service.service_name}" is not available on ${dayName}s. Please select another day of the week or contact the workshop to verify service availability.`,
+            error_code: 'SERVICE_NOT_AVAILABLE_ON_DAY',
+            details: {
+              service_id: finalServiceId,
+              day: dayName
+            }
+          });
+        }
       } catch (error) {
         console.error('❌ Error buscando próximas fechas para servicio no disponible:', error);
         return NextResponse.json({
@@ -454,21 +475,37 @@ export async function GET(request: Request) {
       console.log('🔍 Día no laborable, buscando próximas fechas...');
       
       try {
-        const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
-          date, finalServiceId, dealershipId, finalWorkshopId, supabase
+        const nextAvailableDates = await findNextAvailableDatesSmart(
+          date, finalServiceId, dealershipId, finalWorkshopId, supabase,
+          {
+            maxDays: 30,
+            minDates: 1,
+            maxDates: 1,
+            includeToday: false
+          }
         );
         
-        return NextResponse.json({
-          availableSlots: [],
-          message: `El día ${date.split('-').reverse().join('/')} no es un día laborable para este concesionario. Here are alternative dates with availability:`,
-          nextAvailableDates,
-          reason: 'NO_OPERATING_HOURS',
-          searchInfo: {
-            daysChecked: Math.min(30, nextAvailableDates.length + 3),
-            maxSearchDays: 30
-          },
-          aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
-        });
+        if (nextAvailableDates.length > 0 && nextAvailableDates[0].timeSlots.length > 0) {
+          const firstSlot = nextAvailableDates[0];
+          return NextResponse.json({
+            availableSlots: [],
+            message: `El día ${date.split('-').reverse().join('/')} no es un día laborable para este concesionario.`,
+            nextAvailableSlot: {
+              date: firstSlot.date,
+              time: firstSlot.timeSlots[0],
+              dayName: firstSlot.dayName,
+              formattedDate: `${firstSlot.date.split('-').reverse().join('/')} (${firstSlot.dayName})`,
+              formattedTime: firstSlot.timeSlots[0].slice(0, 5)
+            },
+            reason: 'NO_OPERATING_HOURS',
+            aiInstruction: `The next available appointment slot is on ${firstSlot.date} at ${firstSlot.timeSlots[0].slice(0, 5)}. You can suggest this specific time slot to the user.`
+          });
+        } else {
+          return NextResponse.json({
+            availableSlots: [],
+            message: `El día ${date.split('-').reverse().join('/')} no es un día laborable para este concesionario`
+          });
+        }
       } catch (error) {
         console.error('❌ Error buscando próximas fechas para día no laborable:', error);
         return NextResponse.json({
@@ -511,23 +548,42 @@ export async function GET(request: Request) {
       console.log('🔍 Día completamente bloqueado, buscando próximas fechas...');
       
       try {
-        const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
-          date, finalServiceId, dealershipId, finalWorkshopId, supabase
+        const nextAvailableDates = await findNextAvailableDatesSmart(
+          date, finalServiceId, dealershipId, finalWorkshopId, supabase,
+          {
+            maxDays: 30,
+            minDates: 1,
+            maxDates: 1,
+            includeToday: false
+          }
         );
         
-        return NextResponse.json({
-          availableSlots: [],
-          message: `This date (${date}) is not available for appointments. Reason: ${blockedDate.reason}. Here are alternative dates with availability:`,
-          nextAvailableDates,
-          blocked: true,
-          reason: 'DAY_BLOCKED',
-          date: date,
-          searchInfo: {
-            daysChecked: Math.min(30, nextAvailableDates.length + 3),
-            maxSearchDays: 30
-          },
-          aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
-        });
+        if (nextAvailableDates.length > 0 && nextAvailableDates[0].timeSlots.length > 0) {
+          const firstSlot = nextAvailableDates[0];
+          return NextResponse.json({
+            availableSlots: [],
+            message: `This date (${date}) is not available for appointments. Reason: ${blockedDate.reason}.`,
+            nextAvailableSlot: {
+              date: firstSlot.date,
+              time: firstSlot.timeSlots[0],
+              dayName: firstSlot.dayName,
+              formattedDate: `${firstSlot.date.split('-').reverse().join('/')} (${firstSlot.dayName})`,
+              formattedTime: firstSlot.timeSlots[0].slice(0, 5)
+            },
+            blocked: true,
+            reason: 'DAY_BLOCKED',
+            date: date,
+            aiInstruction: `The next available appointment slot is on ${firstSlot.date} at ${firstSlot.timeSlots[0].slice(0, 5)}. You can suggest this specific time slot to the user.`
+          });
+        } else {
+          return NextResponse.json({
+            availableSlots: [],
+            message: `This date (${date}) is not available for appointments. Reason: ${blockedDate.reason}. Please try selecting a different date.`,
+            blocked: true,
+            reason: blockedDate.reason,
+            date: date
+          });
+        }
       } catch (error) {
         console.error('❌ Error buscando próximas fechas para día bloqueado:', error);
         return NextResponse.json({
@@ -605,25 +661,47 @@ export async function GET(request: Request) {
           console.log('🔍 Límite diario total alcanzado, buscando próximas fechas...');
           
           try {
-            const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
-              date, finalServiceId, dealershipId, finalWorkshopId, supabase
+            const nextAvailableDates = await findNextAvailableDatesSmart(
+              date, finalServiceId, dealershipId, finalWorkshopId, supabase,
+              {
+                maxDays: 30,
+                minDates: 1,
+                maxDates: 1,
+                includeToday: false
+              }
             );
             
-            return NextResponse.json({
-              availableSlots: [],
-              message: `This date (${date}) has reached the maximum limit of ${dailyTotalLimit.max_total_appointments} appointments. Reason: ${dailyTotalLimit.reason || 'Maximum appointments exceeded'}. Here are alternative dates with availability:`,
-              nextAvailableDates,
-              limitReached: true,
-              currentTotal: totalAppointmentsForDate,
-              maxAllowed: dailyTotalLimit.max_total_appointments,
-              reason: 'DAILY_TOTAL_LIMIT_REACHED',
-              date: date,
-              searchInfo: {
-                daysChecked: Math.min(30, nextAvailableDates.length + 3),
-                maxSearchDays: 30
-              },
-              aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
-            });
+            if (nextAvailableDates.length > 0 && nextAvailableDates[0].timeSlots.length > 0) {
+              const firstSlot = nextAvailableDates[0];
+              return NextResponse.json({
+                availableSlots: [],
+                message: `This date (${date}) has reached the maximum limit of ${dailyTotalLimit.max_total_appointments} appointments. Reason: ${dailyTotalLimit.reason || 'Maximum appointments exceeded'}.`,
+                nextAvailableSlot: {
+                  date: firstSlot.date,
+                  time: firstSlot.timeSlots[0],
+                  dayName: firstSlot.dayName,
+                  formattedDate: `${firstSlot.date.split('-').reverse().join('/')} (${firstSlot.dayName})`,
+                  formattedTime: firstSlot.timeSlots[0].slice(0, 5)
+                },
+                limitReached: true,
+                currentTotal: totalAppointmentsForDate,
+                maxAllowed: dailyTotalLimit.max_total_appointments,
+                reason: 'DAILY_TOTAL_LIMIT_REACHED',
+                date: date,
+                aiInstruction: `The next available appointment slot is on ${firstSlot.date} at ${firstSlot.timeSlots[0].slice(0, 5)}. You can suggest this specific time slot to the user.`
+              });
+            } else {
+              return NextResponse.json({
+                availableSlots: [],
+                message: `This date (${date}) has reached the maximum limit of ${dailyTotalLimit.max_total_appointments} appointments. Reason: ${dailyTotalLimit.reason || 'Maximum appointments exceeded'}. Please try selecting a different date.`,
+                limitReached: true,
+                currentTotal: totalAppointmentsForDate,
+                maxAllowed: dailyTotalLimit.max_total_appointments,
+                reason: dailyTotalLimit.reason,
+                date: date,
+                aiInstruction: "To see available time slots for alternative dates, make a new request to the availability endpoint using a different date with the same service_id and dealership_id parameters."
+              });
+            }
           } catch (error) {
             console.error('❌ Error buscando próximas fechas para límite diario total:', error);
             return NextResponse.json({
@@ -913,22 +991,40 @@ export async function GET(request: Request) {
         console.log('🔍 Límite diario alcanzado, buscando próximas fechas...');
         
         try {
-          const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
-            date, finalServiceId, dealershipId, finalWorkshopId, supabase
+          const nextAvailableDates = await findNextAvailableDatesSmart(
+            date, finalServiceId, dealershipId, finalWorkshopId, supabase,
+            {
+              maxDays: 30,
+              minDates: 1,
+              maxDates: 1,
+              includeToday: false
+            }
           );
           
-          return NextResponse.json({
-            availableSlots: [],
-            totalSlots: 0,
-            message: getUnavailabilityMessage('DAILY_LIMIT_REACHED') + ' (Note: Time slots are not included in this response for optimization. If you want to display available times, you must make a separate request with the selected date.)',
-            nextAvailableDates,
-            reason: 'DAILY_LIMIT_REACHED',
-            searchInfo: {
-              daysChecked: Math.min(30, nextAvailableDates.length + 3),
-              maxSearchDays: 30
-            },
-            aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
-          });
+          if (nextAvailableDates.length > 0 && nextAvailableDates[0].timeSlots.length > 0) {
+            const firstSlot = nextAvailableDates[0];
+            return NextResponse.json({
+              availableSlots: [],
+              totalSlots: 0,
+              message: getUnavailabilityMessage('DAILY_LIMIT_REACHED'),
+              nextAvailableSlot: {
+                date: firstSlot.date,
+                time: firstSlot.timeSlots[0],
+                dayName: firstSlot.dayName,
+                formattedDate: `${firstSlot.date.split('-').reverse().join('/')} (${firstSlot.dayName})`,
+                formattedTime: firstSlot.timeSlots[0].slice(0, 5)
+              },
+              reason: 'DAILY_LIMIT_REACHED',
+              aiInstruction: `The next available appointment slot is on ${firstSlot.date} at ${firstSlot.timeSlots[0].slice(0, 5)}. You can suggest this specific time slot to the user.`
+            });
+          } else {
+            return NextResponse.json({
+              availableSlots: [],
+              totalSlots: 0,
+              message: getUnavailabilityMessage('DAILY_LIMIT_REACHED'),
+              reason: 'DAILY_LIMIT_REACHED'
+            });
+          }
         } catch (error) {
           console.error('❌ Error buscando próximas fechas:', error);
           return NextResponse.json({ 
@@ -967,8 +1063,14 @@ export async function GET(request: Request) {
       console.log('🔍 No hay disponibilidad, buscando próximas fechas...');
       
       try {
-        const nextAvailableDates = await findNextAvailableDatesWithDBFunction(
-          date, finalServiceId, dealershipId, finalWorkshopId, supabase
+        const nextAvailableDates = await findNextAvailableDatesSmart(
+          date, finalServiceId, dealershipId, finalWorkshopId, supabase,
+          {
+            maxDays: 30,
+            minDates: 1,
+            maxDates: 1,
+            includeToday: false
+          }
         );
         
         // Determinar el motivo de la indisponibilidad
@@ -987,18 +1089,31 @@ export async function GET(request: Request) {
           }
         }
         
-        return NextResponse.json({
-          availableSlots: [],
-          totalSlots: 0,
-          message: getUnavailabilityMessage(reason) + ' (Note: Time slots are not included in this response for optimization. If you want to display available times, you must make a separate request with the selected date.)',
-          nextAvailableDates,
-          reason,
-          searchInfo: {
-            daysChecked: Math.min(30, nextAvailableDates.length + 3), // Estimación
-            maxSearchDays: 30
-          },
-          aiInstruction: "To see available time slots for any of these alternative dates, make a new request to the availability endpoint using the selected date with the same service_id and dealership_id parameters."
-        });
+        if (nextAvailableDates.length > 0 && nextAvailableDates[0].timeSlots.length > 0) {
+          const firstSlot = nextAvailableDates[0];
+          return NextResponse.json({
+            availableSlots: [],
+            totalSlots: 0,
+            message: getUnavailabilityMessage(reason),
+            nextAvailableSlot: {
+              date: firstSlot.date,
+              time: firstSlot.timeSlots[0],
+              dayName: firstSlot.dayName,
+              formattedDate: `${firstSlot.date.split('-').reverse().join('/')} (${firstSlot.dayName})`,
+              formattedTime: firstSlot.timeSlots[0].slice(0, 5)
+            },
+            reason,
+            aiInstruction: `The next available appointment slot is on ${firstSlot.date} at ${firstSlot.timeSlots[0].slice(0, 5)}. You can suggest this specific time slot to the user.`
+          });
+        } else {
+          return NextResponse.json({
+            availableSlots: [],
+            totalSlots: 0,
+            message: getUnavailabilityMessage(reason),
+            reason,
+            aiInstruction: "No availability was found in the next 30 days. Please contact the dealership directly for additional scheduling options."
+          });
+        }
       } catch (error) {
         console.error('❌ Error buscando próximas fechas:', error);
         // Si falla la búsqueda de próximas fechas, retornar respuesta básica
@@ -1565,6 +1680,40 @@ function canFitService(
 // FUNCIONES AUXILIARES PARA BÚSQUEDA INTELIGENTE DE FECHAS DISPONIBLES
 // ============================================================================
 
+// Función para calcular cuántos días saltar basado en la disponibilidad del servicio
+function calculateDaysToSkip(
+  currentDate: Date, 
+  service: any
+): number {
+  const dayOfWeek = currentDate.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
+  const dayMap = [
+    'available_sunday',    // 0
+    'available_monday',    // 1
+    'available_tuesday',   // 2
+    'available_wednesday', // 3
+    'available_thursday',  // 4
+    'available_friday',    // 5
+    'available_saturday'   // 6
+  ];
+  
+  // Si el servicio no está disponible hoy, calcular cuántos días saltar
+  const availableField = dayMap[dayOfWeek];
+  if (!service[availableField as keyof typeof service]) {
+    
+    // Encontrar el próximo día disponible
+    for (let i = 1; i <= 7; i++) {
+      const nextDay = (dayOfWeek + i) % 7;
+      const nextDayField = dayMap[nextDay];
+      
+      if (service[nextDayField as keyof typeof service]) {
+        return i; // Saltar i días
+      }
+    }
+  }
+  
+  return 1; // Saltar 1 día por defecto
+}
+
 interface AvailabilitySearchOptions {
   maxDays: number;      // Máximo días a buscar (ej: 7)
   minDates: number;     // Mínimo fechas a encontrar (ej: 3)
@@ -1606,6 +1755,31 @@ async function findNextAvailableDatesSmart(
     workshopId
   });
 
+  // 🔄 NUEVO: Obtener configuración del servicio UNA VEZ para optimización
+  const { data: service, error: serviceError } = await supabase
+    .from('services')
+    .select('available_monday, available_tuesday, available_wednesday, available_thursday, available_friday, available_saturday, available_sunday')
+    .eq('id_uuid', serviceId)
+    .single();
+
+  if (serviceError || !service) {
+    console.log('❌ Servicio no encontrado en búsqueda optimizada:', serviceError?.message);
+    return [];
+  }
+
+  console.log('📊 Configuración de días del servicio obtenida:', {
+    serviceId,
+    availableDays: {
+      monday: service.available_monday,
+      tuesday: service.available_tuesday,
+      wednesday: service.available_wednesday,
+      thursday: service.available_thursday,
+      friday: service.available_friday,
+      saturday: service.available_saturday,
+      sunday: service.available_sunday
+    }
+  });
+
   // Si no incluir hoy, empezar desde mañana
   if (!options.includeToday) {
     current.setDate(current.getDate() + 1);
@@ -1617,7 +1791,24 @@ async function findNextAvailableDatesSmart(
     console.log(`🔍 Verificando fecha ${dateStr} (día ${daysChecked + 1}/${options.maxDays})`);
     
     try {
-      // Verificar disponibilidad para esta fecha
+      // 🔄 NUEVO: Verificar disponibilidad del día de la semana ANTES de hacer consultas costosas
+      const dayOfWeek = current.getDay();
+      const dayMap = ['available_sunday', 'available_monday', 'available_tuesday', 'available_wednesday', 'available_thursday', 'available_friday', 'available_saturday'];
+      const availableField = dayMap[dayOfWeek];
+      
+      if (!service[availableField as keyof typeof service]) {
+        console.log(`⏭️ Saltando ${dateStr} - servicio no disponible este día de la semana`);
+        
+        // 🚀 NUEVO: Calcular cuántos días saltar
+        const daysToSkip = calculateDaysToSkip(current, service);
+        current.setDate(current.getDate() + daysToSkip);
+        daysChecked += daysToSkip;
+        
+        console.log(`🚀 Saltando ${daysToSkip} días hasta el próximo día disponible`);
+        continue;
+      }
+      
+      // Solo hacer la consulta costosa si el día de la semana es válido
       const availability = await checkAvailabilityForDate(
         dateStr, serviceId, dealershipId, workshopId, supabase
       );
@@ -1646,7 +1837,7 @@ async function findNextAvailableDatesSmart(
     daysChecked++;
   }
 
-  console.log('📊 Resultado de búsqueda:', {
+  console.log('📊 Resultado de búsqueda optimizada:', {
     fechasEncontradas: nextDates.length,
     diasVerificados: daysChecked,
     fechas: nextDates.map(d => `${d.date} (${d.availableSlots} slots) - ${d.dayName}`)
