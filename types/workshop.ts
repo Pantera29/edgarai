@@ -87,6 +87,7 @@ export interface Client {
   names: string,
   email: string,
   phone_number: string,
+  phone_number_2?: string | null,
 }
 
 export interface Vehiculo {

@@ -52,12 +52,14 @@ export default function NuevoClientePage() {
     names: "",           // Cambiado de nombre
     email: "",
     phone_number: "",     // Cambiado de telefono
+    phone_number_2: "",
     external_id: ""
   })
 
   const [formErrors, setFormErrors] = useState({
     email: '',
-    phone_number: ''
+    phone_number: '',
+    phone_number_2: ''
   });
 
   // Validaciones adicionales para los campos
@@ -122,6 +124,10 @@ export default function NuevoClientePage() {
       const error = validatePhone(value);
       setFormErrors((prev) => ({ ...prev, phone_number: error || '' }));
     }
+    if (id === 'phone_number_2') {
+      const error = validatePhone(value);
+      setFormErrors((prev) => ({ ...prev, phone_number_2: error || '' }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -159,6 +165,32 @@ export default function NuevoClientePage() {
       });
       return;
     }
+    
+    // Validar phone_number_2 si se proporciona
+    if (formData.phone_number_2 && formData.phone_number_2.trim() !== '') {
+      const phone2Error = validatePhone(formData.phone_number_2);
+      if (phone2Error) {
+        console.log('Error de teléfono 2:', phone2Error);
+        toast({
+          title: "Error",
+          description: phone2Error,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Validar que los teléfonos sean diferentes
+      if (formData.phone_number_2 === formData.phone_number) {
+        console.log('Error: Los teléfonos son iguales');
+        toast({
+          title: "Error de validación",
+          description: "Los números de teléfono deben ser diferentes",
+          variant: "destructive"
+        });
+        return;
+      }
+    }
+    
     const externalIdError = validateExternalId(formData.external_id);
     if (externalIdError) {
       console.log('Error de external_id:', externalIdError);
@@ -187,6 +219,7 @@ export default function NuevoClientePage() {
       const clientData: any = {
         names: formData.names,
         phone_number: formData.phone_number,
+        phone_number_2: formData.phone_number_2 || null,
         dealership_id: dealershipId,
         external_id: formData.external_id || null
       };
@@ -275,12 +308,41 @@ export default function NuevoClientePage() {
           <Label htmlFor="phone_number">Teléfono</Label>
           <Input
             id="phone_number"
+            type="tel"
             value={formData.phone_number}
             onChange={handleInputChange}
+            onKeyPress={(e) => {
+              if (!/[0-9]/.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
+            maxLength={10}
+            pattern="[0-9]*"
+            placeholder="5512345678"
             required
           />
           {formErrors.phone_number && (
             <p className="text-sm text-red-500 mt-1">{formErrors.phone_number}</p>
+          )}
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="phone_number_2">Teléfono 2 (opcional)</Label>
+          <Input
+            id="phone_number_2"
+            type="tel"
+            value={formData.phone_number_2}
+            onChange={handleInputChange}
+            onKeyPress={(e) => {
+              if (!/[0-9]/.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
+            maxLength={10}
+            pattern="[0-9]*"
+            placeholder="5512345678"
+          />
+          {formErrors.phone_number_2 && (
+            <p className="text-sm text-red-500 mt-1">{formErrors.phone_number_2}</p>
           )}
         </div>
         <div className="space-y-2">

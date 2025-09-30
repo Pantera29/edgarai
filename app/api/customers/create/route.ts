@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     const payload = await request.json();
     console.log('Payload recibido:', JSON.stringify(payload, null, 2));
 
-    const { names, email, phone_number, dealership_id, dealership_phone, external_id } = payload;
+    const { names, email, phone_number, phone_number_2, dealership_id, dealership_phone, external_id } = payload;
 
     // Validar campos requeridos (solo names y phone_number son obligatorios)
     if (!names || !phone_number) {
@@ -54,6 +54,35 @@ export async function POST(request: Request) {
       );
     }
 
+    // Normalizar y validar phone_number_2 si existe
+    let normalizedPhone2 = null;
+    if (phone_number_2 && phone_number_2.trim() !== '') {
+      normalizedPhone2 = phone_number_2.replace(/[^0-9]/g, '');
+      console.log('Número de teléfono 2 normalizado:', normalizedPhone2);
+      
+      // Validar longitud
+      if (normalizedPhone2.length !== 10) {
+        console.log('Teléfono 2 inválido - longitud incorrecta:', {
+          original: phone_number_2,
+          normalized: normalizedPhone2,
+          length: normalizedPhone2.length
+        });
+        return NextResponse.json(
+          { message: `Invalid phone_number_2 format. Phone number must contain exactly 10 digits after removing non-numeric characters. Received: ${normalizedPhone2.length} digits. Example: 5551234567` },
+          { status: 400 }
+        );
+      }
+      
+      // Validar que sean diferentes
+      if (normalizedPhone2 === normalizedPhone) {
+        console.log('❌ Error: Los números de teléfono son iguales');
+        return NextResponse.json(
+          { message: 'phone_number_2 must be different from phone_number' },
+          { status: 400 }
+        );
+      }
+    }
+
     // Determinar el dealership_id a usar
     const dealershipIdToUse = dealership_id || await getDealershipId({ 
       dealershipPhone: dealership_phone, 
@@ -81,15 +110,24 @@ export async function POST(request: Request) {
     console.log('Dealership ID a usar:', dealershipIdToUse);
 
     // Verificar si el cliente ya existe
-    // Buscar por teléfono O email en la misma agencia
+    // Buscar por teléfono (phone_number O phone_number_2) O email en la misma agencia
     let existingClients = [];
     let searchError = null;
+    
+    // Construir condiciones OR para búsqueda de duplicados
+    let orConditions = `phone_number.eq.${normalizedPhone}`;
+    if (normalizedPhone2) {
+      orConditions += `,phone_number.eq.${normalizedPhone2},phone_number_2.eq.${normalizedPhone},phone_number_2.eq.${normalizedPhone2}`;
+    } else {
+      orConditions += `,phone_number_2.eq.${normalizedPhone}`;
+    }
+    
     if (email && email.trim() !== '') {
       const { data, error } = await supabase
         .from("client")
         .select("id")
         .eq("dealership_id", dealershipIdToUse)
-        .or(`phone_number.eq.${normalizedPhone},email.eq.${email}`);
+        .or(`${orConditions},email.eq.${email}`);
       existingClients = data || [];
       searchError = error;
     } else {
@@ -97,7 +135,7 @@ export async function POST(request: Request) {
         .from("client")
         .select("id")
         .eq("dealership_id", dealershipIdToUse)
-        .eq("phone_number", normalizedPhone);
+        .or(orConditions);
       existingClients = data || [];
       searchError = error;
     }
@@ -135,6 +173,7 @@ export async function POST(request: Request) {
     const clientData: any = {
       names,
       phone_number: normalizedPhone,
+      phone_number_2: normalizedPhone2,
       dealership_id: dealershipIdToUse,
       external_id: external_id || null
     };
@@ -165,6 +204,38 @@ export async function POST(request: Request) {
     }
 
     console.log('Cliente creado exitosamente:', newClient);
+    
+    // Crear registros en phone_agent_settings para ambos teléfonos
+    try {
+      const phoneSettingsPromises = [
+        supabase.from('phone_agent_settings').insert({
+          phone_number: normalizedPhone,
+          dealership_id: dealershipIdToUse,
+          agent_active: true,
+          created_by: 'api',
+          updated_by: 'api'
+        })
+      ];
+
+      if (normalizedPhone2) {
+        phoneSettingsPromises.push(
+          supabase.from('phone_agent_settings').insert({
+            phone_number: normalizedPhone2,
+            dealership_id: dealershipIdToUse,
+            agent_active: true,
+            created_by: 'api',
+            updated_by: 'api'
+          })
+        );
+      }
+
+      await Promise.all(phoneSettingsPromises);
+      console.log('✅ Configuraciones de phone_agent_settings creadas para ambos teléfonos');
+    } catch (settingsError) {
+      console.error('⚠️ Error creando phone_agent_settings (no crítico):', settingsError);
+      // No retornamos error porque el cliente ya fue creado exitosamente
+    }
+    
     return NextResponse.json(
       { message: 'Client created successfully', client: newClient },
       { status: 201 }

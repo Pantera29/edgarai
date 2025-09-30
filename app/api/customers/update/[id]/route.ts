@@ -145,7 +145,7 @@ export async function PATCH(
 
     // Obtener y validar el cuerpo de la petición
     const body = await request.json();
-    const { names, email, phone_number, external_id, agent_active } = body;
+    const { names, email, phone_number, phone_number_2, external_id, agent_active } = body;
 
     // Validar email si se proporciona
     if (email !== undefined && email !== null && email.trim() !== "") {
@@ -170,16 +170,50 @@ export async function PATCH(
       }
     }
 
+    // Validar phone_number_2 si se proporciona
+    let normalizedPhone2 = undefined;
+    if (phone_number_2 !== undefined) {
+      // Si phone_number_2 es null, string vacío, o undefined → setear a null
+      if (phone_number_2 === null || phone_number_2 === "" || phone_number_2.trim() === "") {
+        normalizedPhone2 = null;
+      } else {
+        // Si tiene valor, normalizar y validar
+        normalizedPhone2 = phone_number_2.replace(/[^0-9]/g, '');
+        if (normalizedPhone2.length !== 10) {
+          return NextResponse.json(
+            { message: 'El teléfono 2 debe tener exactamente 10 dígitos numéricos.' },
+            { status: 400 }
+          );
+        }
+        
+        // Validar que sean diferentes si ambos están presentes
+        if (normalizedPhone && normalizedPhone2 === normalizedPhone) {
+          return NextResponse.json(
+            { message: 'phone_number_2 debe ser diferente de phone_number' },
+            { status: 400 }
+          );
+        }
+      }
+    }
+
     // Validar duplicados en la misma agencia (excluyendo el propio cliente)
-    if ((email && email.trim() !== "") || normalizedPhone) {
+    if ((email && email.trim() !== "") || normalizedPhone || normalizedPhone2) {
       let orConditions = [];
-      if (normalizedPhone) orConditions.push(`phone_number.eq.${normalizedPhone}`);
+      if (normalizedPhone) {
+        orConditions.push(`phone_number.eq.${normalizedPhone}`);
+        orConditions.push(`phone_number_2.eq.${normalizedPhone}`);
+      }
+      if (normalizedPhone2) {
+        orConditions.push(`phone_number.eq.${normalizedPhone2}`);
+        orConditions.push(`phone_number_2.eq.${normalizedPhone2}`);
+      }
       if (email && email.trim() !== "") orConditions.push(`email.eq.${email}`);
 
       console.log('🔍 Verificando duplicados:', {
         client_id: clientId,
         dealership_id: clientExists.dealership_id,
         phone_number: normalizedPhone,
+        phone_number_2: normalizedPhone2,
         email: email,
         or_conditions: orConditions,
         timestamp: new Date().toISOString()
@@ -187,7 +221,7 @@ export async function PATCH(
 
       const { data: existingClients, error: searchError } = await supabase
         .from("client")
-        .select("id, phone_number, email")
+        .select("id, phone_number, phone_number_2, email")
         .eq("dealership_id", clientExists.dealership_id)
         .or(orConditions.join(","))
         .neq("id", clientId);
@@ -215,8 +249,16 @@ export async function PATCH(
         // Determinar qué campo está duplicado para dar un mensaje más específico
         const duplicateFields = [];
         if (normalizedPhone) {
-          const phoneDuplicate = existingClients.some(client => client.phone_number === normalizedPhone);
+          const phoneDuplicate = existingClients.some(client => 
+            client.phone_number === normalizedPhone || client.phone_number_2 === normalizedPhone
+          );
           if (phoneDuplicate) duplicateFields.push('teléfono');
+        }
+        if (normalizedPhone2) {
+          const phone2Duplicate = existingClients.some(client => 
+            client.phone_number === normalizedPhone2 || client.phone_number_2 === normalizedPhone2
+          );
+          if (phone2Duplicate) duplicateFields.push('teléfono 2');
         }
         if (email && email.trim() !== "") {
           const emailDuplicate = existingClients.some(client => client.email === email);
@@ -252,6 +294,7 @@ export async function PATCH(
     if (names !== undefined) updateData.names = names;
     if (email !== undefined) updateData.email = email;
     if (normalizedPhone !== undefined) updateData.phone_number = normalizedPhone;
+    if (normalizedPhone2 !== undefined) updateData.phone_number_2 = normalizedPhone2;
     if (external_id !== undefined) updateData.external_id = external_id;
     if (agent_active !== undefined) updateData.agent_active = agent_active;
 
@@ -289,36 +332,62 @@ export async function PATCH(
         // Obtener datos del cliente para la migración
         const { data: clientData } = await supabase
           .from('client')
-          .select('phone_number, dealership_id')
+          .select('phone_number, phone_number_2, dealership_id')
           .eq('id', clientId)
           .single();
 
-        if (clientData && clientData.phone_number && clientData.dealership_id) {
-          // Migrar a phone_agent_settings
-          const { error: migrationError } = await supabase
-            .from('phone_agent_settings')
-            .upsert({
-              phone_number: clientData.phone_number,
-              dealership_id: clientData.dealership_id,
-              agent_active: agent_active,
-              notes: `Migrado desde client.agent_active - ${agent_active ? 'activado' : 'desactivado'} manualmente`,
-              updated_by: 'migration',
-              updated_at: new Date().toISOString()
-            }, {
-              onConflict: 'phone_number,dealership_id'
-            });
-
-          if (migrationError) {
+        if (clientData && clientData.dealership_id) {
+          // Migrar a phone_agent_settings para ambos teléfonos
+          const migrationPromises = [];
+          
+          if (clientData.phone_number) {
+            migrationPromises.push(
+              supabase
+                .from('phone_agent_settings')
+                .upsert({
+                  phone_number: clientData.phone_number,
+                  dealership_id: clientData.dealership_id,
+                  agent_active: agent_active,
+                  notes: `Migrado desde client.agent_active - ${agent_active ? 'activado' : 'desactivado'} manualmente`,
+                  updated_by: 'migration',
+                  updated_at: new Date().toISOString()
+                }, {
+                  onConflict: 'phone_number,dealership_id'
+                })
+            );
+          }
+          
+          if (clientData.phone_number_2) {
+            migrationPromises.push(
+              supabase
+                .from('phone_agent_settings')
+                .upsert({
+                  phone_number: clientData.phone_number_2,
+                  dealership_id: clientData.dealership_id,
+                  agent_active: agent_active,
+                  notes: `Migrado desde client.agent_active - ${agent_active ? 'activado' : 'desactivado'} manualmente (phone_number_2)`,
+                  updated_by: 'migration',
+                  updated_at: new Date().toISOString()
+                }, {
+                  onConflict: 'phone_number,dealership_id'
+                })
+            );
+          }
+          
+          const results = await Promise.all(migrationPromises);
+          const hasErrors = results.some(r => r.error);
+          
+          if (hasErrors) {
             console.error('⚠️ Error en migración a phone_agent_settings:', {
               client_id: clientId,
-              error: migrationError.message,
+              errors: results.filter(r => r.error).map(r => r.error.message),
               timestamp: new Date().toISOString()
             });
-            // No fallar la operación principal, solo log del error
           } else {
-            console.log('✅ Migración a phone_agent_settings exitosa:', {
+            console.log('✅ Migración a phone_agent_settings exitosa para ambos teléfonos:', {
               client_id: clientId,
               phone_number: clientData.phone_number,
+              phone_number_2: clientData.phone_number_2,
               dealership_id: clientData.dealership_id,
               agent_active: agent_active,
               timestamp: new Date().toISOString()
@@ -327,7 +396,6 @@ export async function PATCH(
         } else {
           console.warn('⚠️ No se pudo migrar agent_active - datos de cliente incompletos:', {
             client_id: clientId,
-            has_phone: !!clientData?.phone_number,
             has_dealership: !!clientData?.dealership_id,
             timestamp: new Date().toISOString()
           });

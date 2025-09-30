@@ -38,6 +38,7 @@ interface Cliente {
   names: string
   email: string
   phone_number: string
+  phone_number_2?: string | null
   external_id?: string | null
   agent_active: boolean
   dealership_id: string
@@ -91,31 +92,61 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
     try {
       console.log('🔄 Actualizando estado del agente para cliente:', cliente.id);
       
-      // Usar el nuevo endpoint agent-control para la solución definitiva
-      const response = await fetch('/api/agent-control', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phone_number: cliente.phone_number,
-          dealership_id: cliente.dealership_id,
-          agent_active: !cliente.agent_active,
-          notes: `Cambiado manualmente desde tabla de clientes - ${!cliente.agent_active ? 'activado' : 'desactivado'}`,
-          updated_by: 'user'
-        }),
-      });
+      const newAgentActive = !cliente.agent_active;
+      const promises = [];
+      
+      // Actualizar phone_number (principal)
+      promises.push(
+        fetch('/api/agent-control', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            phone_number: cliente.phone_number,
+            dealership_id: cliente.dealership_id,
+            agent_active: newAgentActive,
+            notes: `Cambiado manualmente desde tabla de clientes - ${newAgentActive ? 'activado' : 'desactivado'}`,
+            updated_by: 'user'
+          }),
+        })
+      );
+      
+      // Actualizar phone_number_2 si existe
+      if (cliente.phone_number_2) {
+        console.log('🔄 También actualizando phone_number_2:', cliente.phone_number_2);
+        promises.push(
+          fetch('/api/agent-control', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              phone_number: cliente.phone_number_2,
+              dealership_id: cliente.dealership_id,
+              agent_active: newAgentActive,
+              notes: `Cambiado manualmente desde tabla de clientes - ${newAgentActive ? 'activado' : 'desactivado'} (phone_number_2)`,
+              updated_by: 'user'
+            }),
+          })
+        );
+      }
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP ${response.status}`);
+      // Ejecutar todas las actualizaciones en paralelo
+      const responses = await Promise.all(promises);
+      
+      // Verificar que todas fueron exitosas
+      const failedResponses = responses.filter(r => !r.ok);
+      if (failedResponses.length > 0) {
+        const errorData = await failedResponses[0].json();
+        throw new Error(errorData.message || `HTTP ${failedResponses[0].status}`);
       }
       
-      console.log('✅ Estado del agente actualizado correctamente');
+      console.log(`✅ Estado del agente actualizado correctamente para ${promises.length} teléfono(s)`);
       
       toast({
         title: "Estado actualizado",
-        description: `El agente está ahora ${!cliente.agent_active ? 'activo' : 'inactivo'} para este cliente.`
+        description: `El agente está ahora ${newAgentActive ? 'activo' : 'inactivo'} para ${cliente.phone_number_2 ? 'ambos teléfonos del' : 'este'} cliente.`
       });
       
       // Recargar los datos para reflejar el cambio en la UI
@@ -144,6 +175,7 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
             <TableHead>Nombre</TableHead>
             <TableHead>Email</TableHead>
             <TableHead>Teléfono</TableHead>
+            <TableHead>Teléfono 2</TableHead>
             <TableHead>Estado Agente</TableHead>
             <TableHead className="text-right">Acciones</TableHead>
           </TableRow>
@@ -154,6 +186,7 @@ export function ClientesTable({ clientes, loading = false, token='',onClienteDel
               <TableCell>{cliente.names}</TableCell>
               <TableCell>{cliente.email}</TableCell>
               <TableCell>{cliente.phone_number}</TableCell>
+              <TableCell>{cliente.phone_number_2 || '-'}</TableCell>
               <TableCell>
                 <Button
                   variant={cliente.agent_active ? "default" : "destructive"}

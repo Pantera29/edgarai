@@ -7,6 +7,7 @@ interface ExtendedClient {
   id: string;
   names: string;
   phone_number: string;
+  phone_number_2?: string | null;
   email?: string;
   external_id?: string | null;
   agent_active?: boolean;
@@ -49,7 +50,7 @@ export const useClientSearch = (dealershipId: string) => {
       
       let supabaseQuery = supabase
         .from('client')
-        .select('id, names, phone_number, email, external_id, agent_active, dealership_id')
+        .select('id, names, phone_number, phone_number_2, email, external_id, agent_active, dealership_id')
         .eq('dealership_id', dealershipId);
       
       if (words.length > 0) {
@@ -58,12 +59,12 @@ export const useClientSearch = (dealershipId: string) => {
           supabaseQuery = supabaseQuery.filter('names', 'ilike', `%${word}%`);
         });
         
-        // Agregar búsqueda por teléfono completo (OR)
+        // Agregar búsqueda por teléfono completo en ambos campos (OR)
         const phoneQuery = supabase
           .from('client')
-          .select('id, names, phone_number, email, external_id, agent_active, dealership_id')
+          .select('id, names, phone_number, phone_number_2, email, external_id, agent_active, dealership_id')
           .eq('dealership_id', dealershipId)
-          .ilike('phone_number', `%${query}%`);
+          .or(`phone_number.ilike.%${query}%,phone_number_2.ilike.%${query}%`);
         
         // Ejecutar ambas consultas
         const [nameResults, phoneResults] = await Promise.all([
@@ -94,12 +95,15 @@ export const useClientSearch = (dealershipId: string) => {
 
 
         // Obtener los agent_active actualizados de phone_agent_settings
-        const phoneNumbers = uniqueResults.map(client => client.phone_number);
+        // Incluir ambos números de teléfono
+        const allPhones = uniqueResults.flatMap(client => 
+          [client.phone_number, client.phone_number_2].filter(phone => phone != null)
+        );
         const { data: agentSettingsData } = await supabase
           .from("phone_agent_settings")
           .select("phone_number, agent_active")
           .eq("dealership_id", dealershipId)
-          .in("phone_number", phoneNumbers);
+          .in("phone_number", allPhones);
 
         // Crear un mapa para acceso rápido
         const agentSettingsMap = new Map();
@@ -108,9 +112,13 @@ export const useClientSearch = (dealershipId: string) => {
         });
 
         // Actualizar agent_active con los valores de phone_agent_settings
+        // Priorizar phone_number principal, luego phone_number_2
         const updatedResults = uniqueResults.map(client => ({
           ...client,
-          agent_active: agentSettingsMap.get(client.phone_number) ?? client.agent_active ?? true
+          agent_active: agentSettingsMap.get(client.phone_number) ?? 
+                        agentSettingsMap.get(client.phone_number_2 || '') ?? 
+                        client.agent_active ?? 
+                        true
         }));
 
         // Combinar resultados de búsqueda con clientes seleccionados previamente
