@@ -380,7 +380,7 @@ export async function PATCH(
           if (hasErrors) {
             console.error('⚠️ Error en migración a phone_agent_settings:', {
               client_id: clientId,
-              errors: results.filter(r => r.error).map(r => r.error.message),
+              errors: results.filter(r => r.error).map(r => r.error!.message),
               timestamp: new Date().toISOString()
             });
           } else {
