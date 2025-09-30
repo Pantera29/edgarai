@@ -34,6 +34,7 @@ export default function EditarClientePage({ params }: PageProps) {
     names: "",
     email: "",
     phone_number: "",
+    phone_number_2: "",
     external_id: ""
   });
   const [loading, setLoading] = useState(true);
@@ -87,6 +88,7 @@ export default function EditarClientePage({ params }: PageProps) {
           names: cliente.names || '',
           email: cliente.email || '',
           phone_number: cliente.phone_number || '',
+          phone_number_2: cliente.phone_number_2 || '',
           external_id: cliente.external_id || ''
         });
       }
@@ -121,6 +123,7 @@ export default function EditarClientePage({ params }: PageProps) {
         names: formData.names,
         email: formData.email,
         phone_number: formData.phone_number,
+        phone_number_2: formData.phone_number_2 || null,
         external_id: formData.external_id || null
       };
 
@@ -287,9 +290,35 @@ export default function EditarClientePage({ params }: PageProps) {
           <Label htmlFor="phone_number">Teléfono</Label>
           <Input
             id="phone_number"
+            type="tel"
             value={formData.phone_number}
             onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
+            onKeyPress={(e) => {
+              if (!/[0-9]/.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
+            maxLength={10}
+            pattern="[0-9]*"
+            placeholder="5512345678"
             required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="phone_number_2">Teléfono 2 (opcional)</Label>
+          <Input
+            id="phone_number_2"
+            type="tel"
+            value={formData.phone_number_2}
+            onChange={(e) => setFormData({ ...formData, phone_number_2: e.target.value })}
+            onKeyPress={(e) => {
+              if (!/[0-9]/.test(e.key)) {
+                e.preventDefault();
+              }
+            }}
+            maxLength={10}
+            pattern="[0-9]*"
+            placeholder="5512345678"
           />
         </div>
         <div className="space-y-2">

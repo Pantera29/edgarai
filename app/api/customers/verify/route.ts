@@ -42,18 +42,18 @@ export async function GET(request: Request) {
 
     let query = supabase
       .from('client')
-      .select('id, names, email, created_at, agent_active, dealership_id, phone_number');
+      .select('id, names, email, created_at, agent_active, dealership_id, phone_number, phone_number_2');
 
     // Construir la consulta según los parámetros proporcionados
     if (phone && name) {
-      // Búsqueda por teléfono Y nombre
+      // Búsqueda por teléfono (phone_number O phone_number_2) Y nombre
       console.log('🔍 Buscando por teléfono Y nombre');
       const normalizedPhone = phone.replace(/[^0-9]/g, '');
       
       // Dividir el nombre en palabras para búsqueda AND
       const words = name.trim().split(/\s+/).filter(word => word.length > 0);
       
-      query = query.eq('phone_number', normalizedPhone);
+      query = query.or(`phone_number.eq.${normalizedPhone},phone_number_2.eq.${normalizedPhone}`);
       
       // Aplicar filtros para cada palabra del nombre (AND)
       words.forEach(word => {
@@ -64,12 +64,12 @@ export async function GET(request: Request) {
         query = query.eq('dealership_id', dealershipId);
       }
     } else if (phone) {
-      // Búsqueda solo por teléfono (comportamiento original)
+      // Búsqueda solo por teléfono (phone_number O phone_number_2)
       console.log('🔍 Buscando solo por teléfono');
       const normalizedPhone = phone.replace(/[^0-9]/g, '');
       console.log('📱 Teléfono normalizado:', normalizedPhone);
       
-      query = query.eq('phone_number', normalizedPhone);
+      query = query.or(`phone_number.eq.${normalizedPhone},phone_number_2.eq.${normalizedPhone}`);
       
       if (dealershipId) {
         console.log('🏢 Filtrando por dealership_id:', dealershipId);

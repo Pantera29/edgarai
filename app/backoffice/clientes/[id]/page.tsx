@@ -34,6 +34,7 @@ interface Cliente {
   names: string;
   email: string | null;
   phone_number: string;
+  phone_number_2?: string | null;
   created_at: string;
   dealership_id: string;
 }
@@ -279,6 +280,13 @@ export default function ClientePage({ params }: PageProps) {
                     <Phone className="h-4 w-4 text-muted-foreground" />
                     <span>{cliente.phone_number}</span>
                   </div>
+                  {cliente.phone_number_2 && (
+                    <div className="flex items-center gap-3">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <span>{cliente.phone_number_2}</span>
+                      <Badge variant="outline" className="text-xs">Secundario</Badge>
+                    </div>
+                  )}
                   {cliente.email && (
                     <div className="flex items-center gap-3">
                       <Mail className="h-4 w-4 text-muted-foreground" />

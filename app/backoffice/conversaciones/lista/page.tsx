@@ -103,6 +103,7 @@ interface Cliente {
   names: string;
   email: string;
   phone_number: string;
+  phone_number_2?: string | null;
   agent_active: boolean;
 }
 

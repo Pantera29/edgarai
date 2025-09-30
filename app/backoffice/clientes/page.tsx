@@ -34,6 +34,7 @@ interface Cliente {
   names: string;
   email: string;
   phone_number: string;
+  phone_number_2?: string | null;
   external_id?: string | null;
   estado?: "activo" | "inactivo";
   agent_active: boolean;
@@ -171,7 +172,7 @@ const router = useRouter();
 
       if (busqueda) {
         query = query.or(
-          `names.ilike.%${busqueda}%,email.ilike.%${busqueda}%,phone_number.ilike.%${busqueda}%`
+          `names.ilike.%${busqueda}%,email.ilike.%${busqueda}%,phone_number.ilike.%${busqueda}%,phone_number_2.ilike.%${busqueda}%`
         );
       }
 
@@ -186,13 +187,16 @@ const router = useRouter();
 
 
       // Obtener los agent_active actualizados de phone_agent_settings
-      const phoneNumbers = (data || []).map(cliente => cliente.phone_number);
+      // Incluir ambos números de teléfono
+      const allPhones = (data || []).flatMap(cliente => 
+        [cliente.phone_number, cliente.phone_number_2].filter(phone => phone != null)
+      );
       
       const { data: agentSettingsData } = await supabase
         .from("phone_agent_settings")
         .select("phone_number, agent_active")
         .eq("dealership_id", dealershipIdFromToken)
-        .in("phone_number", phoneNumbers);
+        .in("phone_number", allPhones);
 
       // Crear un mapa para acceso rápido
       const agentSettingsMap = new Map();
@@ -205,10 +209,14 @@ const router = useRouter();
         names: cliente.names,
         email: cliente.email,
         phone_number: cliente.phone_number,
+        phone_number_2: cliente.phone_number_2,
         external_id: cliente.external_id,
         estado: cliente.estado,
-        // Priorizar phone_agent_settings.agent_active, fallback a client.agent_active
-        agent_active: agentSettingsMap.get(cliente.phone_number) ?? cliente.agent_active ?? true,
+        // Priorizar phone_agent_settings.agent_active del teléfono principal, luego secundario
+        agent_active: agentSettingsMap.get(cliente.phone_number) ?? 
+                      agentSettingsMap.get(cliente.phone_number_2 || '') ?? 
+                      cliente.agent_active ?? 
+                      true,
         dealership_id: cliente.dealership_id
       }));
 
@@ -257,6 +265,7 @@ const router = useRouter();
         names: client.names,
         email: client.email || '',
         phone_number: client.phone_number,
+        phone_number_2: client.phone_number_2 || null,
         external_id: client.external_id || null,
         estado: "activo" as const,
         // Los resultados de búsqueda ya vienen con el agent_active correcto del endpoint verify

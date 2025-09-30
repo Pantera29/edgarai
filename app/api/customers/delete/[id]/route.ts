@@ -147,7 +147,7 @@ export async function DELETE(
 
     // Verificar si el cliente tiene conversaciones asociadas
     const { data: conversations, error: conversationsError } = await supabase
-      .from('conversation')
+      .from('chat_conversations')
       .select('id')
       .eq('client_id', clientId);
 
