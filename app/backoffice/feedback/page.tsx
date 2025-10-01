@@ -20,7 +20,8 @@ import { Search, Eye } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { verifyToken } from "../../jwt/token"
-import { ArrowUp, ArrowDown, Clock, MessageSquare, TrendingUp } from "lucide-react"
+import { ArrowUp, ArrowDown, Clock, MessageSquare, TrendingUp, CheckCircle, Check } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 import {
   Pagination,
   PaginationContent,
@@ -38,8 +39,20 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { ChartLineLabel } from "@/components/chart-line-label"
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from "@/components/ui/tabs"
 
 const ITEMS_PER_PAGE = 25;
+
+interface Worker {
+  id: number;
+  names: string;
+  surnames: string;
+}
 
 const columns = [
   {
@@ -207,6 +220,7 @@ export default function FeedbackPage() {
   const [dataToken, setDataToken] = useState<object>({});
 
   const router = useRouter();
+  const { toast } = useToast();
 
   // Estado para el modal de comentarios
   const [commentsModalOpen, setCommentsModalOpen] = useState(false);
@@ -265,6 +279,18 @@ export default function FeedbackPage() {
   })
   const [currentPage, setCurrentPage] = useState(1)
   const [totalItems, setTotalItems] = useState(0)
+  
+  // Estados para tabs y casos urgentes
+  const [activeTab, setActiveTab] = useState("todas")
+  const [urgentCasesCount, setUrgentCasesCount] = useState(0)
+  const [urgentCasesData, setUrgentCasesData] = useState<any[]>([])
+  const [urgentCasesLoading, setUrgentCasesLoading] = useState(false)
+  
+  // Estados para gestión de casos urgentes
+  const [workers, setWorkers] = useState<Worker[]>([])
+  const [workersLoading, setWorkersLoading] = useState(false)
+  const [assignmentChanges, setAssignmentChanges] = useState<{ [key: string]: number | null }>({})
+  const [savingAssignments, setSavingAssignments] = useState<{ [key: string]: boolean }>({})
 
 
 
@@ -579,12 +605,106 @@ export default function FeedbackPage() {
     }
   }
 
+  const fetchWorkers = async (dealershipIdFromToken?: string) => {
+    if (!dealershipIdFromToken) {
+      setWorkersLoading(false);
+      return;
+    }
+
+    setWorkersLoading(true);
+    try {
+      console.log('🔄 Cargando lista de trabajadores...');
+      
+      const { data: workersData, error } = await supabase
+        .from('worker_agency')
+        .select('id, names, surnames')
+        .eq('dealership_id', dealershipIdFromToken)
+        .eq('active', true)
+        .order('names', { ascending: true });
+
+      if (error) {
+        console.error('❌ Error obteniendo trabajadores:', error);
+        throw error;
+      }
+
+      console.log('✅ Trabajadores obtenidos:', workersData?.length || 0);
+      setWorkers(workersData || []);
+      
+    } catch (error) {
+      console.error('❌ Error fatal cargando trabajadores:', error);
+      setWorkers([]);
+    } finally {
+      setWorkersLoading(false);
+    }
+  }
+
+  const fetchUrgentCases = async (dealershipIdFromToken?: string) => {
+    if (!dealershipIdFromToken) {
+      setUrgentCasesLoading(false);
+      return;
+    }
+
+    setUrgentCasesLoading(true);
+    try {
+      console.log('🔄 Cargando casos urgentes...');
+      
+      const { data: urgentData, error } = await supabase
+        .from('nps')
+        .select(`
+          *,
+          client!inner (
+            names,
+            dealership_id
+          ),
+          appointment (
+            channel
+          ),
+          worker:assigned_to (
+            id,
+            names,
+            surnames
+          )
+        `)
+        .eq('client.dealership_id', dealershipIdFromToken)
+        .eq('classification', 'detractor')
+        .eq('status', 'completed')
+        .is('contacted_at', null)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('❌ Error obteniendo casos urgentes:', error);
+        throw error;
+      }
+
+      console.log('✅ Casos urgentes obtenidos:', urgentData?.length || 0);
+
+      const formattedUrgentData = (urgentData || []).map(item => ({
+        ...item,
+        customer_name: item.client?.names || '-',
+        assigned_to_name: item.worker ? `${item.worker.names} ${item.worker.surnames}` : null,
+        showComments: showComments
+      }));
+
+      setUrgentCasesData(formattedUrgentData);
+      setUrgentCasesCount(urgentData?.length || 0);
+      
+    } catch (error) {
+      console.error('❌ Error fatal cargando casos urgentes:', error);
+      setUrgentCasesData([]);
+      setUrgentCasesCount(0);
+    } finally {
+      setUrgentCasesLoading(false);
+    }
+  }
+
   // Cargar métricas solo cuando cambie el dealership_id
   useEffect(() => {
     if (dataToken && (dataToken as any).dealership_id) {
       console.log('🔄 Cargando métricas para dealership:', (dataToken as any).dealership_id);
       fetchMetrics((dataToken as any).dealership_id);
       fetchMonthlyNpsData((dataToken as any).dealership_id);
+      fetchUrgentCases((dataToken as any).dealership_id);
+      fetchWorkers((dataToken as any).dealership_id);
     }
   }, [dataToken])
 
@@ -593,6 +713,204 @@ export default function FeedbackPage() {
     setSelectedComments(comments);
     setCommentsModalOpen(true);
   };
+
+  // Función para manejar cambio en dropdown de asignación
+  const handleAssignmentChange = (npsId: string, workerId: number | null) => {
+    setAssignmentChanges(prev => ({
+      ...prev,
+      [npsId]: workerId
+    }));
+  };
+
+  // Función para guardar asignación
+  const handleSaveAssignment = async (npsId: string, workerId: number | null) => {
+    setSavingAssignments(prev => ({ ...prev, [npsId]: true }));
+    
+    try {
+      const response = await fetch(`/api/nps/${npsId}/assign`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ assigned_to: workerId }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al asignar');
+      }
+
+      toast({
+        title: "✓ Asignado correctamente",
+        variant: "default",
+      });
+
+      // Actualizar datos locales
+      setUrgentCasesData(prev => prev.map(item => {
+        if (item.id === npsId) {
+          const worker = workers.find(w => w.id === workerId);
+          return {
+            ...item,
+            assigned_to: workerId,
+            assigned_to_name: worker ? `${worker.names} ${worker.surnames}` : null
+          };
+        }
+        return item;
+      }));
+
+      // Limpiar el cambio pendiente
+      setAssignmentChanges(prev => {
+        const newChanges = { ...prev };
+        delete newChanges[npsId];
+        return newChanges;
+      });
+      
+    } catch (error) {
+      console.error('Error al asignar:', error);
+      toast({
+        title: "❌ Error al asignar. Intenta de nuevo",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingAssignments(prev => ({ ...prev, [npsId]: false }));
+    }
+  };
+
+  // Función para marcar caso como contactado
+  const handleMarkContacted = async (npsId: string) => {
+    try {
+      const response = await fetch(`/api/nps/${npsId}/contact`, {
+        method: 'PATCH',
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al marcar como contactado');
+      }
+
+      toast({
+        title: "✓ Caso marcado como contactado",
+        variant: "default",
+      });
+
+      // Remover la fila de la tabla con animación
+      setUrgentCasesData(prev => prev.filter(item => item.id !== npsId));
+      setUrgentCasesCount(prev => prev - 1);
+      
+    } catch (error) {
+      console.error('Error al marcar como contactado:', error);
+      toast({
+        title: "❌ Error al guardar. Intenta de nuevo",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Columnas para casos urgentes con gestión
+  const urgentCasesColumns = [
+    {
+      accessorKey: "created_at",
+      header: "Fecha",
+      cell: ({ row }: { row: any }) => 
+        format(new Date(row.getValue("created_at")), "PPP", { locale: es })
+    },
+    {
+      accessorKey: "customer_name",
+      header: "Cliente"
+    },
+    {
+      accessorKey: "score",
+      header: "Puntaje",
+      cell: ({ row }: { row: any }) => (
+        <Badge variant="destructive">
+          {row.getValue("score") ? `${row.getValue("score")}/10` : "-"}
+        </Badge>
+      )
+    },
+    {
+      accessorKey: "comments",
+      header: "Comentarios",
+      cell: ({ row }: { row: any }) => {
+        const comments = row.getValue("comments")
+        const hasComments = comments && comments.trim() !== ""
+        
+        return (
+          <div className="flex justify-center">
+            {hasComments ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => row.original.showComments?.(comments)}
+                className="h-8 w-8 p-0 hover:bg-blue-50"
+                title="Ver comentarios"
+              >
+                <Eye className="h-4 w-4 text-blue-600" />
+              </Button>
+            ) : (
+              <span className="text-muted-foreground text-sm">-</span>
+            )}
+          </div>
+        )
+      }
+    },
+    {
+      accessorKey: "assigned_to",
+      header: "Asignar a",
+      cell: ({ row }: { row: any }) => {
+        const npsId = row.original.id;
+        const currentAssignment = row.getValue("assigned_to");
+        const pendingChange = assignmentChanges[npsId];
+        const hasChanges = pendingChange !== undefined && pendingChange !== currentAssignment;
+        const isSaving = savingAssignments[npsId] || false;
+        
+        return (
+          <div className="flex items-center gap-2">
+            <Select
+              value={pendingChange !== undefined ? String(pendingChange || 'unassigned') : String(currentAssignment || 'unassigned')}
+              onValueChange={(value) => handleAssignmentChange(npsId, value === 'unassigned' ? null : Number(value))}
+              disabled={isSaving}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Sin asignar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="unassigned">Sin asignar</SelectItem>
+                {workers.map(worker => (
+                  <SelectItem key={worker.id} value={String(worker.id)}>
+                    {worker.names} {worker.surnames}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              size="sm"
+              onClick={() => handleSaveAssignment(npsId, pendingChange ?? currentAssignment)}
+              disabled={!hasChanges || isSaving}
+            >
+              {isSaving ? "..." : "Guardar"}
+            </Button>
+          </div>
+        )
+      }
+    },
+    {
+      accessorKey: "action",
+      header: "Acción",
+      cell: ({ row }: { row: any }) => {
+        const npsId = row.original.id;
+        
+        return (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handleMarkContacted(npsId)}
+            className="flex items-center gap-1"
+          >
+            <Check className="h-4 w-4" />
+            Contactado
+          </Button>
+        )
+      }
+    },
+  ];
 
   // Cargar datos de tabla cuando cambien filtros o página
   useEffect(() => {
@@ -605,6 +923,13 @@ export default function FeedbackPage() {
   useEffect(() => {
     setCurrentPage(1);
   }, [filters.status, filters.classification, filters.channel, filters.search]);
+
+  // Recargar casos urgentes al cambiar de tab
+  useEffect(() => {
+    if (activeTab === "urgentes" && dataToken && (dataToken as any).dealership_id) {
+      fetchUrgentCases((dataToken as any).dealership_id);
+    }
+  }, [activeTab, dataToken]);
 
   // Lógica de paginación
   const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
@@ -626,6 +951,21 @@ export default function FeedbackPage() {
   return (
     <div className="container mx-auto py-10">
       <h1 className="text-3xl font-bold mb-8">Feedback NPS</h1>
+
+      {/* Estilos para el dot parpadeante */}
+      <style jsx>{`
+        @keyframes pulse-dot {
+          0%, 100% {
+            opacity: 1;
+          }
+          50% {
+            opacity: 0.5;
+          }
+        }
+        .pulse-dot {
+          animation: pulse-dot 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+      `}</style>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
         {/* NPS Score Card */}
@@ -727,151 +1067,196 @@ export default function FeedbackPage() {
         </Card>
       </div>
 
-      <div className="flex gap-4 mb-6">
-        <div className="flex flex-1 items-center space-x-2">
-          <Input
-            placeholder="Buscar por nombre de cliente..."
-            className="w-[250px]"
-            value={filters.search}
-            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-          />
-          <Search className="h-4 w-4 text-muted-foreground" />
-        </div>
+      {/* Tabs para separar vista de Todas y Casos Urgentes */}
+      <Tabs defaultValue="todas" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="todas">
+            Todas las Encuestas
+          </TabsTrigger>
+          <TabsTrigger value="urgentes" className="flex items-center gap-2">
+            {urgentCasesCount > 0 && (
+              <span className="h-2 w-2 rounded-full bg-red-500 pulse-dot" />
+            )}
+            Casos Urgentes
+            {urgentCasesCount > 0 && (
+              <Badge variant="destructive" className="ml-1">
+                {urgentCasesCount}
+              </Badge>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-        <Select
-          value={filters.channel}
-          onValueChange={(value) => setFilters(prev => ({ ...prev, channel: value }))}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Canal">
-              {filters.channel === "todos" ? "Canal" : filters.channel === "whatsapp" ? "WhatsApp" : 
-               filters.channel === "twilio" ? "Teléfono" : filters.channel === "manual" ? "Manual" : 
-               filters.channel === "web" ? "Web" : filters.channel === "agenteai" ? "Agente AI" : "Canal"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="whatsapp">WhatsApp</SelectItem>
-            <SelectItem value="twilio">Teléfono</SelectItem>
-            <SelectItem value="manual">Manual</SelectItem>
-            <SelectItem value="web">Web</SelectItem>
-            <SelectItem value="agenteai">Agente AI</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={filters.status}
-          onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Estado">
-              {filters.status === "todos" ? "Estado" : filters.status === "pendiente" ? "Pendiente" : 
-               filters.status === "completado" ? "Completado" : "Estado"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="pendiente">Pendiente</SelectItem>
-            <SelectItem value="completado">Completado</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select
-          value={filters.classification}
-          onValueChange={(value) => setFilters(prev => ({ ...prev, classification: value }))}
-        >
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Clasificación">
-              {filters.classification === "todas" ? "Clasificación" : filters.classification === "promotor" ? "Promotor" : 
-               filters.classification === "neutral" ? "Neutral" : filters.classification === "detractor" ? "Detractor" : "Clasificación"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todas">Todas</SelectItem>
-            <SelectItem value="promotor">Promotor</SelectItem>
-            <SelectItem value="neutral">Neutral</SelectItem>
-            <SelectItem value="detractor">Detractor</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-4">
-        {loading ? (
-          <div className="flex items-center justify-center p-8">
-            <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
-          </div>
-        ) : (
-          <>
-            <DataTable 
-              columns={columns}
-              data={data}
-            />
-            
-            {/* Información de paginación - siempre visible */}
-            <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center border-t pt-4">
-              <div className="text-sm text-muted-foreground order-2 sm:order-1">
-                {totalItems > 0 ? (
-                  <>
-                    Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} -{" "}
-                    {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} de {totalItems}{" "}
-                    respuestas ({data.length} en esta página)
-                  </>
-                ) : (
-                  "No hay respuestas para mostrar"
-                )}
-              </div>
-              
-              {/* Controles de paginación - solo si hay más de una página */}
-              {totalPages > 1 && (
-                <div className="order-1 sm:order-2">
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationLink
-                          onClick={() => setCurrentPage(1)}
-                          disabled={currentPage === 1}
-                        >
-                          <ChevronsLeft className="h-4 w-4" />
-                        </PaginationLink>
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
-                          disabled={currentPage === 1}
-                        />
-                      </PaginationItem>
-                      {getPageRange().map((page) => (
-                        <PaginationItem key={page}>
-                          <PaginationLink
-                            onClick={() => setCurrentPage(page)}
-                            isActive={currentPage === page}
-                          >
-                            {page}
-                          </PaginationLink>
-                        </PaginationItem>
-                      ))}
-                      <PaginationItem>
-                        <PaginationNext
-                          onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
-                          disabled={currentPage === totalPages}
-                        />
-                      </PaginationItem>
-                      <PaginationItem>
-                        <PaginationLink
-                          onClick={() => setCurrentPage(totalPages)}
-                          disabled={currentPage === totalPages}
-                        >
-                          <ChevronsRight className="h-4 w-4" />
-                        </PaginationLink>
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
+        {/* Tab Content: Todas las Encuestas */}
+        <TabsContent value="todas" className="space-y-4">
+          <div className="flex gap-4 mb-6">
+            <div className="flex flex-1 items-center space-x-2">
+              <Input
+                placeholder="Buscar por nombre de cliente..."
+                className="w-[250px]"
+                value={filters.search}
+                onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+              />
+              <Search className="h-4 w-4 text-muted-foreground" />
             </div>
-          </>
-        )}
-      </div>
+
+            <Select
+              value={filters.channel}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, channel: value }))}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Canal">
+                  {filters.channel === "todos" ? "Canal" : filters.channel === "whatsapp" ? "WhatsApp" : 
+                   filters.channel === "twilio" ? "Teléfono" : filters.channel === "manual" ? "Manual" : 
+                   filters.channel === "web" ? "Web" : filters.channel === "agenteai" ? "Agente AI" : "Canal"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                <SelectItem value="twilio">Teléfono</SelectItem>
+                <SelectItem value="manual">Manual</SelectItem>
+                <SelectItem value="web">Web</SelectItem>
+                <SelectItem value="agenteai">Agente AI</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.status}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, status: value }))}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Estado">
+                  {filters.status === "todos" ? "Estado" : filters.status === "pendiente" ? "Pendiente" : 
+                   filters.status === "completado" ? "Completado" : "Estado"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos</SelectItem>
+                <SelectItem value="pendiente">Pendiente</SelectItem>
+                <SelectItem value="completado">Completado</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Select
+              value={filters.classification}
+              onValueChange={(value) => setFilters(prev => ({ ...prev, classification: value }))}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Clasificación">
+                  {filters.classification === "todas" ? "Clasificación" : filters.classification === "promotor" ? "Promotor" : 
+                   filters.classification === "neutral" ? "Neutral" : filters.classification === "detractor" ? "Detractor" : "Clasificación"}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas</SelectItem>
+                <SelectItem value="promotor">Promotor</SelectItem>
+                <SelectItem value="neutral">Neutral</SelectItem>
+                <SelectItem value="detractor">Detractor</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-4">
+            {loading ? (
+              <div className="flex items-center justify-center p-8">
+                <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+              </div>
+            ) : (
+              <>
+                <DataTable 
+                  columns={columns}
+                  data={data}
+                />
+                
+                {/* Información de paginación - siempre visible */}
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center border-t pt-4">
+                  <div className="text-sm text-muted-foreground order-2 sm:order-1">
+                    {totalItems > 0 ? (
+                      <>
+                        Mostrando {((currentPage - 1) * ITEMS_PER_PAGE) + 1} -{" "}
+                        {Math.min(currentPage * ITEMS_PER_PAGE, totalItems)} de {totalItems}{" "}
+                        respuestas ({data.length} en esta página)
+                      </>
+                    ) : (
+                      "No hay respuestas para mostrar"
+                    )}
+                  </div>
+                  
+                  {/* Controles de paginación - solo si hay más de una página */}
+                  {totalPages > 1 && (
+                    <div className="order-1 sm:order-2">
+                      <Pagination>
+                        <PaginationContent>
+                          <PaginationItem>
+                            <PaginationLink
+                              onClick={() => setCurrentPage(1)}
+                              disabled={currentPage === 1}
+                            >
+                              <ChevronsLeft className="h-4 w-4" />
+                            </PaginationLink>
+                          </PaginationItem>
+                          <PaginationItem>
+                            <PaginationPrevious
+                              onClick={() => currentPage > 1 && setCurrentPage(currentPage - 1)}
+                              disabled={currentPage === 1}
+                            />
+                          </PaginationItem>
+                          {getPageRange().map((page) => (
+                            <PaginationItem key={page}>
+                              <PaginationLink
+                                onClick={() => setCurrentPage(page)}
+                                isActive={currentPage === page}
+                              >
+                                {page}
+                              </PaginationLink>
+                            </PaginationItem>
+                          ))}
+                          <PaginationItem>
+                            <PaginationNext
+                              onClick={() => currentPage < totalPages && setCurrentPage(currentPage + 1)}
+                              disabled={currentPage === totalPages}
+                            />
+                          </PaginationItem>
+                          <PaginationItem>
+                            <PaginationLink
+                              onClick={() => setCurrentPage(totalPages)}
+                              disabled={currentPage === totalPages}
+                            >
+                              <ChevronsRight className="h-4 w-4" />
+                            </PaginationLink>
+                          </PaginationItem>
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </TabsContent>
+
+        {/* Tab Content: Casos Urgentes */}
+        <TabsContent value="urgentes" className="space-y-4">
+          {urgentCasesLoading ? (
+            <div className="flex items-center justify-center p-8">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full" />
+            </div>
+          ) : urgentCasesCount === 0 ? (
+            <div className="flex flex-col items-center justify-center p-12 space-y-4">
+              <CheckCircle className="h-16 w-16 text-green-500" />
+              <h2 className="text-2xl font-bold text-gray-900">¡Todo al día!</h2>
+              <p className="text-gray-600 text-center">
+                No hay casos urgentes pendientes. Excelente trabajo del equipo 🎉
+              </p>
+            </div>
+          ) : (
+            <DataTable 
+              columns={urgentCasesColumns}
+              data={urgentCasesData}
+            />
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Modal de Comentarios */}
       <Dialog open={commentsModalOpen} onOpenChange={setCommentsModalOpen}>
