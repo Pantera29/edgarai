@@ -27,12 +27,12 @@ interface ProcessResult {
   appointment_id?: number | null;
   appointment_date?: string;
   old_reminder_date?: string;
-  new_reminder_date?: string;
+  cancellation_reason?: string;
 }
 
 export async function POST(request: Request) {
   const startTime = new Date();
-  console.log('🚀 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Iniciando reprogramación de recordatorios de seguimiento:', {
+  console.log('🚀 [CRON-CANCEL-FOLLOWUP-REMINDERS] Iniciando cancelación de recordatorios de seguimiento:', {
     timestamp: startTime.toISOString(),
     user_agent: request.headers.get('user-agent')
   });
@@ -72,15 +72,19 @@ export async function POST(request: Request) {
     }
 
     if (dry_run) {
-      console.log('🔍 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Modo DRY RUN activado - no se realizarán cambios');
+      console.log('🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Modo DRY RUN activado - no se realizarán cambios');
     }
 
-    // Consulta para encontrar recordatorios de seguimiento que deben reprogramarse
-    console.log('📊 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Buscando recordatorios de seguimiento a reprogramar...');
+    // Consulta para encontrar recordatorios de seguimiento del DÍA ACTUAL que deben cancelarse
+    // Usar zona horaria de México (Tiempo del Centro)
+    const mexicoTime = new Date().toLocaleString("en-US", {timeZone: "America/Mexico_City"});
+    const today = new Date(mexicoTime).toISOString().split('T')[0]; // YYYY-MM-DD en México
+    console.log('📊 [CRON-CANCEL-FOLLOWUP-REMINDERS] Buscando recordatorios de seguimiento para HOY (México):', today);
+    console.log('🕐 [CRON-CANCEL-FOLLOWUP-REMINDERS] Hora actual en México:', mexicoTime);
 
-    console.log('🔍 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Ejecutando consulta optimizada...');
+    console.log('🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Ejecutando consulta optimizada para el día actual...');
 
-    // Ejecutar consulta optimizada usando el cliente de Supabase
+    // Solo procesar recordatorios programados para HOY
     let query = supabase
       .from('reminders')
       .select(`
@@ -92,7 +96,10 @@ export async function POST(request: Request) {
       `)
       .eq('reminder_type', 'follow_up')
       .eq('status', 'pending')
-      .limit(100);
+      .gte('reminder_date', `${today}T00:00:00.000Z`)
+      .lt('reminder_date', `${today}T23:59:59.999Z`)
+      .order('reminder_date', { ascending: true })
+      .limit(50); // Límite más conservador ya que solo procesamos un día
 
     // Aplicar filtro de dealership si se proporciona
     if (dealership_id) {
@@ -102,7 +109,7 @@ export async function POST(request: Request) {
     const { data: remindersToReprogram, error: queryError } = await query;
 
     if (queryError) {
-      console.error('❌ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Error ejecutando consulta SQL:', queryError);
+      console.error('❌ [CRON-CANCEL-FOLLOWUP-REMINDERS] Error ejecutando consulta SQL:', queryError);
       return NextResponse.json(
         { 
           success: false,
@@ -115,12 +122,13 @@ export async function POST(request: Request) {
     }
 
     if (!remindersToReprogram || remindersToReprogram.length === 0) {
-      console.log('ℹ️ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] No se encontraron recordatorios de seguimiento para reprogramar');
+      console.log(`ℹ️ [CRON-CANCEL-FOLLOWUP-REMINDERS] No se encontraron recordatorios de seguimiento para HOY (${today})`);
       return NextResponse.json({
         success: true,
-        message: 'No se encontraron recordatorios de seguimiento que requieran reprogramación',
+        message: `No se encontraron recordatorios de seguimiento para el día ${today} que requieran cancelación`,
         dealership_id: dealership_id || null,
         dry_run: dry_run,
+        processed_date: today,
         processed_count: 0,
         success_count: 0,
         error_count: 0,
@@ -131,7 +139,7 @@ export async function POST(request: Request) {
       });
     }
 
-    console.log(`📊 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Datos obtenidos de Supabase: ${remindersToReprogram?.length || 0} recordatorios`);
+    console.log(`📊 [CRON-CANCEL-FOLLOWUP-REMINDERS] Datos obtenidos de Supabase: ${remindersToReprogram?.length || 0} recordatorios`);
 
     // Procesar cada recordatorio y buscar citas futuras
     const processedReminders: ReminderToCancel[] = [];
@@ -148,13 +156,13 @@ export async function POST(request: Request) {
           .limit(1);
 
         if (appointmentsError) {
-          console.error(`❌ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Error consultando citas para recordatorio ${reminder.reminder_id}:`, appointmentsError);
+          console.error(`❌ [CRON-CANCEL-FOLLOWUP-REMINDERS] Error consultando citas para recordatorio ${reminder.reminder_id}:`, appointmentsError);
           continue;
         }
 
         if (futureAppointments && futureAppointments.length > 0) {
           const appointment = futureAppointments[0];
-          console.log(`🔍 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: reminder_date=${reminder.reminder_date.split('T')[0]}, appointment_date=${appointment.appointment_date}, should_reprogram=true`);
+          console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: reminder_date=${reminder.reminder_date.split('T')[0]}, appointment_date=${appointment.appointment_date}, should_cancel=true`);
           
           processedReminders.push({
             reminder_id: reminder.reminder_id,
@@ -166,20 +174,21 @@ export async function POST(request: Request) {
             future_appointment_date: appointment.appointment_date
           });
         } else {
-          console.log(`🔍 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: no tiene citas futuras`);
+          console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: no tiene citas futuras`);
         }
       }
     }
 
-    console.log(`📊 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Encontrados ${processedReminders.length} recordatorios para reprogramar`);
+    console.log(`📊 [CRON-CANCEL-FOLLOWUP-REMINDERS] Encontrados ${processedReminders.length} recordatorios para cancelar`);
 
     if (!processedReminders || processedReminders.length === 0) {
-      console.log('ℹ️ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] No se encontraron recordatorios de seguimiento para reprogramar');
+      console.log(`ℹ️ [CRON-CANCEL-FOLLOWUP-REMINDERS] No se encontraron recordatorios de seguimiento para HOY (${today}) que requieran cancelación`);
       return NextResponse.json({
         success: true,
-        message: 'No se encontraron recordatorios de seguimiento que requieran reprogramación',
+        message: `No se encontraron recordatorios de seguimiento para el día ${today} que requieran cancelación`,
         dealership_id: dealership_id || null,
         dry_run: dry_run,
+        processed_date: today,
         processed_count: 0,
         success_count: 0,
         error_count: 0,
@@ -190,7 +199,7 @@ export async function POST(request: Request) {
       });
     }
 
-    console.log(`📊 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Encontrados ${remindersToReprogram.length} recordatorios para reprogramar`);
+    console.log(`📊 [CRON-CANCEL-FOLLOWUP-REMINDERS] Encontrados ${remindersToReprogram.length} recordatorios para cancelar`);
 
     const results: ProcessResult[] = [];
     const dealershipsAffected = new Set<string>();
@@ -198,15 +207,10 @@ export async function POST(request: Request) {
     // Procesar cada recordatorio
     for (const reminder of processedReminders) {
       try {
-        console.log(`🔄 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Procesando recordatorio: ${reminder.reminder_id} (Cliente: ${reminder.client_id_uuid})`);
-        
-        // Calcular nueva fecha: 5 meses después de la cita
-        const appointmentDate = new Date(reminder.future_appointment_date);
-        const newReminderDate = new Date(appointmentDate);
-        newReminderDate.setMonth(appointmentDate.getMonth() + 5); // 5 meses después
+        console.log(`🔄 [CRON-CANCEL-FOLLOWUP-REMINDERS] Procesando recordatorio: ${reminder.reminder_id} (Cliente: ${reminder.client_id_uuid})`);
         
         if (dry_run) {
-          console.log(`🔍 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] DRY RUN - Recordatorio ${reminder.reminder_id} sería reprogramado de ${reminder.reminder_date} a ${newReminderDate.toISOString()}`);
+          console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] DRY RUN - Recordatorio ${reminder.reminder_id} sería cancelado (cliente tiene cita futura: ${reminder.future_appointment_date})`);
           results.push({
             reminder_id: reminder.reminder_id,
             client_id_uuid: reminder.client_id_uuid,
@@ -214,21 +218,22 @@ export async function POST(request: Request) {
             appointment_id: reminder.future_appointment_id,
             appointment_date: reminder.future_appointment_date,
             old_reminder_date: reminder.reminder_date,
-            new_reminder_date: newReminderDate.toISOString()
+            cancellation_reason: 'client_has_future_appointment'
           });
           dealershipsAffected.add(reminder.dealership_id);
         } else {
-          // Actualizar el recordatorio con nueva fecha
+          // Cancelar el recordatorio
           const { error: updateError } = await supabase
             .from('reminders')
             .update({ 
-              reminder_date: newReminderDate.toISOString(),
+              status: 'cancelled',
+              cancellation_reason: 'client_has_future_appointment',
               updated_at: new Date().toISOString()
             })
             .eq('reminder_id', reminder.reminder_id);
 
           if (updateError) {
-            console.error(`❌ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Error reprogramando recordatorio ${reminder.reminder_id}:`, updateError);
+            console.error(`❌ [CRON-CANCEL-FOLLOWUP-REMINDERS] Error cancelando recordatorio ${reminder.reminder_id}:`, updateError);
             results.push({
               reminder_id: reminder.reminder_id,
               client_id_uuid: reminder.client_id_uuid,
@@ -237,10 +242,10 @@ export async function POST(request: Request) {
               appointment_id: reminder.future_appointment_id,
               appointment_date: reminder.future_appointment_date,
               old_reminder_date: reminder.reminder_date,
-              new_reminder_date: newReminderDate.toISOString()
+              cancellation_reason: 'client_has_future_appointment'
             });
           } else {
-            console.log(`✅ [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id} reprogramado exitosamente de ${reminder.reminder_date} a ${newReminderDate.toISOString()}`);
+            console.log(`✅ [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id} cancelado exitosamente (cliente tiene cita futura: ${reminder.future_appointment_date})`);
             results.push({
               reminder_id: reminder.reminder_id,
               client_id_uuid: reminder.client_id_uuid,
@@ -248,13 +253,13 @@ export async function POST(request: Request) {
               appointment_id: reminder.future_appointment_id,
               appointment_date: reminder.future_appointment_date,
               old_reminder_date: reminder.reminder_date,
-              new_reminder_date: newReminderDate.toISOString()
+              cancellation_reason: 'client_has_future_appointment'
             });
             dealershipsAffected.add(reminder.dealership_id);
           }
         }
       } catch (error) {
-        console.error(`💥 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Error inesperado procesando recordatorio ${reminder.reminder_id}:`, error);
+        console.error(`💥 [CRON-CANCEL-FOLLOWUP-REMINDERS] Error inesperado procesando recordatorio ${reminder.reminder_id}:`, error);
         results.push({
           reminder_id: reminder.reminder_id,
           client_id_uuid: reminder.client_id_uuid,
@@ -262,7 +267,8 @@ export async function POST(request: Request) {
           error: error instanceof Error ? error.message : 'Error inesperado',
           appointment_id: reminder.future_appointment_id,
           appointment_date: reminder.future_appointment_date,
-          old_reminder_date: reminder.reminder_date
+          old_reminder_date: reminder.reminder_date,
+          cancellation_reason: 'client_has_future_appointment'
         });
       }
     }
@@ -272,7 +278,7 @@ export async function POST(request: Request) {
     const endTime = new Date();
     const durationMs = endTime.getTime() - startTime.getTime();
 
-    console.log(`🎉 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Proceso completado:`, {
+    console.log(`🎉 [CRON-CANCEL-FOLLOWUP-REMINDERS] Proceso completado:`, {
       processed_count: processedReminders.length,
       success_count: successCount,
       error_count: errorCount,
@@ -284,10 +290,11 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success: true,
       message: dry_run 
-        ? 'Análisis de recordatorios de seguimiento completado (DRY RUN)' 
-        : 'Recordatorios de seguimiento reprogramados exitosamente',
+        ? `Análisis de recordatorios de seguimiento para ${today} completado (DRY RUN)` 
+        : `Recordatorios de seguimiento para ${today} cancelados exitosamente`,
       dealership_id: dealership_id || null,
       dry_run: dry_run,
+      processed_date: today,
       processed_count: processedReminders.length,
       success_count: successCount,
       error_count: errorCount,
@@ -298,11 +305,11 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
-    console.error('💥 [CRON-REPROGRAM-FOLLOWUP-REMINDERS] Error inesperado:', error);
+    console.error('💥 [CRON-CANCEL-FOLLOWUP-REMINDERS] Error inesperado:', error);
     return NextResponse.json(
       { 
         success: false,
-        message: 'Error interno del servidor durante el proceso de reprogramación',
+        message: 'Error interno del servidor durante el proceso de cancelación',
         error_code: 'INTERNAL_SERVER_ERROR',
         error_details: error instanceof Error ? error.message : 'Error desconocido'
       },
