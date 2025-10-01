@@ -2,8 +2,8 @@ name: EdgarAI Desactivar Agentes AI
 
 on:
   schedule:
-    # Desactivar agentes todos los días a las 8:00 AM (Ciudad de México)
-    - cron: '0 14 * * *'   # UTC-6 = 8:00 AM Ciudad de México
+    # Desactivar agentes todos los días a las 6:00 AM (Ciudad de México)
+    - cron: '0 12 * * *'   # UTC-6 = 6:00 AM Ciudad de México
   workflow_dispatch:
 
 jobs:
