@@ -16,17 +16,11 @@ export async function PATCH(
       assigned_to
     });
 
-    // Verificar que el registro NPS existe
+    // Verificar que el registro NPS existe y obtener dealership_id
     console.log('🔍 Verificando existencia del registro NPS:', npsId);
     const { data: existingNps, error: checkError } = await supabase
       .from('nps')
-      .select(`
-        id,
-        customer_id,
-        client!inner (
-          dealership_id
-        )
-      `)
+      .select('id, customer_id')
       .eq('id', npsId)
       .maybeSingle();
 
@@ -45,6 +39,23 @@ export async function PATCH(
         { status: 404 }
       );
     }
+
+    // Obtener dealership_id del cliente
+    const { data: clientData, error: clientError } = await supabase
+      .from('client')
+      .select('dealership_id')
+      .eq('id', existingNps.customer_id)
+      .single();
+
+    if (clientError || !clientData) {
+      console.error('❌ Error al obtener información del cliente:', clientError);
+      return NextResponse.json(
+        { error: 'Error al obtener información del cliente' },
+        { status: 500 }
+      );
+    }
+
+    const npsDealershipId = clientData.dealership_id;
 
     // Si se asigna a un usuario (no null), verificar que pertenezca al mismo dealership
     if (assigned_to !== null) {
@@ -72,7 +83,6 @@ export async function PATCH(
       }
 
       // Verificar que el usuario pertenezca al mismo dealership
-      const npsDealershipId = existingNps.client?.dealership_id;
       if (worker.dealership_id !== npsDealershipId) {
         console.log('❌ El usuario no pertenece al mismo dealership');
         return NextResponse.json(
@@ -121,4 +131,5 @@ export async function PATCH(
     );
   }
 }
+
 
