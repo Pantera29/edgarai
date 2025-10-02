@@ -184,6 +184,15 @@ export const useClientSearch = (dealershipId: string) => {
       }
       return [...prev, client];
     });
+    
+    // También agregar a clients para que esté disponible inmediatamente
+    setClients(prev => {
+      // Evitar duplicados
+      if (prev.find(c => c.id === client.id)) {
+        return prev;
+      }
+      return [...prev, client];
+    });
   }, []);
 
   const getClientById = useCallback((clientId: string): ExtendedClient | undefined => {

@@ -19,6 +19,8 @@ import { stringToSafeDate } from '@/lib/utils/date';
 import { sendAppointmentConfirmationSMS } from "@/lib/sms";
 import { Switch } from "@/components/ui/switch";
 import { useClientSearch } from "@/hooks/useClientSearch";
+import { Plus } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 // Extender la interfaz Vehicle para incluir las propiedades adicionales
 interface ExtendedVehicle extends Vehicle {
@@ -29,6 +31,7 @@ interface ExtendedVehicle extends Vehicle {
   };
   model_id?: string; // <-- Agregado para que TypeScript acepte el campo
   vin?: string; // <-- Agregado para incluir el VIN del vehículo
+  year?: number; // <-- Agregado para el año del vehículo
 }
 
 // Interfaz para clientes extendida
@@ -493,6 +496,642 @@ function SpecificServiceComboBox({ specificServices, onSelect, value }: { specif
   );
 }
 
+// 🆕 Modal para crear cliente rápido
+function QuickCreateClientModal({ 
+  isOpen, 
+  onClose, 
+  onClientCreated, 
+  dealershipId, 
+  token 
+}: { 
+  isOpen: boolean;
+  onClose: () => void;
+  onClientCreated: (clientId: string, clientData: ExtendedClient) => void;
+  dealershipId: string;
+  token: string;
+}) {
+  const { toast } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    names: '',
+    phone_number: '',
+    email: ''
+  });
+  const [formErrors, setFormErrors] = useState({
+    names: '',
+    phone_number: '',
+    email: ''
+  });
+
+  // Reset form cuando se abre/cierra el modal
+  useEffect(() => {
+    if (isOpen) {
+      setFormData({ names: '', phone_number: '', email: '' });
+      setFormErrors({ names: '', phone_number: '', email: '' });
+    }
+  }, [isOpen]);
+
+  const validatePhone = (phone: string) => {
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length !== 10) {
+      return 'El teléfono debe tener 10 dígitos';
+    }
+    return '';
+  };
+
+  const validateEmail = (email: string) => {
+    if (!email) return ''; // Email es opcional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return 'Email inválido';
+    }
+    return '';
+  };
+
+  const handleChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Limpiar error del campo al escribir
+    setFormErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validaciones
+    const errors = {
+      names: formData.names.trim().length < 2 ? 'El nombre debe tener al menos 2 caracteres' : '',
+      phone_number: validatePhone(formData.phone_number),
+      email: validateEmail(formData.email)
+    };
+
+    setFormErrors(errors);
+
+    if (errors.names || errors.phone_number || errors.email) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch('/api/customers/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          names: formData.names.trim(),
+          phone_number: formData.phone_number.replace(/\D/g, ''),
+          email: formData.email.trim() || undefined,
+          dealership_id: dealershipId
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.message || "Error al crear el cliente"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // El endpoint devuelve { client: {...} }
+      const clientData = result.client;
+      
+      // Crear objeto cliente para pasar al callback
+      const newClient: ExtendedClient = {
+        id: clientData.id,
+        names: clientData.names,
+        phone_number: clientData.phone_number,
+        email: clientData.email || ''
+      };
+
+      toast({
+        title: "Cliente creado",
+        description: `${newClient.names} ha sido creado exitosamente`
+      });
+
+      onClientCreated(clientData.id, newClient);
+      onClose();
+
+    } catch (error) {
+      console.error('Error al crear cliente:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error inesperado al crear el cliente"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Crear Nuevo Cliente</DialogTitle>
+          <DialogDescription>
+            Complete los datos básicos del cliente. Los campos marcados con * son obligatorios.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="quick-names">Nombre *</Label>
+            <Input
+              id="quick-names"
+              value={formData.names}
+              onChange={(e) => handleChange('names', e.target.value)}
+              placeholder="Juan Pérez"
+              disabled={isSubmitting}
+            />
+            {formErrors.names && (
+              <p className="text-sm text-red-500">{formErrors.names}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quick-phone">Teléfono *</Label>
+            <Input
+              id="quick-phone"
+              value={formData.phone_number}
+              onChange={(e) => {
+                const cleaned = e.target.value.replace(/\D/g, '');
+                if (cleaned.length <= 10) {
+                  handleChange('phone_number', cleaned);
+                }
+              }}
+              placeholder="5512345678"
+              maxLength={10}
+              disabled={isSubmitting}
+            />
+            <p className="text-xs text-muted-foreground">Formato: 10 dígitos sin espacios</p>
+            {formErrors.phone_number && (
+              <p className="text-sm text-red-500">{formErrors.phone_number}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quick-email">Email (opcional)</Label>
+            <Input
+              id="quick-email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => handleChange('email', e.target.value)}
+              placeholder="juan@example.com"
+              disabled={isSubmitting}
+            />
+            {formErrors.email && (
+              <p className="text-sm text-red-500">{formErrors.email}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white mr-2"></div>
+                  Creando...
+                </>
+              ) : (
+                "Crear Cliente"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// 🆕 Modal para crear vehículo rápido
+function QuickCreateVehicleModal({ 
+  isOpen, 
+  onClose, 
+  onVehicleCreated, 
+  clientId,
+  dealershipId, 
+  token 
+}: { 
+  isOpen: boolean;
+  onClose: () => void;
+  onVehicleCreated: (vehicleId: string, vehicleData: ExtendedVehicle) => void;
+  clientId: string;
+  dealershipId: string;
+  token: string;
+}) {
+  const { toast } = useToast();
+  const supabase = createClientComponentClient();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loadingMakes, setLoadingMakes] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [makes, setMakes] = useState<{ id: string; name: string }[]>([]);
+  const [models, setModels] = useState<{ id: string; name: string }[]>([]);
+  
+  const [formData, setFormData] = useState({
+    make: '',
+    model_id: '',
+    year: new Date().getFullYear(),
+    license_plate: '',
+    vin: ''
+  });
+  
+  const [formErrors, setFormErrors] = useState({
+    make: '',
+    model_id: '',
+    year: '',
+    vin: ''
+  });
+
+  // Reset form y cargar marcas cuando se abre el modal
+  useEffect(() => {
+    if (isOpen && dealershipId) {
+      setFormData({
+        make: '',
+        model_id: '',
+        year: new Date().getFullYear(),
+        license_plate: '',
+        vin: ''
+      });
+      setFormErrors({ make: '', model_id: '', year: '', vin: '' });
+      setModels([]);
+      loadMakes();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, dealershipId]);
+
+  const loadMakes = async () => {
+    if (!dealershipId) {
+      console.error('❌ No hay dealershipId para cargar marcas');
+      return;
+    }
+    
+    setLoadingMakes(true);
+    console.log('🚗 Cargando marcas para dealership:', dealershipId);
+    
+    try {
+      // Cargar marcas permitidas para este dealership desde dealership_brands
+      const { data: dealershipBrands, error: dbError } = await supabase
+        .from('dealership_brands')
+        .select('make_id')
+        .eq('dealership_id', dealershipId);
+
+      if (dbError) {
+        console.error('Error en dealership_brands:', dbError);
+        throw dbError;
+      }
+
+      console.log('Marcas del dealership:', dealershipBrands?.length || 0);
+      const makeIds = dealershipBrands?.map(db => db.make_id) || [];
+
+      if (makeIds.length === 0) {
+        // Si no hay marcas específicas asignadas, cargar todas
+        console.log('⚠️ No hay marcas asignadas al dealership, cargando todas...');
+        const { data: allMakes, error: allError } = await supabase
+          .from('vehicle_makes')
+          .select('id, name')
+          .order('name');
+
+        if (allError) {
+          console.error('Error cargando todas las marcas:', allError);
+          throw allError;
+        }
+        
+        console.log('✅ Marcas totales cargadas:', allMakes?.length || 0);
+        setMakes(allMakes || []);
+        
+        if (!allMakes || allMakes.length === 0) {
+          toast({
+            variant: "destructive",
+            title: "Sin marcas disponibles",
+            description: "No hay marcas configuradas en el sistema. Contacta al administrador."
+          });
+        }
+      } else {
+        // Cargar solo las marcas asignadas al dealership
+        console.log('Cargando marcas filtradas:', makeIds.length);
+        const { data: filteredMakes, error: fmError } = await supabase
+          .from('vehicle_makes')
+          .select('id, name')
+          .in('id', makeIds)
+          .order('name');
+
+        if (fmError) {
+          console.error('Error cargando marcas filtradas:', fmError);
+          throw fmError;
+        }
+        
+        console.log('✅ Marcas filtradas cargadas:', filteredMakes?.length || 0);
+        setMakes(filteredMakes || []);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando marcas:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error al cargar las marcas disponibles. Verifica tu conexión."
+      });
+      setMakes([]);
+    } finally {
+      setLoadingMakes(false);
+    }
+  };
+
+  const loadModels = async (makeId: string) => {
+    setLoadingModels(true);
+    try {
+      const { data, error } = await supabase
+        .from('vehicle_models')
+        .select('id, name')
+        .eq('make_id', makeId)
+        .order('name');
+
+      if (error) throw error;
+      setModels(data || []);
+    } catch (error) {
+      console.error('Error cargando modelos:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error al cargar los modelos"
+      });
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  const handleMakeChange = (makeId: string) => {
+    setFormData(prev => ({ ...prev, make: makeId, model_id: '' }));
+    setFormErrors(prev => ({ ...prev, make: '', model_id: '' }));
+    setModels([]);
+    if (makeId) {
+      loadModels(makeId);
+    }
+  };
+
+  const handleChange = (field: string, value: string | number) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormErrors(prev => ({ ...prev, [field]: '' }));
+  };
+
+  const validateVin = (vin: string) => {
+    if (!vin) return ''; // VIN es opcional
+    if (vin.length !== 17) {
+      return 'El VIN debe tener exactamente 17 caracteres';
+    }
+    return '';
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Validaciones
+    const currentYear = new Date().getFullYear();
+    const errors = {
+      make: !formData.make ? 'Debe seleccionar una marca' : '',
+      model_id: !formData.model_id ? 'Debe seleccionar un modelo' : '',
+      year: formData.year < 1900 || formData.year > currentYear + 1 
+        ? `El año debe estar entre 1900 y ${currentYear + 1}` 
+        : '',
+      vin: validateVin(formData.vin)
+    };
+
+    setFormErrors(errors);
+
+    if (errors.make || errors.model_id || errors.year || errors.vin) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      // Obtener el nombre del modelo seleccionado
+      const selectedModel = models.find(m => m.id === formData.model_id);
+      if (!selectedModel) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Modelo seleccionado no válido"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Obtener el nombre de la marca seleccionada
+      const selectedMake = makes.find(m => m.id === formData.make);
+
+      const response = await fetch('/api/vehicles/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          client_id: clientId,
+          make: selectedMake?.name || '',
+          model: selectedModel.name,
+          year: formData.year,
+          license_plate: formData.license_plate.trim() || undefined,
+          vin: formData.vin.trim() || undefined
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: result.message || "Error al crear el vehículo"
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Crear objeto vehículo para pasar al callback
+      const newVehicle: ExtendedVehicle = {
+        id: result.id || result.vehicle?.id,
+        id_uuid: result.id_uuid || result.vehicle?.id_uuid,
+        client_id: clientId,
+        make: selectedMake?.name || '',
+        model: selectedModel.name,
+        year: formData.year,
+        license_plate: formData.license_plate.trim() || '',
+        vin: formData.vin.trim() || '',
+        model_id: formData.model_id
+      };
+
+      toast({
+        title: "Vehículo creado",
+        description: `${newVehicle.make} ${newVehicle.model} ha sido creado exitosamente`
+      });
+
+      onVehicleCreated(result.id || result.vehicle?.id, newVehicle);
+      onClose();
+
+    } catch (error) {
+      console.error('Error al crear vehículo:', error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Error inesperado al crear el vehículo"
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Crear Nuevo Vehículo</DialogTitle>
+          <DialogDescription>
+            Complete los datos básicos del vehículo. Los campos marcados con * son obligatorios.
+          </DialogDescription>
+        </DialogHeader>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Mostrar cliente asociado */}
+          <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+            <p className="text-sm text-blue-800">
+              <span className="font-medium">Cliente:</span> Se creará para el cliente seleccionado
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="quick-make">Marca *</Label>
+            <Select
+              value={formData.make}
+              onValueChange={handleMakeChange}
+              disabled={isSubmitting || loadingMakes}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={loadingMakes ? "Cargando marcas..." : "Seleccionar marca"} />
+              </SelectTrigger>
+              <SelectContent>
+                {makes.map((make) => (
+                  <SelectItem key={make.id} value={make.id}>
+                    {make.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {formErrors.make && (
+              <p className="text-sm text-red-500">{formErrors.make}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quick-model">Modelo *</Label>
+            <Select
+              value={formData.model_id}
+              onValueChange={(value) => handleChange('model_id', value)}
+              disabled={isSubmitting || !formData.make || loadingModels}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder={
+                  !formData.make 
+                    ? "Primero seleccione una marca" 
+                    : loadingModels 
+                    ? "Cargando modelos..." 
+                    : "Seleccionar modelo"
+                } />
+              </SelectTrigger>
+              <SelectContent>
+                {models.map((model) => (
+                  <SelectItem key={model.id} value={model.id}>
+                    {model.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {formErrors.model_id && (
+              <p className="text-sm text-red-500">{formErrors.model_id}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quick-year">Año *</Label>
+            <Input
+              id="quick-year"
+              type="number"
+              value={formData.year}
+              onChange={(e) => handleChange('year', parseInt(e.target.value) || new Date().getFullYear())}
+              min={1900}
+              max={new Date().getFullYear() + 1}
+              disabled={isSubmitting}
+            />
+            {formErrors.year && (
+              <p className="text-sm text-red-500">{formErrors.year}</p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quick-plates">Placas (opcional)</Label>
+            <Input
+              id="quick-plates"
+              value={formData.license_plate}
+              onChange={(e) => handleChange('license_plate', e.target.value.toUpperCase())}
+              placeholder="ABC1234"
+              disabled={isSubmitting}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="quick-vin">VIN (opcional)</Label>
+            <Input
+              id="quick-vin"
+              value={formData.vin}
+              onChange={(e) => handleChange('vin', e.target.value.toUpperCase())}
+              placeholder="17 caracteres alfanuméricos"
+              maxLength={17}
+              disabled={isSubmitting}
+            />
+            {formErrors.vin && (
+              <p className="text-sm text-red-500">{formErrors.vin}</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white mr-2"></div>
+                  Creando...
+                </>
+              ) : (
+                "Crear Vehículo"
+              )}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function NuevaReservaPage() {
 
   const [token, setToken] = useState<string>("");
@@ -556,8 +1195,12 @@ export default function NuevaReservaPage() {
   const [selectedMechanic, setSelectedMechanic] = useState<string>('');
   const [loadingMechanics, setLoadingMechanics] = useState(false);
 
+  // 🆕 Estados para los modales de creación rápida
+  const [showCreateClientModal, setShowCreateClientModal] = useState(false);
+  const [showCreateVehicleModal, setShowCreateVehicleModal] = useState(false);
+
   // Hook para búsqueda de clientes
-  const { getClientById } = useClientSearch(verifiedDataToken?.dealership_id || '');
+  const { getClientById, addSelectedClient } = useClientSearch(verifiedDataToken?.dealership_id || '');
 
   // Obtener el texto del cliente seleccionado
   const selectedClientText = React.useMemo(() => {
@@ -1315,6 +1958,70 @@ export default function NuevaReservaPage() {
     }
   };
 
+  // 🆕 Callback para cuando se crea un cliente nuevo desde el modal
+  const handleClientCreated = async (clientId: string, clientData: ExtendedClient) => {
+    console.log('✅ Cliente creado desde modal:', clientId, clientData);
+    
+    // 1. Agregar al cache del hook de búsqueda PRIMERO
+    addSelectedClient(clientData);
+    
+    // 2. Esperar un tick para que React procese el estado del hook
+    await new Promise(resolve => setTimeout(resolve, 0));
+    
+    // 3. Actualizar estado del cliente seleccionado
+    setSelectedClient(clientId);
+    setSelectedClientData(clientData);
+    
+    console.log('✅ Estado del cliente actualizado:', { clientId, clientData });
+    
+    // 4. Limpiar vehículos y cargar los del nuevo cliente (probablemente vacío)
+    setFilteredVehicles([]);
+    setSelectedVehicle('');
+    
+    // 5. Intentar cargar vehículos del nuevo cliente
+    try {
+      const { data, error } = await supabase
+        .from('vehicles')
+        .select('*')
+        .eq('client_id', clientId)
+        .order('make, model');
+      
+      if (error) throw error;
+      
+      console.log('Vehículos del nuevo cliente:', data?.length || 0);
+      setFilteredVehicles(data || []);
+      
+      if (!data || data.length === 0) {
+        toast({
+          title: "✅ Cliente creado",
+          description: "Ahora puedes crear un vehículo para este cliente usando el botón [+]",
+          duration: 4000
+        });
+      }
+    } catch (error) {
+      console.error('Error cargando vehículos del nuevo cliente:', error);
+      // No mostramos error al usuario porque el cliente sí se creó
+    }
+  };
+
+  // 🆕 Callback para cuando se crea un vehículo nuevo desde el modal
+  const handleVehicleCreated = (vehicleId: string, vehicleData: ExtendedVehicle) => {
+    console.log('Vehículo creado:', vehicleId, vehicleData);
+    
+    // Agregar a la lista de vehículos filtrados
+    setFilteredVehicles(prev => [...prev, vehicleData]);
+    
+    // Seleccionar automáticamente el nuevo vehículo
+    const idToSelect = vehicleData.id_uuid || vehicleData.id;
+    setSelectedVehicle(idToSelect);
+    
+    toast({
+      title: "¡Listo!",
+      description: "Vehículo creado y seleccionado. Continúa con el resto del formulario.",
+      duration: 3000
+    });
+  };
+
   // Función auxiliar para garantizar consistencia en los IDs
   const ensureConsistentId = (vehicle: any) => {
     // Si tiene id_uuid, usar ese
@@ -1342,50 +2049,85 @@ export default function NuevaReservaPage() {
         <div className="space-y-6">
           <div className="grid grid-cols-12 items-center gap-4">
             <Label htmlFor="cliente" className="text-right col-span-1">Cliente</Label>
-            <div className="col-span-11">
-              <ClienteComboBox
-                dealershipId={verifiedDataToken?.dealership_id || ''}
-                onSelect={handleClientSelection}
-                value={selectedClient}
-              />
+            <div className="col-span-11 flex gap-2">
+              <div className="flex-1">
+                <ClienteComboBox
+                  dealershipId={verifiedDataToken?.dealership_id || ''}
+                  onSelect={handleClientSelection}
+                  value={selectedClient}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => setShowCreateClientModal(true)}
+                title="Crear nuevo cliente"
+                className="shrink-0"
+              >
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
           <div className="grid grid-cols-12 items-center gap-4">
             <Label htmlFor="vehiculo" className="text-right col-span-1">Vehículo</Label>
-            <div className="col-span-11">
-              <Select 
-                value={selectedVehicle || ''} 
-                onValueChange={(value) => {
-                  console.log("Vehículo seleccionado - ID recibido:", value);
-                  setSelectedVehicle(value);
+            <div className="col-span-11 flex gap-2">
+              <div className="flex-1">
+                <Select 
+                  value={selectedVehicle || ''} 
+                  onValueChange={(value) => {
+                    console.log("Vehículo seleccionado - ID recibido:", value);
+                    setSelectedVehicle(value);
+                  }}
+                  disabled={!selectedClient}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      !selectedClient 
+                        ? "Primero seleccione un cliente" 
+                        : "Seleccione un vehículo"
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredVehicles.length > 0 ? (
+                      filteredVehicles.map((vehiculo) => (
+                        <SelectItem 
+                          key={vehiculo.id_uuid || vehiculo.id} 
+                          value={vehiculo.id_uuid || vehiculo.id}
+                        >
+                          {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}${vehiculo.vin ? ` - VIN: ${vehiculo.vin}` : ''}`}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+                        {selectedClient ? "No hay vehículos asociados a este cliente" : "Seleccione un cliente primero"}
+                      </div>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => {
+                  if (!selectedClient) {
+                    toast({
+                      variant: "destructive",
+                      title: "Cliente requerido",
+                      description: "Debe seleccionar un cliente antes de crear un vehículo"
+                    });
+                    return;
+                  }
+                  setShowCreateVehicleModal(true);
                 }}
                 disabled={!selectedClient}
+                title={!selectedClient ? "Primero seleccione un cliente" : "Crear nuevo vehículo"}
+                className="shrink-0"
               >
-                <SelectTrigger>
-                  <SelectValue placeholder={
-                    !selectedClient 
-                      ? "Primero seleccione un cliente" 
-                      : "Seleccione un vehículo"
-                  } />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredVehicles.length > 0 ? (
-                    filteredVehicles.map((vehiculo) => (
-                      <SelectItem 
-                        key={vehiculo.id_uuid || vehiculo.id} 
-                        value={vehiculo.id_uuid || vehiculo.id}
-                      >
-                        {`${vehiculo.make} ${vehiculo.model}${vehiculo.license_plate ? ` (${vehiculo.license_plate})` : ''}${vehiculo.vin ? ` - VIN: ${vehiculo.vin}` : ''}`}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                      {selectedClient ? "No hay vehículos asociados a este cliente" : "Seleccione un cliente primero"}
-                    </div>
-                  )}
-                </SelectContent>
-              </Select>
+                <Plus className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
@@ -1682,6 +2424,24 @@ export default function NuevaReservaPage() {
           </Button>
         </div>
       </div>
+
+      {/* 🆕 Modales de creación rápida */}
+      <QuickCreateClientModal
+        isOpen={showCreateClientModal}
+        onClose={() => setShowCreateClientModal(false)}
+        onClientCreated={handleClientCreated}
+        dealershipId={verifiedDataToken?.dealership_id || ''}
+        token={token}
+      />
+
+      <QuickCreateVehicleModal
+        isOpen={showCreateVehicleModal}
+        onClose={() => setShowCreateVehicleModal(false)}
+        onVehicleCreated={handleVehicleCreated}
+        clientId={selectedClient}
+        dealershipId={verifiedDataToken?.dealership_id || ''}
+        token={token}
+      />
     </div>
   );
 }
