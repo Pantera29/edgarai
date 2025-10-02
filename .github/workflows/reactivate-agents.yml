@@ -25,3 +25,13 @@ jobs:
           curl -v -L -X POST "https://edgarai.vercel.app/api/cron/reactivate-agents/" \
             -H "Content-Type: application/json" \
             -d '{"dealership_id":"6fa78291-c16a-4c78-9fe2-9e3695d24d48"}'
+
+  call-reactivate-agents-endpoint-agency3:
+    runs-on: ubuntu-latest
+    needs: call-reactivate-agents-endpoint-agency2
+    steps:
+      - name: Call reactivate agents endpoint - Agencia 3
+        run: |
+          curl -v -L -X POST "https://edgarai.vercel.app/api/cron/reactivate-agents/" \
+            -H "Content-Type: application/json" \
+            -d '{"dealership_id":"534e6d39-7cea-4182-b9ad-15b0f4997484"}'
