@@ -56,11 +56,11 @@ export async function PATCH(
       );
     }
 
-    // Verificar si el vehículo existe
+    // Verificar si el vehículo existe y obtener su dealership_id
     console.log('🔍 Verificando existencia del vehículo:', vehicleId);
     const { data: vehicleExists, error: checkError } = await supabase
       .from('vehicles')
-      .select('id_uuid')
+      .select('id_uuid, dealership_id')
       .eq('id_uuid', vehicleId)
       .maybeSingle();
 
@@ -112,13 +112,14 @@ export async function PATCH(
       }
     }
 
-    // Si se va a actualizar license_plate, verificar que no exista ya (solo si no está vacío)
+    // Si se va a actualizar license_plate, verificar que no exista ya en la misma agencia (solo si no está vacío)
     if (filteredUpdates.license_plate && filteredUpdates.license_plate.trim() !== '') {
-      console.log('🔍 Verificando placa duplicada:', filteredUpdates.license_plate);
+      console.log('🔍 Verificando placa duplicada en la agencia:', filteredUpdates.license_plate);
       const { data: plateExists, error: plateCheckError } = await supabase
         .from('vehicles')
         .select('id_uuid')
         .eq('license_plate', filteredUpdates.license_plate)
+        .eq('dealership_id', vehicleExists.dealership_id)
         .neq('id_uuid', vehicleId)
         .maybeSingle();
 
@@ -128,30 +129,32 @@ export async function PATCH(
           license_plate: filteredUpdates.license_plate
         });
         return NextResponse.json(
-          { message: 'Error checking license plate uniqueness in database. This is a temporary system issue. Please verify the license plate format and try again. Each vehicle must have a unique license plate.' },
+          { message: 'Error checking license plate uniqueness in database. This is a temporary system issue. Please verify the license plate format and try again. Each vehicle must have a unique license plate within the same dealership.' },
           { status: 500 }
         );
       }
 
       if (plateExists) {
-        console.log('❌ Placa duplicada encontrada:', {
+        console.log('❌ Placa duplicada encontrada en la misma agencia:', {
           license_plate: filteredUpdates.license_plate,
+          dealership_id: vehicleExists.dealership_id,
           existing_id: plateExists.id_uuid
         });
         return NextResponse.json(
-          { message: 'License plate already exists on another vehicle. Each license plate must be unique in the system. Please use a different plate or update the existing vehicle at /api/vehicles/find-by-plate?plate={license_plate}' },
+          { message: 'License plate already exists on another vehicle in this dealership. Each license plate must be unique within the same dealership. Please use a different plate or update the existing vehicle at /api/vehicles/find-by-plate?plate={license_plate}' },
           { status: 409 }
         );
       }
     }
 
-    // Si se va a actualizar VIN, verificar que no exista ya (solo si no está vacío)
+    // Si se va a actualizar VIN, verificar que no exista ya en la misma agencia (solo si no está vacío)
     if (filteredUpdates.vin && filteredUpdates.vin.trim() !== '') {
-      console.log('🔍 Verificando VIN duplicado:', filteredUpdates.vin);
+      console.log('🔍 Verificando VIN duplicado en la agencia:', filteredUpdates.vin);
       const { data: vinExists, error: vinCheckError } = await supabase
         .from('vehicles')
         .select('id_uuid')
         .eq('vin', filteredUpdates.vin)
+        .eq('dealership_id', vehicleExists.dealership_id)
         .neq('id_uuid', vehicleId)
         .maybeSingle();
 
@@ -161,18 +164,19 @@ export async function PATCH(
           vin: filteredUpdates.vin
         });
         return NextResponse.json(
-          { message: 'Error checking VIN uniqueness in database. This is a temporary system issue. Please verify the VIN format and try again. Each vehicle must have a unique VIN number.' },
+          { message: 'Error checking VIN uniqueness in database. This is a temporary system issue. Please verify the VIN format and try again. Each vehicle must have a unique VIN number within the same dealership.' },
           { status: 500 }
         );
       }
 
       if (vinExists) {
-        console.log('❌ VIN duplicado encontrado:', {
+        console.log('❌ VIN duplicado encontrado en la misma agencia:', {
           vin: filteredUpdates.vin,
+          dealership_id: vehicleExists.dealership_id,
           existing_id: vinExists.id_uuid
         });
         return NextResponse.json(
-          { message: 'VIN already exists on another vehicle. Each VIN must be unique in the system. Please use a different VIN or verify you\'re updating the correct vehicle. You can search for the existing vehicle by its details.' },
+          { message: 'VIN already exists on another vehicle in this dealership. Each VIN must be unique within the same dealership. Please use a different VIN or verify you\'re updating the correct vehicle. You can search for the existing vehicle by its details.' },
           { status: 409 }
         );
       }

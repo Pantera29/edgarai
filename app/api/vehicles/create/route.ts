@@ -127,13 +127,14 @@ export async function POST(request: Request) {
         );
       }
 
-      // Verificar si ya existe un vehículo con la misma placa (solo si se proporciona una placa)
+      // Verificar si ya existe un vehículo con la misma placa en la misma agencia (solo si se proporciona una placa)
       if (license_plate) {
-        console.log('🔍 Verificando placa duplicada:', license_plate);
+        console.log('🔍 Verificando placa duplicada en la agencia:', license_plate);
         const { data: existingVehiclePlate, error: searchPlateError } = await supabase
           .from('vehicles')
           .select('id_uuid')
           .eq('license_plate', license_plate)
+          .eq('dealership_id', client.dealership_id)
           .maybeSingle();
 
         if (searchPlateError) {
@@ -142,42 +143,53 @@ export async function POST(request: Request) {
             license_plate
           });
           return NextResponse.json(
-            { message: 'Error checking for existing vehicle' },
+            { message: 'Error checking for existing vehicle with this license plate. This is a temporary system issue. Please try again or omit the license plate field if not essential.' },
             { status: 500 }
           );
         }
 
         if (existingVehiclePlate) {
-          console.log('❌ Vehículo con placa duplicada:', {
+          console.log('❌ Vehículo con placa duplicada en la misma agencia:', {
             license_plate,
+            dealership_id: client.dealership_id,
             existing_id: existingVehiclePlate.id_uuid
           });
           return NextResponse.json(
-            { message: 'Vehicle with this license plate already exists', vehicleId: existingVehiclePlate.id_uuid },
+            { message: 'Vehicle with this license plate already exists in this dealership. Each license plate must be unique within the same dealership. Use the existing vehicle or update it at /api/vehicles/update/{vehicle_id}. You can view vehicle details at /api/vehicles/{vehicle_id}', vehicleId: existingVehiclePlate.id_uuid },
             { status: 409 }
           );
         }
       }
       
-      // Verificar si ya existe un vehículo con el mismo VIN (solo si se proporciona un VIN)
+      // Verificar si ya existe un vehículo con el mismo VIN en la misma agencia (solo si se proporciona un VIN)
       if (vin) {
+        console.log('🔍 Verificando VIN duplicado en la agencia:', vin);
         const { data: existingVehicleVin, error: searchVinError } = await supabase
           .from('vehicles')
           .select('id_uuid')
           .eq('vin', vin)
+          .eq('dealership_id', client.dealership_id)
           .maybeSingle();
 
         if (searchVinError) {
-          console.error('Error searching for existing vehicle by VIN:', searchVinError.message);
+          console.error('❌ Error al buscar vehículo por VIN:', {
+            error: searchVinError.message,
+            vin
+          });
           return NextResponse.json(
-            { message: 'Error checking for existing vehicle by VIN' },
+            { message: 'Error checking for existing vehicle with this VIN number. This is a temporary system issue. Please try again or omit the VIN field if not essential. VIN validation helps prevent duplicate vehicle registrations.' },
             { status: 500 }
           );
         }
 
         if (existingVehicleVin) {
+          console.log('❌ Vehículo con VIN duplicado en la misma agencia:', {
+            vin,
+            dealership_id: client.dealership_id,
+            existing_id: existingVehicleVin.id_uuid
+          });
           return NextResponse.json(
-            { message: 'Vehicle with this VIN already exists', vehicleId: existingVehicleVin.id_uuid },
+            { message: 'Vehicle with this VIN number already exists in this dealership. Each VIN must be unique within the same dealership. Use the existing vehicle or update it at /api/vehicles/update/{vehicle_id}. You can view vehicle details at /api/vehicles/{vehicle_id}', vehicleId: existingVehicleVin.id_uuid },
             { status: 409 }
           );
         }
@@ -320,13 +332,14 @@ export async function POST(request: Request) {
         );
       }
 
-      // Verificar si ya existe un vehículo con la misma placa (solo si se proporciona una placa)
+      // Verificar si ya existe un vehículo con la misma placa en la misma agencia (solo si se proporciona una placa)
       if (license_plate) {
-        console.log('🔍 Verificando placa duplicada:', license_plate);
+        console.log('🔍 Verificando placa duplicada en la agencia:', license_plate);
         const { data: existingVehiclePlate, error: searchPlateError } = await supabase
           .from('vehicles')
           .select('id_uuid')
           .eq('license_plate', license_plate)
+          .eq('dealership_id', client.dealership_id)
           .maybeSingle();
 
         if (searchPlateError) {
@@ -335,42 +348,53 @@ export async function POST(request: Request) {
             license_plate
           });
           return NextResponse.json(
-            { message: 'Error checking for existing vehicle' },
+            { message: 'Error checking for existing vehicle with this license plate. This is a temporary system issue. Please try again or omit the license plate field if not essential.' },
             { status: 500 }
           );
         }
 
         if (existingVehiclePlate) {
-          console.log('❌ Vehículo con placa duplicada:', {
+          console.log('❌ Vehículo con placa duplicada en la misma agencia:', {
             license_plate,
+            dealership_id: client.dealership_id,
             existing_id: existingVehiclePlate.id_uuid
           });
           return NextResponse.json(
-            { message: 'Vehicle with this license plate already exists', vehicleId: existingVehiclePlate.id_uuid },
+            { message: 'Vehicle with this license plate already exists in this dealership. Each license plate must be unique within the same dealership. Use the existing vehicle or update it at /api/vehicles/update/{vehicle_id}. You can view vehicle details at /api/vehicles/{vehicle_id}', vehicleId: existingVehiclePlate.id_uuid },
             { status: 409 }
           );
         }
       }
       
-      // Verificar si ya existe un vehículo con el mismo VIN (solo si se proporciona un VIN)
+      // Verificar si ya existe un vehículo con el mismo VIN en la misma agencia (solo si se proporciona un VIN)
       if (vin) {
+        console.log('🔍 Verificando VIN duplicado en la agencia:', vin);
         const { data: existingVehicleVin, error: searchVinError } = await supabase
           .from('vehicles')
           .select('id_uuid')
           .eq('vin', vin)
+          .eq('dealership_id', client.dealership_id)
           .maybeSingle();
 
         if (searchVinError) {
-          console.error('Error searching for existing vehicle by VIN:', searchVinError.message);
+          console.error('❌ Error al buscar vehículo por VIN:', {
+            error: searchVinError.message,
+            vin
+          });
           return NextResponse.json(
-            { message: 'Error checking for existing vehicle by VIN' },
+            { message: 'Error checking for existing vehicle with this VIN number. This is a temporary system issue. Please try again or omit the VIN field if not essential. VIN validation helps prevent duplicate vehicle registrations.' },
             { status: 500 }
           );
         }
 
         if (existingVehicleVin) {
+          console.log('❌ Vehículo con VIN duplicado en la misma agencia:', {
+            vin,
+            dealership_id: client.dealership_id,
+            existing_id: existingVehicleVin.id_uuid
+          });
           return NextResponse.json(
-            { message: 'Vehicle with this VIN already exists', vehicleId: existingVehicleVin.id_uuid },
+            { message: 'Vehicle with this VIN number already exists in this dealership. Each VIN must be unique within the same dealership. Use the existing vehicle or update it at /api/vehicles/update/{vehicle_id}. You can view vehicle details at /api/vehicles/{vehicle_id}', vehicleId: existingVehicleVin.id_uuid },
             { status: 409 }
           );
         }
