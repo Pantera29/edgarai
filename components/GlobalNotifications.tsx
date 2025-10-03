@@ -18,10 +18,14 @@ interface UrgentMessage {
 
 interface ConversacionItem {
   id: string;
+  user_identifier: string;
+  updated_at: string;
+  status: string;
   client?: {
     names: string;
     phone_number: string;
-  };
+    email: string;
+  } | null;
   messages?: Array<{
     role: string;
     content: string;
@@ -94,9 +98,13 @@ export function GlobalNotifications() {
         // Convertir a formato ConversacionItem para compatibilidad con el hook
         const conversacionesAdaptadas: ConversacionItem[] = data.map((msg: UrgentMessage) => ({
           id: msg.conversation_id,
+          user_identifier: msg.client_phone,
+          updated_at: msg.last_customer_message_time,
+          status: 'active',
           client: {
             names: msg.client_name,
-            phone_number: msg.client_phone
+            phone_number: msg.client_phone,
+            email: ''
           },
           messages: [{
             role: 'customer',
