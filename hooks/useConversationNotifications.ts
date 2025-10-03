@@ -55,7 +55,7 @@ export function useConversationNotifications({
       }
 
       // CRITERIO 2: Obtener timestamp del último mensaje del cliente
-      const lastCustomerMessageTime = getLastCustomerMessageTimestamp(conversation.messages);
+      const lastCustomerMessageTime = getLastCustomerMessageTimestamp(conversation.messages || []);
       
       if (!lastCustomerMessageTime) {
         // No hay mensajes del cliente, no notificar
