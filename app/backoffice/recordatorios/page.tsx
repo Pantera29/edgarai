@@ -385,6 +385,7 @@ export default function RecordatoriosPage() {
   const [currentTab, setCurrentTab] = useState<string>("pendiente")
   const [currentPage, setCurrentPage] = useState(1)
   const [itemsPerPage] = useState(50)
+  const [cargandoRecordatorios, setCargandoRecordatorios] = useState(false)
   const [stats, setStats] = useState({
     pendientes: 0,
     enviados: 0,
@@ -433,7 +434,7 @@ export default function RecordatoriosPage() {
   });
 
   // --- fetchRecordatorios seguro ---
-  const fetchRecordatorios = async (dealershipIdFromToken?: string) => {
+  const fetchRecordatorios = async (dealershipIdFromToken?: string, fechaEspecifica?: Date) => {
     // Validación estricta de dealershipId
     if (!dealershipIdFromToken) {
       console.error('❌ [Seguridad] fetchRecordatorios llamado SIN dealershipId. Abortando.');
@@ -447,15 +448,33 @@ export default function RecordatoriosPage() {
       });
       return;
     }
+
+    // Mostrar indicador de carga si es una carga específica por fecha
+    if (fechaEspecifica) {
+      setCargandoRecordatorios(true);
+    }
     
     console.log(`[Auditoría] Consultando recordatorios para dealership_id: ${dealershipIdFromToken}`);
     
-    // Calcular el periodo de 61 días (30 días hacia atrás + hoy + 30 días hacia adelante)
-    const hoy = new Date();
-    const fechaInicio = new Date(hoy);
-    fechaInicio.setDate(hoy.getDate() - 30);
-    const fechaFin = new Date(hoy);
-    fechaFin.setDate(hoy.getDate() + 30);
+    // Si hay una fecha específica, cargar un rango centrado en esa fecha
+    // Si no, cargar un rango más amplio por defecto
+    let fechaInicio: Date;
+    let fechaFin: Date;
+    
+    if (fechaEspecifica) {
+      // Cargar 15 días antes y después de la fecha seleccionada
+      fechaInicio = new Date(fechaEspecifica);
+      fechaInicio.setDate(fechaEspecifica.getDate() - 15);
+      fechaFin = new Date(fechaEspecifica);
+      fechaFin.setDate(fechaEspecifica.getDate() + 15);
+    } else {
+      // Rango por defecto más amplio: 90 días hacia atrás y 1 año hacia adelante
+      const hoy = new Date();
+      fechaInicio = new Date(hoy);
+      fechaInicio.setDate(hoy.getDate() - 90);
+      fechaFin = new Date(hoy);
+      fechaFin.setFullYear(hoy.getFullYear() + 1);
+    }
     
     // Formatear fechas para la consulta (YYYY-MM-DD)
     const fechaInicioString = fechaInicio.getFullYear() + '-' + 
@@ -598,6 +617,9 @@ export default function RecordatoriosPage() {
         description: "No se pudieron cargar los recordatorios. Intente de nuevo.",
         variant: "destructive",
       });
+    } finally {
+      // Ocultar indicador de carga
+      setCargandoRecordatorios(false);
     }
   }
 
@@ -621,7 +643,7 @@ export default function RecordatoriosPage() {
     });
   }
 
-  const filterRecordatorios = (estado: string, date?: Date, search?: string, reminderType?: string) => {
+  const filterRecordatorios = async (estado: string, date?: Date, search?: string, reminderType?: string) => {
     let filtered = recordatorios;
     
     // Filtro por estado
@@ -645,10 +667,26 @@ export default function RecordatoriosPage() {
       }
     }
     
-    // Filtro por fecha
+    // Filtro por fecha - si hay una fecha seleccionada, verificar si necesitamos cargar más datos
     if (date || selectedDate) {
-      const fechaFiltro = format(date ?? selectedDate!, 'yyyy-MM-dd');
-      filtered = filtered.filter(r => r.reminder_date.startsWith(fechaFiltro));
+      const fechaFiltro = date ?? selectedDate!;
+      const fechaFiltroString = format(fechaFiltro, 'yyyy-MM-dd');
+      
+      // Verificar si tenemos recordatorios para esta fecha
+      const recordatoriosParaFecha = filtered.filter(r => r.reminder_date.startsWith(fechaFiltroString));
+      
+      // Si no hay recordatorios para esta fecha, intentar cargar más datos
+      if (recordatoriosParaFecha.length === 0) {
+        console.log(`[Filtro] No se encontraron recordatorios para ${fechaFiltroString}, cargando datos específicos...`);
+        const dealershipId = (dataToken as any)?.dealership_id;
+        if (dealershipId) {
+          await fetchRecordatorios(dealershipId, fechaFiltro);
+          // Después de cargar, aplicar el filtro nuevamente
+          filtered = recordatorios.filter(r => r.reminder_date.startsWith(fechaFiltroString));
+        }
+      } else {
+        filtered = recordatoriosParaFecha;
+      }
     }
     
     // Ordenar por fecha de recordatorio de más próxima a más lejana (ascendente)
@@ -680,7 +718,10 @@ export default function RecordatoriosPage() {
 
   // Efecto reactivo para filtrar automáticamente
   useEffect(() => {
-    filterRecordatorios(currentTab, undefined, undefined, selectedReminderType);
+    const aplicarFiltros = async () => {
+      await filterRecordatorios(currentTab, undefined, undefined, selectedReminderType);
+    };
+    aplicarFiltros();
   }, [selectedDate, searchTerm, recordatorios, currentTab, selectedReminderType]);
 
   const mapEstado = (estado: string): string => {
@@ -1706,7 +1747,16 @@ export default function RecordatoriosPage() {
               <Calendar
                 mode="single"
                 selected={selectedDate}
-                onSelect={(date) => setSelectedDate(date)}
+                onSelect={(date) => {
+                  setSelectedDate(date);
+                  // Cargar recordatorios para la fecha seleccionada si es necesario
+                  if (date) {
+                    const dealershipId = (dataToken as any)?.dealership_id;
+                    if (dealershipId) {
+                      fetchRecordatorios(dealershipId, date);
+                    }
+                  }
+                }}
                 initialFocus
               />
               {selectedDate && (
@@ -1808,35 +1858,43 @@ export default function RecordatoriosPage() {
                 </Button>
               </div>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]">
-                    <Checkbox
-                      checked={seleccionados.length === currentItems.length && currentItems.length > 0}
-                      onCheckedChange={() => {
-                        if (seleccionados.length === currentItems.length) {
-                          setSeleccionados([]);
-                        } else {
-                          const nuevosSeleccionados = currentItems
-                            .slice(0, 10)
-                            .map(r => r.reminder_id);
-                          setSeleccionados(nuevosSeleccionados);
-                        }
-                      }}
-                      disabled={currentItems.length === 0}
-                    />
-                  </TableHead>
-                  <TableHead>Cliente</TableHead>
-                  <TableHead>Vehículo</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Fecha Creación</TableHead>
-                  <TableHead>Fecha Recordatorio</TableHead>
-                  <TableHead>Estado</TableHead>
-                  <TableHead className="text-right">Acciones</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            {cargandoRecordatorios ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="flex items-center space-x-2">
+                  <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-blue-600"></div>
+                  <span className="text-sm text-gray-600">Cargando recordatorios...</span>
+                </div>
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[50px]">
+                      <Checkbox
+                        checked={seleccionados.length === currentItems.length && currentItems.length > 0}
+                        onCheckedChange={() => {
+                          if (seleccionados.length === currentItems.length) {
+                            setSeleccionados([]);
+                          } else {
+                            const nuevosSeleccionados = currentItems
+                              .slice(0, 10)
+                              .map(r => r.reminder_id);
+                            setSeleccionados(nuevosSeleccionados);
+                          }
+                        }}
+                        disabled={currentItems.length === 0}
+                      />
+                    </TableHead>
+                    <TableHead>Cliente</TableHead>
+                    <TableHead>Vehículo</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead>Fecha Creación</TableHead>
+                    <TableHead>Fecha Recordatorio</TableHead>
+                    <TableHead>Estado</TableHead>
+                    <TableHead className="text-right">Acciones</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                 {currentItems.map((recordatorio) => (
                   <TableRow key={recordatorio.reminder_id}>
                     <TableCell>
@@ -1907,8 +1965,9 @@ export default function RecordatoriosPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-              </TableBody>
-            </Table>
+                </TableBody>
+              </Table>
+            )}
 
             {/* Paginación */}
             <div className="flex items-center justify-between mt-4">
