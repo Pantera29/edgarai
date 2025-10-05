@@ -77,6 +77,7 @@ interface Servicio {
   time_restriction_enabled?: boolean
   time_restriction_start_time?: string | null
   time_restriction_end_time?: string | null
+  requires_confirmation_reminder?: boolean
   workshop_services?: WorkshopService[]
 }
 
@@ -149,7 +150,8 @@ export default function ServiciosPage() {
     available_sunday: true,
     time_restriction_enabled: false,
     time_restriction_start_time: null,
-    time_restriction_end_time: null
+    time_restriction_end_time: null,
+    requires_confirmation_reminder: true
   })
   const [selectedWorkshops, setSelectedWorkshops] = useState<string[]>([])
   const [servicioSeleccionado, setServicioSeleccionado] = useState<Servicio | null>(null)
@@ -190,6 +192,7 @@ export default function ServiciosPage() {
           time_restriction_enabled,
           time_restriction_start_time,
           time_restriction_end_time,
+          requires_confirmation_reminder,
           workshop_services (
             id,
             workshop_id,
@@ -399,6 +402,7 @@ export default function ServiciosPage() {
             time_restriction_enabled: formData.time_restriction_enabled,
             time_restriction_start_time: formData.time_restriction_enabled ? formData.time_restriction_start_time : null,
             time_restriction_end_time: formData.time_restriction_enabled ? formData.time_restriction_end_time : null,
+            requires_confirmation_reminder: formData.requires_confirmation_reminder,
             dealership_id: dealershipId
           }
         ])
@@ -442,7 +446,8 @@ export default function ServiciosPage() {
         available_sunday: true,
         time_restriction_enabled: false,
         time_restriction_start_time: null,
-        time_restriction_end_time: null
+        time_restriction_end_time: null,
+        requires_confirmation_reminder: true
       })
       setSelectedWorkshops([])
       setSearchTerm("")
@@ -519,7 +524,8 @@ export default function ServiciosPage() {
           available_sunday: servicioSeleccionado.available_sunday,
           time_restriction_enabled: servicioSeleccionado.time_restriction_enabled,
           time_restriction_start_time: servicioSeleccionado.time_restriction_enabled ? servicioSeleccionado.time_restriction_start_time : null,
-          time_restriction_end_time: servicioSeleccionado.time_restriction_enabled ? servicioSeleccionado.time_restriction_end_time : null
+          time_restriction_end_time: servicioSeleccionado.time_restriction_enabled ? servicioSeleccionado.time_restriction_end_time : null,
+          requires_confirmation_reminder: servicioSeleccionado.requires_confirmation_reminder
         })
         .eq('id_uuid', servicioSeleccionado.id_uuid)
 
@@ -846,6 +852,18 @@ export default function ServiciosPage() {
                 Los servicios visibles pueden ser agendados por los clientes. Los servicios internos solo son visibles para la agencia.
               </p>
               
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="requires-confirmation-reminder"
+                  checked={formData.requires_confirmation_reminder ?? true}
+                  onCheckedChange={(checked) => setFormData({ ...formData, requires_confirmation_reminder: checked })}
+                />
+                <Label htmlFor="requires-confirmation-reminder">Crear recordatorio de confirmación</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Si está activado, se enviará un recordatorio automático al cliente antes de la cita agendada.
+              </p>
+              
               {/* Disponibilidad por días */}
               <div className="space-y-3">
                 <Label>Disponibilidad por días</Label>
@@ -1108,6 +1126,20 @@ export default function ServiciosPage() {
               </div>
               <p className="text-sm text-muted-foreground">
                 Los servicios visibles pueden ser agendados por los clientes. Los servicios internos solo son visibles para la agencia.
+              </p>
+              
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="edit-requires-confirmation-reminder"
+                  checked={servicioSeleccionado?.requires_confirmation_reminder ?? true}
+                  onCheckedChange={(checked) => setServicioSeleccionado(prev => 
+                    prev ? {...prev, requires_confirmation_reminder: checked} : prev
+                  )}
+                />
+                <Label htmlFor="edit-requires-confirmation-reminder">Crear recordatorio de confirmación</Label>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Si está activado, se enviará un recordatorio automático al cliente antes de la cita agendada.
               </p>
               
               {/* Disponibilidad por días */}

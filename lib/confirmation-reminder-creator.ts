@@ -19,6 +19,27 @@ export async function createConfirmationReminder(params: CreateConfirmationRemin
     const supabase = createRouteHandlerClient({ cookies });
     console.log('🔍 [Confirmation Reminder] Cliente Supabase creado exitosamente');
     
+    // NUEVO: Verificar si el servicio requiere recordatorio de confirmación
+    console.log('🔍 [Confirmation Reminder] Verificando configuración del servicio:', params.service_id);
+    const { data: serviceData, error: serviceError } = await supabase
+      .from('services')
+      .select('service_name, requires_confirmation_reminder')
+      .eq('id_uuid', params.service_id)
+      .single();
+
+    if (serviceError) {
+      console.error('❌ [Confirmation Reminder] Error obteniendo configuración del servicio:', serviceError);
+      // Continuar con comportamiento por defecto si hay error
+    }
+
+    console.log('🔍 [Confirmation Reminder] Configuración del servicio obtenida:', serviceData);
+
+    // Si el servicio no requiere recordatorio, salir temprano
+    if (serviceData && serviceData.requires_confirmation_reminder === false) {
+      console.log('🚫 [Confirmation Reminder] Servicio "' + serviceData.service_name + '" no requiere recordatorio de confirmación');
+      return { success: true, skipped: true, reason: 'service_config' };
+    }
+    
     // Obtener configuración de días de confirmación para esta agencia
     console.log('⚙️ [Confirmation Reminder] Obteniendo configuración para agencia:', params.dealership_id);
     const { data: reminderSettings, error: settingsError } = await supabase
