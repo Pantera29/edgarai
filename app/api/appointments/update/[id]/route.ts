@@ -499,6 +499,33 @@ export async function PATCH(
       status: data.status
     });
 
+    // Si la cita se canceló, cancelar recordatorios de confirmación pendientes asociados
+    if (filteredUpdates.status === 'cancelled' && appointmentExists.status !== 'cancelled') {
+      try {
+        const { data: cancelledReminders, error: cancelRemindersError } = await supabase
+          .from('reminders')
+          .update({
+            status: 'cancelled',
+            notes: 'Cancelado por cancelación de cita'
+          })
+          .eq('appointment_id', appointmentId)
+          .eq('reminder_type', 'confirmation')
+          .eq('status', 'pending')
+          .select('reminder_id');
+
+        if (cancelRemindersError) {
+          console.error('❌ Error al cancelar recordatorios de confirmación:', cancelRemindersError);
+        } else {
+          console.log('✅ Recordatorios de confirmación cancelados por cancelación de cita:', {
+            appointment_id: appointmentId,
+            cancelled_count: cancelledReminders?.length || 0
+          });
+        }
+      } catch (remindersCancelCatchError) {
+        console.error('❌ Error inesperado al cancelar recordatorios de confirmación:', remindersCancelCatchError);
+      }
+    }
+
     // 🔍 LOG ESTRUCTURADO PARA TRAZABILIDAD DEL BACKOFFICE
     if (isBackofficeRequest && userInfo) {
       const structuredLog = {
