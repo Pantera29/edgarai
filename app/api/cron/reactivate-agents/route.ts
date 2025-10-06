@@ -73,7 +73,7 @@ export async function POST(request: Request) {
 
     console.log('📅 [CRON-REACTIVATE] Buscando citas del:', yesterdayStr, '(Zona horaria: Ciudad de México)');
 
-    // Construir consulta para obtener clientes con citas ayer
+    // Construir consulta para obtener clientes con citas ayer (excluyendo canceladas)
     let query = supabase
       .from('appointment')
       .select(`
@@ -88,7 +88,8 @@ export async function POST(request: Request) {
           agent_active
         )
       `)
-      .eq('appointment_date', yesterdayStr);
+      .eq('appointment_date', yesterdayStr)
+      .neq('status', 'cancelled'); // Excluir citas canceladas
 
     // Aplicar filtro de dealership si se proporciona
     if (dealership_id) {
@@ -110,10 +111,10 @@ export async function POST(request: Request) {
     }
 
     if (!appointments || appointments.length === 0) {
-      console.log('ℹ️ [CRON-REACTIVATE] No se encontraron citas para el', yesterdayStr);
+      console.log('ℹ️ [CRON-REACTIVATE] No se encontraron citas (no canceladas) para el', yesterdayStr);
       return NextResponse.json({
         success: true,
-        message: 'No se encontraron citas para reactivar agentes',
+        message: 'No se encontraron citas (no canceladas) para reactivar agentes',
         dealership_id: dealership_id || null,
         processed_count: 0,
         success_count: 0,
@@ -175,7 +176,7 @@ export async function POST(request: Request) {
             phone_number: client.phone_number,
             dealership_id: client.dealership_id,
             agent_active: true,
-            notes: 'Reactivado automáticamente por cron job - cliente con cita ayer',
+            notes: 'Reactivado automáticamente por cron job - cliente con cita ayer (no cancelada)',
             updated_by: 'cron'
           })
         });
