@@ -44,7 +44,7 @@ export async function createAutomaticReminder(params: CreateReminderParams, requ
     }
 
     // Usar 6 meses por defecto si no hay regla
-    const monthsAfter = rule?.months_after ?? 5;
+    const monthsAfter = rule?.months_after ?? 6;
     console.log('📅 [Reminder Creator] Meses configurados:', monthsAfter);
 
     // Calcular fecha del recordatorio

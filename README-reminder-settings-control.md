@@ -66,7 +66,7 @@ Nueva sección en `/backoffice/admin/recordatorios-automaticos` con:
 
 ### Seguimiento Post-Servicio
 - **Cuándo se crea:** Al completar una cita
-- **Cuándo se envía:** X meses después (configurable en `automatic_reminder_rules`)
+- **Cuándo se envía:** X meses después (configurable en `automatic_reminder_rules`, por defecto 6 meses)
 - **Configuración:** `follow_up_enabled`
 
 ### Encuesta de Satisfacción (NPS)
