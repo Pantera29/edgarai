@@ -2,8 +2,8 @@ name: EdgarAI Cancelar Recordatorios de Seguimiento
 
 on:
   schedule:
-    # Cancelar recordatorios diariamente a las 6:00 AM UTC (medianoche en Ciudad de México)
-    - cron: '0 6 * * *'
+    # Cancelar recordatorios diariamente a las 1:00 AM México (7:00 AM UTC)
+    - cron: '0 7 * * *'
   workflow_dispatch:
 
 jobs:

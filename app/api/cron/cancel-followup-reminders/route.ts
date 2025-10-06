@@ -141,12 +141,17 @@ export async function POST(request: Request) {
 
     console.log(`📊 [CRON-CANCEL-FOLLOWUP-REMINDERS] Datos obtenidos de Supabase: ${remindersToReprogram?.length || 0} recordatorios`);
 
-    // Procesar cada recordatorio y buscar citas futuras
+    // Procesar cada recordatorio y buscar citas futuras O follow_up futuros
     const processedReminders: ReminderToCancel[] = [];
     
     if (remindersToReprogram) {
       for (const reminder of remindersToReprogram) {
-        // Buscar citas pendientes del cliente con fecha posterior al recordatorio
+        let shouldCancel = false;
+        let cancellationReason = '';
+        let futureAppointmentId: number | null = null;
+        let futureAppointmentDate = '';
+
+        // REGLA 1: Buscar citas pendientes del cliente con fecha posterior al recordatorio
         const { data: futureAppointments, error: appointmentsError } = await supabase
           .from('appointment')
           .select('id, appointment_date')
@@ -162,19 +167,51 @@ export async function POST(request: Request) {
 
         if (futureAppointments && futureAppointments.length > 0) {
           const appointment = futureAppointments[0];
-          console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: reminder_date=${reminder.reminder_date.split('T')[0]}, appointment_date=${appointment.appointment_date}, should_cancel=true`);
-          
+          console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: tiene cita futura ${appointment.appointment_date}, should_cancel=true`);
+          shouldCancel = true;
+          cancellationReason = 'client_has_future_appointment';
+          futureAppointmentId = appointment.id;
+          futureAppointmentDate = appointment.appointment_date;
+        }
+
+        // REGLA 2: Si no tiene cita futura, buscar si tiene follow_up pending futuro
+        if (!shouldCancel) {
+          const { data: futureFollowUps, error: followUpsError } = await supabase
+            .from('reminders')
+            .select('reminder_id, reminder_date')
+            .eq('client_id_uuid', reminder.client_id_uuid)
+            .eq('reminder_type', 'follow_up')
+            .eq('status', 'pending')
+            .neq('reminder_id', reminder.reminder_id)
+            .gt('reminder_date', reminder.reminder_date)
+            .limit(1);
+
+          if (followUpsError) {
+            console.error(`❌ [CRON-CANCEL-FOLLOWUP-REMINDERS] Error consultando follow_up futuros para recordatorio ${reminder.reminder_id}:`, followUpsError);
+            continue;
+          }
+
+          if (futureFollowUps && futureFollowUps.length > 0) {
+            const futureFollowUp = futureFollowUps[0];
+            console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: tiene follow_up futuro ${futureFollowUp.reminder_date}, should_cancel=true`);
+            shouldCancel = true;
+            cancellationReason = 'client_has_future_followup_reminder';
+            futureAppointmentDate = futureFollowUp.reminder_date.split('T')[0];
+          }
+        }
+
+        if (shouldCancel) {
           processedReminders.push({
             reminder_id: reminder.reminder_id,
             client_id_uuid: reminder.client_id_uuid,
             reminder_date: reminder.reminder_date,
             dealership_id: reminder.dealership_id,
             appointment_id: reminder.appointment_id,
-            future_appointment_id: appointment.id,
-            future_appointment_date: appointment.appointment_date
+            future_appointment_id: futureAppointmentId || 0,
+            future_appointment_date: futureAppointmentDate
           });
         } else {
-          console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: no tiene citas futuras`);
+          console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: no tiene citas futuras ni follow_up futuros`);
         }
       }
     }
@@ -209,16 +246,25 @@ export async function POST(request: Request) {
       try {
         console.log(`🔄 [CRON-CANCEL-FOLLOWUP-REMINDERS] Procesando recordatorio: ${reminder.reminder_id} (Cliente: ${reminder.client_id_uuid})`);
         
+        // Determinar la razón de cancelación basada en el tipo de futuro encontrado
+        const cancellationReason = reminder.future_appointment_id > 0 
+          ? 'client_has_future_appointment' 
+          : 'client_has_future_followup_reminder';
+        
+        const futureDescription = reminder.future_appointment_id > 0 
+          ? `cita futura: ${reminder.future_appointment_date}` 
+          : `follow_up futuro: ${reminder.future_appointment_date}`;
+
         if (dry_run) {
-          console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] DRY RUN - Recordatorio ${reminder.reminder_id} sería cancelado (cliente tiene cita futura: ${reminder.future_appointment_date})`);
+          console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] DRY RUN - Recordatorio ${reminder.reminder_id} sería cancelado (cliente tiene ${futureDescription})`);
           results.push({
             reminder_id: reminder.reminder_id,
             client_id_uuid: reminder.client_id_uuid,
             success: true,
-            appointment_id: reminder.future_appointment_id,
+            appointment_id: reminder.future_appointment_id > 0 ? reminder.future_appointment_id : null,
             appointment_date: reminder.future_appointment_date,
             old_reminder_date: reminder.reminder_date,
-            cancellation_reason: 'client_has_future_appointment'
+            cancellation_reason: cancellationReason
           });
           dealershipsAffected.add(reminder.dealership_id);
         } else {
@@ -227,7 +273,7 @@ export async function POST(request: Request) {
             .from('reminders')
             .update({ 
               status: 'cancelled',
-              cancellation_reason: 'client_has_future_appointment',
+              cancellation_reason: cancellationReason,
               updated_at: new Date().toISOString()
             })
             .eq('reminder_id', reminder.reminder_id);
@@ -239,21 +285,21 @@ export async function POST(request: Request) {
               client_id_uuid: reminder.client_id_uuid,
               success: false,
               error: updateError.message,
-              appointment_id: reminder.future_appointment_id,
+              appointment_id: reminder.future_appointment_id > 0 ? reminder.future_appointment_id : null,
               appointment_date: reminder.future_appointment_date,
               old_reminder_date: reminder.reminder_date,
-              cancellation_reason: 'client_has_future_appointment'
+              cancellation_reason: cancellationReason
             });
           } else {
-            console.log(`✅ [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id} cancelado exitosamente (cliente tiene cita futura: ${reminder.future_appointment_date})`);
+            console.log(`✅ [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id} cancelado exitosamente (cliente tiene ${futureDescription})`);
             results.push({
               reminder_id: reminder.reminder_id,
               client_id_uuid: reminder.client_id_uuid,
               success: true,
-              appointment_id: reminder.future_appointment_id,
+              appointment_id: reminder.future_appointment_id > 0 ? reminder.future_appointment_id : null,
               appointment_date: reminder.future_appointment_date,
               old_reminder_date: reminder.reminder_date,
-              cancellation_reason: 'client_has_future_appointment'
+              cancellation_reason: cancellationReason
             });
             dealershipsAffected.add(reminder.dealership_id);
           }
