@@ -174,12 +174,13 @@ export async function POST(request: Request) {
           futureAppointmentDate = appointment.appointment_date;
         }
 
-        // REGLA 2: Si no tiene cita futura, buscar si tiene follow_up pending futuro
+        // REGLA 2: Si no tiene cita futura, buscar si tiene follow_up pending futuro del MISMO VEHÍCULO
         if (!shouldCancel) {
           const { data: futureFollowUps, error: followUpsError } = await supabase
             .from('reminders')
             .select('reminder_id, reminder_date')
             .eq('client_id_uuid', reminder.client_id_uuid)
+            .eq('vehicle_id', reminder.vehicle_id)
             .eq('reminder_type', 'follow_up')
             .eq('status', 'pending')
             .neq('reminder_id', reminder.reminder_id)
@@ -193,9 +194,9 @@ export async function POST(request: Request) {
 
           if (futureFollowUps && futureFollowUps.length > 0) {
             const futureFollowUp = futureFollowUps[0];
-            console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: tiene follow_up futuro ${futureFollowUp.reminder_date}, should_cancel=true`);
+            console.log(`🔍 [CRON-CANCEL-FOLLOWUP-REMINDERS] Recordatorio ${reminder.reminder_id}: tiene follow_up futuro del mismo vehículo ${futureFollowUp.reminder_date}, should_cancel=true`);
             shouldCancel = true;
-            cancellationReason = 'client_has_future_followup_reminder';
+            cancellationReason = 'vehicle_has_future_followup_reminder';
             futureAppointmentDate = futureFollowUp.reminder_date.split('T')[0];
           }
         }
@@ -249,7 +250,7 @@ export async function POST(request: Request) {
         // Determinar la razón de cancelación basada en el tipo de futuro encontrado
         const cancellationReason = reminder.future_appointment_id > 0 
           ? 'client_has_future_appointment' 
-          : 'client_has_future_followup_reminder';
+          : 'vehicle_has_future_followup_reminder';
         
         const futureDescription = reminder.future_appointment_id > 0 
           ? `cita futura: ${reminder.future_appointment_date}` 
