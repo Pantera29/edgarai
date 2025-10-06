@@ -92,7 +92,8 @@ export async function POST(request: Request) {
         client_id_uuid,
         reminder_date,
         dealership_id,
-        appointment_id
+        appointment_id,
+        vehicle_id
       `)
       .eq('reminder_type', 'follow_up')
       .eq('status', 'pending')
