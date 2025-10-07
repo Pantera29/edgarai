@@ -1022,7 +1022,7 @@ function QuickCreateVehicleModal({
               <SelectTrigger>
                 <SelectValue placeholder={loadingMakes ? "Cargando marcas..." : "Seleccionar marca"} />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[300px] overflow-y-auto">
                 {makes.map((make) => (
                   <SelectItem key={make.id} value={make.id}>
                     {make.name}
@@ -1051,7 +1051,7 @@ function QuickCreateVehicleModal({
                     : "Seleccionar modelo"
                 } />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="max-h-[300px] overflow-y-auto">
                 {models.map((model) => (
                   <SelectItem key={model.id} value={model.id}>
                     {model.name}
