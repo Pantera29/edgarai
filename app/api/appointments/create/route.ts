@@ -656,7 +656,11 @@ export async function POST(request: Request) {
       dailyLimitQuery = dailyLimitQuery.is('workshop_id', null);
     }
     
-    const { data: dailyLimit, error: dailyLimitError } = await dailyLimitQuery.maybeSingle();
+    // Ordenar y limitar para evitar error de múltiples registros
+    const { data: dailyLimit, error: dailyLimitError } = await dailyLimitQuery
+      .order('full_day', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (dailyLimitError) {
       console.error('Error verificando límite total diario:', dailyLimitError);
