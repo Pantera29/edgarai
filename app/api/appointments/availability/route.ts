@@ -526,7 +526,11 @@ export async function GET(request: Request) {
       blockedQuery = blockedQuery.eq('dealership_id', dealershipId);
     }
 
-    const { data: blockedDate, error: blockedError } = await blockedQuery.maybeSingle();
+    // Ordenar para priorizar bloqueos de día completo y tomar solo el primero
+    const { data: blockedDate, error: blockedError } = await blockedQuery
+      .order('full_day', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     if (blockedError) {
       console.error('Error fetching blocked dates:', blockedError.message);
@@ -1957,6 +1961,8 @@ async function checkAvailabilityForDate(
     .select('*')
     .eq('date', date)
     .eq('dealership_id', dealershipId)
+    .order('full_day', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (blockedError) {
@@ -2120,6 +2126,8 @@ async function calculateAvailableSlotsSimplified(
     .select('*')
     .eq('date', date)
     .eq('dealership_id', dealershipId)
+    .order('full_day', { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   if (blockedError) {
