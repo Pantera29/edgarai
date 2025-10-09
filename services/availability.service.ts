@@ -166,7 +166,7 @@ export class AvailabilityService {
       return null;
     }
 
-    return data as Service;
+    return data as any;
   }
 
   /**
@@ -189,7 +189,7 @@ export class AvailabilityService {
       return null;
     }
 
-    return data as HorarioOperacion;
+    return data as any;
   }
 
   /**
@@ -211,7 +211,7 @@ export class AvailabilityService {
       return null;
     }
 
-    return (data as DealershipConfiguration).shift_duration;
+    return (data as any).shift_duration;
   }
 
   /**
@@ -248,7 +248,7 @@ export class AvailabilityService {
       return [];
     }
 
-    return data as ServiceAdvisor[];
+    return data as any;
   }
 
   /**
@@ -272,7 +272,7 @@ export class AvailabilityService {
       return [];
     }
 
-    const slotConfigs = data as AdvisorSlotConfiguration[];
+    const slotConfigs = data as any;
 
     // Agrupar slots por asesor
     const advisorsWithSlots: AdvisorWithSlots[] = [];
@@ -308,7 +308,7 @@ export class AvailabilityService {
       return [];
     }
 
-    return data as Appointment[];
+    return data as any;
   }
 
   /**
