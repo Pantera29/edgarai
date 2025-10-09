@@ -348,7 +348,7 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
                 <Input
                   id="email"
                   type="email"
-                  value={formData.email}
+                  value={formData.email || ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="ejemplo@correo.com"
                 />
@@ -362,7 +362,7 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
                 <Input
                   id="phone"
                   type="tel"
-                  value={formData.phone}
+                  value={formData.phone || ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                   placeholder="5551234567"
                 />
