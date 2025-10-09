@@ -201,6 +201,101 @@ export async function GET(request: Request) {
       dealershipId
     });
 
+    // ========================================
+    // 🆕 SMART ROUTING: Detectar capacity_model y delegar si necesario
+    // ========================================
+    console.log('🔍 Detectando capacity_model del dealership...');
+
+    const { data: dealership, error: dealershipError } = await supabase
+      .from('dealerships')
+      .select('capacity_model')
+      .eq('id', dealershipId)
+      .single();
+
+    if (dealershipError) {
+      console.error('❌ Error al obtener dealership:', dealershipError);
+      // Continuar con lógica por defecto (physical_spaces) si hay error
+    }
+
+    // Si usa modelo de service advisors, delegar al endpoint especializado
+    if (dealership?.capacity_model === 'service_advisors') {
+      console.log('🔄 Dealership usa modelo SERVICE_ADVISORS - Delegando a /api/availability/advisors');
+      
+      try {
+        // Construir URL del endpoint de advisors preservando todos los query params
+        const protocol = request.url.startsWith('https') ? 'https' : 'http';
+        const host = request.headers.get('host') || 'localhost:3000';
+        const advisorEndpointUrl = new URL(`${protocol}://${host}/api/availability/advisors`);
+        
+        // Mapeo de parámetros snake_case -> camelCase para el endpoint de advisors
+        const paramMapping: { [key: string]: string } = {
+          'dealership_id': 'dealershipId',
+          'workshop_id': 'workshopId',
+          'service_id': 'serviceId',
+          'date': 'date',
+          'specific_service_id': 'specificServiceId',
+          'exclude_appointment_id': 'excludeAppointmentId',
+          'vehicle_make': 'vehicleMake',
+          'vehicle_model': 'vehicleModel',
+          'vehicle_id': 'vehicleId'
+        };
+        
+        // Copiar y transformar los search params
+        searchParams.forEach((value, key) => {
+          const mappedKey = paramMapping[key] || key;
+          advisorEndpointUrl.searchParams.set(mappedKey, value);
+        });
+        
+        console.log('📞 Llamando a endpoint de advisors:', advisorEndpointUrl.toString());
+        
+        // Hacer request interno al nuevo endpoint
+        const advisorResponse = await fetch(advisorEndpointUrl.toString(), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!advisorResponse.ok) {
+          const errorText = await advisorResponse.text();
+          console.error('❌ Error en endpoint de advisors:', {
+            status: advisorResponse.status,
+            statusText: advisorResponse.statusText,
+            error: errorText
+          });
+          return NextResponse.json(
+            { 
+              message: 'Error calculating availability with service advisors model',
+              details: errorText 
+            },
+            { status: advisorResponse.status }
+          );
+        }
+        
+        const advisorData = await advisorResponse.json();
+        console.log('✅ Respuesta de endpoint de advisors recibida exitosamente');
+        
+        // Retornar la respuesta del endpoint de advisors directamente
+        return NextResponse.json(advisorData);
+        
+      } catch (fetchError) {
+        console.error('❌ Error al llamar al endpoint de advisors:', fetchError);
+        return NextResponse.json(
+          { 
+            message: 'Error connecting to service advisors endpoint',
+            error: fetchError instanceof Error ? fetchError.message : 'Unknown error'
+          },
+          { status: 500 }
+        );
+      }
+    }
+
+    // ========================================
+    // Si capacity_model es 'physical_spaces' o undefined/null,
+    // continuar con la lógica actual de physical spaces
+    // ========================================
+    console.log('🔄 Dealership usa modelo PHYSICAL_SPACES - Usando lógica actual');
+
     // VALIDACIÓN DE SEGURIDAD: Verificar que el servicio está disponible para el taller específico
     const { data: workshopService, error: workshopServiceError } = await supabase
       .from('workshop_services')
