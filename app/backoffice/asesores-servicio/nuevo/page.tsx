@@ -264,7 +264,7 @@ export default function NuevoAsesorPage() {
                 </Label>
                 <Input
                   id="name"
-                  value={formData.name}
+                  value={formData.name || ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="Ej: Juan Pérez"
                 />
@@ -278,7 +278,7 @@ export default function NuevoAsesorPage() {
                   Taller <span className="text-red-500">*</span>
                 </Label>
                 <Select
-                  value={formData.workshop_id}
+                  value={formData.workshop_id || ""}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, workshop_id: value }))}
                 >
                   <SelectTrigger id="workshop_id">
@@ -302,7 +302,7 @@ export default function NuevoAsesorPage() {
                 <Input
                   id="email"
                   type="email"
-                  value={formData.email}
+                  value={formData.email || ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                   placeholder="ejemplo@correo.com"
                 />
@@ -316,7 +316,7 @@ export default function NuevoAsesorPage() {
                 <Input
                   id="phone"
                   type="tel"
-                  value={formData.phone}
+                  value={formData.phone || ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                   placeholder="5551234567"
                 />

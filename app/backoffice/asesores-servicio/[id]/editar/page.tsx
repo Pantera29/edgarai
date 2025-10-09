@@ -310,7 +310,7 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
                 </Label>
                 <Input
                   id="name"
-                  value={formData.name}
+                  value={formData.name || ""}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                   placeholder="Ej: Juan Pérez"
                 />
@@ -324,7 +324,7 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
                   Taller <span className="text-red-500">*</span>
                 </Label>
                 <Select
-                  value={formData.workshop_id}
+                  value={formData.workshop_id || ""}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, workshop_id: value }))}
                 >
                   <SelectTrigger id="workshop_id">
@@ -384,7 +384,7 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
                 <Input
                   id="shift_start_time"
                   type="time"
-                  value={formData.shift_start_time?.slice(0, 5)}
+                  value={formData.shift_start_time?.slice(0, 5) || ""}
                   onChange={(e) => setFormData(prev => ({ 
                     ...prev, 
                     shift_start_time: e.target.value + ":00" 
@@ -397,7 +397,7 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
                 <Input
                   id="shift_end_time"
                   type="time"
-                  value={formData.shift_end_time?.slice(0, 5)}
+                  value={formData.shift_end_time?.slice(0, 5) || ""}
                   onChange={(e) => setFormData(prev => ({ 
                     ...prev, 
                     shift_end_time: e.target.value + ":00" 
@@ -413,7 +413,7 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
                 <Input
                   id="lunch_start_time"
                   type="time"
-                  value={formData.lunch_start_time?.slice(0, 5)}
+                  value={formData.lunch_start_time?.slice(0, 5) || ""}
                   onChange={(e) => setFormData(prev => ({ 
                     ...prev, 
                     lunch_start_time: e.target.value + ":00" 
@@ -429,7 +429,7 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
                 <Input
                   id="lunch_end_time"
                   type="time"
-                  value={formData.lunch_end_time?.slice(0, 5)}
+                  value={formData.lunch_end_time?.slice(0, 5) || ""}
                   onChange={(e) => setFormData(prev => ({ 
                     ...prev, 
                     lunch_end_time: e.target.value + ":00" 
@@ -496,7 +496,7 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
                 type="number"
                 min="1"
                 max="20"
-                value={formData.max_consecutive_services}
+                value={formData.max_consecutive_services || 10}
                 onChange={(e) => setFormData(prev => ({ 
                   ...prev, 
                   max_consecutive_services: parseInt(e.target.value) || 10 
