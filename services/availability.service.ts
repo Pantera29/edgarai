@@ -166,7 +166,7 @@ export class AvailabilityService {
       return null;
     }
 
-    return data;
+    return data as Service;
   }
 
   /**
