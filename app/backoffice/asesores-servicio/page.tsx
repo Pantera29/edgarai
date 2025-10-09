@@ -190,8 +190,7 @@ export default function AsesoresServicioPage() {
   const advisorsFiltrados = advisors.filter(advisor => {
     // Filtro de búsqueda
     const matchesSearch = !searchTerm || 
-      advisor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      advisor.email?.toLowerCase().includes(searchTerm.toLowerCase())
+      advisor.name.toLowerCase().includes(searchTerm.toLowerCase())
 
     // Filtro de taller
     const matchesWorkshop = selectedWorkshop === "all" || 
@@ -210,8 +209,7 @@ export default function AsesoresServicioPage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <UserCheck className="h-8 w-8" />
+          <h1 className="text-3xl font-bold tracking-tight">
             Asesores de Servicio
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -239,7 +237,7 @@ export default function AsesoresServicioPage() {
                 <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="search"
-                  placeholder="Buscar por nombre o email..."
+                  placeholder="Buscar por nombre..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-8"
@@ -267,8 +265,8 @@ export default function AsesoresServicioPage() {
 
             {/* Filtro de estado */}
             <div className="space-y-2">
-              <Label htmlFor="active-filter" className="block">Estado</Label>
-              <div className="flex items-center space-x-2 mt-2">
+              <Label htmlFor="active-filter">Estado</Label>
+              <div className="flex items-center space-x-2 h-10">
                 <Switch
                   id="active-filter"
                   checked={showActiveOnly}
@@ -316,7 +314,6 @@ export default function AsesoresServicioPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Nombre</TableHead>
-                  <TableHead>Email</TableHead>
                   <TableHead>Taller</TableHead>
                   <TableHead>Horario</TableHead>
                   <TableHead>Días Laborables</TableHead>
@@ -328,7 +325,6 @@ export default function AsesoresServicioPage() {
                 {advisorsFiltrados.map((advisor) => (
                   <TableRow key={advisor.id}>
                     <TableCell className="font-medium">{advisor.name}</TableCell>
-                    <TableCell>{advisor.email || "-"}</TableCell>
                     <TableCell>
                       {advisor.workshop?.name || "-"}
                     </TableCell>
@@ -363,7 +359,6 @@ export default function AsesoresServicioPage() {
                             Editar
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleConfigurarSlots(advisor.id)}>
-                            <Settings className="mr-2 h-4 w-4" />
                             Configurar Slots
                           </DropdownMenuItem>
                           {advisor.is_active && (
