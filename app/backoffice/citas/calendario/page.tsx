@@ -128,7 +128,7 @@ export default function CalendarioCitasPage() {
           removed_additional,
           completion_notes,
           client:client_id (names, phone_number, email),
-          vehicle:vehicle_id (make, model, license_plate, year),
+          vehicle:vehicle_id (make, model, license_plate, year, vin),
           service:service_id (service_name, duration_minutes, price)
         `)
         .eq('dealership_id', dealershipId)
@@ -637,7 +637,14 @@ export default function CalendarioCitasPage() {
                   )}
                 </div>
                 <div className="font-medium">Vehículo:</div>
-                <div>{`${selectedCita.vehicle?.make} ${selectedCita.vehicle?.model}`}</div>
+                <div>
+                  {`${selectedCita.vehicle?.make} ${selectedCita.vehicle?.model}`}
+                  {selectedCita.vehicle?.vin && (
+                    <div className="text-xs text-gray-600 mt-1">
+                      🚗 VIN: {selectedCita.vehicle.vin}
+                    </div>
+                  )}
+                </div>
                 <div className="font-medium">Fecha y Hora Actual:</div>
                 <div>
                   {selectedCita.start && selectedCita.end ?

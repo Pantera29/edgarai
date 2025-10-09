@@ -28,6 +28,7 @@ interface Appointment {
     make: string;
     model: string;
     license_plate: string;
+    vin?: string;
   };
   service: {
     service_name: string;
@@ -146,7 +147,8 @@ export default function PublicCalendarPage() {
           vehicle:vehicle_id (
             make,
             model,
-            license_plate
+            license_plate,
+            vin
           ),
           service:service_id (
             service_name,
@@ -459,6 +461,11 @@ export default function PublicCalendarPage() {
                   <p className="text-sm text-gray-600">
                     Placa: {selectedAppointment.vehicle.license_plate}
                   </p>
+                  {selectedAppointment.vehicle.vin && (
+                    <p className="text-sm text-gray-600">
+                      VIN: {selectedAppointment.vehicle.vin}
+                    </p>
+                  )}
                 </div>
               </div>
 
