@@ -60,11 +60,17 @@ export interface Database {
           status: string
           dealership_id: string
           workshop_id: string | null
+          assigned_advisor_id: string | null
           notes: string | null
           channel: string
           created_at: string
           removed_additional: boolean
           completion_notes: string | null
+          assigned_mechanic_id: string | null
+          cancellation_reason: string | null
+          cancelled_at: string | null
+          rescheduled_at: string | null
+          rescheduling_history: any
         }
         Insert: {
           id?: string
@@ -77,11 +83,17 @@ export interface Database {
           status?: string
           dealership_id: string
           workshop_id?: string | null
+          assigned_advisor_id?: string | null
           notes?: string | null
           channel?: string
           created_at?: string
           removed_additional?: boolean
           completion_notes?: string | null
+          assigned_mechanic_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          rescheduled_at?: string | null
+          rescheduling_history?: any
         }
         Update: {
           id?: string
@@ -94,11 +106,17 @@ export interface Database {
           status?: string
           dealership_id?: string
           workshop_id?: string | null
+          assigned_advisor_id?: string | null
           notes?: string | null
           channel?: string
           created_at?: string
           removed_additional?: boolean
           completion_notes?: string | null
+          assigned_mechanic_id?: string | null
+          cancellation_reason?: string | null
+          cancelled_at?: string | null
+          rescheduled_at?: string | null
+          rescheduling_history?: any
         }
       }
       conversation_evaluations: {
@@ -338,6 +356,291 @@ export interface Database {
           created_at?: string | null
         }
       }
+      service_advisors: {
+        Row: {
+          id: string
+          dealership_id: string
+          workshop_id: string
+          name: string
+          email: string | null
+          phone: string | null
+          shift_start_time: string
+          shift_end_time: string
+          lunch_start_time: string
+          lunch_end_time: string
+          works_monday: boolean
+          works_tuesday: boolean
+          works_wednesday: boolean
+          works_thursday: boolean
+          works_friday: boolean
+          works_saturday: boolean
+          works_sunday: boolean
+          max_consecutive_services: number
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          dealership_id: string
+          workshop_id: string
+          name: string
+          email?: string | null
+          phone?: string | null
+          shift_start_time: string
+          shift_end_time: string
+          lunch_start_time: string
+          lunch_end_time: string
+          works_monday?: boolean
+          works_tuesday?: boolean
+          works_wednesday?: boolean
+          works_thursday?: boolean
+          works_friday?: boolean
+          works_saturday?: boolean
+          works_sunday?: boolean
+          max_consecutive_services?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          dealership_id?: string
+          workshop_id?: string
+          name?: string
+          email?: string | null
+          phone?: string | null
+          shift_start_time?: string
+          shift_end_time?: string
+          lunch_start_time?: string
+          lunch_end_time?: string
+          works_monday?: boolean
+          works_tuesday?: boolean
+          works_wednesday?: boolean
+          works_thursday?: boolean
+          works_friday?: boolean
+          works_saturday?: boolean
+          works_sunday?: boolean
+          max_consecutive_services?: number
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      advisor_slot_configuration: {
+        Row: {
+          id: string
+          advisor_id: string
+          slot_position: number
+          service_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          advisor_id: string
+          slot_position: number
+          service_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          advisor_id?: string
+          slot_position?: number
+          service_id?: string
+          created_at?: string
+        }
+      }
+      dealerships: {
+        Row: {
+          id: string
+          name: string
+          address: string | null
+          is_active: boolean | null
+          has_platform_access: boolean | null
+          multiple_locations: boolean | null
+          capacity_model: 'physical_spaces' | 'service_advisors'
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          address?: string | null
+          is_active?: boolean | null
+          has_platform_access?: boolean | null
+          multiple_locations?: boolean | null
+          capacity_model?: 'physical_spaces' | 'service_advisors'
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          address?: string | null
+          is_active?: boolean | null
+          has_platform_access?: boolean | null
+          multiple_locations?: boolean | null
+          capacity_model?: 'physical_spaces' | 'service_advisors'
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      services: {
+        Row: {
+          id_uuid: string
+          service_name: string
+          description: string | null
+          price: number | null
+          duration_minutes: number | null
+          dealership_id: string | null
+          client_visible: boolean | null
+          requires_confirmation_reminder: boolean | null
+          daily_limit: number | null
+          available_monday: boolean
+          available_tuesday: boolean
+          available_wednesday: boolean
+          available_thursday: boolean
+          available_friday: boolean
+          available_saturday: boolean
+          available_sunday: boolean
+          time_restriction_enabled: boolean
+          time_restriction_start_time: string | null
+          time_restriction_end_time: string | null
+          created_at: string
+        }
+        Insert: {
+          id_uuid?: string
+          service_name: string
+          description?: string | null
+          price?: number | null
+          duration_minutes?: number | null
+          dealership_id?: string | null
+          client_visible?: boolean | null
+          requires_confirmation_reminder?: boolean | null
+          daily_limit?: number | null
+          available_monday?: boolean
+          available_tuesday?: boolean
+          available_wednesday?: boolean
+          available_thursday?: boolean
+          available_friday?: boolean
+          available_saturday?: boolean
+          available_sunday?: boolean
+          time_restriction_enabled?: boolean
+          time_restriction_start_time?: string | null
+          time_restriction_end_time?: string | null
+          created_at?: string
+        }
+        Update: {
+          id_uuid?: string
+          service_name?: string
+          description?: string | null
+          price?: number | null
+          duration_minutes?: number | null
+          dealership_id?: string | null
+          client_visible?: boolean | null
+          requires_confirmation_reminder?: boolean | null
+          daily_limit?: number | null
+          available_monday?: boolean
+          available_tuesday?: boolean
+          available_wednesday?: boolean
+          available_thursday?: boolean
+          available_friday?: boolean
+          available_saturday?: boolean
+          available_sunday?: boolean
+          time_restriction_enabled?: boolean
+          time_restriction_start_time?: string | null
+          time_restriction_end_time?: string | null
+          created_at?: string
+        }
+      }
+      dealership_configuration: {
+        Row: {
+          dealership_id: string
+          workshop_id: string
+          shift_duration: number
+          whatsapp_token: string | null
+          assistant_id: string | null
+          tool_ids: any
+          assistant_name: string | null
+          config_data: any
+          timezone: string
+          custom_morning_slots: any
+          regular_slots_start_time: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          dealership_id: string
+          workshop_id: string
+          shift_duration: number
+          whatsapp_token?: string | null
+          assistant_id?: string | null
+          tool_ids?: any
+          assistant_name?: string | null
+          config_data?: any
+          timezone?: string
+          custom_morning_slots?: any
+          regular_slots_start_time?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          dealership_id?: string
+          workshop_id?: string
+          shift_duration?: number
+          whatsapp_token?: string | null
+          assistant_id?: string | null
+          tool_ids?: any
+          assistant_name?: string | null
+          config_data?: any
+          timezone?: string
+          custom_morning_slots?: any
+          regular_slots_start_time?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      workshops: {
+        Row: {
+          id: string
+          dealership_id: string
+          name: string
+          address: string | null
+          city: string | null
+          phone: string | null
+          location_url: string | null
+          is_main: boolean
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          dealership_id: string
+          name: string
+          address?: string | null
+          city?: string | null
+          phone?: string | null
+          location_url?: string | null
+          is_main?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          dealership_id?: string
+          name?: string
+          address?: string | null
+          city?: string | null
+          phone?: string | null
+          location_url?: string | null
+          is_main?: boolean
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Functions: {
       get_admin_conversations_with_evaluations: {
@@ -356,4 +659,96 @@ export interface Database {
       }
     }
   }
+}
+
+// Tipos auxiliares para Service Advisors
+export type ServiceAdvisor = Database['public']['Tables']['service_advisors']['Row']
+export type ServiceAdvisorInsert = Database['public']['Tables']['service_advisors']['Insert']
+export type ServiceAdvisorUpdate = Database['public']['Tables']['service_advisors']['Update']
+
+export type AdvisorSlotConfiguration = Database['public']['Tables']['advisor_slot_configuration']['Row']
+export type AdvisorSlotConfigurationInsert = Database['public']['Tables']['advisor_slot_configuration']['Insert']
+export type AdvisorSlotConfigurationUpdate = Database['public']['Tables']['advisor_slot_configuration']['Update']
+
+export type Service = Database['public']['Tables']['services']['Row']
+export type Dealership = Database['public']['Tables']['dealerships']['Row']
+export type DealershipConfiguration = Database['public']['Tables']['dealership_configuration']['Row']
+export type Workshop = Database['public']['Tables']['workshops']['Row']
+export type Appointment = Database['public']['Tables']['appointment']['Row']
+
+// Tipos para crear Service Advisor (sin campos auto-generados)
+export type CreateServiceAdvisorInput = Omit<
+  ServiceAdvisorInsert,
+  'id' | 'created_at' | 'updated_at'
+>
+
+// Tipos para actualizar Service Advisor (todos los campos opcionales)
+export type UpdateServiceAdvisorInput = Partial<CreateServiceAdvisorInput>
+
+// Tipo para crear un slot individual
+export type CreateAdvisorSlotInput = Omit<
+  AdvisorSlotConfigurationInsert,
+  'id' | 'created_at' | 'advisor_id'
+>
+
+// Tipo para configurar múltiples slots de un asesor
+export interface ConfigureAdvisorSlotsInput {
+  slots: Array<{
+    position: number
+    serviceId: string
+  }>
+}
+
+// Tipo para mostrar un slot con información del servicio (usado en las vistas)
+export interface AdvisorSlotWithService extends AdvisorSlotConfiguration {
+  service?: Service
+}
+
+// Tipo para mostrar un asesor con información relacionada
+export interface ServiceAdvisorWithRelations extends ServiceAdvisor {
+  workshop?: Workshop
+  dealership?: Dealership
+  slots?: AdvisorSlotWithService[]
+}
+
+// Tipo para los días laborables
+export interface WorkingDays {
+  monday: boolean
+  tuesday: boolean
+  wednesday: boolean
+  thursday: boolean
+  friday: boolean
+  saturday: boolean
+  sunday: boolean
+}
+
+// Helper para obtener los días laborables de un asesor
+export function getWorkingDaysFromAdvisor(advisor: ServiceAdvisor): WorkingDays {
+  return {
+    monday: advisor.works_monday,
+    tuesday: advisor.works_tuesday,
+    wednesday: advisor.works_wednesday,
+    thursday: advisor.works_thursday,
+    friday: advisor.works_friday,
+    saturday: advisor.works_saturday,
+    sunday: advisor.works_sunday,
+  }
+}
+
+// Helper para formatear horario
+export function formatTimeRange(startTime: string, endTime: string): string {
+  return `${startTime.slice(0, 5)} - ${endTime.slice(0, 5)}`
+}
+
+// Helper para obtener días laborables como string
+export function getWorkingDaysString(advisor: ServiceAdvisor): string {
+  const days = []
+  if (advisor.works_monday) days.push('Lun')
+  if (advisor.works_tuesday) days.push('Mar')
+  if (advisor.works_wednesday) days.push('Mié')
+  if (advisor.works_thursday) days.push('Jue')
+  if (advisor.works_friday) days.push('Vie')
+  if (advisor.works_saturday) days.push('Sáb')
+  if (advisor.works_sunday) days.push('Dom')
+  return days.join(', ')
 } 
