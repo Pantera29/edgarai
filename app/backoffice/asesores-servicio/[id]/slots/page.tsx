@@ -301,8 +301,7 @@ export default function ConfigurarSlotsPage({ params }: { params: { id: string }
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-            <Settings className="h-8 w-8" />
+          <h1 className="text-3xl font-bold tracking-tight">
             Configurar Slots
           </h1>
           <p className="text-muted-foreground mt-1">
@@ -319,9 +318,11 @@ export default function ConfigurarSlotsPage({ params }: { params: { id: string }
 
       {/* Información del asesor */}
       <Alert className="mb-6">
-        <Clock className="h-4 w-4" />
         <AlertDescription>
-          <div className="font-semibold mb-2">Información del turno</div>
+          <div className="flex items-center gap-2 font-semibold mb-2">
+            <Clock className="h-4 w-4" />
+            Información del turno
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <div>
               <span className="text-sm font-medium">Turno:</span>
@@ -426,30 +427,6 @@ export default function ConfigurarSlotsPage({ params }: { params: { id: string }
           </CardContent>
         </Card>
 
-        {/* Resumen */}
-        {slots.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumen</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Total de slots disponibles:</span>
-                  <span className="font-medium">{slots.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Slots configurados:</span>
-                  <span className="font-medium text-green-600">{slotsConfigurados}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Slots sin configurar:</span>
-                  <span className="font-medium text-orange-600">{slots.length - slotsConfigurados}</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Botones de acción */}
         <div className="flex justify-end gap-4">
