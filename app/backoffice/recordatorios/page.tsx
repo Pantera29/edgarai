@@ -508,7 +508,8 @@ export default function RecordatoriosPage() {
               make,
               model,
               year,
-              license_plate
+              license_plate,
+              vin
             ),
             services (
               service_name,
@@ -2267,6 +2268,7 @@ export default function RecordatoriosPage() {
             <DialogTitle>Historial de llamadas</DialogTitle>
             <DialogDescription>
               {recordatorioHistorial?.client.names} - {recordatorioHistorial?.vehicles.make} {recordatorioHistorial?.vehicles.model}
+              {recordatorioHistorial?.vehicles.vin && ` • VIN: ${recordatorioHistorial.vehicles.vin}`}
             </DialogDescription>
           </DialogHeader>
           {cargandoHistorial ? (
