@@ -96,9 +96,14 @@ export default function ConfigurarSlotsPage({ params }: { params: { id: string }
         workshop_id: loadedAdvisor.workshop_id,
       })
       
-      // Aquí asumo que hay un endpoint para obtener la configuración, si no existe, usar un valor por defecto
-      // Por ahora usaré un valor por defecto de 20 minutos
-      const shiftDuration = 20 // minutos por defecto
+      const configRes = await fetch(`/api/dealership-configuration?${configParams.toString()}`)
+      const configData = await configRes.json()
+      
+      if (!configData.success) {
+        console.warn('⚠️ No se pudo obtener configuración, usando valor por defecto')
+      }
+      
+      const shiftDuration = configData.data?.shift_duration || 30 // minutos por defecto si no hay configuración
 
       // Cargar servicios del dealership
       const servicesParams = new URLSearchParams({
