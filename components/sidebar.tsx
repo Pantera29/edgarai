@@ -172,6 +172,11 @@ const menuItems: MenuItem[] = [
         title: "Mecánicos",
         href: "/backoffice/mecanicos",
         icon: UserCog
+      },
+      {
+        title: "Asesores de Servicio",
+        href: "/backoffice/asesores-servicio",
+        icon: UserCheck
       }
     ]
   },
