@@ -277,7 +277,7 @@ export class AvailabilityService {
     // Agrupar slots por asesor
     const advisorsWithSlots: AdvisorWithSlots[] = [];
     for (const advisor of advisors) {
-      const advisorSlots = slotConfigs.filter((s) => s.advisor_id === advisor.id);
+      const advisorSlots = slotConfigs.filter((s: any) => s.advisor_id === advisor.id);
       if (advisorSlots.length > 0) {
         advisorsWithSlots.push({
           ...advisor,
