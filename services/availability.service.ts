@@ -129,6 +129,21 @@ export class AvailabilityService {
         operatingHours.reception_end_time || operatingHours.closing_time
       );
 
+      console.log('📊 Slots posibles generados:', {
+        totalSlots: possibleSlots.length,
+        shiftDuration,
+        openingTime: operatingHours.opening_time,
+        receptionEndTime: operatingHours.reception_end_time || operatingHours.closing_time,
+        slots: possibleSlots
+      });
+
+      console.log('👥 Asesores con configuración:', advisorsWithSlots.map(a => ({
+        name: a.name,
+        shift: `${a.shift_start_time} - ${a.shift_end_time}`,
+        lunch: `${a.lunch_start_time} - ${a.lunch_end_time}`,
+        slotsConfigured: a.slots.length
+      })));
+
       // Paso 6: Para cada slot, calcular disponibilidad de cada asesor
       const slots = await this.calculateSlotAvailability(
         possibleSlots,
@@ -139,6 +154,15 @@ export class AvailabilityService {
         date,
         serviceId // Pasamos el serviceId solicitado para herencia inteligente
       );
+
+      const availableSlots = slots.filter(s => s.available);
+      console.log('✅ Resultado final de disponibilidad:', {
+        totalSlotsGenerados: possibleSlots.length,
+        totalSlotsEvaluados: slots.length,
+        slotsDisponibles: availableSlots.length,
+        slotsNoDisponibles: slots.length - availableSlots.length,
+        slotsAvailable: availableSlots.map(s => s.time)
+      });
 
       return {
         date,
@@ -223,16 +247,16 @@ export class AvailabilityService {
     workshopId: string,
     dayOfWeek: number
   ): Promise<ServiceAdvisor[]> {
-    // Mapear día de semana a nombre de columna
+    // Mapear día de semana a nombre de columna (1=domingo, 2=lunes... 7=sábado)
     const dayColumns = [
       '', // 0 no se usa
-      'works_monday',
-      'works_tuesday',
-      'works_wednesday',
-      'works_thursday',
-      'works_friday',
-      'works_saturday',
-      'works_sunday',
+      'works_sunday',    // 1
+      'works_monday',    // 2
+      'works_tuesday',   // 3
+      'works_wednesday', // 4
+      'works_thursday',  // 5
+      'works_friday',    // 6
+      'works_saturday',  // 7
     ];
 
     const dayColumn = dayColumns[dayOfWeek];
@@ -445,6 +469,7 @@ export class AvailabilityService {
 
     // Regla 2: No es horario de almuerzo
     if (isTimeInRange(slotTime, advisor.lunch_start_time, advisor.lunch_end_time)) {
+      console.log(`⏰ [${advisor.name}] Slot ${slotTime} bloqueado por almuerzo (${advisor.lunch_start_time} - ${advisor.lunch_end_time})`);
       return { canTake: false, reason: 'Horario de almuerzo' };
     }
 
@@ -469,13 +494,14 @@ export class AvailabilityService {
       // Verificar si ese otro servicio está disponible hoy (herencia inteligente)
       const dayOfWeek = getDayOfWeek(date);
       const dayFields = [
-        'available_sunday',
-        'available_monday',
-        'available_tuesday',
-        'available_wednesday',
-        'available_thursday',
-        'available_friday',
-        'available_saturday',
+        '', // 0 no se usa
+        'available_sunday',    // 1
+        'available_monday',    // 2
+        'available_tuesday',   // 3
+        'available_wednesday', // 4
+        'available_thursday',  // 5
+        'available_friday',    // 6
+        'available_saturday',  // 7
       ];
       const availableField = dayFields[dayOfWeek] as keyof Service;
       
@@ -522,24 +548,25 @@ export class AvailabilityService {
     }
 
     // Regla 5: No ha llegado a su límite diario (variable por día)
-    const dayOfWeek = getDayOfWeek(date); // 0=domingo, 1=lunes, ..., 6=sábado
+    const dayOfWeek = getDayOfWeek(date); // 1=domingo, 2=lunes, ..., 7=sábado
 
-    // Obtener límite según el día de la semana
+    // Obtener límite según el día de la semana (1=domingo, 2=lunes... 7=sábado)
     const maxSlotsByDay = [
-      advisor.max_slots_sunday,
-      advisor.max_slots_monday,
-      advisor.max_slots_tuesday,
-      advisor.max_slots_wednesday,
-      advisor.max_slots_thursday,
-      advisor.max_slots_friday,
-      advisor.max_slots_saturday
+      0, // 0 no se usa
+      advisor.max_slots_sunday,    // 1
+      advisor.max_slots_monday,    // 2
+      advisor.max_slots_tuesday,   // 3
+      advisor.max_slots_wednesday, // 4
+      advisor.max_slots_thursday,  // 5
+      advisor.max_slots_friday,    // 6
+      advisor.max_slots_saturday   // 7
     ];
 
     const dailyLimit = maxSlotsByDay[dayOfWeek];
 
     // Usar el contador acumulado (citas existentes + slots ya marcados como disponibles)
     if (currentSlotCount >= dailyLimit) {
-      const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+      const dayNames = ['', 'domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
       return { 
         canTake: false, 
         reason: `Límite diario alcanzado (${dailyLimit} slots los ${dayNames[dayOfWeek]}s)` 

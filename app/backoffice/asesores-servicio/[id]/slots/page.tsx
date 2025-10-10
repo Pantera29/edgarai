@@ -105,9 +105,10 @@ export default function ConfigurarSlotsPage({ params }: { params: { id: string }
       
       const shiftDuration = configData.data?.shift_duration || 30 // minutos por defecto si no hay configuración
 
-      // Cargar servicios del dealership
+      // Cargar servicios del workshop
       const servicesParams = new URLSearchParams({
         dealership_id: dealershipId,
+        workshop_id: loadedAdvisor.workshop_id,
       })
       
       const servicesRes = await fetch(`/api/services/list?${servicesParams.toString()}`)
