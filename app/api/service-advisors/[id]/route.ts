@@ -209,6 +209,29 @@ export async function PATCH(
       }
     }
 
+    // Validar que los valores de slots diarios sean números positivos si se proporcionan
+    const slotFields = [
+      { field: 'max_slots_monday', value: body.max_slots_monday },
+      { field: 'max_slots_tuesday', value: body.max_slots_tuesday },
+      { field: 'max_slots_wednesday', value: body.max_slots_wednesday },
+      { field: 'max_slots_thursday', value: body.max_slots_thursday },
+      { field: 'max_slots_friday', value: body.max_slots_friday },
+      { field: 'max_slots_saturday', value: body.max_slots_saturday },
+      { field: 'max_slots_sunday', value: body.max_slots_sunday },
+    ];
+
+    for (const { field, value } of slotFields) {
+      if (value !== undefined && (typeof value !== 'number' || value < 0)) {
+        return NextResponse.json(
+          { 
+            error: `Campo ${field} inválido`,
+            message: `${field} debe ser un número entero mayor o igual a 0`
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Construir objeto de actualización solo con los campos proporcionados
     const updateData: any = {
       updated_at: new Date().toISOString(),
@@ -231,6 +254,14 @@ export async function PATCH(
     if (body.works_saturday !== undefined) updateData.works_saturday = body.works_saturday;
     if (body.works_sunday !== undefined) updateData.works_sunday = body.works_sunday;
     if (body.max_consecutive_services !== undefined) updateData.max_consecutive_services = body.max_consecutive_services;
+    // Límites diarios de slots por día de la semana
+    if (body.max_slots_monday !== undefined) updateData.max_slots_monday = body.max_slots_monday;
+    if (body.max_slots_tuesday !== undefined) updateData.max_slots_tuesday = body.max_slots_tuesday;
+    if (body.max_slots_wednesday !== undefined) updateData.max_slots_wednesday = body.max_slots_wednesday;
+    if (body.max_slots_thursday !== undefined) updateData.max_slots_thursday = body.max_slots_thursday;
+    if (body.max_slots_friday !== undefined) updateData.max_slots_friday = body.max_slots_friday;
+    if (body.max_slots_saturday !== undefined) updateData.max_slots_saturday = body.max_slots_saturday;
+    if (body.max_slots_sunday !== undefined) updateData.max_slots_sunday = body.max_slots_sunday;
 
     // Actualizar el asesor
     const { data: updatedAdvisor, error: updateError } = await supabase
