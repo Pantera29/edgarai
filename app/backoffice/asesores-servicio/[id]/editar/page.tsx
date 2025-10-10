@@ -132,13 +132,13 @@ export default function EditarAsesorPage({ params }: { params: { id: string } })
         works_sunday: loadedAdvisor.works_sunday,
         max_consecutive_services: loadedAdvisor.max_consecutive_services,
         // Límites diarios de slots por día de la semana (con fallbacks para datos existentes)
-        max_slots_monday: loadedAdvisor.max_slots_monday || 12,
-        max_slots_tuesday: loadedAdvisor.max_slots_tuesday || 12,
-        max_slots_wednesday: loadedAdvisor.max_slots_wednesday || 12,
-        max_slots_thursday: loadedAdvisor.max_slots_thursday || 12,
-        max_slots_friday: loadedAdvisor.max_slots_friday || 11,
-        max_slots_saturday: loadedAdvisor.max_slots_saturday || 6,
-        max_slots_sunday: loadedAdvisor.max_slots_sunday || 0,
+        max_slots_monday: loadedAdvisor.max_slots_monday ?? 12,
+        max_slots_tuesday: loadedAdvisor.max_slots_tuesday ?? 12,
+        max_slots_wednesday: loadedAdvisor.max_slots_wednesday ?? 12,
+        max_slots_thursday: loadedAdvisor.max_slots_thursday ?? 12,
+        max_slots_friday: loadedAdvisor.max_slots_friday ?? 11,
+        max_slots_saturday: loadedAdvisor.max_slots_saturday ?? 6,
+        max_slots_sunday: loadedAdvisor.max_slots_sunday ?? 0,
       })
 
       // Cargar talleres

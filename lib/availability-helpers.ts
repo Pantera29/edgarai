@@ -3,15 +3,15 @@
  */
 
 /**
- * Convierte "2025-10-15" a número de día de semana (1=lunes, 7=domingo)
+ * Convierte "2025-10-15" a número de día de semana (1=domingo, 2=lunes... 7=sábado)
  * @param dateString Fecha en formato "YYYY-MM-DD"
  * @returns Número del día de la semana (1-7)
  */
 export function getDayOfWeek(dateString: string): number {
   const date = new Date(dateString + 'T12:00:00'); // Evitar problemas de zona horaria
   const jsDay = date.getDay(); // 0=domingo, 1=lunes, ..., 6=sábado
-  // Convertir a 1=lunes, 7=domingo
-  return jsDay === 0 ? 7 : jsDay;
+  // Convertir a 1=domingo, 2=lunes, ..., 7=sábado (compatibilidad con operating_hours)
+  return jsDay === 0 ? 1 : jsDay + 1;
 }
 
 /**
