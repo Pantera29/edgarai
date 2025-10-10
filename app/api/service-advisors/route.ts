@@ -126,6 +126,13 @@ export async function POST(request: NextRequest) {
       works_saturday = false,
       works_sunday = false,
       max_consecutive_services = 10,
+      max_slots_monday = 12,
+      max_slots_tuesday = 12,
+      max_slots_wednesday = 12,
+      max_slots_thursday = 12,
+      max_slots_friday = 11,
+      max_slots_saturday = 6,
+      max_slots_sunday = 0,
     } = body;
 
     // Validaciones básicas
@@ -241,6 +248,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validar que los valores de slots diarios sean números positivos
+    const slotFields = [
+      { field: 'max_slots_monday', value: max_slots_monday },
+      { field: 'max_slots_tuesday', value: max_slots_tuesday },
+      { field: 'max_slots_wednesday', value: max_slots_wednesday },
+      { field: 'max_slots_thursday', value: max_slots_thursday },
+      { field: 'max_slots_friday', value: max_slots_friday },
+      { field: 'max_slots_saturday', value: max_slots_saturday },
+      { field: 'max_slots_sunday', value: max_slots_sunday },
+    ];
+
+    for (const { field, value } of slotFields) {
+      if (value !== undefined && (typeof value !== 'number' || value < 0)) {
+        return NextResponse.json(
+          { 
+            error: `Campo ${field} inválido`,
+            message: `${field} debe ser un número entero mayor o igual a 0`
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Validar email único si se proporciona
     if (email) {
       const { data: existingAdvisor, error: emailError } = await supabase
@@ -283,6 +313,14 @@ export async function POST(request: NextRequest) {
         works_saturday,
         works_sunday,
         max_consecutive_services,
+        // Límites diarios de slots por día de la semana
+        max_slots_monday,
+        max_slots_tuesday,
+        max_slots_wednesday,
+        max_slots_thursday,
+        max_slots_friday,
+        max_slots_saturday,
+        max_slots_sunday,
         is_active: true,
       })
       .select(`

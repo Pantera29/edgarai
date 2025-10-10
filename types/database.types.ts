@@ -376,6 +376,13 @@ export interface Database {
           works_saturday: boolean
           works_sunday: boolean
           max_consecutive_services: number
+          max_slots_monday: number
+          max_slots_tuesday: number
+          max_slots_wednesday: number
+          max_slots_thursday: number
+          max_slots_friday: number
+          max_slots_saturday: number
+          max_slots_sunday: number
           is_active: boolean
           created_at: string
           updated_at: string
@@ -399,6 +406,13 @@ export interface Database {
           works_saturday?: boolean
           works_sunday?: boolean
           max_consecutive_services?: number
+          max_slots_monday?: number
+          max_slots_tuesday?: number
+          max_slots_wednesday?: number
+          max_slots_thursday?: number
+          max_slots_friday?: number
+          max_slots_saturday?: number
+          max_slots_sunday?: number
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -422,6 +436,13 @@ export interface Database {
           works_saturday?: boolean
           works_sunday?: boolean
           max_consecutive_services?: number
+          max_slots_monday?: number
+          max_slots_tuesday?: number
+          max_slots_wednesday?: number
+          max_slots_thursday?: number
+          max_slots_friday?: number
+          max_slots_saturday?: number
+          max_slots_sunday?: number
           is_active?: boolean
           created_at?: string
           updated_at?: string

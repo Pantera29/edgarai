@@ -52,6 +52,14 @@ export default function NuevoAsesorPage() {
     works_saturday: false,
     works_sunday: false,
     max_consecutive_services: 10,
+    // Límites diarios de slots por día de la semana
+    max_slots_monday: 12,
+    max_slots_tuesday: 12,
+    max_slots_wednesday: 12,
+    max_slots_thursday: 12,
+    max_slots_friday: 11,
+    max_slots_saturday: 6,
+    max_slots_sunday: 0,
   })
 
   // Errores de validación
@@ -158,6 +166,23 @@ export default function NuevoAsesorPage() {
         !formData.works_thursday && !formData.works_friday && !formData.works_saturday && 
         !formData.works_sunday) {
       newErrors.works_monday = "Debes seleccionar al menos un día laborable"
+    }
+
+    // Validar que los slots diarios sean números positivos
+    const slotFields = [
+      { key: 'max_slots_monday', value: formData.max_slots_monday },
+      { key: 'max_slots_tuesday', value: formData.max_slots_tuesday },
+      { key: 'max_slots_wednesday', value: formData.max_slots_wednesday },
+      { key: 'max_slots_thursday', value: formData.max_slots_thursday },
+      { key: 'max_slots_friday', value: formData.max_slots_friday },
+      { key: 'max_slots_saturday', value: formData.max_slots_saturday },
+      { key: 'max_slots_sunday', value: formData.max_slots_sunday },
+    ]
+
+    for (const field of slotFields) {
+      if (field.value !== undefined && (typeof field.value !== 'number' || field.value < 0)) {
+        newErrors[field.key] = `El valor debe ser un número mayor o igual a 0`
+      }
     }
 
     setErrors(newErrors)
@@ -431,6 +456,168 @@ export default function NuevoAsesorPage() {
             {errors.works_monday && (
               <p className="text-sm text-red-500">{errors.works_monday}</p>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Límite de Slots por Día */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Límite de Slots por Día</CardTitle>
+            <CardDescription>Define cuántos slots puede trabajar el asesor cada día de la semana</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="max_slots_monday">
+                  Lunes <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="max_slots_monday"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.max_slots_monday}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    max_slots_monday: parseInt(e.target.value) || 0 
+                  }))}
+                  required
+                />
+                {errors.max_slots_monday && (
+                  <p className="text-sm text-red-500">{errors.max_slots_monday}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_slots_tuesday">
+                  Martes <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="max_slots_tuesday"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.max_slots_tuesday}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    max_slots_tuesday: parseInt(e.target.value) || 0 
+                  }))}
+                  required
+                />
+                {errors.max_slots_tuesday && (
+                  <p className="text-sm text-red-500">{errors.max_slots_tuesday}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_slots_wednesday">
+                  Miércoles <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="max_slots_wednesday"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.max_slots_wednesday}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    max_slots_wednesday: parseInt(e.target.value) || 0 
+                  }))}
+                  required
+                />
+                {errors.max_slots_wednesday && (
+                  <p className="text-sm text-red-500">{errors.max_slots_wednesday}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_slots_thursday">
+                  Jueves <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="max_slots_thursday"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.max_slots_thursday}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    max_slots_thursday: parseInt(e.target.value) || 0 
+                  }))}
+                  required
+                />
+                {errors.max_slots_thursday && (
+                  <p className="text-sm text-red-500">{errors.max_slots_thursday}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_slots_friday">
+                  Viernes <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="max_slots_friday"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.max_slots_friday}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    max_slots_friday: parseInt(e.target.value) || 0 
+                  }))}
+                  required
+                />
+                {errors.max_slots_friday && (
+                  <p className="text-sm text-red-500">{errors.max_slots_friday}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_slots_saturday">
+                  Sábado <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="max_slots_saturday"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.max_slots_saturday}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    max_slots_saturday: parseInt(e.target.value) || 0 
+                  }))}
+                  required
+                />
+                {errors.max_slots_saturday && (
+                  <p className="text-sm text-red-500">{errors.max_slots_saturday}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="max_slots_sunday">
+                  Domingo <span className="text-red-500">*</span>
+                </Label>
+                <Input
+                  id="max_slots_sunday"
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={formData.max_slots_sunday}
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    max_slots_sunday: parseInt(e.target.value) || 0 
+                  }))}
+                  required
+                />
+                {errors.max_slots_sunday && (
+                  <p className="text-sm text-red-500">{errors.max_slots_sunday}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="text-sm text-muted-foreground mt-2">
+              💡 Valores recomendados: L-J: 12, V: 11, S: 6, D: 0
+            </div>
           </CardContent>
         </Card>
 

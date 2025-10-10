@@ -130,13 +130,14 @@ export class AvailabilityService {
       );
 
       // Paso 6: Para cada slot, calcular disponibilidad de cada asesor
-      const slots = this.calculateSlotAvailability(
+      const slots = await this.calculateSlotAvailability(
         possibleSlots,
         advisorsWithSlots,
         existingAppointments,
         shiftDuration,
         operatingHours.reception_end_time || operatingHours.closing_time,
-        date
+        date,
+        serviceId // Pasamos el serviceId solicitado para herencia inteligente
       );
 
       return {
@@ -253,7 +254,8 @@ export class AvailabilityService {
 
   /**
    * Paso 3: Obtener configuración de slots de cada asesor
-   * Solo asesores que tienen slots para el serviceId solicitado
+   * CAMBIADO: Traer TODOS los slots (no solo del servicio solicitado)
+   * para permitir herencia inteligente de slots configurados para otros servicios
    */
   private async getAdvisorsWithSlots(
     advisors: ServiceAdvisor[],
@@ -261,11 +263,13 @@ export class AvailabilityService {
   ): Promise<AdvisorWithSlots[]> {
     const advisorIds = advisors.map((a) => a.id);
 
+    // IMPORTANTE: Traer TODOS los slots del asesor, no filtrar por service_id
+    // La herencia inteligente se evalúa después en canAdvisorTakeSlot
     const { data, error } = await this.supabase
       .from('advisor_slot_configuration')
       .select('*')
-      .in('advisor_id', advisorIds)
-      .eq('service_id', serviceId);
+      .in('advisor_id', advisorIds);
+      // REMOVIDO: .eq('service_id', serviceId) para permitir herencia
 
     if (error) {
       console.error('Error al obtener configuración de slots:', error);
@@ -275,6 +279,7 @@ export class AvailabilityService {
     const slotConfigs = data as any;
 
     // Agrupar slots por asesor
+    // CAMBIADO: Incluir asesores que tienen slots (aunque no sean del servicio solicitado)
     const advisorsWithSlots: AdvisorWithSlots[] = [];
     for (const advisor of advisors) {
       const advisorSlots = slotConfigs.filter((s: any) => s.advisor_id === advisor.id);
@@ -343,25 +348,42 @@ export class AvailabilityService {
   /**
    * Paso 6: Para cada slot, calcular disponibilidad de cada asesor
    */
-  private calculateSlotAvailability(
+  private async calculateSlotAvailability(
     slots: string[],
     advisorsWithSlots: AdvisorWithSlots[],
     existingAppointments: Appointment[],
     shiftDuration: number,
     receptionEndTime: string,
-    date: string
-  ): TimeSlot[] {
-    return slots.map((slotTime) => {
+    date: string,
+    requestedServiceId: string // Servicio solicitado para herencia inteligente
+  ): Promise<TimeSlot[]> {
+    // Contador de slots disponibles por asesor (para aplicar límite diario)
+    const advisorAvailableSlotCount: Map<string, number> = new Map();
+    
+    // Inicializar contadores con las citas existentes
+    for (const advisor of advisorsWithSlots) {
+      const advisorAppointments = existingAppointments.filter(
+        (apt) => apt.assigned_advisor_id === advisor.id
+      );
+      advisorAvailableSlotCount.set(advisor.id, advisorAppointments.length);
+    }
+
+    // IMPORTANTE: Evaluar slots SECUENCIALMENTE para que el contador funcione
+    const results: TimeSlot[] = [];
+    
+    for (const slotTime of slots) {
       const advisorAvailabilities: AdvisorAvailability[] = [];
 
       for (const advisor of advisorsWithSlots) {
-        const canTakeResult = this.canAdvisorTakeSlot(
+        const canTakeResult = await this.canAdvisorTakeSlot(
           advisor,
           slotTime,
           existingAppointments,
           shiftDuration,
           receptionEndTime,
-          date
+          date,
+          requestedServiceId, // Pasamos el serviceId para herencia inteligente
+          advisorAvailableSlotCount.get(advisor.id) || 0 // Pasar contador actual
         );
 
         advisorAvailabilities.push({
@@ -370,11 +392,19 @@ export class AvailabilityService {
           canTake: canTakeResult.canTake,
           reason: canTakeResult.reason,
         });
+
+        // Si el asesor puede tomar este slot, incrementar su contador
+        if (canTakeResult.canTake) {
+          advisorAvailableSlotCount.set(
+            advisor.id, 
+            (advisorAvailableSlotCount.get(advisor.id) || 0) + 1
+          );
+        }
       }
 
       const availableAdvisors = advisorAvailabilities.filter((a) => a.canTake).length;
 
-      return {
+      results.push({
         time: slotTime,
         available: availableAdvisors > 0,
         totalCapacity: availableAdvisors,
@@ -382,22 +412,26 @@ export class AvailabilityService {
           availableAdvisors,
           advisors: advisorAvailabilities,
         },
-      };
-    });
+      });
+    }
+    
+    return results;
   }
 
   /**
    * Verifica si un asesor puede tomar un slot específico
    * Aplica las 7 reglas de negocio
    */
-  private canAdvisorTakeSlot(
+  private async canAdvisorTakeSlot(
     advisor: AdvisorWithSlots,
     slotTime: string,
     existingAppointments: Appointment[],
     shiftDuration: number,
     receptionEndTime: string,
-    date: string
-  ): { canTake: boolean; reason?: string } {
+    date: string,
+    requestedServiceId: string, // Servicio solicitado para herencia inteligente
+    currentSlotCount: number = 0 // Contador de slots disponibles ya marcados para este asesor
+  ): Promise<{ canTake: boolean; reason?: string }> {
     // Regla 0: Restricción de Operating Hours
     const slotEndTime = addMinutesToTime(slotTime, shiftDuration);
     if (timeToMinutes(slotEndTime) > timeToMinutes(receptionEndTime)) {
@@ -414,17 +448,64 @@ export class AvailabilityService {
       return { canTake: false, reason: 'Horario de almuerzo' };
     }
 
-    // Regla 3: Slot configurado para ese servicio
+    // Regla 3: Slot configurado para ese servicio (con herencia inteligente)
     const slotPosition = calculateSlotPosition(
       slotTime,
       advisor.shift_start_time,
       shiftDuration
     );
-    const hasSlotConfigured = advisor.slots.some(
-      (s) => s.slot_position === slotPosition
-    );
-    if (!hasSlotConfigured) {
+
+    // Buscar la configuración de este slot
+    const slotConfig = advisor.slots.find((s) => s.slot_position === slotPosition);
+
+    if (!slotConfig) {
+      // El slot no está configurado en absoluto
       return { canTake: false, reason: 'Slot no configurado' };
+    }
+
+    // Verificar si el slot está configurado para el servicio solicitado
+    if (slotConfig.service_id !== requestedServiceId) {
+      // El slot está configurado para OTRO servicio
+      // Verificar si ese otro servicio está disponible hoy (herencia inteligente)
+      const dayOfWeek = getDayOfWeek(date);
+      const dayFields = [
+        'available_sunday',
+        'available_monday',
+        'available_tuesday',
+        'available_wednesday',
+        'available_thursday',
+        'available_friday',
+        'available_saturday',
+      ];
+      const availableField = dayFields[dayOfWeek] as keyof Service;
+      
+      // Obtener el servicio configurado para verificar su disponibilidad
+      const configuredService = await this.getService(slotConfig.service_id);
+      
+      if (!configuredService) {
+        // No se pudo obtener el servicio configurado
+        return { 
+          canTake: false, 
+          reason: 'Slot configurado para servicio no disponible' 
+        };
+      }
+
+      if (configuredService[availableField]) {
+        // El servicio configurado SÍ trabaja hoy, este slot NO puede ser heredado
+        return { 
+          canTake: false, 
+          reason: `Slot configurado para ${configuredService.service_name}` 
+        };
+      }
+
+      // El servicio configurado NO trabaja hoy
+      // Por lo tanto, el slot puede ser "heredado" por el servicio solicitado
+      console.log(
+        `🔄 [Herencia] Asesor ${advisor.name}, Slot ${slotPosition} (${slotTime}): ` +
+        `Configurado para "${configuredService.service_name}" (no disponible ${dayFields[dayOfWeek]}), ` +
+        `heredado por servicio solicitado`
+      );
+      // Continuar con las demás validaciones
     }
 
     // Obtener citas del asesor para ese día
@@ -440,9 +521,29 @@ export class AvailabilityService {
       return { canTake: false, reason: 'Ya tiene cita en este horario' };
     }
 
-    // Regla 5: No ha llegado a su límite diario
-    if (advisorAppointments.length >= advisor.max_consecutive_services) {
-      return { canTake: false, reason: 'Límite diario alcanzado' };
+    // Regla 5: No ha llegado a su límite diario (variable por día)
+    const dayOfWeek = getDayOfWeek(date); // 0=domingo, 1=lunes, ..., 6=sábado
+
+    // Obtener límite según el día de la semana
+    const maxSlotsByDay = [
+      advisor.max_slots_sunday,
+      advisor.max_slots_monday,
+      advisor.max_slots_tuesday,
+      advisor.max_slots_wednesday,
+      advisor.max_slots_thursday,
+      advisor.max_slots_friday,
+      advisor.max_slots_saturday
+    ];
+
+    const dailyLimit = maxSlotsByDay[dayOfWeek];
+
+    // Usar el contador acumulado (citas existentes + slots ya marcados como disponibles)
+    if (currentSlotCount >= dailyLimit) {
+      const dayNames = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+      return { 
+        canTake: false, 
+        reason: `Límite diario alcanzado (${dailyLimit} slots los ${dayNames[dayOfWeek]}s)` 
+      };
     }
 
     // Regla 6: Servicios consecutivos desde el inicio del turno
