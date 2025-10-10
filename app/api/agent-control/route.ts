@@ -174,6 +174,7 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
+  const startTime = Date.now();
   try {
     console.log('🔍 Consultando estado de agente...');
     
@@ -235,23 +236,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // Verificar que el dealership existe
-    console.log('🏢 Verificando dealership...');
-    const { data: dealershipData, error: dealershipError } = await supabase
-      .from('dealerships')
-      .select('id, name')
-      .eq('id', targetDealershipId)
-      .single();
-
-    if (dealershipError || !dealershipData) {
-      console.log('❌ Dealership no encontrado:', targetDealershipId);
-      return NextResponse.json(
-        { error: 'Dealership not found with the provided ID' },
-        { status: 404 }
-      );
-    }
-
-    // Consultar configuración de agente
+    // Consultar configuración de agente (sin verificar dealership para mejor performance)
     console.log('🔍 Consultando configuración de agente...');
     const { data: agentSettings, error: queryError } = await supabase
       .from('phone_agent_settings')
@@ -280,7 +265,7 @@ export async function GET(request: Request) {
       updated_by: agentSettings?.updated_by || null
     };
 
-    console.log('✅ Consulta completada:', response);
+    console.log('✅ Consulta completada en', Date.now() - startTime, 'ms');
     return NextResponse.json(response);
 
   } catch (error) {
