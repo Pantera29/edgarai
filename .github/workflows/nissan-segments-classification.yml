@@ -1,0 +1,23 @@
+name: Nissan Segments Classification (Monthly)
+
+on:
+  # schedule:
+  #   # Ejecuta el día 1 de cada mes a las 3:00 AM hora de México (9:00 UTC)
+  #   - cron: '0 9 1 * *'
+  workflow_dispatch:
+
+jobs:
+  classify-nissan-segments:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clasificar vehículos Nissan
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 10
+          max_attempts: 3
+          retry_on: error
+          command: |
+            curl --fail -v -L -X POST "https://edgarai.vercel.app/api/cron/nissan-segments" \
+              -H "Content-Type: application/json" \
+              -d '{"dealership_id":"803b2961-b9d5-47f3-be4a-c8c114c85b5e"}'
+
