@@ -662,6 +662,56 @@ export interface Database {
           updated_at?: string
         }
       }
+      vehicle_nissan_segments: {
+        Row: {
+          id: string
+          vehicle_id: string
+          vin: string | null
+          dealership_id: string
+          current_segment: 'activo_proximo_mantenimiento' | 'pasivo_proximo_mantenimiento' | 'activo_recordatorio' | 'pasivo_recordatorio' | 'activo_retencion' | 'pasivo_retencion' | 'pasivo_en_riesgo' | 'inactivo' | 'sin_datos' | 'sin_clasificar'
+          previous_segment: string | null
+          segment_changed_at: string | null
+          total_appointments_12m: number
+          last_appointment_date: string | null
+          days_since_last_appointment: number
+          months_since_last_appointment: number
+          calculated_at: string
+          data_as_of_date: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          vehicle_id: string
+          vin?: string | null
+          dealership_id: string
+          current_segment: 'activo_proximo_mantenimiento' | 'pasivo_proximo_mantenimiento' | 'activo_recordatorio' | 'pasivo_recordatorio' | 'activo_retencion' | 'pasivo_retencion' | 'pasivo_en_riesgo' | 'inactivo' | 'sin_datos' | 'sin_clasificar'
+          previous_segment?: string | null
+          segment_changed_at?: string | null
+          total_appointments_12m?: number
+          last_appointment_date?: string | null
+          days_since_last_appointment?: number
+          months_since_last_appointment?: number
+          calculated_at?: string
+          data_as_of_date: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          vehicle_id?: string
+          vin?: string | null
+          dealership_id?: string
+          current_segment?: 'activo_proximo_mantenimiento' | 'pasivo_proximo_mantenimiento' | 'activo_recordatorio' | 'pasivo_recordatorio' | 'activo_retencion' | 'pasivo_retencion' | 'pasivo_en_riesgo' | 'inactivo' | 'sin_datos' | 'sin_clasificar'
+          previous_segment?: string | null
+          segment_changed_at?: string | null
+          total_appointments_12m?: number
+          last_appointment_date?: string | null
+          days_since_last_appointment?: number
+          months_since_last_appointment?: number
+          calculated_at?: string
+          data_as_of_date?: string
+          updated_at?: string
+        }
+      }
     }
     Functions: {
       get_admin_conversations_with_evaluations: {
