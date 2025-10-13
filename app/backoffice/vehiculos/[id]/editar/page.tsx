@@ -11,7 +11,8 @@ import { useToast } from "@/hooks/use-toast"
 import { carBrands } from "@/lib/car-brands"
 import { useClientSearch } from '@/hooks/useClientSearch'
 import { ModelComboBox } from "@/components/ModelComboBox"
-import { ArrowLeft, Car } from "lucide-react"
+import { ChangeVehicleOwnerDialog } from "@/components/ChangeVehicleOwnerDialog"
+import { ArrowLeft, Car, UserCog } from "lucide-react"
 import React from 'react'
 
 interface Cliente {
@@ -50,6 +51,8 @@ export default function EditarVehiculoPage({ params }: PageProps) {
   const [marcasConId, setMarcasConId] = useState<VehicleMake[]>([]);
   const [modelosDisponibles, setModelosDisponibles] = useState<VehicleModel[]>([]);
   const [loading, setLoading] = useState(true);
+  const [changeOwnerDialogOpen, setChangeOwnerDialogOpen] = useState(false);
+  const [currentOwner, setCurrentOwner] = useState<Cliente | null>(null);
   
   const router = useRouter();
   
@@ -220,12 +223,14 @@ export default function EditarVehiculoPage({ params }: PageProps) {
           
           if (vehiculo.client_id && vehiculo.client) {
             console.log('➕ Agregando cliente seleccionado:', vehiculo.client);
-            addSelectedClient({
+            const clientData = {
               id: vehiculo.client.id,
               names: vehiculo.client.names,
               phone_number: vehiculo.client.phone_number,
               email: vehiculo.client.email
-            });
+            };
+            addSelectedClient(clientData);
+            setCurrentOwner(clientData);
           } else {
             console.log('❌ No se puede agregar cliente:', {
               reason: !vehiculo.client_id ? 'No client_id' : 'No client data'
@@ -248,6 +253,25 @@ export default function EditarVehiculoPage({ params }: PageProps) {
       cargarVehiculo();
     }
   }, [params.id, dataToken?.dealership_id, getClientById, addSelectedClient, toast]);
+
+  const handleOwnerChangeSuccess = (newOwner: Cliente) => {
+    // Actualizar el estado local con el nuevo titular
+    setFormData({ ...formData, client_id: newOwner.id });
+    setCurrentOwner(newOwner);
+    
+    toast({
+      title: "✅ Titular actualizado",
+      description: `El vehículo ahora pertenece a ${newOwner.names}`,
+    });
+  };
+
+  const handleOwnerChangeError = (error: string) => {
+    toast({
+      title: "Error al cambiar titular",
+      description: error,
+      variant: "destructive",
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -359,50 +383,28 @@ export default function EditarVehiculoPage({ params }: PageProps) {
       <div className="max-w-2xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="client_id">Cliente</Label>
-            <div className="relative">
+            <Label htmlFor="client_id">Cliente (Titular)</Label>
+            <div className="flex gap-2">
               <Input
                 id="client_id"
-                placeholder="Buscar cliente..."
-                value={selectedClients.find(c => c.id === formData.client_id)?.names || ''}
-                onChange={(e) => {
-                  const query = e.target.value;
-                  if (query.length > 2) {
-                    searchClients(query);
-                  }
-                }}
-                onFocus={() => {
-                  if (clients.length === 0) {
-                    searchClients('');
-                  }
-                }}
+                value={currentOwner?.names || 'Sin titular asignado'}
+                disabled
+                className="flex-1 bg-muted"
               />
-              {clientLoading && (
-                <div className="absolute right-3 top-3">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                </div>
-              )}
+              <Button 
+                type="button"
+                variant="outline"
+                onClick={() => setChangeOwnerDialogOpen(true)}
+                className="whitespace-nowrap"
+              >
+                <UserCog className="w-4 h-4 mr-2" />
+                Cambiar
+              </Button>
             </div>
-            {clients.length > 0 && (
-              <div className="border rounded-md max-h-40 overflow-y-auto">
-                <ul className="divide-y">
-                  {clients.map((cliente) => (
-                    <li key={cliente.id}>
-                      <button
-                        type="button"
-                        className="w-full px-4 py-2 text-left hover:bg-gray-50"
-                        onClick={() => {
-                          setFormData({ ...formData, client_id: cliente.id });
-                          addSelectedClient(cliente);
-                        }}
-                      >
-                        <div className="font-medium">{cliente.names}</div>
-                        <div className="text-sm text-gray-500">{cliente.phone_number}</div>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            {currentOwner && (
+              <p className="text-sm text-muted-foreground">
+                Teléfono: {currentOwner.phone_number}
+              </p>
             )}
           </div>
 
@@ -509,6 +511,17 @@ export default function EditarVehiculoPage({ params }: PageProps) {
           </div>
         </form>
       </div>
+
+      {/* Modal de cambio de titular */}
+      <ChangeVehicleOwnerDialog
+        open={changeOwnerDialogOpen}
+        onOpenChange={setChangeOwnerDialogOpen}
+        currentOwner={currentOwner}
+        dealershipId={dataToken?.dealership_id || ''}
+        vehicleId={params.id}
+        onSuccess={handleOwnerChangeSuccess}
+        onError={handleOwnerChangeError}
+      />
     </div>
   )
 }
