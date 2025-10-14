@@ -150,13 +150,13 @@ export async function POST(request: Request) {
         let futureAppointmentId: number | null = null;
         let futureAppointmentDate = '';
 
-        // REGLA 1: Buscar citas pendientes del cliente con fecha posterior al recordatorio
+        // REGLA 1: Buscar citas pendientes del cliente con fecha posterior o igual al recordatorio
         const { data: futureAppointments, error: appointmentsError } = await supabase
           .from('appointment')
           .select('id, appointment_date')
           .eq('client_id', reminder.client_id_uuid)
           .eq('status', 'pending')
-          .gt('appointment_date', reminder.reminder_date.split('T')[0])
+          .gte('appointment_date', reminder.reminder_date.split('T')[0])
           .limit(1);
 
         if (appointmentsError) {
