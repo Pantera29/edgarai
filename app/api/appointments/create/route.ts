@@ -761,6 +761,99 @@ export async function POST(request: Request) {
       );
     }
 
+    // 6.5. NUEVA VALIDACIÓN: Verificar max_arrivals_per_slot
+    console.log('🔍 Verificando límite de llegadas por slot (max_arrivals_per_slot)...');
+    
+    // Obtener configuración del horario para este día
+    const { data: scheduleConfig, error: scheduleConfigError } = await supabase
+      .from('operating_hours')
+      .select('max_arrivals_per_slot')
+      .eq('dealership_id', finalDealershipId)
+      .eq('workshop_id', finalWorkshopId)
+      .eq('day_of_week', dayOfWeek === 0 ? 7 : dayOfWeek)
+      .maybeSingle();
+
+    if (scheduleConfigError) {
+      console.error('Error obteniendo configuración de max_arrivals_per_slot:', scheduleConfigError);
+      // Continuar sin bloquear si no se puede obtener la configuración
+    }
+
+    // Validar max_arrivals_per_slot si está configurado
+    if (scheduleConfig?.max_arrivals_per_slot !== null && scheduleConfig?.max_arrivals_per_slot !== undefined) {
+      console.log('📊 Configuración de max_arrivals_per_slot encontrada:', {
+        maxArrivals: scheduleConfig.max_arrivals_per_slot,
+        slot: appointment_time,
+        date: appointment_date
+      });
+
+      // Contar citas existentes en este slot exacto (excluyendo canceladas)
+      const { count: slotAppointmentsCount, error: slotCountError } = await supabase
+        .from('appointment')
+        .select('*', { count: 'exact', head: true })
+        .eq('appointment_date', appointment_date)
+        .eq('appointment_time', appointment_time)
+        .eq('dealership_id', finalDealershipId)
+        .eq('workshop_id', finalWorkshopId)
+        .neq('status', 'cancelled');
+
+      if (slotCountError) {
+        console.error('Error contando citas en el slot:', slotCountError);
+        return NextResponse.json(
+          { 
+            message: 'Error verificando disponibilidad del horario. Por favor intenta nuevamente.',
+            error_type: 'SLOT_COUNT_ERROR'
+          },
+          { status: 500 }
+        );
+      }
+
+      const currentSlotCount = slotAppointmentsCount || 0;
+
+      console.log('📊 Análisis de ocupación del slot:', {
+        slot: appointment_time,
+        date: appointment_date,
+        currentAppointments: currentSlotCount,
+        maxAllowed: scheduleConfig.max_arrivals_per_slot,
+        wouldExceed: currentSlotCount >= scheduleConfig.max_arrivals_per_slot
+      });
+
+      // Verificar si el slot está lleno
+      if (currentSlotCount >= scheduleConfig.max_arrivals_per_slot) {
+        console.log('❌ Slot lleno - max_arrivals_per_slot excedido:', {
+          slot: appointment_time,
+          date: appointment_date,
+          currentCount: currentSlotCount,
+          maxAllowed: scheduleConfig.max_arrivals_per_slot,
+          dealershipId: finalDealershipId,
+          workshopId: finalWorkshopId
+        });
+
+        return NextResponse.json(
+          { 
+            message: `Cannot create appointment: This time slot (${appointment_time}) is full. Maximum arrivals allowed: ${scheduleConfig.max_arrivals_per_slot}, current appointments: ${currentSlotCount}`,
+            error_type: 'SLOT_FULL',
+            details: {
+              time: appointment_time,
+              date: appointment_date,
+              currentAppointments: currentSlotCount,
+              maxAllowed: scheduleConfig.max_arrivals_per_slot,
+              solution: 'Please select a different time slot. Use GET /api/appointments/availability to find available slots.'
+            }
+          },
+          { status: 409 }
+        );
+      }
+
+      console.log('✅ Slot disponible:', {
+        slot: appointment_time,
+        currentCount: currentSlotCount,
+        maxAllowed: scheduleConfig.max_arrivals_per_slot,
+        remaining: scheduleConfig.max_arrivals_per_slot - currentSlotCount
+      });
+    } else {
+      console.log('ℹ️ No hay límite de max_arrivals_per_slot configurado para este horario');
+    }
+
     // 7. Crear la cita
     const { data: newAppointment, error: insertError } = await supabase
       .from('appointment')
