@@ -140,48 +140,80 @@ async function processReminders(request: Request) {
 
         console.log(`⚙️ [Reminder Process] Configuración para agencia ${agencyId}:`, reminderSettings);
         
-        // ✅ NUEVA LÓGICA: Obtener solo recordatorios de tipos habilitados
-        const tiposHabilitados = [];
-        if (reminderSettings.confirmation_enabled) tiposHabilitados.push('confirmation');
-        if (reminderSettings.follow_up_enabled) tiposHabilitados.push('follow_up');
-        if (reminderSettings.nps_enabled) tiposHabilitados.push('nps');
+        // ✅ NUEVA LÓGICA: Obtener recordatorios por prioridad usando queries separadas
+        // Prioridad: 1) confirmation, 2) nps, 3) follow_up
+        const priorityTypes = [
+          { type: 'confirmation', enabled: reminderSettings.confirmation_enabled },
+          { type: 'nps', enabled: reminderSettings.nps_enabled },
+          { type: 'follow_up', enabled: reminderSettings.follow_up_enabled }
+        ];
         
-        console.log(`🔍 [Reminder Process] Tipos habilitados para agencia ${agencyId}: ${tiposHabilitados.join(', ')}`);
+        const remindersForAgency: Array<{
+          reminder_id: string;
+          reminder_type: string;
+          dealership_id: string;
+          created_at: string;
+        }> = [];
         
-        if (tiposHabilitados.length === 0) {
-          console.log(`ℹ️ [Reminder Process] No hay tipos de recordatorios habilitados para agencia ${agencyId}`);
+        console.log(`🔍 [Reminder Process] Buscando recordatorios por prioridad para agencia ${agencyId}...`);
+        
+        // Iterar por orden de prioridad hasta obtener máximo 2 recordatorios
+        for (const { type, enabled } of priorityTypes) {
+          // Si ya tenemos 2 recordatorios, no buscar más
+          if (remindersForAgency.length >= 2) {
+            break;
+          }
+          
+          // Saltar si el tipo no está habilitado
+          if (!enabled) {
+            console.log(`   ⏭️ Tipo '${type}' deshabilitado, saltando...`);
+            continue;
+          }
+          
+          // Si hay filtro de tipo específico, solo procesar ese tipo
+          if (targetReminderType && targetReminderType !== type) {
+            console.log(`   ⏭️ Filtro activo: solo procesando '${targetReminderType}', saltando '${type}'...`);
+            continue;
+          }
+          
+          // Calcular cuántos recordatorios necesitamos de este tipo
+          const needed = 2 - remindersForAgency.length;
+          
+          console.log(`   🔍 Buscando hasta ${needed} recordatorios de tipo '${type}'...`);
+          
+          // Query para obtener recordatorios de este tipo específico
+          const { data: typeReminders, error: typeError } = await supabase
+            .from('reminders')
+            .select('reminder_id, reminder_type, dealership_id, created_at')
+            .eq('reminder_date', today)
+            .eq('status', 'pending')
+            .eq('dealership_id', agencyId)
+            .eq('reminder_type', type)
+            .order('created_at', { ascending: true })
+            .limit(needed);
+          
+          if (typeError) {
+            console.error(`   ❌ Error obteniendo recordatorios '${type}':`, typeError);
+            continue;
+          }
+          
+          if (typeReminders && typeReminders.length > 0) {
+            console.log(`   ✅ Encontrados ${typeReminders.length} recordatorios de tipo '${type}'`);
+            remindersForAgency.push(...typeReminders);
+          } else {
+            console.log(`   ℹ️ No hay recordatorios pendientes de tipo '${type}'`);
+          }
+        }
+        
+        if (remindersForAgency.length === 0) {
+          console.log(`ℹ️ [Reminder Process] No hay recordatorios pendientes habilitados para agencia: ${agencyId}`);
           continue;
         }
         
-        // Obtener recordatorios solo de tipos habilitados
-        let reminderQuery = supabase
-          .from('reminders')
-          .select('reminder_id, reminder_type, dealership_id, created_at')
-          .eq('reminder_date', today)
-          .eq('status', 'pending')
-          .eq('dealership_id', agencyId)
-          .in('reminder_type', tiposHabilitados) // ← Filtrar por tipos habilitados
-          .order('created_at', { ascending: true })
-          .limit(2);
+        console.log(`📊 [Reminder Process] Total a enviar para agencia ${agencyId}: ${remindersForAgency.length}`);
         
-        if (targetReminderType) {
-          reminderQuery = reminderQuery.eq('reminder_type', targetReminderType);
-        }
-        
-        const { data: nextReminders, error: reminderError } = await reminderQuery;
-        
-        if (reminderError) {
-          console.error(`❌ [Reminder Process] Error obteniendo recordatorios para agencia ${agencyId}:`, reminderError);
-          continue;
-        }
-        
-        if (!nextReminders || nextReminders.length === 0) {
-          console.log(`ℹ️ [Reminder Process] No hay recordatorios pendientes de tipos habilitados para agencia: ${agencyId}`);
-          continue;
-        }
-        
-        // ✅ Todos los recordatorios obtenidos están habilitados por defecto
-        for (const nextReminder of nextReminders) {
+        // Agregar recordatorios a la lista global
+        for (const nextReminder of remindersForAgency) {
           recordatoriosAEnviar.push(nextReminder);
           console.log(`📤 [Reminder Process] Recordatorio a enviar para agencia ${agencyId}:`);
           console.log(`   ID: ${nextReminder.reminder_id}`);
