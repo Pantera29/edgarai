@@ -13,14 +13,21 @@ export function getBaseUrl() {
 }
 
 /**
- * Normaliza un número de teléfono mexicano a formato internacional completo (52XXXXXXXXXX)
+ * Normaliza un número de teléfono a formato internacional completo
+ * - México: 52XXXXXXXXXX (12 dígitos)
+ * - Chile: 56XXXXXXXXX (11 dígitos)
  * Maneja múltiples formatos de entrada y los convierte al formato estándar
  */
 export function normalizePhoneNumber(phone: string): string {
   // 1. Remover todos los caracteres no numéricos
   let normalized = phone.replace(/[^0-9]/g, '');
   
-  // 2. Si empieza con 52 y tiene 12 dígitos, está bien
+  // 2. Si empieza con 56 y tiene 11 dígitos, es un número chileno válido
+  if (normalized.startsWith('56') && normalized.length === 11) {
+    return normalized;
+  }
+  
+  // 3. Si empieza con 52 y tiene 12 dígitos, es un número mexicano válido
   if (normalized.startsWith('52') && normalized.length === 12) {
     return normalized;
   }
