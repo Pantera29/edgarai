@@ -258,11 +258,11 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Obtener whapi_id de dealership_mapping
-    console.log('🔑 [N8N Send] Obteniendo whapi_id');
+    // 4. Obtener whapi_id y whatsapp_config_id
+    console.log('🔑 [N8N Send] Obteniendo whapi_id y whatsapp_config_id');
     const { data: mapping, error: mappingError } = await supabase
       .from('dealership_mapping')
-      .select('whapi_id')
+      .select('whapi_id, dealerships!dealership_mapping_dealership_id_fkey(whatsapp_config_id)')
       .eq('dealership_id', dealership_id)
       .single();
 
@@ -274,7 +274,11 @@ export async function POST(request: Request) {
       );
     }
 
-    console.log('✅ [N8N Send] whapi_id obtenido');
+    const whatsappConfigId = (mapping.dealerships as any)?.whatsapp_config_id || null;
+    console.log('✅ [N8N Send] whapi_id y whatsapp_config_id obtenidos', { 
+      has_whapi_id: !!mapping.whapi_id,
+      has_whatsapp_config_id: !!whatsappConfigId
+    });
 
     console.log('✅ [N8N Send] Mensaje procesado:', processedMessage);
     console.log('📞 [N8N Send] Número formateado:', formattedPhone);
@@ -297,6 +301,7 @@ export async function POST(request: Request) {
       to: formattedPhone,
       dealership_id,
       sender_type: sender_type || 'ai_agent', // Default a ai_agent si no se especifica
+      ...(whatsappConfigId ? { whatsapp_config_id: whatsappConfigId } : {}),
       ...(clientId ? { client_id: clientId } : {}),
       ...(vehicleId ? { vehicle_id: vehicleId } : {}),
       ...(appointmentId ? { appointment_id: appointmentId } : {}),
@@ -307,6 +312,7 @@ export async function POST(request: Request) {
 
     console.log('📋 [N8N Send] Payload completo:', {
       ...payload,
+      whatsapp_config_id: whatsappConfigId || 'No disponible',
       sender_user_id: userInfo?.id || 'No disponible',
       sender_name: userInfo ? `${userInfo.names} ${userInfo.surnames}` : 'No disponible'
     });
