@@ -159,6 +159,11 @@ const menuItems: MenuItem[] = [
         icon: Bell
       },
       {
+        title: "Templates WhatsApp",
+        href: "/backoffice/admin/templates-whatsapp",
+        icon: MessageSquare
+      },
+      {
         title: "Servicios",
         href: "/backoffice/servicios",
         icon: Wrench
