@@ -375,35 +375,7 @@ export async function POST(request: Request) {
     const responseData = await response.json();
     console.log('✅ [Template Send] Respuesta de n8n:', responseData);
 
-    // 2.9 Registrar en template_messages
-    console.log('📝 [Template Send] Guardando en template_messages...');
-    try {
-      const { error: insertError } = await supabase
-        .from('template_messages')
-        .insert({
-          template_id,
-          dealership_id: client.dealership_id,
-          client_id,
-          conversation_id: responseData.conversation_id || null,
-          recipient_phone: formattedPhone,
-          message_id: responseData.message_id || null,
-          parameters_sent: parameters,
-          status: responseData.success ? 'sent' : 'failed',
-          error_message: responseData.error || null
-        });
-
-      if (insertError) {
-        console.error('❌ [Template Send] Error guardando en template_messages:', insertError);
-        // No fallar el request, solo loguear
-      } else {
-        console.log('✅ [Template Send] Mensaje registrado en template_messages');
-      }
-    } catch (e) {
-      console.error('💥 [Template Send] Error inesperado al guardar en template_messages:', e);
-      // No fallar el request, solo loguear
-    }
-
-    // 2.10 Retornar respuesta exitosa
+    // 2.9 Retornar respuesta exitosa
     return NextResponse.json({
       success: true,
       message_id: responseData.message_id,
