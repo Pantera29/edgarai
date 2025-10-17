@@ -82,16 +82,18 @@ function processTemplateBody(
       });
     } else {
       // Si viene como objeto con keys numéricas: {"1": "valor1", "2": "valor2"}
-      Object.keys(parameters).forEach((key) => {
+      const paramsObj = parameters as Record<string, any>;
+      Object.keys(paramsObj).forEach((key) => {
         const placeholder = `{{${key}}}`;
-        processed = processed.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(parameters[key]));
+        processed = processed.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(paramsObj[key]));
       });
     }
   } else {
     // Formato NAMED: {{customer_name}}, {{service_name}}...
-    Object.keys(parameters).forEach((key) => {
+    const paramsObj = parameters as Record<string, any>;
+    Object.keys(paramsObj).forEach((key) => {
       const placeholder = `{{${key}}}`;
-      processed = processed.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(parameters[key]));
+      processed = processed.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(paramsObj[key]));
     });
   }
 
