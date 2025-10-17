@@ -63,6 +63,42 @@ function formatPhoneToN8n(phone: string): string {
 }
 
 /**
+ * Procesa el body del template reemplazando los placeholders con los valores reales
+ * Soporta formato POSITIONAL ({{1}}, {{2}}) y NAMED ({{customer_name}})
+ */
+function processTemplateBody(
+  bodyText: string, 
+  parameters: Record<string, any> | any[], 
+  parameterFormat: string
+): string {
+  let processed = bodyText;
+
+  if (parameterFormat === 'POSITIONAL') {
+    // Formato: {{1}}, {{2}}, {{3}}...
+    if (Array.isArray(parameters)) {
+      parameters.forEach((value, index) => {
+        const placeholder = `{{${index + 1}}}`;
+        processed = processed.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(value));
+      });
+    } else {
+      // Si viene como objeto con keys numéricas: {"1": "valor1", "2": "valor2"}
+      Object.keys(parameters).forEach((key) => {
+        const placeholder = `{{${key}}}`;
+        processed = processed.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(parameters[key]));
+      });
+    }
+  } else {
+    // Formato NAMED: {{customer_name}}, {{service_name}}...
+    Object.keys(parameters).forEach((key) => {
+      const placeholder = `{{${key}}}`;
+      processed = processed.replace(new RegExp(placeholder.replace(/[{}]/g, '\\$&'), 'g'), String(parameters[key]));
+    });
+  }
+
+  return processed;
+}
+
+/**
  * POST /api/whatsapp/send-template
  * 
  * Envía un template pre-aprobado de WhatsApp a través de n8n/Kapso
@@ -224,6 +260,15 @@ export async function POST(request: Request) {
 
     console.log('✅ [Template Send] Parámetros validados correctamente');
 
+    // 2.4.1 Procesar mensaje del template con parámetros reales
+    console.log('📝 [Template Send] Procesando mensaje del template');
+    const processedMessage = processTemplateBody(
+      template.body_text,
+      parameters,
+      template.parameter_format || 'POSITIONAL'
+    );
+    console.log('✅ [Template Send] Mensaje procesado:', processedMessage);
+
     // 2.5 Obtener dealership_mapping (opcional - solo para metadata)
     console.log('🔑 [Template Send] Obteniendo dealership_mapping');
     const { data: mapping } = await supabase
@@ -260,6 +305,10 @@ export async function POST(request: Request) {
       kapso_template_id: template.kapso_template_id,
       phone_number: formattedPhone,
       template_parameters: parameters,
+      message: processedMessage,
+      
+      // whatsapp_config_id (requerido por n8n para enviar templates)
+      ...(whatsappConfigId && { whatsapp_config_id: whatsappConfigId }),
       
       // Campos opcionales (solo incluir si están presentes)
       ...(header_params && { header_params }),
@@ -278,7 +327,17 @@ export async function POST(request: Request) {
       }
     };
 
-    console.log('📋 [Template Send] Payload completo preparado');
+    console.log('📋 [Template Send] Payload completo preparado:', {
+      dealership_id: payload.dealership_id,
+      client_id: payload.client_id,
+      template_id: payload.template_id,
+      kapso_template_id: payload.kapso_template_id,
+      phone_number: payload.phone_number,
+      whatsapp_config_id: whatsappConfigId || 'No disponible',
+      message_preview: processedMessage.substring(0, 100) + (processedMessage.length > 100 ? '...' : ''),
+      has_header_params: !!header_params,
+      has_button_params: !!(button_url_params || button_quick_reply_payloads || button_copy_code_params)
+    });
 
     // 2.8 Enviar a n8n
     console.log('📤 [Template Send] Enviando a n8n...');
