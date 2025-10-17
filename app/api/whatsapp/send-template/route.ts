@@ -74,44 +74,28 @@ export async function POST(request: Request) {
     
     const supabase = createServerComponentClient({ cookies });
     
-    // 2.1 Autenticación y validación inicial
+    // 1. Extraer token de autorización y obtener información del usuario (OPCIONAL)
     const authHeader = request.headers.get('authorization');
     const token = authHeader?.replace('Bearer ', '') || null;
-    
-    if (!token) {
-      console.log('❌ [Template Send] Token de autorización faltante');
-      return NextResponse.json(
-        { success: false, error: 'Token de autorización requerido' },
-        { status: 401 }
-      );
-    }
-
     let userInfo: any = null;
-    try {
-      userInfo = verifyToken(token);
-      console.log('👤 [Template Send] Usuario autenticado:', {
-        id: userInfo?.id,
-        dealership_id: userInfo?.dealership_id
-      });
-    } catch (error) {
-      console.error('❌ [Template Send] Token inválido:', error);
-      return NextResponse.json(
-        { success: false, error: 'Token inválido o expirado' },
-        { status: 401 }
-      );
+    
+    if (token) {
+      try {
+        userInfo = verifyToken(token);
+        console.log('👤 [Template Send] Usuario autenticado:', {
+          id: userInfo?.id,
+          dealership_id: userInfo?.dealership_id
+        });
+      } catch (error) {
+        console.warn('⚠️ [Template Send] Error al verificar token:', error);
+        // No fallar el proceso si el token es inválido
+      }
+    } else {
+      console.log('ℹ️ [Template Send] No se encontró token de autorización');
     }
 
-    const dealership_id = userInfo?.dealership_id;
-    if (!dealership_id) {
-      console.log('❌ [Template Send] dealership_id no encontrado en token');
-      return NextResponse.json(
-        { success: false, error: 'dealership_id no encontrado en token de autenticación' },
-        { status: 401 }
-      );
-    }
-
-    // Obtener y validar datos de entrada
-    const body: TemplateRequestBody = await request.json();
+    // 2. Obtener y validar datos de entrada
+    const body: TemplateRequestBody & { dealership_id?: string } = await request.json();
     const {
       client_id,
       template_id,
@@ -124,6 +108,19 @@ export async function POST(request: Request) {
       button_copy_code_params,
       location_params
     } = body;
+
+    // 3. Determinar dealership_id (del token o del body)
+    const dealership_id = userInfo?.dealership_id || body.dealership_id;
+    
+    if (!dealership_id) {
+      console.log('❌ [Template Send] dealership_id no encontrado');
+      return NextResponse.json(
+        { success: false, error: 'Campo requerido: dealership_id (en token o body)' },
+        { status: 400 }
+      );
+    }
+    
+    console.log('✅ [Template Send] dealership_id obtenido:', dealership_id);
 
     console.log('📋 [Template Send] Datos:', { client_id, template_id, has_parameters: !!parameters });
 
