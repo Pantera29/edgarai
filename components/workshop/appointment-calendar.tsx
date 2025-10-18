@@ -354,6 +354,7 @@ export function AppointmentCalendar({
   }> | null>(null);
   const [isLoadingSlots, setIsLoadingSlots] = useState(false);
   const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Log de los props recibidos para depuración
   console.log('AppointmentCalendar props:', { selectedDate, selectedService, dealershipId });
@@ -528,6 +529,12 @@ export function AppointmentCalendar({
       dealershipId
     });
     const fetchBackendSlots = async () => {
+      // Cancelar request anterior si existe
+      if (abortControllerRef.current) {
+        console.log('🚫 Cancelando request anterior');
+        abortControllerRef.current.abort();
+      }
+      
       if (!selectedDate || !selectedService || !dealershipId) {
         setBackendSlots(null);
         setBackendMessage(null);
@@ -535,11 +542,15 @@ export function AppointmentCalendar({
         return;
       }
       
+      // Crear nuevo AbortController para este request
+      abortControllerRef.current = new AbortController();
+      const signal = abortControllerRef.current.signal;
+      
       // Activar loading al cambiar fecha
       setIsLoadingSlots(true);
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
       const minLoadingPromise = new Promise(resolve => {
-        loadingTimeoutRef.current = setTimeout(resolve, 2000);
+        loadingTimeoutRef.current = setTimeout(resolve, 1000);
       });
       console.log('🔄 Cargando slots para fecha:', format(selectedDate, 'yyyy-MM-dd'));
       
@@ -554,9 +565,11 @@ export function AppointmentCalendar({
           },
           headers: {
             'x-request-source': 'backoffice'
-          }
+          },
+          signal // Agregar signal para poder cancelar
         });
-        // Log completo de la respuesta del endpoint
+        
+        // Si llegamos aquí, el request no fue cancelado
         console.log('✅ Respuesta completa del endpoint de disponibilidad:', response.data);
         
         // El endpoint devuelve un array de strings (horarios disponibles)
@@ -591,12 +604,21 @@ export function AppointmentCalendar({
         console.log('✅ Slots cargados exitosamente:', slots.length, 'horarios disponibles');
         await minLoadingPromise;
       } catch (error: any) {
+        // Si el error es por cancelación, no hacer nada
+        if (axios.isCancel(error) || error.name === 'CanceledError') {
+          console.log('⏭️ Request cancelado (comportamiento esperado)');
+          return;
+        }
+        
         console.error('❌ Error consultando disponibilidad al backend:', error);
         setBackendSlots(null);
         setBackendMessage('Error consultando disponibilidad.');
         await minLoadingPromise;
       } finally {
-        setIsLoadingSlots(false);
+        // Solo actualizar loading si este request no fue cancelado
+        if (!signal.aborted) {
+          setIsLoadingSlots(false);
+        }
       }
     };
     fetchBackendSlots();
@@ -605,6 +627,7 @@ export function AppointmentCalendar({
   useEffect(() => {
     return () => {
       if (loadingTimeoutRef.current) clearTimeout(loadingTimeoutRef.current);
+      if (abortControllerRef.current) abortControllerRef.current.abort();
     };
   }, []);
 
