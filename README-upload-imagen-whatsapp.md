@@ -2,7 +2,7 @@
 
 ## 📋 Resumen
 
-Endpoint que permite subir imágenes con compresión automática a Supabase Storage para ser utilizadas en conversaciones de WhatsApp.
+Endpoint que permite subir imágenes con compresión automática a Supabase Storage para ser utilizadas en conversaciones de WhatsApp via la API.
 
 ## 🔧 Implementación Completada
 
