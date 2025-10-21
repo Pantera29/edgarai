@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, ExternalLink, Loader2, RotateCcw } from "lucide-react";
+import { RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, ExternalLink, Loader2, RotateCcw, Paperclip, X, Image as ImageIcon } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { markConversationAsRead } from '@/utils/conversation-helpers';
@@ -74,6 +74,12 @@ interface ChatPanelProps {
   onNavigateToClient?: (clientId: string) => void;
 }
 
+// Feature Flag: Dealerships con acceso a envío de imágenes
+const DEALERSHIPS_WITH_IMAGE_UPLOAD = [
+  '803b2961-b9d5-47f3-be4a-c8c114c85b5e', // Nissan - Autopolis (pruebas Franco)
+  // Agregar más dealership_ids aquí para habilitar la funcionalidad
+];
+
 export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: ChatPanelProps) {
   // ===== ESTADOS DE ACTUALIZACIÓN FRECUENTE (cada 20s) =====
   const [mensajes, setMensajes] = useState<Message[]>([]);
@@ -102,6 +108,15 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const [showWhatsappForm, setShowWhatsappForm] = useState(false);
   
+  // Estados para envío de imágenes
+  const [selectedImage, setSelectedImage] = useState<File | null>(null);
+  const [uploadedImageUrl, setUploadedImageUrl] = useState<string | null>(null);
+  const [imageMetadata, setImageMetadata] = useState<any>(null);
+  const [imageCaption, setImageCaption] = useState("");
+  const [uploadingToStorage, setUploadingToStorage] = useState(false);
+  const [sendingImageMessage, setSendingImageMessage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  
   // Estado para reactivación de agentes
   const [reactivatingAgent, setReactivatingAgent] = useState(false);
   
@@ -118,6 +133,9 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   const [shouldRestoreFocus, setShouldRestoreFocus] = useState(false);
   
   const { toast } = useToast();
+  
+  // Feature flag: verificar si este dealership tiene acceso a envío de imágenes
+  const enableImageUpload = DEALERSHIPS_WITH_IMAGE_UPLOAD.includes(dataToken?.dealership_id);
   
   // Handler para preservar la posición del cursor
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -145,6 +163,11 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       setWhatsappMessage(""); // Solo limpiar el mensaje cuando se cambia de conversación
       setCursorPosition(null); // Limpiar posición del cursor
       setShouldRestoreFocus(false); // Limpiar flag de restauración
+      // Limpiar estados de imagen
+      setSelectedImage(null);
+      setUploadedImageUrl(null);
+      setImageMetadata(null);
+      setImageCaption("");
     }
   }, [conversationId, dataToken]);
 
@@ -598,6 +621,251 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     }
   };
 
+  // Función para limpiar estados de imagen
+  const limpiarEstadosImagen = () => {
+    setSelectedImage(null);
+    setUploadedImageUrl(null);
+    setImageMetadata(null);
+    setImageCaption("");
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
+  // Función para manejar la selección de imagen
+  const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    console.log('📎 [UI] Imagen seleccionada:', file.name, file.type, file.size);
+
+    // Validar tipo de archivo
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: "Tipo de archivo no válido",
+        description: "Solo se permiten imágenes JPEG, PNG o WebP",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Validar tamaño (5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB en bytes
+    if (file.size > maxSize) {
+      toast({
+        title: "Archivo muy grande",
+        description: "El tamaño máximo permitido es 5MB",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedImage(file);
+    
+    // Upload a Storage
+    await uploadImageToStorage(file);
+  };
+
+  // Función para subir imagen a Storage
+  const uploadImageToStorage = async (file: File) => {
+    if (!dataToken?.dealership_id || !conversacion?.user_identifier) {
+      toast({
+        title: "Error",
+        description: "Faltan datos para subir la imagen",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setUploadingToStorage(true);
+    try {
+      console.log('📤 [UI] Subiendo imagen a Storage...');
+
+      // Obtener el token de la URL para la autorización
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+
+      if (!token) {
+        toast({
+          title: "Error",
+          description: "No se encontró token de autenticación",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('chat_id', conversacion.user_identifier);
+      formData.append('dealership_id', dataToken.dealership_id);
+
+      const response = await fetch('/api/whatsapp/upload-image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
+        body: formData
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('✅ [UI] Imagen subida exitosamente:', result.media_url);
+        setUploadedImageUrl(result.media_url);
+        setImageMetadata(result.metadata);
+        toast({
+          title: "Imagen cargada",
+          description: "La imagen se subió correctamente. Puedes agregarle un mensaje y enviarla.",
+        });
+        // Mostrar el formulario si estaba oculto
+        setShowWhatsappForm(true);
+        scrollToBottom();
+      } else {
+        console.error('❌ [UI] Error al subir imagen:', result.error);
+        toast({
+          title: "Error al subir imagen",
+          description: result.error || "No se pudo subir la imagen",
+          variant: "destructive",
+        });
+        limpiarEstadosImagen();
+      }
+    } catch (error) {
+      console.error('💥 [UI] Error inesperado al subir imagen:', error);
+      toast({
+        title: "Error",
+        description: "Error inesperado al subir la imagen",
+        variant: "destructive",
+      });
+      limpiarEstadosImagen();
+    } finally {
+      setUploadingToStorage(false);
+    }
+  };
+
+  // Función para enviar la imagen a n8n
+  const enviarImagenWhatsApp = async () => {
+    const phoneNumber = conversacion?.client?.phone_number || conversacion?.user_identifier;
+    
+    if (!phoneNumber || !uploadedImageUrl || !dataToken?.dealership_id) {
+      toast({
+        title: "Error",
+        description: "Faltan datos para enviar la imagen",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSendingImageMessage(true);
+    try {
+      console.log('📨 [UI] Enviando mensaje con imagen...');
+      
+      // Obtener el token de la URL para la autorización
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
+      const response = await fetch('/api/n8n/send-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          phone_number: phoneNumber,
+          media_url: uploadedImageUrl,
+          caption: imageCaption.trim() || undefined,
+          metadata: imageMetadata,
+          dealership_id: dataToken.dealership_id
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        console.log('✅ [UI] Mensaje con imagen enviado exitosamente');
+        
+        // Verificar estado del agente y desactivarlo si es necesario
+        try {
+          console.log('🤖 [UI] Verificando estado del agente...');
+          
+          const agentStatusResponse = await fetch(`/api/agent-control?phone_number=${phoneNumber}&dealership_id=${dataToken.dealership_id}`);
+          const agentStatus = await agentStatusResponse.json();
+          
+          if (agentStatus.agent_active) {
+            console.log('🤖 [UI] Agente está activo, procediendo a desactivarlo...');
+            
+            const deactivateResponse = await fetch('/api/agent-control', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                phone_number: phoneNumber,
+                dealership_id: dataToken.dealership_id,
+                agent_active: false,
+                notes: 'Desactivado automáticamente al enviar imagen desde conversaciones',
+                updated_by: 'dealership_worker'
+              }),
+            });
+
+            const deactivateResult = await deactivateResponse.json();
+            
+            if (deactivateResult.success) {
+              console.log('✅ [UI] Agente desactivado exitosamente');
+              setAgentStatus({
+                agent_active: false,
+                loading: false
+              });
+              toast({
+                title: "Imagen enviada y agente desactivado",
+                description: "La imagen se envió correctamente y el agente de IA fue desactivado para este cliente",
+              });
+            } else {
+              console.warn('⚠️ [UI] Error al desactivar agente:', deactivateResult.error);
+              toast({
+                title: "Imagen enviada",
+                description: "La imagen se envió correctamente, pero hubo un problema al desactivar el agente de IA",
+              });
+            }
+          } else {
+            console.log('🤖 [UI] Agente ya está desactivado, no es necesario desactivarlo');
+            toast({
+              title: "Imagen enviada",
+              description: "La imagen de WhatsApp se envió correctamente",
+            });
+          }
+        } catch (agentError) {
+          console.error('💥 [UI] Error verificando/desactivando agente:', agentError);
+          toast({
+            title: "Imagen enviada",
+            description: "La imagen se envió correctamente, pero hubo un problema al gestionar el agente de IA",
+          });
+        }
+        
+        limpiarEstadosImagen();
+        // Actualizar mensajes y hacer scroll
+        await actualizarDatosDinamicos();
+        scrollToBottom();
+      } else {
+        console.error('❌ [UI] Error al enviar imagen:', result.error);
+        toast({
+          title: "Error al enviar",
+          description: result.error || "No se pudo enviar la imagen",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('💥 [UI] Error inesperado al enviar imagen:', error);
+      toast({
+        title: "Error",
+        description: "Error inesperado al enviar la imagen",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingImageMessage(false);
+    }
+  };
+
   const enviarWhatsApp = async () => {
     // Determinar el número de teléfono a usar
     const phoneNumber = conversacion?.client?.phone_number || conversacion?.user_identifier;
@@ -701,7 +969,8 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
         }
         
         setWhatsappMessage("");
-        // Hacer scroll al final después de enviar el mensaje
+        // Actualizar mensajes y hacer scroll
+        await actualizarDatosDinamicos();
         scrollToBottom();
       } else {
         console.error('❌ [UI] Error al enviar mensaje:', result.error);
@@ -1057,34 +1326,167 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
                     <p className="text-xs text-muted-foreground">
                       Enviar a: {conversacion.client?.phone_number || conversacion.user_identifier}
                     </p>
-                    <Textarea
-                      ref={textareaRef}
-                      placeholder="Escribe tu mensaje aquí..."
-                      value={whatsappMessage}
-                      onChange={handleTextareaChange}
-                      className="min-h-[80px] resize-none"
-                      disabled={sendingWhatsapp}
+                    
+                    {/* Input file oculto para seleccionar imagen */}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleImageSelect}
+                      className="hidden"
                     />
-                    <div className="flex justify-end">
-                      <Button
-                        onClick={enviarWhatsApp}
-                        disabled={!whatsappMessage.trim() || sendingWhatsapp}
-                        size="sm"
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        {sendingWhatsapp ? (
-                          <>
-                            <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
-                            Enviando...
-                          </>
-                        ) : (
-                          <>
-                            <Send className="h-4 w-4 mr-2" />
-                            Enviar
-                          </>
+                    
+                    {/* Si hay imagen seleccionada, mostrar preview */}
+                    {uploadedImageUrl ? (
+                      <div className="space-y-3 bg-white p-4 rounded-lg border">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-2">
+                            <ImageIcon className="h-5 w-5 text-green-600" />
+                            <span className="text-sm font-medium">Vista previa de imagen</span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={limpiarEstadosImagen}
+                            disabled={uploadingToStorage || sendingImageMessage}
+                            className="h-6 w-6 p-0"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        
+                        {/* Imagen preview */}
+                        <div className="relative w-full max-w-xs mx-auto">
+                          <img
+                            src={uploadedImageUrl}
+                            alt="Preview"
+                            className="w-full h-auto rounded-lg border shadow-sm"
+                          />
+                        </div>
+                        
+                        {/* Metadata */}
+                        {imageMetadata && (
+                          <div className="text-xs text-muted-foreground space-y-1">
+                            <p>
+                              <span className="font-medium">Tamaño:</span>{' '}
+                              {imageMetadata.compressed_size || 'N/A'}
+                              {imageMetadata.compression_ratio && (
+                                <span className="ml-2">
+                                  (Comprimido: {imageMetadata.compression_ratio})
+                                </span>
+                              )}
+                            </p>
+                            {imageMetadata.dimensions && (
+                              <p>
+                                <span className="font-medium">Dimensiones:</span>{' '}
+                                {typeof imageMetadata.dimensions === 'object' 
+                                  ? `${imageMetadata.dimensions.width} x ${imageMetadata.dimensions.height}px`
+                                  : imageMetadata.dimensions}
+                              </p>
+                            )}
+                          </div>
                         )}
-                      </Button>
-                    </div>
+                        
+                        {/* Input para caption */}
+                        <div>
+                          <label className="text-xs text-muted-foreground mb-1 block">
+                            Mensaje opcional
+                          </label>
+                          <Textarea
+                            placeholder="Agrega un mensaje a tu imagen..."
+                            value={imageCaption}
+                            onChange={(e) => setImageCaption(e.target.value)}
+                            className="min-h-[60px] resize-none"
+                            disabled={sendingImageMessage}
+                          />
+                        </div>
+                        
+                        {/* Botones de acción */}
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={limpiarEstadosImagen}
+                            disabled={sendingImageMessage}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            onClick={enviarImagenWhatsApp}
+                            disabled={sendingImageMessage}
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            {sendingImageMessage ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Enviando...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4 mr-2" />
+                                Enviar Imagen
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Formulario normal de texto */}
+                        <Textarea
+                          ref={textareaRef}
+                          placeholder="Escribe tu mensaje aquí..."
+                          value={whatsappMessage}
+                          onChange={handleTextareaChange}
+                          className="min-h-[80px] resize-none"
+                          disabled={sendingWhatsapp || uploadingToStorage}
+                        />
+                        <div className="flex justify-between items-center">
+                          {/* Botón para adjuntar imagen - solo si feature está habilitada */}
+                          {enableImageUpload && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={uploadingToStorage || sendingWhatsapp}
+                            >
+                              {uploadingToStorage ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Cargando...
+                                </>
+                              ) : (
+                                <>
+                                  <Paperclip className="h-4 w-4 mr-2" />
+                                  Adjuntar imagen
+                                </>
+                              )}
+                            </Button>
+                          )}
+                          
+                          {/* Botón de enviar mensaje de texto */}
+                          <Button
+                            onClick={enviarWhatsApp}
+                            disabled={!whatsappMessage.trim() || sendingWhatsapp || uploadingToStorage}
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                          >
+                            {sendingWhatsapp ? (
+                              <>
+                                <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
+                                Enviando...
+                              </>
+                            ) : (
+                              <>
+                                <Send className="h-4 w-4 mr-2" />
+                                Enviar
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </>
                 )}
               </div>
