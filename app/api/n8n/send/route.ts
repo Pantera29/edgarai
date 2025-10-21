@@ -4,6 +4,11 @@ import { cookies } from "next/headers";
 import { format, parseISO } from "date-fns";
 import { verifyToken } from "../../../jwt/token";
 
+// Feature Flag: Dealerships que usan Kapso en lugar de Whapi
+const DEALERSHIPS_WITH_KAPSO = [
+  '803b2961-b9d5-47f3-be4a-c8c114c85b5e', // Nissan - Autopolis (Gonzalitos)
+];
+
 /**
  * Formatea un número de teléfono al formato requerido por N8N (521XXXXXXXXXX)
  */
@@ -258,15 +263,20 @@ export async function POST(request: Request) {
       }
     }
 
-    // 4. Obtener whapi_id y whatsapp_config_id
-    console.log('🔑 [N8N Send] Obteniendo whapi_id y whatsapp_config_id');
+    // 4. Determinar si usa Kapso (antes de validar whapi_id)
+    const useKapso = DEALERSHIPS_WITH_KAPSO.includes(dealership_id);
+    console.log(`🔍 [N8N Send] Dealership usa ${useKapso ? 'Kapso' : 'Whapi'}`);
+
+    // 5. Obtener whapi_id y whatsapp_config_id
+    console.log('🔑 [N8N Send] Obteniendo configuración de WhatsApp');
     const { data: mapping, error: mappingError } = await supabase
       .from('dealership_mapping')
       .select('whapi_id, dealerships!dealership_mapping_dealership_id_fkey(whatsapp_config_id)')
       .eq('dealership_id', dealership_id)
       .single();
 
-    if (mappingError || !mapping?.whapi_id) {
+    // Solo validar whapi_id si NO usa Kapso
+    if (!useKapso && (mappingError || !mapping?.whapi_id)) {
       console.error('❌ [N8N Send] Error al obtener whapi_id:', mappingError);
       return NextResponse.json(
         { success: false, error: 'Mapping de WhatsApp no configurado para este dealership' },
@@ -274,9 +284,10 @@ export async function POST(request: Request) {
       );
     }
 
-    const whatsappConfigId = (mapping.dealerships as any)?.whatsapp_config_id || null;
-    console.log('✅ [N8N Send] whapi_id y whatsapp_config_id obtenidos', { 
-      has_whapi_id: !!mapping.whapi_id,
+    const whatsappConfigId = (mapping?.dealerships as any)?.whatsapp_config_id || null;
+    console.log('✅ [N8N Send] Configuración obtenida', { 
+      provider: useKapso ? 'Kapso' : 'Whapi',
+      has_whapi_id: !!mapping?.whapi_id,
       has_whatsapp_config_id: !!whatsappConfigId
     });
 
@@ -295,12 +306,20 @@ export async function POST(request: Request) {
     // 7. Enviar mensaje a N8N
     console.log('📤 [N8N Send] Enviando a N8N...');
     
+    // Determinar qué endpoint usar
+    const n8nUrl = useKapso 
+      ? 'https://n8n.edgarai.com.mx/webhook/kapso-outbound'
+      : 'https://n8n.edgarai.com.mx/webhook/outbound';
+    
+    console.log(`📤 [N8N Send] Provider: ${useKapso ? 'Kapso' : 'Whapi'} | URL: ${n8nUrl}`);
+    
     const payload = {
       message: processedMessage,
-      whapi_id: mapping.whapi_id,
       to: formattedPhone,
       dealership_id,
       sender_type: sender_type || 'ai_agent', // Default a ai_agent si no se especifica
+      // whapi_id solo es necesario para Whapi
+      ...(mapping?.whapi_id ? { whapi_id: mapping.whapi_id } : {}),
       ...(whatsappConfigId ? { whatsapp_config_id: whatsappConfigId } : {}),
       ...(clientId ? { client_id: clientId } : {}),
       ...(vehicleId ? { vehicle_id: vehicleId } : {}),
@@ -317,7 +336,7 @@ export async function POST(request: Request) {
       sender_name: userInfo ? `${userInfo.names} ${userInfo.surnames}` : 'No disponible'
     });
 
-    const response = await fetch('https://n8n.edgarai.com.mx/webhook/outbound', {
+    const response = await fetch(n8nUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
