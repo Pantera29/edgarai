@@ -13,7 +13,30 @@ export async function resolveWorkshopId(
       .single();
     
     if (!workshop) {
-      throw new Error('Invalid workshop_id for dealership');
+      // Obtener los workshops válidos para este dealership
+      const { data: validWorkshops } = await supabase
+        .from('workshops')
+        .select('id, name, is_main, is_active')
+        .eq('dealership_id', dealership_id)
+        .eq('is_active', true)
+        .order('is_main', { ascending: false });
+      
+      const workshopsList = validWorkshops?.map(w => 
+        `${w.id} (${w.name}${w.is_main ? ' - Main' : ''})`
+      ).join(', ') || 'None available';
+      
+      console.error('❌ Invalid workshop_id:', {
+        provided_workshop_id: workshop_id,
+        dealership_id: dealership_id,
+        valid_workshops: validWorkshops
+      });
+      
+      throw new Error(
+        `Invalid workshop_id for dealership. The provided workshop_id "${workshop_id}" does not belong to dealership "${dealership_id}" or does not exist. ` +
+        `Please verify the workshop_id is correct and belongs to this dealership. ` +
+        `Available workshops for this dealership: ${workshopsList}. ` +
+        `You can also omit the workshop_id parameter to use the main workshop automatically.`
+      );
     }
     return workshop_id;
   }
@@ -27,7 +50,11 @@ export async function resolveWorkshopId(
     .single();
   
   if (!mainWorkshop) {
-    throw new Error('Main workshop not found');
+    console.error('❌ Main workshop not found:', { dealership_id });
+    throw new Error(
+      `Main workshop not found for dealership "${dealership_id}". ` +
+      `Please ensure this dealership has a main workshop configured, or provide a specific workshop_id parameter.`
+    );
   }
   
   return mainWorkshop.id;
