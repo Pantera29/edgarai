@@ -1695,7 +1695,7 @@ function TemplateDialog({
   availableTemplates: any[];
   sendTemplate: (templateId: string, parameters: any) => Promise<void>;
 }) {
-  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [templateParameters, setTemplateParameters] = useState({});
   const [sendingTemplate, setSendingTemplate] = useState(false);
 
