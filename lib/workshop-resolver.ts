@@ -21,7 +21,7 @@ export async function resolveWorkshopId(
         .eq('is_active', true)
         .order('is_main', { ascending: false });
       
-      const workshopsList = validWorkshops?.map(w => 
+      const workshopsList = validWorkshops?.map((w: any) => 
         `${w.id} (${w.name}${w.is_main ? ' - Main' : ''})`
       ).join(', ') || 'None available';
       
