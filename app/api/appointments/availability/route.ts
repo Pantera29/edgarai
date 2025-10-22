@@ -1236,7 +1236,10 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Unexpected error:', error);
     return NextResponse.json(
-      { message: 'Internal server error' },
+      { 
+        message: error instanceof Error ? error.message : 'Internal server error',
+        error_details: error instanceof Error ? error.message : undefined
+      },
       { status: 500 }
     );
   }
