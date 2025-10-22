@@ -207,14 +207,14 @@ export function ChatViewer({
           </p>
         </div>
       ) : (
-        messages.map((message) => {
+        messages.map((message, index) => {
           const senderLabel = getSenderLabel(message);
           const isAssistant = isAssistantMessage(message.role);
           const isUser = isUserMessage(message.role);
           
           return (
             <div
-              key={message.id}
+              key={`${message.id}-${index}`}
               className={cn(
                 "flex gap-3 max-w-[80%]",
                 isAssistant ? "ml-auto" : "mr-auto" // Invertir la lógica: asistentes a la derecha, usuarios a la izquierda
