@@ -9,12 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, ExternalLink, Loader2, RotateCcw, Paperclip, X, Image as ImageIcon } from "lucide-react";
+import { RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, ExternalLink, Loader2, RotateCcw, Paperclip, X, Image as ImageIcon, AlertTriangle, CheckCircle } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { markConversationAsRead } from '@/utils/conversation-helpers';
 import { ClienteContextPanel } from '@/components/cliente-context-panel';
 import { ChatPlaceholder } from './ChatPlaceholder';
+import { WhatsAppWindowStatus } from '@/utils/whatsapp-window';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 interface Conversation {
   id: string;
@@ -120,6 +122,12 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   // Estado para reactivación de agentes
   const [reactivatingAgent, setReactivatingAgent] = useState(false);
   
+  // Estados para la ventana de 24h
+  const [windowStatus, setWindowStatus] = useState<WhatsAppWindowStatus | null>(null);
+  const [checkingWindowStatus, setCheckingWindowStatus] = useState(false);
+  const [showTemplateDialog, setShowTemplateDialog] = useState(false);
+  const [availableTemplates, setAvailableTemplates] = useState([]);
+  
   // Referencia para el contenedor de mensajes
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   
@@ -203,6 +211,21 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     
     return () => clearInterval(interval);
   }, [conversationId, dataToken, conversacion]);
+
+  // Verificar estado de ventana al cargar la conversación
+  useEffect(() => {
+    if (conversacion?.id) {
+      checkWindowStatus();
+      loadAvailableTemplates();
+    }
+  }, [conversacion?.id]);
+
+  // Verificar estado de ventana cuando llegan nuevos mensajes
+  useEffect(() => {
+    if (mensajes.length > 0) {
+      checkWindowStatus();
+    }
+  }, [mensajes]);
 
   // ===== FUNCIÓN PARA DATOS ESTÁTICOS (carga única) =====
   const cargarDatosEstaticos = async (markAsRead: boolean = false) => {
@@ -992,6 +1015,319 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     }
   };
 
+  // Función para verificar el estado de la ventana de 24h
+  const checkWindowStatus = async () => {
+    if (!conversacion?.id) return;
+    
+    setCheckingWindowStatus(true);
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
+      const response = await fetch(`/api/whatsapp/window-status?conversation_id=${conversacion.id}`, {
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        setWindowStatus(result.windowStatus);
+      }
+    } catch (error) {
+      console.error('Error verificando estado de ventana:', error);
+    } finally {
+      setCheckingWindowStatus(false);
+    }
+  };
+
+  // Función para cargar templates disponibles
+  const loadAvailableTemplates = async () => {
+    if (!dataToken?.dealership_id) return;
+    
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
+      const response = await fetch('/api/whatsapp/templates/available', {
+        headers: {
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        }
+      });
+      
+      const result = await response.json();
+      if (result.success) {
+        setAvailableTemplates(result.templates);
+      }
+    } catch (error) {
+      console.error('Error cargando templates:', error);
+    }
+  };
+
+  // Función para enviar template
+  const sendTemplate = async (templateId: string, parameters: any) => {
+    if (!conversacion?.client?.id) return;
+    
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const token = urlParams.get('token');
+      
+      const response = await fetch('/api/whatsapp/send-template', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` })
+        },
+        body: JSON.stringify({
+          client_id: conversacion.client.id,
+          template_id: templateId,
+          parameters: parameters
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        toast({
+          title: "Template enviado",
+          description: "El template se envió correctamente",
+        });
+        setShowTemplateDialog(false);
+        // Refrescar mensajes
+        await actualizarDatosDinamicos();
+      } else {
+        toast({
+          title: "Error",
+          description: result.error || "Error al enviar template",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error enviando template:', error);
+      toast({
+        title: "Error",
+        description: "Error inesperado al enviar template",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Función para renderizar el input de mensaje condicionalmente
+  const renderMessageInput = () => {
+    if (checkingWindowStatus) {
+      return (
+        <div className="flex items-center justify-center p-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600"></div>
+          <span className="ml-2 text-sm text-muted-foreground">Verificando estado...</span>
+        </div>
+      );
+    }
+
+    // Si está dentro de la ventana o la agencia no usa ventana de 24h
+    if (windowStatus?.canSendFreeMessage) {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Enviar a: {conversacion?.client?.phone_number || conversacion?.user_identifier}
+          </p>
+          
+          {/* Input file oculto para seleccionar imagen */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={handleImageSelect}
+            className="hidden"
+          />
+          
+          {/* Si hay imagen seleccionada, mostrar preview */}
+          {uploadedImageUrl ? (
+            <div className="space-y-3 bg-white p-4 rounded-lg border">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="h-5 w-5 text-green-600" />
+                  <span className="text-sm font-medium">Vista previa de imagen</span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={limpiarEstadosImagen}
+                  disabled={uploadingToStorage || sendingImageMessage}
+                  className="h-6 w-6 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {/* Imagen preview */}
+              <div className="relative w-full max-w-xs mx-auto">
+                <img
+                  src={uploadedImageUrl}
+                  alt="Preview"
+                  className="w-full h-auto rounded-lg border shadow-sm"
+                />
+              </div>
+              
+              {/* Metadata */}
+              {imageMetadata && (
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p>
+                    <span className="font-medium">Tamaño:</span>{' '}
+                    {imageMetadata.compressed_size || 'N/A'}
+                    {imageMetadata.compression_ratio && (
+                      <span className="ml-2">
+                        (Comprimido: {imageMetadata.compression_ratio})
+                      </span>
+                    )}
+                  </p>
+                  {imageMetadata.dimensions && (
+                    <p>
+                      <span className="font-medium">Dimensiones:</span>{' '}
+                      {typeof imageMetadata.dimensions === 'object' 
+                        ? `${imageMetadata.dimensions.width} x ${imageMetadata.dimensions.height}px`
+                        : imageMetadata.dimensions}
+                    </p>
+                  )}
+                </div>
+              )}
+              
+              {/* Input para caption */}
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  Mensaje opcional
+                </label>
+                <Textarea
+                  placeholder="Agrega un mensaje a tu imagen..."
+                  value={imageCaption}
+                  onChange={(e) => setImageCaption(e.target.value)}
+                  className="min-h-[60px] resize-none"
+                  disabled={sendingImageMessage}
+                />
+              </div>
+              
+              {/* Botones de acción */}
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={limpiarEstadosImagen}
+                  disabled={sendingImageMessage}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={enviarImagenWhatsApp}
+                  disabled={sendingImageMessage}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {sendingImageMessage ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Enviar Imagen
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Formulario normal de texto */}
+              <Textarea
+                ref={textareaRef}
+                placeholder="Escribe tu mensaje aquí..."
+                value={whatsappMessage}
+                onChange={handleTextareaChange}
+                className="min-h-[80px] resize-none"
+                disabled={sendingWhatsapp || uploadingToStorage}
+              />
+              <div className="flex justify-between items-center">
+                {/* Botón para adjuntar imagen - solo si feature está habilitada */}
+                {enableImageUpload && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadingToStorage || sendingWhatsapp}
+                  >
+                    {uploadingToStorage ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Cargando...
+                      </>
+                    ) : (
+                      <>
+                        <Paperclip className="h-4 w-4 mr-2" />
+                        Adjuntar imagen
+                      </>
+                    )}
+                  </Button>
+                )}
+                
+                {/* Botón de enviar mensaje de texto */}
+                <Button
+                  onClick={enviarWhatsApp}
+                  disabled={!whatsappMessage.trim() || sendingWhatsapp || uploadingToStorage}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  {sendingWhatsapp ? (
+                    <>
+                      <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Enviar
+                    </>
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      );
+    }
+
+    // Si está fuera de la ventana, mostrar banner y botón de template
+    return (
+      <div className="space-y-3">
+        {/* Banner de alerta */}
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 mt-0.5" />
+            <div className="flex-1">
+              <h4 className="text-sm font-medium text-yellow-800">
+                {windowStatus?.lastCustomerMessageTime 
+                  ? `Último mensaje hace ${Math.round(windowStatus.hoursSinceLastMessage || 0)} horas`
+                  : 'El cliente no ha enviado mensajes aún'
+                }
+              </h4>
+              <p className="text-sm text-yellow-700 mt-1">
+                Para enviar mensajes fuera de la ventana de 24 horas, debes usar un template pre-aprobado.
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        {/* Botón para enviar template */}
+        <Button
+          onClick={() => setShowTemplateDialog(true)}
+          className="w-full bg-green-600 hover:bg-green-700"
+        >
+          <MessageSquare className="h-4 w-4 mr-2" />
+          Enviar Template
+        </Button>
+      </div>
+    );
+  };
+
   // Si no hay conversación seleccionada, mostrar placeholder
   if (!conversationId) {
     return <ChatPlaceholder />;
@@ -1321,174 +1657,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
                 </div>
                 
                 {/* Formulario que aparece/desaparece */}
-                {showWhatsappForm && (
-                  <>
-                    <p className="text-xs text-muted-foreground">
-                      Enviar a: {conversacion.client?.phone_number || conversacion.user_identifier}
-                    </p>
-                    
-                    {/* Input file oculto para seleccionar imagen */}
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={handleImageSelect}
-                      className="hidden"
-                    />
-                    
-                    {/* Si hay imagen seleccionada, mostrar preview */}
-                    {uploadedImageUrl ? (
-                      <div className="space-y-3 bg-white p-4 rounded-lg border">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            <ImageIcon className="h-5 w-5 text-green-600" />
-                            <span className="text-sm font-medium">Vista previa de imagen</span>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={limpiarEstadosImagen}
-                            disabled={uploadingToStorage || sendingImageMessage}
-                            className="h-6 w-6 p-0"
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        
-                        {/* Imagen preview */}
-                        <div className="relative w-full max-w-xs mx-auto">
-                          <img
-                            src={uploadedImageUrl}
-                            alt="Preview"
-                            className="w-full h-auto rounded-lg border shadow-sm"
-                          />
-                        </div>
-                        
-                        {/* Metadata */}
-                        {imageMetadata && (
-                          <div className="text-xs text-muted-foreground space-y-1">
-                            <p>
-                              <span className="font-medium">Tamaño:</span>{' '}
-                              {imageMetadata.compressed_size || 'N/A'}
-                              {imageMetadata.compression_ratio && (
-                                <span className="ml-2">
-                                  (Comprimido: {imageMetadata.compression_ratio})
-                                </span>
-                              )}
-                            </p>
-                            {imageMetadata.dimensions && (
-                              <p>
-                                <span className="font-medium">Dimensiones:</span>{' '}
-                                {typeof imageMetadata.dimensions === 'object' 
-                                  ? `${imageMetadata.dimensions.width} x ${imageMetadata.dimensions.height}px`
-                                  : imageMetadata.dimensions}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        
-                        {/* Input para caption */}
-                        <div>
-                          <label className="text-xs text-muted-foreground mb-1 block">
-                            Mensaje opcional
-                          </label>
-                          <Textarea
-                            placeholder="Agrega un mensaje a tu imagen..."
-                            value={imageCaption}
-                            onChange={(e) => setImageCaption(e.target.value)}
-                            className="min-h-[60px] resize-none"
-                            disabled={sendingImageMessage}
-                          />
-                        </div>
-                        
-                        {/* Botones de acción */}
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={limpiarEstadosImagen}
-                            disabled={sendingImageMessage}
-                          >
-                            Cancelar
-                          </Button>
-                          <Button
-                            onClick={enviarImagenWhatsApp}
-                            disabled={sendingImageMessage}
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            {sendingImageMessage ? (
-                              <>
-                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                Enviando...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4 mr-2" />
-                                Enviar Imagen
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        {/* Formulario normal de texto */}
-                        <Textarea
-                          ref={textareaRef}
-                          placeholder="Escribe tu mensaje aquí..."
-                          value={whatsappMessage}
-                          onChange={handleTextareaChange}
-                          className="min-h-[80px] resize-none"
-                          disabled={sendingWhatsapp || uploadingToStorage}
-                        />
-                        <div className="flex justify-between items-center">
-                          {/* Botón para adjuntar imagen - solo si feature está habilitada */}
-                          {enableImageUpload && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => fileInputRef.current?.click()}
-                              disabled={uploadingToStorage || sendingWhatsapp}
-                            >
-                              {uploadingToStorage ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                                  Cargando...
-                                </>
-                              ) : (
-                                <>
-                                  <Paperclip className="h-4 w-4 mr-2" />
-                                  Adjuntar imagen
-                                </>
-                              )}
-                            </Button>
-                          )}
-                          
-                          {/* Botón de enviar mensaje de texto */}
-                          <Button
-                            onClick={enviarWhatsApp}
-                            disabled={!whatsappMessage.trim() || sendingWhatsapp || uploadingToStorage}
-                            size="sm"
-                            className="bg-green-600 hover:bg-green-700"
-                          >
-                            {sendingWhatsapp ? (
-                              <>
-                                <RefreshCcw className="h-4 w-4 mr-2 animate-spin" />
-                                Enviando...
-                              </>
-                            ) : (
-                              <>
-                                <Send className="h-4 w-4 mr-2" />
-                                Enviar
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                  </>
-                )}
+                {showWhatsappForm && renderMessageInput()}
               </div>
             </div>
           ) : (
@@ -1502,6 +1671,105 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           )}
         </div>
       </div>
+      
+      {/* Modal para seleccionar templates */}
+      <TemplateDialog 
+        showTemplateDialog={showTemplateDialog}
+        setShowTemplateDialog={setShowTemplateDialog}
+        availableTemplates={availableTemplates}
+        sendTemplate={sendTemplate}
+      />
     </div>
+  );
+}
+
+// Componente para el modal de templates
+function TemplateDialog({ 
+  showTemplateDialog, 
+  setShowTemplateDialog, 
+  availableTemplates, 
+  sendTemplate 
+}: {
+  showTemplateDialog: boolean;
+  setShowTemplateDialog: (show: boolean) => void;
+  availableTemplates: any[];
+  sendTemplate: (templateId: string, parameters: any) => Promise<void>;
+}) {
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [templateParameters, setTemplateParameters] = useState({});
+  const [sendingTemplate, setSendingTemplate] = useState(false);
+
+  const handleSendTemplate = async () => {
+    if (!selectedTemplate) return;
+    
+    setSendingTemplate(true);
+    try {
+      await sendTemplate(selectedTemplate.id, templateParameters);
+    } finally {
+      setSendingTemplate(false);
+    }
+  };
+
+  return (
+    <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Seleccionar Template</DialogTitle>
+          <DialogDescription>
+            Elige un template pre-aprobado para enviar al cliente
+          </DialogDescription>
+        </DialogHeader>
+        
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          {availableTemplates.map((template) => (
+            <div
+              key={template.id}
+              className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                selectedTemplate?.id === template.id
+                  ? 'border-green-500 bg-green-50'
+                  : 'border-gray-200 hover:border-gray-300'
+              }`}
+              onClick={() => setSelectedTemplate(template)}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <h4 className="font-medium">{template.name}</h4>
+                  <p className="text-sm text-gray-600 mt-1">{template.body_text}</p>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <span className="text-xs bg-gray-100 px-2 py-1 rounded">
+                      {template.category}
+                    </span>
+                    {template.parameter_count > 0 && (
+                      <span className="text-xs bg-blue-100 px-2 py-1 rounded">
+                        {template.parameter_count} parámetros
+                      </span>
+                    )}
+                  </div>
+                </div>
+                {selectedTemplate?.id === template.id && (
+                  <CheckCircle className="h-5 w-5 text-green-600" />
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => setShowTemplateDialog(false)}
+          >
+            Cancelar
+          </Button>
+          <Button
+            onClick={handleSendTemplate}
+            disabled={!selectedTemplate || sendingTemplate}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            {sendingTemplate ? 'Enviando...' : 'Enviar Template'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
