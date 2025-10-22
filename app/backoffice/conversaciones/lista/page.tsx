@@ -31,6 +31,7 @@ import { es } from "date-fns/locale";
 import { getLastCustomerMessageTimestamp, isConversationUnread, truncateClientName, getFullClientName } from '@/utils/conversation-helpers';
 import { useToast } from "@/hooks/use-toast";
 import { useDebouncedCallback } from 'use-debounce';
+import { useAutoPolling } from "@/hooks/useAutoPolling";
 
 // Importar el tipo para la conversión
 interface ConversacionAccionHumana {
@@ -128,31 +129,6 @@ const WhatsAppIcon = ({ className }: { className?: string }) => {
 const conversationsCache = new Map<string, { data: ConversacionItem[], timestamp: number }>();
 const CACHE_TTL = 2 * 60 * 1000; // 2 minutos
 
-// Hook para actualización silenciosa con indicadores visuales
-const useSilentUpdates = (dataToken: { dealership_id: string }, cargarConversaciones: () => Promise<void>) => {
-  const [isUpdating, setIsUpdating] = useState(false);
-  
-  useEffect(() => {
-    if (!dataToken) return;
-    
-    const interval = setInterval(async () => {
-      setIsUpdating(true);
-      
-      try {
-        // Actualizar en background
-        await cargarConversaciones();
-      } catch (error) {
-        console.error('Error en actualización automática:', error);
-      } finally {
-        setIsUpdating(false);
-      }
-    }, 20000); // 20 segundos
-    
-    return () => clearInterval(interval);
-  }, [dataToken, cargarConversaciones]);
-  
-  return { isUpdating };
-};
 
 // Hook para actualización inteligente solo de cambios
 const useSmartPolling = (dataToken: { dealership_id: string }, setConversaciones: React.Dispatch<React.SetStateAction<ConversacionItem[]>>) => {
@@ -587,7 +563,11 @@ function ConversationList({
   );
 
   // Hooks para actualización automática (después de definir cargarConversaciones)
-  const { isUpdating } = useSilentUpdates(dataToken, cargarConversaciones);
+  const { isPolling, isPaused } = useAutoPolling({
+    interval: 15000,  // Reducir de 20s a 15s
+    enabled: !!dataToken,  // Solo cuando hay token válido
+    onPoll: cargarConversaciones
+  });
   useSmartPolling(dataToken, setConversaciones);
 
   useEffect(() => {
@@ -688,7 +668,7 @@ function ConversationList({
               <MessageCircle className="h-5 w-5" />
             </Button>
             
-            {isUpdating && (
+            {isPolling && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
                 Actualizando...
