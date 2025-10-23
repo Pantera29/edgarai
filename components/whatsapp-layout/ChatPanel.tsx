@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { unstable_batchedUpdates } from "react-dom"; // ✅ FASE 5: Batching de actualizaciones
 import { supabase } from "@/lib/supabase";
 import { ChatViewer } from "@/components/chat-viewer";
 import { Card } from "@/components/ui/card";
@@ -245,7 +246,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     setTimeout(trySetupListener, 200);
   }, [checkIfNearBottom, conversationId]);
 
-  // ===== FUNCIÓN PARA DATOS DINÁMICOS (actualización frecuente) =====
+  // ===== FUNCIÓN PARA DATOS DINÁMICOS (actualización incremental) =====
   const actualizarDatosDinamicos = useCallback(async () => {
     if (!conversationId) return;
     
@@ -337,8 +338,6 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           };
         });
         
-        setMensajes(mensajesFormateados);
-        
         // Calcular estadísticas
         const totalMensajes = mensajesFormateados.length;
         const userMensajes = mensajesFormateados.filter((m: Message) => 
@@ -348,10 +347,40 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           m.role === "assistant" || m.role === "ai_agent" || m.role === "dealership_worker"
         ).length;
         
-        setStats({
-          total: totalMensajes,
-          user: userMensajes,
-          assistant: assistantMensajes
+        // ✅ FASE 5: Batching de múltiples actualizaciones de estado
+        unstable_batchedUpdates(() => {
+          // ✅ FASE 2: Actualización incremental - solo actualizar si hay cambios
+          setMensajes(prev => {
+            // Si no hay mensajes previos, actualizar directamente
+            if (prev.length === 0) return mensajesFormateados;
+            
+            // Si la cantidad cambió, actualizar
+            if (prev.length !== mensajesFormateados.length) return mensajesFormateados;
+            
+            // Comparar si hay cambios en contenido
+            const hayDiferencias = mensajesFormateados.some((nuevo, index) => {
+              const previo = prev[index];
+              if (!previo) return true;
+              return nuevo.content !== previo.content || nuevo.id !== previo.id;
+            });
+            
+            // Solo actualizar si hay diferencias reales
+            return hayDiferencias ? mensajesFormateados : prev;
+          });
+          
+          // ✅ Solo actualizar stats si cambiaron
+          setStats(prevStats => {
+            if (prevStats.total === totalMensajes && 
+                prevStats.user === userMensajes && 
+                prevStats.assistant === assistantMensajes) {
+              return prevStats;
+            }
+            return {
+              total: totalMensajes,
+              user: userMensajes,
+              assistant: assistantMensajes
+            };
+          });
         });
       }
       
