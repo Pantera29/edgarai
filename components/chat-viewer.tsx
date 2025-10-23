@@ -21,6 +21,8 @@ interface ChatViewerProps {
   userAvatar?: React.ReactNode;
   assistantAvatar?: React.ReactNode;
   className?: string;
+  scrollAreaRef?: React.RefObject<HTMLDivElement | null>;
+  shouldAutoScroll?: boolean; // Nuevo prop para controlar auto-scroll
 }
 
 export function ChatViewer({
@@ -28,19 +30,33 @@ export function ChatViewer({
   userAvatar = <User className="h-6 w-6 text-white" />,
   assistantAvatar = <Bot className="h-6 w-6 text-primary" />,
   className,
+  scrollAreaRef,
+  shouldAutoScroll = true, // Por defecto, permitir auto-scroll
 }: ChatViewerProps) {
   const chatContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Usar el ref externo si se proporciona, sino usar el interno
+  const actualScrollRef = scrollAreaRef || chatContainerRef;
 
   // Depuración
   useEffect(() => {
     console.log("ChatViewer recibió mensajes:", messages);
   }, [messages]);
 
+  // Debug: verificar si el ref se está asignando correctamente
+  useEffect(() => {
+    if (actualScrollRef.current) {
+      console.log("✅ [ChatViewer] Ref asignado correctamente al elemento:", actualScrollRef.current);
+    } else {
+      console.log("❌ [ChatViewer] Ref no está asignado aún");
+    }
+  }, [actualScrollRef]);
+
   // Función para hacer scroll al final
   const scrollToBottom = () => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTo({
-        top: chatContainerRef.current.scrollHeight,
+    if (actualScrollRef.current) {
+      actualScrollRef.current.scrollTo({
+        top: actualScrollRef.current.scrollHeight,
         behavior: 'smooth'
       });
     }
@@ -52,12 +68,15 @@ export function ChatViewer({
     (window as any).scrollChatToBottom = scrollToBottom;
   }, []);
 
-  // Scroll automático al final cuando se cargan mensajes
+  // Scroll automático al final cuando se cargan mensajes (solo si shouldAutoScroll es true)
   useEffect(() => {
-    if (chatContainerRef.current) {
-      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    if (shouldAutoScroll && actualScrollRef.current) {
+      console.log('🔄 [ChatViewer] Haciendo scroll automático al final');
+      actualScrollRef.current.scrollTop = actualScrollRef.current.scrollHeight;
+    } else if (!shouldAutoScroll) {
+      console.log('⏭️ [ChatViewer] Saltando scroll automático (shouldAutoScroll=false)');
     }
-  }, [messages]);
+  }, [messages, shouldAutoScroll]);
 
   const formatMessageDate = (dateString: string) => {
     try {
@@ -194,7 +213,7 @@ export function ChatViewer({
 
   return (
     <div 
-      ref={chatContainerRef}
+      ref={actualScrollRef}
       className={cn(
         "flex flex-col gap-4 p-4 overflow-y-auto h-full chat-scrollbar",
         className

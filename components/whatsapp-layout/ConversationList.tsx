@@ -279,21 +279,6 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
             </p>
           </div>
           
-          {/* Indicadores de actualización automática */}
-          <div className="flex items-center gap-2 flex-shrink-0 ml-4">
-            {isUpdating && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                Actualizando...
-              </div>
-            )}
-            
-            {lastUpdateTime && !isUpdating && (
-              <div className="text-xs text-muted-foreground text-right">
-                Últ. actualización: {format(lastUpdateTime, 'HH:mm')}
-              </div>
-            )}
-          </div>
         </div>
       </div>
 

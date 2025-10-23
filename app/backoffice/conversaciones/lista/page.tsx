@@ -668,12 +668,6 @@ function ConversationList({
               <MessageCircle className="h-5 w-5" />
             </Button>
             
-            {isPolling && (
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                Actualizando...
-              </div>
-            )}
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/lib/supabase";
 import { ChatViewer } from "@/components/chat-viewer";
 import { Card } from "@/components/ui/card";
@@ -141,6 +141,11 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   // Estado para forzar la restauración del foco
   const [shouldRestoreFocus, setShouldRestoreFocus] = useState(false);
   
+  // ===== REFS PARA AUTO-SCROLL INTELIGENTE =====
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const isNearBottomRef = useRef<boolean>(true);
+  const lastMessageCountRef = useRef<number>(0);
+  
   const { toast } = useToast();
   
   // Feature flag: verificar si este dealership tiene acceso a envío de imágenes
@@ -152,6 +157,36 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     setCursorPosition(e.target.selectionStart);
   };
   
+  /**
+   * Verifica si el usuario está cerca del final del scroll
+   * @returns true si está a menos de 100px del fondo
+   */
+  const checkIfNearBottom = useCallback(() => {
+    const scrollArea = scrollAreaRef.current;
+    if (!scrollArea) {
+      console.log('⚠️ [Auto-scroll] scrollArea es null en checkIfNearBottom');
+      return true;
+    }
+    
+    const { scrollTop, scrollHeight, clientHeight } = scrollArea;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    
+    // Considera "cerca del fondo" si está a menos de 100px del final
+    const nearBottom = distanceFromBottom < 100;
+    isNearBottomRef.current = nearBottom;
+    
+    console.log('📍 Posición scroll:', {
+      scrollTop: Math.round(scrollTop),
+      scrollHeight: Math.round(scrollHeight),
+      clientHeight: Math.round(clientHeight),
+      distanceFromBottom: Math.round(distanceFromBottom),
+      nearBottom,
+      willAutoScroll: nearBottom ? 'SÍ' : 'NO'
+    });
+    
+    return nearBottom;
+  }, []);
+  
   // useEffect para restaurar el foco después de re-renders
   useEffect(() => {
     if (shouldRestoreFocus && textareaRef.current && cursorPosition !== null) {
@@ -160,6 +195,55 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       setShouldRestoreFocus(false);
     }
   }, [shouldRestoreFocus, cursorPosition]);
+
+  // Detectar cuando el usuario hace scroll manualmente
+  useEffect(() => {
+    // Solo configurar el listener si hay una conversación abierta
+    if (!conversationId) {
+      console.log('⏭️ [Auto-scroll] No hay conversación abierta, saltando configuración del listener');
+      return;
+    }
+
+    console.log('🔄 [Auto-scroll] Iniciando configuración del listener para conversación:', conversationId);
+    
+    // Intentar configurar el listener múltiples veces hasta que el ref esté listo
+    let attempts = 0;
+    const maxAttempts = 50; // 5 segundos máximo
+    
+    const trySetupListener = () => {
+      attempts++;
+      const scrollArea = scrollAreaRef.current;
+      
+      if (!scrollArea) {
+        if (attempts < maxAttempts) {
+          console.log(`⚠️ [Auto-scroll] Intento ${attempts}/${maxAttempts}: scrollAreaRef.current es null, reintentando en 100ms`);
+          setTimeout(trySetupListener, 100);
+        } else {
+          console.log('❌ [Auto-scroll] No se pudo configurar el listener después de múltiples intentos');
+        }
+        return;
+      }
+      
+      console.log('✅ [Auto-scroll] Agregando listener de scroll al elemento:', scrollArea);
+      
+      const handleScroll = () => {
+        checkIfNearBottom();
+      };
+      
+      scrollArea.addEventListener('scroll', handleScroll);
+      
+      // Verificar posición inicial
+      checkIfNearBottom();
+      
+      return () => {
+        console.log('🧹 [Auto-scroll] Removiendo listener de scroll');
+        scrollArea.removeEventListener('scroll', handleScroll);
+      };
+    };
+    
+    // Iniciar el proceso después de un delay inicial
+    setTimeout(trySetupListener, 200);
+  }, [checkIfNearBottom, conversationId]);
 
   // Cargar datos estáticos cuando cambia el ID de conversación
   useEffect(() => {
@@ -177,8 +261,18 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       setUploadedImageUrl(null);
       setImageMetadata(null);
       setImageCaption("");
+      // NUEVO: Limpiar contador de mensajes cuando se cambia de conversación
+      lastMessageCountRef.current = 0;
     }
   }, [conversationId, dataToken]);
+
+  // Inicializar contador de mensajes cuando se cargan mensajes por primera vez
+  useEffect(() => {
+    if (mensajes.length > 0 && lastMessageCountRef.current === 0) {
+      console.log('🔄 [Auto-scroll] Inicializando contador de mensajes:', mensajes.length);
+      lastMessageCountRef.current = mensajes.length;
+    }
+  }, [mensajes.length]);
 
   // Actualización automática de datos dinámicos cada 20 segundos
   useEffect(() => {
@@ -189,6 +283,10 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
         // Solo actualizar si la conversación está abierta
         if (conversacion) {
           console.log('🔄 Actualizando datos dinámicos automáticamente...');
+          
+          // NUEVO: Guardar cantidad de mensajes ANTES de actualizar
+          lastMessageCountRef.current = mensajes.length;
+          
           setIsAutoUpdating(true);
           
           // Preservar si el textarea tenía foco antes de la actualización
@@ -211,7 +309,39 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     }, 20000); // 20 segundos
     
     return () => clearInterval(interval);
-  }, [conversationId, dataToken, conversacion]);
+  }, [conversationId, dataToken, conversacion, mensajes.length]);
+
+  // Auto-scroll inteligente: solo scrollea si hay mensajes nuevos Y el usuario está al fondo
+  useEffect(() => {
+    // Detectar si hay mensajes nuevos
+    const hasNewMessages = mensajes.length > lastMessageCountRef.current;
+    
+    console.log('🔍 [Auto-scroll] Verificando mensajes:', {
+      mensajesActuales: mensajes.length,
+      mensajesAnteriores: lastMessageCountRef.current,
+      hasNewMessages,
+      isNearBottom: isNearBottomRef.current
+    });
+    
+    if (hasNewMessages && isNearBottomRef.current) {
+      // Usuario está al fondo → hacer auto-scroll
+      console.log('📩 Nuevo mensaje detectado → SCROLLEANDO al fondo');
+      
+      // Pequeño delay para que el DOM se actualice
+      setTimeout(() => {
+        const scrollArea = scrollAreaRef.current;
+        if (scrollArea) {
+          scrollArea.scrollTop = scrollArea.scrollHeight;
+        }
+      }, 100);
+    } else if (hasNewMessages && !isNearBottomRef.current) {
+      // Usuario está arriba → NO interrumpir
+      console.log('📩 Nuevo mensaje detectado → NO scrolleando (usuario está leyendo arriba)');
+    }
+    
+    // Actualizar contador de mensajes
+    lastMessageCountRef.current = mensajes.length;
+  }, [mensajes.length]);
 
   // Verificar estado de ventana al cargar la conversación
   useEffect(() => {
@@ -1375,13 +1505,6 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
         </div>
         
         <div className="flex items-center gap-2">
-          {/* Indicador de actualización automática */}
-          {isAutoUpdating && (
-            <div className="flex items-center gap-1 text-xs text-muted-foreground">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-              Actualizando...
-            </div>
-          )}
           
           {/* Botón de reactivar agente - solo mostrar si el agente está inactivo */}
           {conversacion.user_identifier && !agentStatus.agent_active && (
@@ -1614,7 +1737,11 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
 
           {/* ChatViewer con altura flexible */}
           <div ref={messagesContainerRef} className="flex-1 overflow-hidden">
-            <ChatViewer messages={mensajes} />
+            <ChatViewer 
+              messages={mensajes} 
+              scrollAreaRef={scrollAreaRef} 
+              shouldAutoScroll={isNearBottomRef.current}
+            />
           </div>
           
           {/* Formulario de WhatsApp */}
