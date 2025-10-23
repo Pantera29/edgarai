@@ -13,6 +13,7 @@ import { RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { markConversationAsRead } from '@/utils/conversation-helpers';
+import { cn } from "@/lib/utils";
 import { ClienteContextPanel } from '@/components/cliente-context-panel';
 import { ChatPlaceholder } from './ChatPlaceholder';
 import { WhatsAppWindowStatus } from '@/utils/whatsapp-window';
@@ -98,7 +99,6 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     agent_active: true,
     loading: false
   });
-  const [isAutoUpdating, setIsAutoUpdating] = useState(false);
   
   // ===== ESTADOS DE CARGA ÚNICA (solo al abrir conversación) =====
   const [conversacion, setConversacion] = useState<Conversation | null>(null);
@@ -245,187 +245,8 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     setTimeout(trySetupListener, 200);
   }, [checkIfNearBottom, conversationId]);
 
-  // Cargar datos estáticos cuando cambia el ID de conversación
-  useEffect(() => {
-    if (conversationId && dataToken) {
-      cargarDatosEstaticos(true); // true = es la primera carga, marcar como leída
-    } else {
-      // Limpiar estado cuando no hay conversación seleccionada
-      setConversacion(null);
-      setMensajes([]);
-      setWhatsappMessage(""); // Solo limpiar el mensaje cuando se cambia de conversación
-      setCursorPosition(null); // Limpiar posición del cursor
-      setShouldRestoreFocus(false); // Limpiar flag de restauración
-      // Limpiar estados de imagen
-      setSelectedImage(null);
-      setUploadedImageUrl(null);
-      setImageMetadata(null);
-      setImageCaption("");
-      // NUEVO: Limpiar contador de mensajes cuando se cambia de conversación
-      lastMessageCountRef.current = 0;
-    }
-  }, [conversationId, dataToken]);
-
-  // Inicializar contador de mensajes cuando se cargan mensajes por primera vez
-  useEffect(() => {
-    if (mensajes.length > 0 && lastMessageCountRef.current === 0) {
-      console.log('🔄 [Auto-scroll] Inicializando contador de mensajes:', mensajes.length);
-      lastMessageCountRef.current = mensajes.length;
-    }
-  }, [mensajes.length]);
-
-  // Actualización automática de datos dinámicos cada 20 segundos
-  useEffect(() => {
-    if (!conversationId || !dataToken) return;
-    
-    const interval = setInterval(async () => {
-      try {
-        // Solo actualizar si la conversación está abierta
-        if (conversacion) {
-          console.log('🔄 Actualizando datos dinámicos automáticamente...');
-          
-          // NUEVO: Guardar cantidad de mensajes ANTES de actualizar
-          lastMessageCountRef.current = mensajes.length;
-          
-          setIsAutoUpdating(true);
-          
-          // Preservar si el textarea tenía foco antes de la actualización
-          const hadFocus = textareaRef.current === document.activeElement;
-          const currentCursorPos = textareaRef.current?.selectionStart || null;
-          
-          await actualizarDatosDinamicos(); // Solo actualizar mensajes y estadísticas
-          
-          // Marcar que se debe restaurar el foco después del re-render
-          if (hadFocus && currentCursorPos !== null) {
-            setCursorPosition(currentCursorPos);
-            setShouldRestoreFocus(true);
-          }
-        }
-      } catch (error) {
-        console.error('Error en actualización automática de datos dinámicos:', error);
-      } finally {
-        setIsAutoUpdating(false);
-      }
-    }, 5000); // 5 segundos
-    
-    return () => clearInterval(interval);
-  }, [conversationId, dataToken, conversacion, mensajes.length]);
-
-  // Auto-scroll inteligente: solo scrollea si hay mensajes nuevos Y el usuario está al fondo
-  useEffect(() => {
-    // Detectar si hay mensajes nuevos
-    const hasNewMessages = mensajes.length > lastMessageCountRef.current;
-    
-    console.log('🔍 [Auto-scroll] Verificando mensajes:', {
-      mensajesActuales: mensajes.length,
-      mensajesAnteriores: lastMessageCountRef.current,
-      hasNewMessages,
-      isNearBottom: isNearBottomRef.current
-    });
-    
-    if (hasNewMessages && isNearBottomRef.current) {
-      // Usuario está al fondo → hacer auto-scroll
-      console.log('📩 Nuevo mensaje detectado → SCROLLEANDO al fondo');
-      
-      // Pequeño delay para que el DOM se actualice
-      setTimeout(() => {
-        const scrollArea = scrollAreaRef.current;
-        if (scrollArea) {
-          scrollArea.scrollTop = scrollArea.scrollHeight;
-        }
-      }, 100);
-    } else if (hasNewMessages && !isNearBottomRef.current) {
-      // Usuario está arriba → NO interrumpir
-      console.log('📩 Nuevo mensaje detectado → NO scrolleando (usuario está leyendo arriba)');
-    }
-    
-    // Actualizar contador de mensajes
-    lastMessageCountRef.current = mensajes.length;
-  }, [mensajes.length]);
-
-  // Verificar estado de ventana al cargar la conversación
-  useEffect(() => {
-    if (conversacion?.id) {
-      checkWindowStatus();
-      loadAvailableTemplates();
-    }
-  }, [conversacion?.id]);
-
-  // Verificar estado de ventana cuando llegan nuevos mensajes
-  useEffect(() => {
-    if (mensajes.length > 0) {
-      checkWindowStatus();
-    }
-  }, [mensajes]);
-
-  // ===== FUNCIÓN PARA DATOS ESTÁTICOS (carga única) =====
-  const cargarDatosEstaticos = async (markAsRead: boolean = false) => {
-    if (!conversationId) return;
-    
-    setLoading(true);
-    try {
-      // Obtener detalles de la conversación (datos estáticos)
-      const { data: conversacionData, error: conversacionError } = await supabase
-        .from("chat_conversations")
-        .select(`
-          *,
-          client(id, names, email, phone_number, agent_active)
-        `)
-        .eq("id", conversationId)
-        .single() as { data: Conversation | null; error: any };
-
-      if (conversacionError) throw conversacionError;
-      
-      // Verificar que se obtuvo la conversación
-      if (!conversacionData) {
-        console.error("No se encontró la conversación");
-        return;
-      }
-      
-      // Verificar que la conversación pertenece a la agencia del usuario
-      if (
-        dataToken?.dealership_id && 
-        conversacionData.dealership_id && 
-        dataToken.dealership_id !== conversacionData.dealership_id
-      ) {
-        console.error("No tienes permiso para ver esta conversación");
-        return;
-      }
-      
-      setConversacion(conversacionData);
-      
-      // Debug: Log para verificar los datos del cliente
-      console.log('🔍 [DEBUG] Datos estáticos de la conversación:', {
-        hasClient: !!conversacionData.client,
-        clientData: conversacionData.client,
-        agentActive: conversacionData.client?.agent_active,
-        phoneNumber: conversacionData.client?.phone_number
-      });
-      
-      // Verificar estado del agente de IA si tenemos los datos necesarios
-      if (conversacionData.user_identifier && dataToken?.dealership_id) {
-        verificarEstadoAgente(conversacionData.user_identifier, dataToken.dealership_id);
-      }
-
-      // Cargar mensajes iniciales (solo en la primera carga)
-      if (conversacionData.messages) {
-        await actualizarDatosDinamicos();
-      }
-      
-      // Marcar como leída solo cuando se abre la conversación por primera vez
-      if (markAsRead) {
-        markConversationAsRead(conversationId);
-      }
-      
-    } catch (error) {
-      console.error("Error cargando conversación:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // ===== FUNCIÓN PARA DATOS DINÁMICOS (actualización frecuente) =====
-  const actualizarDatosDinamicos = async () => {
+  const actualizarDatosDinamicos = useCallback(async () => {
     if (!conversationId) return;
     
     try {
@@ -542,7 +363,190 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
     } catch (error) {
       console.error("Error actualizando datos dinámicos:", error);
     }
+  }, [conversationId, conversacion, dataToken]);
+
+  // Cargar datos estáticos cuando cambia el ID de conversación
+  useEffect(() => {
+    if (conversationId && dataToken) {
+      cargarDatosEstaticos(true); // true = es la primera carga, marcar como leída
+    } else {
+      // Limpiar estado cuando no hay conversación seleccionada
+      setConversacion(null);
+      setMensajes([]);
+      setWhatsappMessage(""); // Solo limpiar el mensaje cuando se cambia de conversación
+      setCursorPosition(null); // Limpiar posición del cursor
+      setShouldRestoreFocus(false); // Limpiar flag de restauración
+      // Limpiar estados de imagen
+      setSelectedImage(null);
+      setUploadedImageUrl(null);
+      setImageMetadata(null);
+      setImageCaption("");
+      // NUEVO: Limpiar contador de mensajes cuando se cambia de conversación
+      lastMessageCountRef.current = 0;
+    }
+  }, [conversationId, dataToken]);
+
+  // Inicializar contador de mensajes cuando se cargan mensajes por primera vez
+  useEffect(() => {
+    if (mensajes.length > 0 && lastMessageCountRef.current === 0) {
+      console.log('🔄 [Auto-scroll] Inicializando contador de mensajes:', mensajes.length);
+      lastMessageCountRef.current = mensajes.length;
+    }
+  }, [mensajes.length]);
+
+  // Actualización automática de datos dinámicos cada 5 segundos (estilo Kapso)
+  useEffect(() => {
+    if (!conversationId || !dataToken) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        // Solo actualizar si la conversación está abierta
+        if (conversacion) {
+          console.log('🔄 Actualizando datos dinámicos automáticamente...');
+          
+          // ✅ Guardar cantidad de mensajes ANTES de actualizar (estilo Kapso)
+          lastMessageCountRef.current = mensajes.length;
+          
+          // ✅ Preservar si el textarea tenía foco antes de la actualización
+          const hadFocus = textareaRef.current === document.activeElement;
+          const currentCursorPos = textareaRef.current?.selectionStart || null;
+          
+          // ✅ Actualizar datos SIN cambiar estado de loading
+          // React NO re-renderizará si los datos son iguales (optimización automática)
+          await actualizarDatosDinamicos();
+          
+          // ✅ Marcar que se debe restaurar el foco después del re-render
+          if (hadFocus && currentCursorPos !== null) {
+            setCursorPosition(currentCursorPos);
+            setShouldRestoreFocus(true);
+          }
+        }
+      } catch (error) {
+        console.error('Error en actualización automática de datos dinámicos:', error);
+      }
+      // ✅ SIN finally - dejamos que React optimice automáticamente
+    }, 5000); // 5 segundos
+    
+    return () => clearInterval(interval);
+  }, [conversationId, dataToken, conversacion, mensajes.length, actualizarDatosDinamicos]);
+
+  // Auto-scroll inteligente: solo scrollea si hay mensajes nuevos Y el usuario está al fondo
+  useEffect(() => {
+    // Detectar si hay mensajes nuevos
+    const hasNewMessages = mensajes.length > lastMessageCountRef.current;
+    
+    console.log('🔍 [Auto-scroll] Verificando mensajes:', {
+      mensajesActuales: mensajes.length,
+      mensajesAnteriores: lastMessageCountRef.current,
+      hasNewMessages,
+      isNearBottom: isNearBottomRef.current
+    });
+    
+    if (hasNewMessages && isNearBottomRef.current) {
+      // Usuario está al fondo → hacer auto-scroll suave (estilo Kapso)
+      console.log('📩 Nuevo mensaje detectado → SCROLLEANDO al fondo');
+      
+      // Pequeño delay para que el DOM se actualice
+      setTimeout(() => {
+        const scrollArea = scrollAreaRef.current;
+        if (scrollArea) {
+          // ✅ Scroll suave con animación nativa (300ms)
+          scrollArea.scrollTo({
+            top: scrollArea.scrollHeight,
+            behavior: 'smooth'
+          });
+        }
+      }, 100);
+    } else if (hasNewMessages && !isNearBottomRef.current) {
+      // Usuario está arriba → NO interrumpir
+      console.log('📩 Nuevo mensaje detectado → NO scrolleando (usuario está leyendo arriba)');
+    }
+    
+    // Actualizar contador de mensajes
+    lastMessageCountRef.current = mensajes.length;
+  }, [mensajes.length]);
+
+  // Verificar estado de ventana al cargar la conversación
+  useEffect(() => {
+    if (conversacion?.id) {
+      checkWindowStatus();
+      loadAvailableTemplates();
+    }
+  }, [conversacion?.id]);
+
+  // Verificar estado de ventana cuando llegan nuevos mensajes
+  useEffect(() => {
+    if (mensajes.length > 0) {
+      checkWindowStatus();
+    }
+  }, [mensajes]);
+
+  // ===== FUNCIÓN PARA DATOS ESTÁTICOS (carga única) =====
+  const cargarDatosEstaticos = async (markAsRead: boolean = false) => {
+    if (!conversationId) return;
+    
+    setLoading(true);
+    try {
+      // Obtener detalles de la conversación (datos estáticos)
+      const { data: conversacionData, error: conversacionError } = await supabase
+        .from("chat_conversations")
+        .select(`
+          *,
+          client(id, names, email, phone_number, agent_active)
+        `)
+        .eq("id", conversationId)
+        .single() as { data: Conversation | null; error: any };
+
+      if (conversacionError) throw conversacionError;
+      
+      // Verificar que se obtuvo la conversación
+      if (!conversacionData) {
+        console.error("No se encontró la conversación");
+        return;
+      }
+      
+      // Verificar que la conversación pertenece a la agencia del usuario
+      if (
+        dataToken?.dealership_id && 
+        conversacionData.dealership_id && 
+        dataToken.dealership_id !== conversacionData.dealership_id
+      ) {
+        console.error("No tienes permiso para ver esta conversación");
+        return;
+      }
+      
+      setConversacion(conversacionData);
+      
+      // Debug: Log para verificar los datos del cliente
+      console.log('🔍 [DEBUG] Datos estáticos de la conversación:', {
+        hasClient: !!conversacionData.client,
+        clientData: conversacionData.client,
+        agentActive: conversacionData.client?.agent_active,
+        phoneNumber: conversacionData.client?.phone_number
+      });
+      
+      // Verificar estado del agente de IA si tenemos los datos necesarios
+      if (conversacionData.user_identifier && dataToken?.dealership_id) {
+        verificarEstadoAgente(conversacionData.user_identifier, dataToken.dealership_id);
+      }
+
+      // Cargar mensajes iniciales (solo en la primera carga)
+      if (conversacionData.messages) {
+        await actualizarDatosDinamicos();
+      }
+      
+      // Marcar como leída solo cuando se abre la conversación por primera vez
+      if (markAsRead) {
+        markConversationAsRead(conversationId);
+      }
+      
+    } catch (error) {
+      console.error("Error cargando conversación:", error);
+    } finally {
+      setLoading(false);
+    }
   };
+
 
   const formatDate = (dateString: string) => {
     try {
@@ -1475,8 +1479,38 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <p>Cargando conversación...</p>
+      <div className="flex-1 flex flex-col bg-[#efeae2] h-full">
+        {/* Header skeleton estilo WhatsApp */}
+        <div className="p-3 border-b bg-[#f0f2f5] flex items-center gap-3">
+          <div className="h-10 w-10 rounded-full bg-gray-200 animate-pulse" />
+          <div className="flex-1">
+            <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-2" />
+            <div className="h-3 w-24 bg-gray-200 rounded animate-pulse" />
+          </div>
+        </div>
+        
+        {/* Mensajes skeleton */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <div className="max-w-[900px] mx-auto space-y-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className={cn(
+                'flex mb-2',
+                i % 2 === 0 ? 'justify-end' : 'justify-start'
+              )}>
+                <div className={cn(
+                  'max-w-[70%] rounded-lg px-3 py-2 shadow-sm',
+                  i % 2 === 0 ? 'bg-[#d9fdd3] rounded-br-none' : 'bg-white rounded-bl-none'
+                )}>
+                  <div 
+                    className="h-4 bg-gray-200 rounded animate-pulse mb-2" 
+                    style={{ width: `${Math.random() * 150 + 150}px` }}
+                  />
+                  <div className="h-3 w-16 bg-gray-200 rounded animate-pulse" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     );
   }
