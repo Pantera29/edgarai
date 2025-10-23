@@ -130,71 +130,6 @@ const conversationsCache = new Map<string, { data: ConversacionItem[], timestamp
 const CACHE_TTL = 2 * 60 * 1000; // 2 minutos
 
 
-// Hook para actualización inteligente solo de cambios
-const useSmartPolling = (dataToken: { dealership_id: string }, setConversaciones: React.Dispatch<React.SetStateAction<ConversacionItem[]>>) => {
-  const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
-  
-  useEffect(() => {
-    if (!dataToken) return;
-    
-    const interval = setInterval(async () => {
-      try {
-        // Usar la nueva función get_all_conversations_with_agent_status para obtener todas las conversaciones
-        // y luego comparar con las existentes para detectar cambios
-        const { data, error } = await supabase.rpc('get_all_conversations_with_agent_status', {
-          dealership_id_param: dataToken.dealership_id,
-          search_query: null,
-          p_status_filter: 'todos',
-          channel_filter: 'todos',
-          ended_reason_filter: 'todas'
-        });
-        
-        if (error) {
-          console.error('Error en polling inteligente:', error);
-          return;
-        }
-        
-        if (data && data.length > 0) {
-          console.log('🔄 Verificando cambios en conversaciones...');
-          
-          // Actualizar las conversaciones existentes
-          setConversaciones(prev => {
-            const updated = [...prev];
-            let hasChanges = false;
-            
-            data.forEach((newConv: ConversacionItem) => {
-              const index = updated.findIndex((c: ConversacionItem) => c.id === newConv.id);
-              if (index >= 0) {
-                // Verificar si la conversación cambió
-                const oldConv = updated[index];
-                if (JSON.stringify(oldConv) !== JSON.stringify(newConv)) {
-                  updated[index] = newConv;
-                  hasChanges = true;
-                }
-              } else {
-                // Nueva conversación - agregar al inicio
-                updated.unshift(newConv);
-                hasChanges = true;
-              }
-            });
-            
-            if (hasChanges) {
-              console.log('🔄 Se detectaron cambios en las conversaciones');
-            }
-            
-            return updated;
-          });
-        }
-        
-        setLastUpdate(new Date());
-      } catch (error) {
-        console.error('Error en polling inteligente:', error);
-      }
-    }, 20000); // 20 segundos
-    
-    return () => clearInterval(interval);
-  }, [dataToken, setConversaciones, lastUpdate]);
-};
 
 // Componente para la lista de conversaciones (lado izquierdo)
 function ConversationList({ 
@@ -271,12 +206,15 @@ function ConversationList({
         p_status_filter: 'todos', // Mantener el parámetro pero con valor por defecto
         channel_filter: filtroCanal,
         ended_reason_filter: filtroRazonFinalizacion
-      };
+      } as any;
 
       console.log('🚀 Llamando a la función RPC get_all_conversations_with_agent_status con los parámetros:', rpcParams);
       
       // ✅ Usar nueva función que incluye client_agent_active
-      const { data, error } = await supabase.rpc('get_all_conversations_with_agent_status', rpcParams);
+      const { data, error } = await supabase.rpc('get_all_conversations_with_agent_status', rpcParams) as {
+        data: ConversacionItem[] | null;
+        error: any;
+      };
       
       if (error) {
         console.error("❌ Error en la llamada RPC:", JSON.stringify(error, null, 2));
@@ -361,12 +299,12 @@ function ConversationList({
         
         // Combinar resultados únicos
         const allResults = [...(nameResults.data || []), ...(phoneResults.data || [])];
-        const uniqueResults = allResults.filter((client, index, self) => 
-          index === self.findIndex(c => c.id === client.id)
+        const uniqueResults = allResults.filter((client: any, index, self) => 
+          index === self.findIndex((c: any) => c.id === client.id)
         );
 
         // Obtener configuración de agentes desde phone_agent_settings
-        const phoneNumbers = uniqueResults.map(client => client.phone_number);
+        const phoneNumbers = uniqueResults.map((client: any) => client.phone_number);
         const { data: agentSettings, error: agentSettingsError } = await supabase
           .from('phone_agent_settings')
           .select('phone_number, agent_active')
@@ -377,7 +315,7 @@ function ConversationList({
 
         // Crear mapa para lookup rápido del estado del agente
         const agentSettingsMap = new Map(
-          agentSettings?.map(setting => [setting.phone_number, setting.agent_active]) || []
+          agentSettings?.map((setting: any) => [setting.phone_number, setting.agent_active]) || []
         );
 
         // Obtener conversaciones activas para filtrar
@@ -391,13 +329,13 @@ function ConversationList({
 
         // Filtrar clientes que no tienen conversaciones activas Y tienen agente activo
         const clientesConConversacionesActivas = new Set(
-          conversacionesActivas?.map(c => c.client_id) || []
+          conversacionesActivas?.map((c: any) => c.client_id) || []
         );
 
         let clientesConConversacionesActivasCount = 0;
         let clientesConAgenteDesactivadoCount = 0;
 
-        const clientesFiltrados = uniqueResults.filter(cliente => {
+        const clientesFiltrados = uniqueResults.filter((cliente: any) => {
           // Verificar que no tenga conversaciones activas
           const noTieneConversacionesActivas = !clientesConConversacionesActivas.has(cliente.id);
           if (!noTieneConversacionesActivas) {
@@ -443,12 +381,12 @@ function ConversationList({
           .from('phone_agent_settings')
           .select('phone_number, agent_active')
           .eq('dealership_id', dataToken.dealership_id)
-          .in('phone_number', data?.map(c => c.phone_number) || []);
+          .in('phone_number', data?.map((c: any) => c.phone_number) || []);
 
         if (agentSettingsError) throw agentSettingsError;
 
         const agentSettingsMap = new Map(
-          agentSettings?.map(setting => [setting.phone_number, setting.agent_active]) || []
+          agentSettings?.map((setting: any) => [setting.phone_number, setting.agent_active]) || []
         );
 
         const { data: conversacionesActivas, error: conversacionesError } = await supabase
@@ -460,10 +398,10 @@ function ConversationList({
         if (conversacionesError) throw conversacionesError;
 
         const clientesConConversacionesActivas = new Set(
-          conversacionesActivas?.map(c => c.client_id) || []
+          conversacionesActivas?.map((c: any) => c.client_id) || []
         );
 
-        const clientesFiltrados = (data || []).filter(cliente => {
+        const clientesFiltrados = (data || []).filter((cliente: any) => {
           const noTieneConversacionesActivas = !clientesConConversacionesActivas.has(cliente.id);
           const agentActive = agentSettingsMap.get(cliente.phone_number) ?? cliente.agent_active ?? true;
           return noTieneConversacionesActivas && agentActive;
@@ -507,7 +445,7 @@ function ConversationList({
           status: 'active',
           channel: 'whatsapp',
           messages: []
-        })
+        } as any)
         .select()
         .single();
 
@@ -524,14 +462,14 @@ function ConversationList({
       // Seleccionar la nueva conversación
       if (nuevaConversacion) {
         const conversacionAdaptada: ConversacionItem = {
-          id: nuevaConversacion.id,
-          user_identifier: nuevaConversacion.user_identifier,
+          id: (nuevaConversacion as any).id,
+          user_identifier: (nuevaConversacion as any).user_identifier,
           client: {
             names: clienteSeleccionado.names,
             phone_number: clienteSeleccionado.phone_number,
             email: clienteSeleccionado.email
           },
-          updated_at: nuevaConversacion.created_at,
+          updated_at: (nuevaConversacion as any).created_at,
           status: 'active',
           channel: 'whatsapp'
         };
@@ -568,7 +506,6 @@ function ConversationList({
     enabled: !!dataToken,  // Solo cuando hay token válido
     onPoll: cargarConversaciones
   });
-  useSmartPolling(dataToken, setConversaciones);
 
   useEffect(() => {
     if (dataToken) {
