@@ -133,13 +133,18 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
     try {
       console.log('🔄 Cargando métricas de acción humana...');
       
-      const { data, error } = await supabase.rpc('get_human_action_metrics', {
+      const { data, error } = await (supabase.rpc as any)('get_human_action_metrics', {
         p_dealership_id: dataToken.dealership_id
-      });
+      }) as { data: MetricasAccionHumana | null; error: any };
       
       if (error) {
         console.error("❌ Error cargando métricas:", error);
         throw error;
+      }
+
+      if (!data) {
+        console.error("❌ No se obtuvieron métricas");
+        return;
       }
 
       console.log('✅ Métricas cargadas:', data);
@@ -168,16 +173,23 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
 
       console.log('🚀 Llamando a get_conversations_needing_human_action con:', rpcParams);
       
-      const { data, error } = await supabase.rpc('get_conversations_needing_human_action', rpcParams);
+      const { data, error } = await (supabase.rpc as any)('get_conversations_needing_human_action', rpcParams) as { data: ConversacionAccionHumana[] | null; error: any };
       
       if (error) {
         console.error("❌ Error en la llamada RPC:", error);
         throw error;
       }
 
-      console.log('✅ Conversaciones cargadas:', data?.length || 0);
+      if (!data) {
+        console.error("❌ No se obtuvieron conversaciones");
+        setConversaciones([]);
+        setTotalConversaciones(0);
+        return;
+      }
+
+      console.log('✅ Conversaciones cargadas:', data.length);
       
-      if (data && data.length > 0) {
+      if (data.length > 0) {
         // Aplicar filtro de no leídos en el cliente si está activo
         let conversacionesFiltradas = data;
         if (filtroNoLeidos) {
