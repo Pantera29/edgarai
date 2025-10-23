@@ -10,6 +10,8 @@ interface UseAutoPollingOptions {
   enabled?: boolean;
   /** Función async que se ejecutará en cada intervalo */
   onPoll: () => Promise<void> | void;
+  /** ✅ FASE 3: Función opcional para calcular intervalo dinámico */
+  dynamicInterval?: () => number;
 }
 
 /**
@@ -39,6 +41,7 @@ export const useAutoPolling = ({
   interval = 5000,
   enabled = true,
   onPoll,
+  dynamicInterval, // ✅ FASE 3: Nuevo parámetro
 }: UseAutoPollingOptions): UseAutoPollingReturn => {
   // Estados del hook
   const [isPolling, setIsPolling] = useState<boolean>(false);
@@ -79,24 +82,33 @@ export const useAutoPolling = ({
     // Ejecutar inmediatamente
     executePoll();
     
-    // Configurar intervalo
-    intervalRef.current = setInterval(() => {
-      if (!isPausedRef.current) {
-        executePoll();
-      }
-    }, interval);
+    // ✅ FASE 3: Función que ejecuta poll y recalcula intervalo
+    const scheduleNextPoll = () => {
+      // Calcular intervalo dinámico o usar el fijo
+      const currentInterval = dynamicInterval?.() ?? interval;
+      
+      intervalRef.current = setTimeout(() => {
+        if (!isPausedRef.current && isPollingRef.current) {
+          executePoll();
+          scheduleNextPoll(); // Recursivo para recalcular intervalo
+        }
+      }, currentInterval);
+    };
+    
+    // Iniciar ciclo de polling
+    scheduleNextPoll();
     
     // Cleanup
     return () => {
       if (intervalRef.current) {
-        clearInterval(intervalRef.current);
+        clearTimeout(intervalRef.current);
         intervalRef.current = null;
       }
       console.log('🛑 Polling detenido');
       setIsPolling(false);
       isPollingRef.current = false;
     };
-  }, [enabled, interval, executePoll]);
+  }, [enabled, interval, executePoll, dynamicInterval]);
 
   // Effect para manejar la visibilidad de la pestaña
   useEffect(() => {

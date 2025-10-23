@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, memo, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { verifyToken } from "../../../jwt/token";
@@ -126,8 +126,8 @@ const WhatsAppIcon = ({ className }: { className?: string }) => {
   );
 };
 
-// Cache simple en memoria - solo para queries sin filtros (fuera del componente)
-const conversationsCache = new Map<string, { data: ConversacionItem[], timestamp: number }>();
+// ✅ Cache mejorado con total_count (fuera del componente)
+const conversationsCache = new Map<string, { data: ConversacionItem[], total: number, timestamp: number }>();
 const CACHE_TTL = 30 * 1000; // 30 segundos
 
 // Componente memoizado para conversaciones críticas (primeras 30)
@@ -234,6 +234,7 @@ function ConversationList({
   const [busquedaCliente, setBusquedaCliente] = useState("");
   const [loadingClientes, setLoadingClientes] = useState(false);
   const [creatingConversation, setCreatingConversation] = useState(false);
+  const [isSearching, setIsSearching] = useState(false); // ✅ Indicador de búsqueda en progreso
   const [estadisticasFiltrado, setEstadisticasFiltrado] = useState<{
     totalClientes: number;
     clientesDisponibles: number;
@@ -249,13 +250,24 @@ function ConversationList({
 
   const { toast } = useToast();
 
-  // Función debounced para búsqueda de clientes
+  // ✅ FASE 4.1: Debouncing para búsqueda de clientes
   const buscarClientesDebounced = useDebouncedCallback(
     (query: string) => buscarClientesDisponibles(query),
     300
   );
 
+  // ✅ FASE 4.2: AbortController para cancelación de requests
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // ✅ PASO 1.2: Paginación del servidor + Merge incremental
   const cargarConversaciones = useCallback(async () => {
+    // ✅ FASE 4.2: Cancelar request anterior si existe
+    if (abortControllerRef.current) {
+      console.log('🚫 Cancelando request anterior');
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    
     setLoading(true);
     try {
       // Detectar si hay filtros aplicados
@@ -263,16 +275,16 @@ function ConversationList({
                          filtroCanal === 'todos' && 
                          filtroRazonFinalizacion === 'todas';
       
-      // Cache key simple - solo para queries sin filtros
-      const cacheKey = `conversations-${dataToken.dealership_id}-base`;
+      // Cache key ahora incluye la página
+      const cacheKey = `conversations-${dataToken.dealership_id}-page-${pagina}-filters-${busqueda}-${filtroCanal}-${filtroRazonFinalizacion}`;
       
       // 🚀 VERIFICAR CACHE solo si no hay filtros
       if (sinFiltros) {
         const cached = conversationsCache.get(cacheKey);
         if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-          console.log('🚀 Cache hit - conversaciones sin filtros');
+          console.log('🚀 Cache hit - página', pagina);
           setConversaciones(cached.data);
-          setTotalConversaciones(cached.data.length);
+          setTotalConversaciones(cached.total);
           setLoading(false);
           return; // ¡Salir temprano con cache!
         }
@@ -281,21 +293,29 @@ function ConversationList({
       // 💾 Si no hay cache O hay filtros → usar RPC normal
       console.log(sinFiltros ? '💾 Cache miss - calculando datos frescos' : '🔍 Query con filtros - no cacheable');
       
+      // ✅ NUEVO: Pasar parámetros de paginación
       const rpcParams = {
         dealership_id_param: dataToken.dealership_id,
         search_query: busqueda || null,
-        p_status_filter: 'todos', // Mantener el parámetro pero con valor por defecto
+        p_status_filter: 'todos',
         channel_filter: filtroCanal,
-        ended_reason_filter: filtroRazonFinalizacion
+        ended_reason_filter: filtroRazonFinalizacion,
+        p_limit: ITEMS_PER_PAGE,
+        p_offset: (pagina - 1) * ITEMS_PER_PAGE
       } as any;
 
-      console.log('🚀 Llamando a la función RPC get_all_conversations_with_agent_status con los parámetros:', rpcParams);
+      console.log('🚀 Llamando a RPC con paginación:', { pagina, limit: ITEMS_PER_PAGE, offset: (pagina - 1) * ITEMS_PER_PAGE });
       
-      // ✅ Usar nueva función que incluye client_agent_active
+      // ✅ FASE 4.2: Supabase RPC no soporta signal directamente, pero la cancelación manual funciona
       const { data, error } = await supabase.rpc('get_all_conversations_with_agent_status', rpcParams) as {
-        data: ConversacionItem[] | null;
+        data: (ConversacionItem & { total_count: number })[] | null;
         error: any;
       };
+      
+      // Verificar si el request fue cancelado manualmente
+      if (abortControllerRef.current?.signal.aborted) {
+        throw new Error('AbortError');
+      }
       
       if (error) {
         console.error("❌ Error en la llamada RPC:", JSON.stringify(error, null, 2));
@@ -303,32 +323,68 @@ function ConversationList({
       }
 
       console.log('✅ RPC exitosa.');
-      console.log('📊 Total de conversaciones recibidas:', data?.length ?? 'undefined');
+      console.log('📊 Conversaciones en página:', data?.length ?? 0);
       
       if (data && data.length > 0) {
-        console.log('📋 Primeras 5 conversaciones recibidas:', data.slice(0, 5));
-      } else {
-        console.log('📋 No se recibieron datos o la lista está vacía.');
-      }
-      
-      setConversaciones(data || []);
-      setTotalConversaciones(data?.length || 0);
-      
-      // 💾 GUARDAR EN CACHE solo si no hay filtros
-      if (sinFiltros && data) {
-        conversationsCache.set(cacheKey, {
-          data: data,
-          timestamp: Date.now()
+        // ✅ NUEVO: Extraer total_count del primer elemento
+        const totalCount = data[0]?.total_count || 0;
+        console.log('📊 Total en base de datos:', totalCount);
+        
+        // ✅ NUEVO: Merge incremental en lugar de reemplazar
+        setConversaciones(prev => {
+          // Si estamos en página 1, reemplazar todo
+          if (pagina === 1) {
+            return data;
+          }
+          // Si estamos en otra página, hacer merge
+          const mapa = new Map(prev.map(c => [c.id, c]));
+          data.forEach(nueva => {
+            mapa.set(nueva.id, nueva);
+          });
+          return Array.from(mapa.values()).sort((a, b) => 
+            new Date(b.last_message_time || b.updated_at).getTime() - 
+            new Date(a.last_message_time || a.updated_at).getTime()
+          );
         });
-        console.log('💾 Conversaciones guardadas en cache (sin filtros)');
+        
+        setTotalConversaciones(totalCount);
+        
+        // 💾 GUARDAR EN CACHE con total_count
+        if (sinFiltros) {
+          conversationsCache.set(cacheKey, {
+            data: data,
+            total: totalCount,
+            timestamp: Date.now()
+          });
+          console.log('💾 Página guardada en cache:', pagina);
+        }
+      } else {
+        console.log('📋 No se recibieron datos para esta página.');
+        setConversaciones([]);
+        setTotalConversaciones(0);
       }
 
-    } catch (error) {
-      console.error("❌ Error fatal en cargarConversaciones:", error);
+    } catch (error: any) {
+      // ✅ FASE 4.2: No loggear errores de cancelación
+      if (error?.name !== 'AbortError') {
+        console.error("❌ Error fatal en cargarConversaciones:", error);
+      } else {
+        console.log('🚫 Request cancelado correctamente');
+      }
     } finally {
       setLoading(false);
     }
-  }, [dataToken, busqueda, filtroCanal, filtroRazonFinalizacion]);
+  }, [dataToken, busqueda, filtroCanal, filtroRazonFinalizacion, pagina]);
+
+  // ✅ FASE 4.1: Crear debounced después de definir la función
+  const cargarConversacionesDebounced = useDebouncedCallback(
+    async () => {
+      setIsSearching(true);
+      await cargarConversaciones();
+      setIsSearching(false);
+    },
+    300
+  );
 
   // Función para buscar clientes disponibles (búsqueda por demanda)
   const buscarClientesDisponibles = async (query: string = '') => {
@@ -581,18 +637,42 @@ function ConversationList({
     (cliente.phone_number && cliente.phone_number.includes(busquedaCliente))
   );
 
-  // Hooks para actualización automática (después de definir cargarConversaciones)
+  // ✅ FASE 3: Polling diferenciado (3s con conversación abierta, 15s sin)
+  const getPollingInterval = useCallback(() => {
+    // Si hay conversación seleccionada → polling más frecuente (3s)
+    if (selectedConversationId) {
+      console.log('🔄 Polling rápido: conversación activa (3s)');
+      return 3000;
+    }
+    // Si no hay conversación → polling normal (15s)
+    console.log('🔄 Polling normal: sin conversación activa (15s)');
+    return 15000;
+  }, [selectedConversationId]);
+
   const { isPolling, isPaused } = useAutoPolling({
-    interval: 15000,  // Reducir de 20s a 15s
-    enabled: !!dataToken,  // Solo cuando hay token válido
-    onPoll: cargarConversaciones
+    interval: 15000,  // Intervalo base
+    enabled: !!dataToken && !busqueda, // ✅ No hacer polling durante búsquedas
+    onPoll: cargarConversaciones,
+    dynamicInterval: getPollingInterval // ✅ Usar intervalo dinámico
   });
 
+  // ✅ FASE 4.1: Debouncing correcto - solo para búsqueda, filtros inmediatos
   useEffect(() => {
     if (dataToken) {
-      cargarConversaciones();
+      // Solo cargar inmediatamente si NO hay búsqueda (filtros o primera carga)
+      if (!busqueda) {
+        cargarConversaciones();
+      }
+      // Si hay búsqueda, el debounced se encarga automáticamente
     }
-  }, [dataToken, busqueda, filtroCanal, filtroRazonFinalizacion]);
+  }, [dataToken, filtroCanal, filtroRazonFinalizacion]); // ✅ Quitar busqueda del deps
+
+  // ✅ FASE 4.1: Effect separado para búsqueda con debouncing
+  useEffect(() => {
+    if (dataToken && busqueda) {
+      cargarConversacionesDebounced();
+    }
+  }, [busqueda]); // ✅ Solo dependencia de busqueda
 
 
 
@@ -656,11 +736,9 @@ function ConversationList({
     }
   };
 
-  // La paginación ahora se calcula en el cliente
+  // ✅ La paginación viene del servidor, no hace falta slice
   const totalPaginas = Math.ceil(totalConversaciones / ITEMS_PER_PAGE);
-  const inicio = (pagina - 1) * ITEMS_PER_PAGE;
-  const fin = inicio + ITEMS_PER_PAGE;
-  const conversacionesEnPagina = conversaciones.slice(inicio, fin);
+  const conversacionesEnPagina = conversaciones; // Ya vienen paginadas del servidor
 
   return (
     <div className="h-full flex flex-col">
@@ -705,6 +783,10 @@ function ConversationList({
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
           />
+          {/* ✅ Indicador visual de búsqueda en progreso */}
+          {isSearching && (
+            <div className="absolute right-2 top-2.5 h-4 w-4 animate-spin border-2 border-blue-500 border-t-transparent rounded-full" />
+          )}
         </div>
       </div>
 
@@ -721,11 +803,10 @@ function ConversationList({
         ) : (
           <div className="divide-y divide-gray-100">
             {conversacionesEnPagina.map((conversacion: ConversacionItem, index: number) => {
-              const globalIndex = inicio + index;
               const isSelected = selectedConversationId === conversacion.id;
               
-              // ✅ OPTIMIZACIÓN: Solo memoizar las primeras 30 conversaciones
-              if (globalIndex < CONVERSACIONES_MEMOIZADAS) {
+              // ✅ OPTIMIZACIÓN: Solo memoizar conversaciones de la primera página (más críticas)
+              if (pagina === 1 && index < CONVERSACIONES_MEMOIZADAS) {
                 return (
                   <MemoizedConversationItem
                     key={conversacion.id}
@@ -809,7 +890,7 @@ function ConversationList({
           <div className="p-4 border-t bg-white">
             <div className="flex items-center justify-between">
               <div className="text-xs text-muted-foreground">
-                {((pagina - 1) * ITEMS_PER_PAGE) + 1} a {Math.min(pagina * ITEMS_PER_PAGE, totalConversaciones)} de {totalConversaciones}
+                Página {pagina} de {totalPaginas} ({totalConversaciones} conversaciones totales)
               </div>
               <div className="flex space-x-2">
                 <Button
