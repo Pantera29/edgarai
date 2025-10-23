@@ -64,138 +64,69 @@ export const useAutoPolling = ({
     }
   }, [onPoll]);
 
-  /**
-   * Inicia el polling
-   */
-  const startPolling = useCallback(() => {
-    if (!enabled || isPollingRef.current) {
+  // Effect principal: maneja el inicio/parada del polling (estilo Kapso)
+  useEffect(() => {
+    if (!enabled) {
+      setIsPolling(false);
+      isPollingRef.current = false;
       return;
     }
-
+    
     console.log('🚀 Polling iniciado');
     setIsPolling(true);
     isPollingRef.current = true;
-
-    // Ejecutar inmediatamente al iniciar
+    
+    // Ejecutar inmediatamente
     executePoll();
-
-    // Configurar el intervalo
+    
+    // Configurar intervalo
     intervalRef.current = setInterval(() => {
       if (!isPausedRef.current) {
         executePoll();
       }
     }, interval);
-  }, [enabled, interval, executePoll]);
-
-  /**
-   * Detiene el polling
-   */
-  const stopPolling = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
     
-    console.log('🛑 Polling detenido');
-    setIsPolling(false);
-    isPollingRef.current = false;
-  }, []);
-
-  /**
-   * Pausa el polling (cuando la pestaña está oculta)
-   */
-  const pausePolling = useCallback(() => {
-    if (!isPausedRef.current) {
-      console.log('⏸️ Polling pausado (pestaña oculta)');
-      setIsPaused(true);
-      isPausedRef.current = true;
-    }
-  }, []);
-
-  /**
-   * Reanuda el polling (cuando el usuario vuelve a la pestaña)
-   */
-  const resumePolling = useCallback(() => {
-    if (isPausedRef.current) {
-      console.log('▶️ Polling reanudado (pestaña visible)');
-      setIsPaused(false);
-      isPausedRef.current = false;
-      
-      // Ejecutar inmediatamente al reanudar
-      if (isPollingRef.current) {
-        executePoll();
-      }
-    }
-  }, [executePoll]);
-
-  /**
-   * Maneja el cambio de visibilidad de la pestaña
-   */
-  const handleVisibilityChange = useCallback(() => {
-    if (document.hidden) {
-      pausePolling();
-    } else {
-      resumePolling();
-    }
-  }, [pausePolling, resumePolling]);
-
-  // Effect principal: maneja el inicio/parada del polling
-  useEffect(() => {
-    if (enabled) {
-      startPolling();
-    } else {
-      stopPolling();
-    }
-
-    // Cleanup al desmontar o cambiar enabled
+    // Cleanup
     return () => {
-      stopPolling();
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      console.log('🛑 Polling detenido');
+      setIsPolling(false);
+      isPollingRef.current = false;
     };
-  }, [enabled, startPolling, stopPolling]);
-
-  // Effect para manejar cambios en el intervalo
-  useEffect(() => {
-    if (isPollingRef.current && enabled) {
-      // Reiniciar el polling con el nuevo intervalo
-      stopPolling();
-      startPolling();
-    }
-  }, [interval, enabled, startPolling, stopPolling]);
-
-  // Effect para manejar cambios en la función onPoll
-  useEffect(() => {
-    if (isPollingRef.current && enabled) {
-      // Reiniciar el polling con la nueva función
-      stopPolling();
-      startPolling();
-    }
-  }, [onPoll, enabled, startPolling, stopPolling]);
+  }, [enabled, interval, executePoll]);
 
   // Effect para manejar la visibilidad de la pestaña
   useEffect(() => {
-    // Agregar listener para detectar cambios de visibilidad
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (!isPausedRef.current) {
+          console.log('⏸️ Polling pausado (pestaña oculta)');
+          setIsPaused(true);
+          isPausedRef.current = true;
+        }
+      } else {
+        if (isPausedRef.current) {
+          console.log('▶️ Polling reanudado (pestaña visible)');
+          setIsPaused(false);
+          isPausedRef.current = false;
+          
+          // Ejecutar inmediatamente al reanudar
+          if (isPollingRef.current) {
+            executePoll();
+          }
+        }
+      }
+    };
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Cleanup del listener
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [handleVisibilityChange]);
-
-  // Cleanup final al desmontar el componente
-  useEffect(() => {
-    return () => {
-      // Limpiar interval si existe
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-      
-      // Remover listener de visibilidad
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      
-      console.log('🧹 Cleanup completo del hook useAutoPolling');
-    };
-  }, [handleVisibilityChange]);
+  }, [executePoll]);
 
   return {
     isPolling,

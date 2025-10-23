@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { supabase } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 import { verifyToken } from "../../../jwt/token";
@@ -109,6 +109,7 @@ interface Cliente {
 }
 
 const ITEMS_PER_PAGE = 10;
+const CONVERSACIONES_MEMOIZADAS = 30; // Memoizar las primeras 30 conversaciones (3 páginas)
 
 // Eliminar el componente WhatsAppIcon duplicado (si existe)
 // Usar el mismo WhatsAppIcon que en los KPIs
@@ -127,7 +128,87 @@ const WhatsAppIcon = ({ className }: { className?: string }) => {
 
 // Cache simple en memoria - solo para queries sin filtros (fuera del componente)
 const conversationsCache = new Map<string, { data: ConversacionItem[], timestamp: number }>();
-const CACHE_TTL = 2 * 60 * 1000; // 2 minutos
+const CACHE_TTL = 30 * 1000; // 30 segundos
+
+// Componente memoizado para conversaciones críticas (primeras 30)
+const MemoizedConversationItem = memo(({ 
+  conversacion, 
+  isSelected, 
+  onSelect,
+  formatDateTime,
+  getCanalIcon,
+  isConversationUnread,
+  truncateClientName,
+  getFullClientName,
+  traducirRazonFinalizacion
+}: {
+  conversacion: ConversacionItem;
+  isSelected: boolean;
+  onSelect: () => void;
+  formatDateTime: (conversacion: ConversacionItem) => string;
+  getCanalIcon: (channel?: string) => React.ReactElement;
+  isConversationUnread: (conversacion: ConversacionItem) => boolean;
+  truncateClientName: (name?: string) => string;
+  getFullClientName: (name?: string) => string;
+  traducirRazonFinalizacion: (razon?: string) => string;
+}) => {
+  return (
+    <div
+      onClick={onSelect}
+      className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+        isSelected ? 'bg-blue-50 border-r-4 border-blue-500' : ''
+      }`}
+    >
+      <div className="flex items-center justify-between">
+        <div className="flex-1 min-w-0">
+          {/* Fila superior: Cliente y hora */}
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex-1 min-w-0 mr-2">
+              <div className="flex items-center gap-2">
+                <p 
+                  className="font-medium text-sm truncate"
+                  title={getFullClientName(conversacion.client?.names)}
+                >
+                  {truncateClientName(conversacion.client?.names)}
+                </p>
+                {conversacion.client_agent_active === false && (
+                  <span className="bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold flex-shrink-0">
+                    !
+                  </span>
+                )}
+              </div>
+            </div>
+            <p className={`text-xs flex-shrink-0 ${isConversationUnread(conversacion) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
+              {formatDateTime(conversacion)}
+            </p>
+          </div>
+          
+          {/* Fila inferior: Usuario, canal e indicador de leído */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {getCanalIcon(conversacion.channel)}
+              <p className="text-xs text-muted-foreground font-mono truncate">
+                {conversacion.user_identifier}
+              </p>
+            </div>
+            {isConversationUnread(conversacion) && (
+              <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />
+            )}
+          </div>
+         
+          {/* Razón de finalización si existe */}
+          {conversacion.ended_reason && (
+            <div className="mt-1">
+              <p className="text-xs text-muted-foreground">
+                {traducirRazonFinalizacion(conversacion.ended_reason)}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
 
 
 
@@ -517,8 +598,13 @@ function ConversationList({
 
   const formatDateTime = (conversacion: ConversacionItem) => {
     try {
-      // Usar el nuevo campo last_message_time de la función RPC
-      let dateString = conversacion.last_message_time || conversacion.updated_at;
+      // ✅ USAR SOLO last_message_time (nunca updated_at del cron job)
+      const dateString = conversacion.last_message_time;
+      
+      // Si no hay last_message_time, no hay mensajes → mostrar indicador
+      if (!dateString) {
+        return "Sin mensajes";
+      }
       
       const fecha = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
       const ahora = new Date();
@@ -634,63 +720,87 @@ function ConversationList({
           </div>
         ) : (
           <div className="divide-y divide-gray-100">
-            {conversacionesEnPagina.map((conversacion: ConversacionItem) => (
-              <div
-                key={conversacion.id}
-                onClick={() => onConversationSelect(conversacion)}
-                className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
-                  selectedConversationId === conversacion.id ? 'bg-blue-50 border-r-4 border-blue-500' : ''
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1 min-w-0">
-                                                              {/* Fila superior: Cliente y hora */}
-                     <div className="flex items-center justify-between mb-1">
-                       <div className="flex-1 min-w-0 mr-2">
-                         <div className="flex items-center gap-2">
-                           <p 
-                             className="font-medium text-sm truncate"
-                             title={getFullClientName(conversacion.client?.names)}
-                           >
-                             {truncateClientName(conversacion.client?.names)}
-                           </p>
-                           {conversacion.client_agent_active === false && (
-                             <span className="bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold flex-shrink-0">
-                               !
-                             </span>
-                           )}
-                         </div>
-                       </div>
-                       <p className={`text-xs flex-shrink-0 ${isConversationUnread(conversacion) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
-                         {formatDateTime(conversacion)}
-                       </p>
-                     </div>
-                     
-                     {/* Fila inferior: Usuario, canal e indicador de leído */}
-                     <div className="flex items-center justify-between">
-                       <div className="flex items-center gap-2">
-                         {getCanalIcon(conversacion.channel)}
-                         <p className="text-xs text-muted-foreground font-mono truncate">
-                           {conversacion.user_identifier}
-                         </p>
-                       </div>
-                       {isConversationUnread(conversacion) && (
-                         <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />
-                       )}
-                     </div>
-                    
-                    {/* Razón de finalización si existe */}
-                    {conversacion.ended_reason && (
-                      <div className="mt-1">
-                        <p className="text-xs text-muted-foreground">
-                          {traducirRazonFinalizacion(conversacion.ended_reason)}
+            {conversacionesEnPagina.map((conversacion: ConversacionItem, index: number) => {
+              const globalIndex = inicio + index;
+              const isSelected = selectedConversationId === conversacion.id;
+              
+              // ✅ OPTIMIZACIÓN: Solo memoizar las primeras 30 conversaciones
+              if (globalIndex < CONVERSACIONES_MEMOIZADAS) {
+                return (
+                  <MemoizedConversationItem
+                    key={conversacion.id}
+                    conversacion={conversacion}
+                    isSelected={isSelected}
+                    onSelect={() => onConversationSelect(conversacion)}
+                    formatDateTime={formatDateTime}
+                    getCanalIcon={getCanalIcon}
+                    isConversationUnread={isConversationUnread}
+                    truncateClientName={truncateClientName}
+                    getFullClientName={getFullClientName}
+                    traducirRazonFinalizacion={traducirRazonFinalizacion}
+                  />
+                );
+              }
+              
+              // ✅ Resto de conversaciones sin memoización (menos críticas)
+              return (
+                <div
+                  key={conversacion.id}
+                  onClick={() => onConversationSelect(conversacion)}
+                  className={`p-4 hover:bg-gray-50 cursor-pointer transition-colors ${
+                    isSelected ? 'bg-blue-50 border-r-4 border-blue-500' : ''
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      {/* Fila superior: Cliente y hora */}
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex-1 min-w-0 mr-2">
+                          <div className="flex items-center gap-2">
+                            <p 
+                              className="font-medium text-sm truncate"
+                              title={getFullClientName(conversacion.client?.names)}
+                            >
+                              {truncateClientName(conversacion.client?.names)}
+                            </p>
+                            {conversacion.client_agent_active === false && (
+                              <span className="bg-orange-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center font-bold flex-shrink-0">
+                                !
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <p className={`text-xs flex-shrink-0 ${isConversationUnread(conversacion) ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
+                          {formatDateTime(conversacion)}
                         </p>
                       </div>
-                    )}
+                      
+                      {/* Fila inferior: Usuario, canal e indicador de leído */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          {getCanalIcon(conversacion.channel)}
+                          <p className="text-xs text-muted-foreground font-mono truncate">
+                            {conversacion.user_identifier}
+                          </p>
+                        </div>
+                        {isConversationUnread(conversacion) && (
+                          <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0" />
+                        )}
+                      </div>
+                     
+                      {/* Razón de finalización si existe */}
+                      {conversacion.ended_reason && (
+                        <div className="mt-1">
+                          <p className="text-xs text-muted-foreground">
+                            {traducirRazonFinalizacion(conversacion.ended_reason)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
