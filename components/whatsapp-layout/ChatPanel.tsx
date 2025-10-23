@@ -306,7 +306,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       } finally {
         setIsAutoUpdating(false);
       }
-    }, 20000); // 20 segundos
+    }, 5000); // 5 segundos
     
     return () => clearInterval(interval);
   }, [conversationId, dataToken, conversacion, mensajes.length]);
