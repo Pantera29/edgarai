@@ -27,6 +27,7 @@ interface Conversation {
   created_at: string;
   updated_at: string;
   channel?: string;
+  messages?: any[];
   metadata?: {
     call_id?: string;
     call_sid?: string;
@@ -241,9 +242,15 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           client(id, names, email, phone_number, agent_active)
         `)
         .eq("id", conversationId)
-        .single();
+        .single() as { data: Conversation | null; error: any };
 
       if (conversacionError) throw conversacionError;
+      
+      // Verificar que se obtuvo la conversación
+      if (!conversacionData) {
+        console.error("No se encontró la conversación");
+        return;
+      }
       
       // Verificar que la conversación pertenece a la agencia del usuario
       if (
@@ -259,19 +266,19 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
       
       // Debug: Log para verificar los datos del cliente
       console.log('🔍 [DEBUG] Datos estáticos de la conversación:', {
-        hasClient: !!conversacionData?.client,
-        clientData: conversacionData?.client,
-        agentActive: conversacionData?.client?.agent_active,
-        phoneNumber: conversacionData?.client?.phone_number
+        hasClient: !!conversacionData.client,
+        clientData: conversacionData.client,
+        agentActive: conversacionData.client?.agent_active,
+        phoneNumber: conversacionData.client?.phone_number
       });
       
       // Verificar estado del agente de IA si tenemos los datos necesarios
-      if (conversacionData?.user_identifier && dataToken?.dealership_id) {
+      if (conversacionData.user_identifier && dataToken?.dealership_id) {
         verificarEstadoAgente(conversacionData.user_identifier, dataToken.dealership_id);
       }
 
       // Cargar mensajes iniciales (solo en la primera carga)
-      if (conversacionData && conversacionData.messages) {
+      if (conversacionData.messages) {
         await actualizarDatosDinamicos();
       }
       
@@ -301,12 +308,15 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           updated_at
         `)
         .eq("id", conversationId)
-        .single();
+        .single() as { data: { messages: any; last_read_at: string | null; updated_at: string } | null; error: any };
 
       if (conversacionError) throw conversacionError;
 
+      // Verificar que se obtuvo la conversación
+      if (!conversacionData) return;
+
       // Actualizar solo mensajes y estadísticas
-      if (conversacionData && conversacionData.messages) {
+      if (conversacionData.messages) {
         const mensajesArray = Array.isArray(conversacionData.messages) 
           ? conversacionData.messages 
           : [];
