@@ -126,9 +126,7 @@ export function ChatViewer({
 
   // Función para manejar el click en una imagen
   const handleImageClick = (url: string, caption?: string, metadata?: any) => {
-    console.log('🖼️ [DEBUG] Click en imagen:', { url, caption, metadata });
     setSelectedImage({ url, caption, metadata });
-    console.log('🖼️ [DEBUG] selectedImage actualizado:', selectedImage);
   };
 
   // Función para renderizar el contenido del mensaje (texto o imagen)
@@ -143,7 +141,6 @@ export function ChatViewer({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('🖼️ [DEBUG] Click en contenedor de imagen');
               handleImageClick(message.media_url!, message.content, message.media_metadata);
             }}
           >
@@ -371,7 +368,6 @@ export function ChatViewer({
       )}
       
       {/* Modal para ver imagen en tamaño completo */}
-      {console.log('🖼️ [DEBUG] Renderizando modal, selectedImage:', selectedImage)}
       {selectedImage && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg max-w-4xl max-h-[90vh] w-full mx-4 relative">
