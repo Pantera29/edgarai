@@ -5,7 +5,8 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { Avatar } from "@/components/ui/avatar";
-import { User, Bot, UserCheck } from "lucide-react";
+import { User, Bot, UserCheck, X, ZoomIn } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Message {
   id: string;
@@ -14,6 +15,9 @@ interface Message {
   created_at: string;
   sender_user_id?: number;
   sender_name?: string;
+  message_type?: string; // ← NUEVO: Tipo de mensaje (text, image, etc.)
+  media_url?: string; // ← NUEVO: URL de la imagen o media
+  media_metadata?: any; // ← NUEVO: Metadatos del media
 }
 
 interface ChatViewerProps {
@@ -37,6 +41,13 @@ export function ChatViewer({
   
   // Usar el ref externo si se proporciona, sino usar el interno
   const actualScrollRef = scrollAreaRef || chatContainerRef;
+  
+  // Estado para el modal de imagen
+  const [selectedImage, setSelectedImage] = useState<{
+    url: string;
+    caption?: string;
+    metadata?: any;
+  } | null>(null);
 
   // Depuración
   useEffect(() => {
@@ -111,6 +122,82 @@ export function ChatViewer({
         {i < content.split("\n").length - 1 && <br />}
       </span>
     ));
+  };
+
+  // Función para manejar el click en una imagen
+  const handleImageClick = (url: string, caption?: string, metadata?: any) => {
+    console.log('🖼️ [DEBUG] Click en imagen:', { url, caption, metadata });
+    setSelectedImage({ url, caption, metadata });
+    console.log('🖼️ [DEBUG] selectedImage actualizado:', selectedImage);
+  };
+
+  // Función para renderizar el contenido del mensaje (texto o imagen)
+  const renderMessageContent = (message: Message) => {
+    // Si es un mensaje de imagen, mostrar la imagen
+    if (message.message_type === 'image' && message.media_url) {
+      return (
+        <div className="space-y-2">
+          {/* Imagen clickeable */}
+          <div 
+            className="relative max-w-xs group cursor-pointer"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('🖼️ [DEBUG] Click en contenedor de imagen');
+              handleImageClick(message.media_url!, message.content, message.media_metadata);
+            }}
+          >
+            <img
+              src={message.media_url}
+              alt="Imagen enviada"
+              className="rounded-lg shadow-sm border max-w-full h-auto hover:opacity-90 transition-opacity"
+              onError={(e) => {
+                console.error('Error cargando imagen:', message.media_url);
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+            {/* Icono de zoom que aparece al hacer hover */}
+            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-200 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <ZoomIn className="h-6 w-6 text-white" />
+            </div>
+          </div>
+          
+          {/* Caption si existe */}
+          {message.content && message.content.trim() && (
+            <p className="text-sm whitespace-pre-wrap break-words">
+              {formatMessageContent(message.content)}
+            </p>
+          )}
+          
+          {/* Metadatos de la imagen si están disponibles */}
+          {message.media_metadata && (
+            <div className="text-xs text-muted-foreground">
+              {message.media_metadata.dimensions && (
+                <p>
+                  <span className="font-medium">Dimensiones:</span>{' '}
+                  {typeof message.media_metadata.dimensions === 'object' 
+                    ? `${message.media_metadata.dimensions.width} x ${message.media_metadata.dimensions.height}px`
+                    : message.media_metadata.dimensions}
+                </p>
+              )}
+              {message.media_metadata.compressed_size && (
+                <p>
+                  <span className="font-medium">Tamaño:</span>{' '}
+                  {message.media_metadata.compressed_size}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // Si es un mensaje de texto normal
+    return (
+      <p className="text-sm whitespace-pre-wrap break-words">
+        {formatMessageContent(message.content)}
+      </p>
+    );
   };
 
   // Función para determinar si es un mensaje del cliente/usuario
@@ -263,9 +350,7 @@ export function ChatViewer({
                     getMessageStyle(message)
                   )}
                 >
-                  <p className="text-sm whitespace-pre-wrap break-words">
-                    {formatMessageContent(message.content)}
-                  </p>
+                  {renderMessageContent(message)}
                 </div>
                 
                 {/* Timestamp */}
@@ -283,6 +368,85 @@ export function ChatViewer({
             </div>
           );
         })
+      )}
+      
+      {/* Modal para ver imagen en tamaño completo */}
+      {console.log('🖼️ [DEBUG] Renderizando modal, selectedImage:', selectedImage)}
+      {selectedImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg max-w-4xl max-h-[90vh] w-full mx-4 relative">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="text-lg font-semibold">Imagen</h3>
+              <button
+                onClick={() => setSelectedImage(null)}
+                className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            {/* Contenido */}
+            <div className="p-4 max-h-[70vh] overflow-y-auto">
+              {/* Imagen */}
+              <div className="flex justify-center">
+                <img
+                  src={selectedImage.url}
+                  alt="Imagen ampliada"
+                  className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-lg"
+                  onError={(e) => {
+                    console.error('Error cargando imagen ampliada:', selectedImage.url);
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              </div>
+              
+              {/* Caption si existe */}
+              {selectedImage.caption && selectedImage.caption.trim() && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <p className="text-sm text-gray-700 whitespace-pre-wrap break-words">
+                    {selectedImage.caption}
+                  </p>
+                </div>
+              )}
+              
+              {/* Metadatos de la imagen si están disponibles */}
+              {selectedImage.metadata && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Información de la imagen</h4>
+                  <div className="text-xs text-gray-600 space-y-1">
+                    {selectedImage.metadata.dimensions && (
+                      <p>
+                        <span className="font-medium">Dimensiones:</span>{' '}
+                        {typeof selectedImage.metadata.dimensions === 'object' 
+                          ? `${selectedImage.metadata.dimensions.width} x ${selectedImage.metadata.dimensions.height}px`
+                          : selectedImage.metadata.dimensions}
+                      </p>
+                    )}
+                    {selectedImage.metadata.compressed_size && (
+                      <p>
+                        <span className="font-medium">Tamaño:</span>{' '}
+                        {selectedImage.metadata.compressed_size}
+                      </p>
+                    )}
+                    {selectedImage.metadata.original_size && (
+                      <p>
+                        <span className="font-medium">Tamaño original:</span>{' '}
+                        {selectedImage.metadata.original_size}
+                      </p>
+                    )}
+                    {selectedImage.metadata.compression_ratio && (
+                      <p>
+                        <span className="font-medium">Compresión:</span>{' '}
+                        {selectedImage.metadata.compression_ratio}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

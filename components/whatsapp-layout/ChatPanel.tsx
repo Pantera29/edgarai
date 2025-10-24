@@ -71,6 +71,9 @@ interface Message {
   created_at: string;
   sender_user_id?: number; // ← NUEVO: ID del usuario que envió el mensaje
   sender_name?: string; // ← NUEVO: Nombre del usuario que envió el mensaje
+  message_type?: string; // ← NUEVO: Tipo de mensaje (text, image, etc.)
+  media_url?: string; // ← NUEVO: URL de la imagen o media
+  media_metadata?: any; // ← NUEVO: Metadatos del media
 }
 
 interface ChatPanelProps {
@@ -334,7 +337,10 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
             role: rol as "user" | "assistant" | "customer" | "ai_agent" | "dealership_worker",
             created_at: createdAt,
             sender_user_id: (typeof msg === 'object' && msg.sender_user_id) ? msg.sender_user_id : undefined,
-            sender_name: (typeof msg === 'object' && msg.sender_name) ? msg.sender_name : undefined
+            sender_name: (typeof msg === 'object' && msg.sender_name) ? msg.sender_name : undefined,
+            message_type: (typeof msg === 'object' && msg.message_type) ? msg.message_type : 'text',
+            media_url: (typeof msg === 'object' && msg.media_url) ? msg.media_url : undefined,
+            media_metadata: (typeof msg === 'object' && msg.media_metadata) ? msg.media_metadata : undefined
           };
         });
         
