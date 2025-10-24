@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/lib/supabase";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ import {
 import { format, parseISO } from "date-fns";
 import { es } from "date-fns/locale";
 import { isConversationUnread, getLastCustomerMessageTimestamp, truncateClientName, getFullClientName } from '@/utils/conversation-helpers';
+import { mergeActionHumanConversations } from '@/utils/conversation-merge';
+import { useAutoPolling } from '@/hooks/useAutoPolling';
 
 interface ConversacionAccionHumana {
   id: string;
@@ -88,6 +90,9 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
   const [metricas, setMetricas] = useState<MetricasAccionHumana | null>(null);
   const [loadingMetricas, setLoadingMetricas] = useState(true);
   
+  // ✅ Ref para controlar carga inicial vs polling
+  const isInitialLoadRef = useRef(true);
+  
   // Filtros
   const [busqueda, setBusqueda] = useState("");
   const [filtroCanal, setFiltroCanal] = useState("todos");
@@ -104,11 +109,11 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
     }
   }, [dataToken, busqueda, filtroCanal, filtroNoLeidos]);
 
-  // Hook para actualización automática cada 20 segundos
-  useEffect(() => {
-    if (!dataToken) return;
-    
-    const interval = setInterval(async () => {
+  // ✅ Hook para actualización automática usando useAutoPolling (10s, estilo Kapso)
+  const { isPolling, isPaused } = useAutoPolling({
+    interval: 10000, // ✅ 10 segundos (estilo Kapso)
+    enabled: !!dataToken,
+    onPoll: async () => {
       setIsUpdating(true);
       
       try {
@@ -123,10 +128,8 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
       } finally {
         setIsUpdating(false);
       }
-    }, 20000); // 20 segundos
-    
-    return () => clearInterval(interval);
-  }, [dataToken]);
+    }
+  });
 
   const cargarMetricas = async () => {
     setLoadingMetricas(true);
@@ -158,7 +161,12 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
   };
 
   const cargarConversaciones = async () => {
-    setLoading(true);
+    // ✅ Solo setLoading en carga inicial, no durante polling
+    if (isInitialLoadRef.current) {
+      setLoading(true);
+      isInitialLoadRef.current = false;
+    }
+    
     try {
       console.log('🔄 Cargando conversaciones que necesitan acción...');
       
@@ -196,7 +204,19 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
           conversacionesFiltradas = data.filter((conversacion: ConversacionAccionHumana) => isConversationUnread(conversacion));
         }
         
-        setConversaciones(conversacionesFiltradas);
+        // ✅ Merge inteligente que compara timestamps
+        setConversaciones(prev => {
+          // Si es carga inicial (no hay datos previos), reemplazar
+          if (prev.length === 0) {
+            console.log('🔄 [Acción Humana] Carga inicial - reemplazando array');
+            return conversacionesFiltradas;
+          }
+          
+          // En cualquier otro caso, usar merge inteligente
+          console.log('🔄 [Acción Humana] Polling - merge inteligente');
+          return mergeActionHumanConversations(prev, conversacionesFiltradas);
+        });
+        
         setTotalConversaciones(conversacionesFiltradas.length);
       } else {
         setConversaciones([]);
@@ -206,7 +226,10 @@ export function ConversationList({ dataToken, onConversationSelect, selectedConv
     } catch (error) {
       console.error("❌ Error fatal cargando conversaciones:", error);
     } finally {
-      setLoading(false);
+      // ✅ Solo quitar loading si era carga inicial
+      if (loading) {
+        setLoading(false);
+      }
     }
   };
 

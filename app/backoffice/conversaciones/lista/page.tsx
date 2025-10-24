@@ -32,6 +32,7 @@ import { getLastCustomerMessageTimestamp, isConversationUnread, truncateClientNa
 import { useToast } from "@/hooks/use-toast";
 import { useDebouncedCallback } from 'use-debounce';
 import { useAutoPolling } from "@/hooks/useAutoPolling";
+import { mergeConversationList } from "@/utils/conversation-merge";
 
 // Importar el tipo para la conversión
 interface ConversacionAccionHumana {
@@ -260,6 +261,7 @@ function ConversationList({
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // ✅ PASO 1.2: Paginación del servidor + Merge incremental
+  const isInitialLoadRef = useRef(true);
   const cargarConversaciones = useCallback(async () => {
     // ✅ FASE 4.2: Cancelar request anterior si existe
     if (abortControllerRef.current) {
@@ -268,7 +270,11 @@ function ConversationList({
     }
     abortControllerRef.current = new AbortController();
     
-    setLoading(true);
+    // ✅ Solo setLoading en carga inicial, no durante polling
+    if (isInitialLoadRef.current) {
+      setLoading(true);
+      isInitialLoadRef.current = false;
+    }
     try {
       // Detectar si hay filtros aplicados
       const sinFiltros = !busqueda && 
@@ -330,21 +336,17 @@ function ConversationList({
         const totalCount = data[0]?.total_count || 0;
         console.log('📊 Total en base de datos:', totalCount);
         
-        // ✅ NUEVO: Merge incremental en lugar de reemplazar
+        // ✅ NUEVO: Merge inteligente que compara timestamps
         setConversaciones(prev => {
-          // Si estamos en página 1, reemplazar todo
-          if (pagina === 1) {
+          // Si es página 1 Y es carga inicial (no hay datos previos), reemplazar
+          if (pagina === 1 && prev.length === 0) {
+            console.log('🔄 [Lista Principal] Carga inicial - reemplazando array');
             return data;
           }
-          // Si estamos en otra página, hacer merge
-          const mapa = new Map(prev.map(c => [c.id, c]));
-          data.forEach(nueva => {
-            mapa.set(nueva.id, nueva);
-          });
-          return Array.from(mapa.values()).sort((a, b) => 
-            new Date(b.last_message_time || b.updated_at).getTime() - 
-            new Date(a.last_message_time || a.updated_at).getTime()
-          );
+          
+          // En cualquier otro caso, usar merge inteligente
+          console.log('🔄 [Lista Principal] Polling - merge inteligente');
+          return mergeConversationList(prev, data);
         });
         
         setTotalConversaciones(totalCount);
@@ -637,20 +639,20 @@ function ConversationList({
     (cliente.phone_number && cliente.phone_number.includes(busquedaCliente))
   );
 
-  // ✅ FASE 3: Polling diferenciado (3s con conversación abierta, 15s sin)
+  // ✅ FASE 3: Polling diferenciado (5s con conversación abierta, 10s sin) - estilo Kapso
   const getPollingInterval = useCallback(() => {
-    // Si hay conversación seleccionada → polling más frecuente (3s)
+    // Si hay conversación seleccionada → polling más frecuente (5s)
     if (selectedConversationId) {
-      console.log('🔄 Polling rápido: conversación activa (3s)');
-      return 3000;
+      console.log('🔄 Polling rápido: conversación activa (5s)');
+      return 5000;
     }
-    // Si no hay conversación → polling normal (15s)
-    console.log('🔄 Polling normal: sin conversación activa (15s)');
-    return 15000;
+    // Si no hay conversación → polling normal (10s)
+    console.log('🔄 Polling normal: sin conversación activa (10s)');
+    return 10000;
   }, [selectedConversationId]);
 
   const { isPolling, isPaused } = useAutoPolling({
-    interval: 15000,  // Intervalo base
+    interval: 10000,  // ✅ Intervalo base ajustado a 10s (estilo Kapso)
     enabled: !!dataToken && !busqueda, // ✅ No hacer polling durante búsquedas
     onPoll: cargarConversaciones,
     dynamicInterval: getPollingInterval // ✅ Usar intervalo dinámico
