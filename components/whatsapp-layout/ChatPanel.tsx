@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, Send, ExternalLink, Loader2, RotateCcw, Paperclip, X, Image as ImageIcon, AlertTriangle, CheckCircle } from "lucide-react";
+import { RefreshCcw, Phone, MessageSquare, FileText, Clock, Calendar, CreditCard, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Send, ExternalLink, Loader2, RotateCcw, Paperclip, X, Image as ImageIcon, AlertTriangle, CheckCircle, PanelLeft, PanelLeftClose } from "lucide-react";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { markConversationAsRead } from '@/utils/conversation-helpers';
@@ -138,6 +138,9 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
   
   // Referencia para preservar el foco del textarea
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  
+  // Estado para mostrar/ocultar el panel del cliente
+  const [showClientPanel, setShowClientPanel] = useState(true);
   
   // Estado para preservar la posición del cursor
   const [cursorPosition, setCursorPosition] = useState<number | null>(null);
@@ -1619,41 +1622,54 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
 
       <div className="flex-1 flex overflow-hidden">
         {/* Panel de información lateral (colapsible) */}
-        <Card className="w-80 border-r border-t-0 rounded-none flex flex-col bg-gray-50">
-          <div className="p-4 space-y-4 overflow-y-auto conversation-scrollbar">
-            
-            {/* Información del cliente removida - se muestra en el header del chat */}
+        {showClientPanel && (
+          <Card className="w-80 border-r border-t-0 rounded-none flex flex-col bg-gray-50">
+            {/* Header del panel con botón de colapsar */}
+            <div className="flex items-center justify-between p-3 border-b bg-gray-100">
+              <h3 className="text-sm font-medium text-gray-700">Información del Cliente</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowClientPanel(false)}
+                className="h-6 w-6 p-0 hover:bg-gray-200"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-4 space-y-4 overflow-y-auto conversation-scrollbar">
+              
+              {/* Información del cliente removida - se muestra en el header del chat */}
 
-            {/* Mostrar campos nuevos si están disponibles */}
-            {conversacion.client_intent && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Intención del cliente</p>
-                <p className="text-sm">{getClientIntent(conversacion.client_intent)}</p>
-              </div>
-            )}
-            
-            {conversacion.agent_name && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Agente</p>
-                <p className="text-sm">{conversacion.agent_name}</p>
-              </div>
-            )}
-            
-            {conversacion.ai_model && (
-              <div>
-                <p className="text-xs text-muted-foreground mb-1">Modelo IA</p>
-                <p className="text-xs">{conversacion.ai_model}</p>
-              </div>
-            )}
+              {/* Mostrar campos nuevos si están disponibles */}
+              {conversacion.client_intent && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Intención del cliente</p>
+                  <p className="text-sm">{getClientIntent(conversacion.client_intent)}</p>
+                </div>
+              )}
+              
+              {conversacion.agent_name && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Agente</p>
+                  <p className="text-sm">{conversacion.agent_name}</p>
+                </div>
+              )}
+              
+              {conversacion.ai_model && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Modelo IA</p>
+                  <p className="text-xs">{conversacion.ai_model}</p>
+                </div>
+              )}
 
-            {/* Panel de contexto del cliente */}
-            {conversacion.client_id && dataToken?.dealership_id && (
-              <ClienteContextPanel 
-                clientId={conversacion.client_id} 
-                dealershipId={dataToken.dealership_id}
-                userIdentifier={conversacion.user_identifier}
-              />
-            )}
+              {/* Panel de contexto del cliente */}
+              {conversacion.client_id && dataToken?.dealership_id && (
+                <ClienteContextPanel 
+                  clientId={conversacion.client_id} 
+                  dealershipId={dataToken.dealership_id}
+                  userIdentifier={conversacion.user_identifier}
+                />
+              )}
 
             <Separator />
             
@@ -1741,6 +1757,21 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
             )}
           </div>
         </Card>
+        )}
+
+        {/* Botón para mostrar panel cuando esté oculto */}
+        {!showClientPanel && (
+          <div className="flex items-center justify-center p-2 border-r bg-gray-50">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowClientPanel(true)}
+              className="h-8 w-8 p-0 hover:bg-gray-200"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
 
         {/* Área de mensajes */}
         <div className="flex-1 flex flex-col">
@@ -1805,7 +1836,7 @@ export function ChatPanel({ conversationId, dataToken, onNavigateToClient }: Cha
           )}
 
           {/* ChatViewer con altura flexible */}
-          <div ref={messagesContainerRef} className="flex-1 overflow-hidden">
+          <div ref={messagesContainerRef} className="flex-1 overflow-hidden min-h-0">
             <ChatViewer 
               messages={mensajes} 
               scrollAreaRef={scrollAreaRef} 

@@ -129,10 +129,19 @@ export function ChatViewer({
     setSelectedImage({ url, caption, metadata });
   };
 
+  // Función para limpiar URLs mal formadas
+  const cleanUrl = (url: string) => {
+    if (!url) return url;
+    // Remover comillas dobles al inicio y final
+    return url.replace(/^"/, '').replace(/"$/, '');
+  };
+
   // Función para renderizar el contenido del mensaje (texto o imagen)
   const renderMessageContent = (message: Message) => {
     // Si es un mensaje de imagen, mostrar la imagen
     if (message.message_type === 'image' && message.media_url) {
+      const cleanMediaUrl = cleanUrl(message.media_url);
+      
       return (
         <div className="space-y-2">
           {/* Imagen clickeable */}
@@ -141,16 +150,33 @@ export function ChatViewer({
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              handleImageClick(message.media_url!, message.content, message.media_metadata);
+              handleImageClick(cleanMediaUrl, message.content, message.media_metadata);
             }}
           >
             <img
-              src={message.media_url}
+              src={cleanMediaUrl}
               alt="Imagen enviada"
               className="rounded-lg shadow-sm border max-w-full h-auto hover:opacity-90 transition-opacity"
               onError={(e) => {
-                console.error('Error cargando imagen:', message.media_url);
-                e.currentTarget.style.display = 'none';
+                console.warn('Error cargando imagen, mostrando fallback:', cleanMediaUrl);
+                // En lugar de ocultar la imagen, mostrar un fallback
+                const target = e.currentTarget;
+                target.style.display = 'none';
+                
+                // Crear elemento de fallback con tamaño limitado
+                const fallback = document.createElement('div');
+                fallback.className = 'bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-2 text-center text-gray-500 text-xs max-h-16 flex items-center justify-center';
+                fallback.innerHTML = `
+                  <div class="flex flex-col items-center space-y-1">
+                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    <span class="text-xs">Imagen no disponible</span>
+                  </div>
+                `;
+                
+                // Insertar fallback después de la imagen
+                target.parentNode?.insertBefore(fallback, target.nextSibling);
               }}
             />
             {/* Icono de zoom que aparece al hacer hover */}
@@ -299,7 +325,7 @@ export function ChatViewer({
     <div 
       ref={actualScrollRef}
       className={cn(
-        "flex flex-col gap-4 p-4 overflow-y-auto h-full chat-scrollbar",
+        "flex flex-col gap-4 p-4 overflow-y-auto h-full max-h-full min-h-0 chat-scrollbar",
         className
       )}
     >
@@ -319,7 +345,7 @@ export function ChatViewer({
             <div
               key={`${message.id}-${index}`}
               className={cn(
-                "flex gap-3 max-w-[80%]",
+                "flex gap-3 w-80", // Ancho fijo de 320px (w-80)
                 isAssistant ? "ml-auto" : "mr-auto" // Invertir la lógica: asistentes a la derecha, usuarios a la izquierda
               )}
             >
@@ -387,12 +413,31 @@ export function ChatViewer({
               {/* Imagen */}
               <div className="flex justify-center">
                 <img
-                  src={selectedImage.url}
+                  src={cleanUrl(selectedImage.url)}
                   alt="Imagen ampliada"
                   className="max-w-full max-h-[60vh] object-contain rounded-lg shadow-lg"
                   onError={(e) => {
-                    console.error('Error cargando imagen ampliada:', selectedImage.url);
-                    e.currentTarget.style.display = 'none';
+                    console.warn('Error cargando imagen ampliada, mostrando fallback:', cleanUrl(selectedImage.url));
+                    const target = e.currentTarget;
+                    target.style.display = 'none';
+                    
+                    // Crear elemento de fallback para el modal con tamaño limitado
+                    const fallback = document.createElement('div');
+                    fallback.className = 'bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg p-4 text-center text-gray-500 max-h-32 flex items-center justify-center';
+                    fallback.innerHTML = `
+                      <div class="flex flex-col items-center space-y-2">
+                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                        </svg>
+                        <div>
+                          <p class="text-sm font-medium">Imagen no disponible</p>
+                          <p class="text-xs text-gray-400">URL no accesible</p>
+                        </div>
+                      </div>
+                    `;
+                    
+                    // Insertar fallback en el modal
+                    target.parentNode?.insertBefore(fallback, target.nextSibling);
                   }}
                 />
               </div>
