@@ -136,6 +136,17 @@ export function ChatViewer({
     return url.replace(/^"/, '').replace(/"$/, '');
   };
 
+  // Función para formatear tamaño de archivo de manera legible
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    
+    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
   // Función para renderizar el contenido del mensaje (texto o imagen)
   const renderMessageContent = (message: Message) => {
     // Si es un mensaje de imagen, mostrar la imagen
@@ -209,6 +220,41 @@ export function ChatViewer({
                   {message.media_metadata.compressed_size}
                 </p>
               )}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // Si es un mensaje de audio, mostrar transcript + reproductor
+    if (message.message_type === 'audio' && message.media_url) {
+      const cleanMediaUrl = cleanUrl(message.media_url);
+      
+      return (
+        <div className="space-y-2">
+          {/* Transcript del audio (siempre visible) */}
+          {message.content && message.content.trim() && (
+            <p className="text-sm whitespace-pre-wrap break-words">
+              {formatMessageContent(message.content)}
+            </p>
+          )}
+          
+          {/* Reproductor de audio (siempre visible) */}
+          <div>
+            <audio 
+              src={cleanMediaUrl} 
+              controls 
+              className="w-full max-w-md"
+              onError={(e) => {
+                console.error('Error cargando audio:', cleanMediaUrl, e);
+              }}
+            />
+          </div>
+          
+          {/* Metadatos si están disponibles */}
+          {message.media_metadata && message.media_metadata.byte_size && (
+            <div className="text-xs text-muted-foreground">
+              <span>Tamaño: {formatFileSize(message.media_metadata.byte_size)}</span>
             </div>
           )}
         </div>
