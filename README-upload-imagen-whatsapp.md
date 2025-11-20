@@ -1,4 +1,4 @@
-# Endpoint: Upload de Imágenes para WhatsApp
+# Endpoint: Upload de Imágenes para WhatsApp.
 
 ## 📋 Resumen
 
