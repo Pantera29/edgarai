@@ -621,11 +621,33 @@ export async function GET(request: Request) {
       blockedQuery = blockedQuery.eq('dealership_id', dealershipId);
     }
 
+    // Filtrar por workshop_id: buscar bloqueos que sean para este workshop específico O para todos (workshop_id = null)
+    if (finalWorkshopId) {
+      blockedQuery = blockedQuery.or(`workshop_id.eq.${finalWorkshopId},workshop_id.is.null`);
+    } else {
+      blockedQuery = blockedQuery.is('workshop_id', null);
+    }
+
     // Ordenar para priorizar bloqueos de día completo y tomar solo el primero
     const { data: blockedDate, error: blockedError } = await blockedQuery
       .order('full_day', { ascending: false })
       .limit(1)
       .maybeSingle();
+    
+    console.log('🔍 Consulta de fechas bloqueadas:', {
+      date,
+      dealershipId,
+      workshopId: finalWorkshopId,
+      blockedDate: blockedDate ? {
+        block_id: blockedDate.block_id,
+        full_day: blockedDate.full_day,
+        start_time: blockedDate.start_time,
+        end_time: blockedDate.end_time,
+        workshop_id: blockedDate.workshop_id,
+        reason: blockedDate.reason
+      } : null,
+      error: blockedError?.message
+    });
 
     if (blockedError) {
       console.error('Error fetching blocked dates:', blockedError.message);
@@ -1509,6 +1531,17 @@ function generateTimeSlots(
     // Verificar si el slot está bloqueado
     const isBlocked = isTimeBlocked(timeStr, blockedDate);
     
+    console.log('🔒 Verificación de bloqueo para slot:', {
+      slot: timeStr,
+      isBlocked,
+      blockedDate: blockedDate ? {
+        full_day: blockedDate.full_day,
+        start_time: blockedDate.start_time,
+        end_time: blockedDate.end_time,
+        reason: blockedDate.reason
+      } : null
+    });
+    
     // Verificar capacidad total del día
     const totalMinutesAvailable = (closingMinutes - openingMinutes) * maxSimultaneous;
     const totalMinutesBooked = appointments.reduce((total, app) => {
@@ -1743,8 +1776,14 @@ function generateTimeSlots(
 
 // Función para verificar si un horario está bloqueado
 function isTimeBlocked(time: string, blockedDate: any) {
-  if (!blockedDate || blockedDate.full_day) {
-    return blockedDate ? true : false;
+  // Si no hay bloqueo configurado, no está bloqueado
+  if (!blockedDate) {
+    return false;
+  }
+  
+  // Si es bloqueo de día completo, está bloqueado
+  if (blockedDate.full_day) {
+    return true;
   }
   
   // Si no hay start_time o end_time, no está bloqueado por rango
@@ -1757,7 +1796,20 @@ function isTimeBlocked(time: string, blockedDate: any) {
   const startMinutes = timeToMinutes(blockedDate.start_time);
   const endMinutes = timeToMinutes(blockedDate.end_time);
   
-  return timeMinutes >= startMinutes && timeMinutes <= endMinutes;
+  const isBlocked = timeMinutes >= startMinutes && timeMinutes <= endMinutes;
+  
+  console.log('🔍 isTimeBlocked detallado:', {
+    time,
+    timeMinutes,
+    start_time: blockedDate.start_time,
+    startMinutes,
+    end_time: blockedDate.end_time,
+    endMinutes,
+    isBlocked,
+    condition: `${timeMinutes} >= ${startMinutes} && ${timeMinutes} <= ${endMinutes}`
+  });
+  
+  return isBlocked;
 }
 
 
