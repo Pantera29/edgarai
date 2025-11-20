@@ -129,6 +129,14 @@ export default function BlockDateDialog({
     }
   }, [open, editingBlock, selectedDate]);
 
+  // Función auxiliar para convertir tiempo a minutos (acepta formato HH:mm o HH:mm:ss)
+  const timeToMinutes = (timeStr: string): number => {
+    // Normalizar el formato: convertir HH:mm a HH:mm:00 si es necesario
+    const normalized = timeStr.length === 5 ? `${timeStr}:00` : timeStr;
+    const [hours, minutes] = normalized.split(':').map(Number);
+    return hours * 60 + minutes;
+  };
+
   const validateSchedule = () => {
     console.log('Iniciando validación de horario:', {
       date,
@@ -164,18 +172,35 @@ export default function BlockDateDialog({
         closingTime: currentSchedule.closing_time
       });
 
+      // Convertir todos los tiempos a minutos para comparación correcta
+      const inicioMinutes = timeToMinutes(horaInicio);
+      const finMinutes = timeToMinutes(horaFin);
+      const openingMinutes = timeToMinutes(currentSchedule.opening_time);
+      const closingMinutes = timeToMinutes(currentSchedule.closing_time);
+
+      console.log('Comparación de tiempos en minutos:', {
+        inicioMinutes,
+        finMinutes,
+        openingMinutes,
+        closingMinutes,
+        inicioValido: inicioMinutes >= openingMinutes,
+        finValido: finMinutes <= closingMinutes
+      });
+
       // Validar que las horas estén dentro del horario de operación
-      if (horaInicio < currentSchedule.opening_time || horaFin > currentSchedule.closing_time) {
+      if (inicioMinutes < openingMinutes || finMinutes > closingMinutes) {
         console.log('Validación fallida: Horario fuera de rango');
+        const openingFormatted = currentSchedule.opening_time.slice(0, 5);
+        const closingFormatted = currentSchedule.closing_time.slice(0, 5);
         toast({
           title: "¡Error!",
-          description: `El horario seleccionado (${horaInicio} - ${horaFin}) está fuera del horario permitido para ese día: ${currentSchedule.opening_time.slice(0, 5)} - ${currentSchedule.closing_time.slice(0, 5)}. Por favor selecciona un rango dentro del horario operativo.`,
+          description: `El horario seleccionado (${horaInicio} - ${horaFin}) está fuera del horario permitido para ese día: ${openingFormatted} - ${closingFormatted}. Por favor selecciona un rango dentro del horario operativo.`,
           variant: "destructive"
         });
         return false;
       }
 
-      if (horaInicio >= horaFin) {
+      if (inicioMinutes >= finMinutes) {
         console.log('Validación fallida: Hora de inicio mayor o igual a hora de fin');
         toast({
           title: "¡Error!",
